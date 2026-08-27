@@ -1,0 +1,12 @@
+node_modules/
+.dsh-skill-trace/
+coverage/
+*.log
+.DS_Store
+
+# Internal research, personal validation evidence, and generated design assets.
+# These stay local and are intentionally excluded from the public preview repo.
+/.audit/
+/00_原型方案/
+/specs/
+/[0-9][0-9]-*.md

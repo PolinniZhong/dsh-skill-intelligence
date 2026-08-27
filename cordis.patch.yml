@@ -1,0 +1,4 @@
+# DSH Skill Trace bundle: independent Host observer and conversation view.
+- insert:
+    - id: dsh-skill-trace
+      name: 'dsh-skill-trace'
