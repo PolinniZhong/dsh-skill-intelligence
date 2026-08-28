@@ -40,7 +40,7 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追�
 
 “我的 Skill”是当前 Agent Preset 作用域内的只读学习索引和待回看工作台，可搜索名称、声明简介以及用户自己填写的理解、验证计划和人工结果，并区分真实收据、会话理解、待回看、已记录验证结果、暂未观测、历史候选和版本变化。Skill 详情按原收据创建时间保留每次会话的理解、验证计划与人工验证结果；后续编辑不会把旧会话移动到今天，也不会自动合并成“当前正确理解”。它不是 Skill 管理器，不会安装、卸载、同步或更新任何 Skill。
 
-尚未选择左侧 Skill 时，右侧会显示一条七步使用路径：观察加载请求 → 形成真实收据 → 用地图看顺序 → 找到对应 Skill → 写下个人理解 → 判断如何手工延续 → 复测后记录人工结果。看过某个 Skill 后，可通过目录摘要旁的“使用指南”再次打开。它解释产品怎样工作和用户下一步能做什么，不使用演示收据冒充真实数据，也不把“看过界面”写成“已经学会”。
+尚未选择左侧 Skill 时，右侧会以一句价值说明、七步使用路径和一条合并边界说明产品怎样工作：观察加载请求 → 形成真实收据 → 用地图看顺序 → 找到对应 Skill → 写下个人理解 → 判断如何手工延续 → 复测后记录人工结果。看过某个 Skill 后，可通过目录摘要旁的“使用指南”再次打开。导览不使用演示收据冒充真实数据，也不把“看过界面”写成“已经学会”。
 
 ![我的 Skill：按可发现状态、真实收据和会话理解筛选](docs/images/my-skills-catalog.jpg)
 
@@ -65,7 +65,7 @@ flowchart LR
 ### 1. 通过 GitHub 试用版安装
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.3&path:/"
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.4&path:/"
 ```
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。

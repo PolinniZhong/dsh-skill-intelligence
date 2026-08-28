@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0-beta.4 — 2026-08-28
+
+- Distills the My Skills no-selection guide to one value statement, the existing seven-step path, and one consolidated evidence boundary.
+- Removes repeated outcome summaries, eyebrow copy, boxed footer instructions, and the redundant review-workspace annotation without changing navigation or stored data.
+- Keeps the evidence-to-learning sequence, DSH locale switching, verified-receipt entry point, and narrow-layout behavior intact.
+
 ## 0.4.0-beta.3 — 2026-08-28
 
 - Replaces the unverifiable WebView Blob download with Host-owned, atomically written and read-back-verified local backup files.
