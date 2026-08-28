@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-trace",
-  "version": "0.3.0-beta.1",
+  "version": "0.4.0-beta.3",
   "type": "module",
   "description": "Local-first Skill load evidence, learning cards, and iteration preparation for DeepSeek Harness",
   "license": "MIT",
@@ -33,7 +33,8 @@
       "platform": "web",
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-locale"
       ]
     }
   },

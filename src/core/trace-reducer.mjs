@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto'
 
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 const DEPENDENCY_TYPES = ['network', 'model', 'mcp', 'script', 'permission']
 const CONTINUITY_STATUSES = ['unassessed', 'manual', 'partial', 'blocked']
 const LEARNING_FIELDS = ['understanding', 'improvementIntent', 'validationPlan']
+const VALIDATION_STATUSES = ['met', 'not-met', 'inconclusive']
 
 function cleanString(value, maxLength = 160) {
   if (typeof value !== 'string') return ''
@@ -63,12 +64,12 @@ function hasSensitiveLearningContent(value) {
     || /(?:api[_ -]?key|access[_ -]?token|cookie|password)\s*[:=]\s*["']?[A-Za-z0-9_./+-]{8,}/i.test(value)
 }
 
-function safeLearningText(value, { strict = true } = {}) {
-  if (strict && typeof value === 'string' && value.trim().length > 500) throw new Error('学习笔记单项不能超过 500 字')
+function safeLearningText(value, { strict = true, label = '学习笔记' } = {}) {
+  if (strict && typeof value === 'string' && value.trim().length > 500) throw new Error(`${label}单项不能超过 500 字`)
   const text = cleanString(value, 500)
   if (!text) return ''
   if (hasSensitiveLearningContent(text)) {
-    if (strict) throw new Error('学习笔记不能包含绝对路径、带凭据链接或密钥值')
+    if (strict) throw new Error(`${label}不能包含绝对路径、带凭据链接或密钥值`)
     return ''
   }
   return text
@@ -85,6 +86,28 @@ function normalizeLearningNote(value, { strict = false } = {}) {
     ...fields,
     authorship: 'human',
     updatedAt: Number.isSafeInteger(value.updatedAt) ? value.updatedAt : Date.now(),
+  }
+}
+
+function normalizeValidationResult(value, { strict = false } = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const skillName = safeSkillName(value.skillName)
+  if (!skillName) return null
+  const status = VALIDATION_STATUSES.includes(value.status) ? value.status : ''
+  const observedOutcome = safeLearningText(value.observedOutcome, { strict, label: '验证结果' })
+  const nextAction = safeLearningText(value.nextAction, { strict, label: '验证结果' })
+  if (strict && !status) throw new Error('验证结果状态无效')
+  if (strict && !observedOutcome) throw new Error('实际观察不能为空')
+  if (!status || !observedOutcome) return null
+  const updatedAt = Number.isSafeInteger(value.updatedAt) ? value.updatedAt : Date.now()
+  return {
+    skillName,
+    status,
+    observedOutcome,
+    nextAction,
+    authorship: 'human',
+    validatedAt: Number.isSafeInteger(value.validatedAt) ? value.validatedAt : updatedAt,
+    updatedAt,
   }
 }
 
@@ -255,6 +278,7 @@ export function emptyReceipt(sessionId, now = Date.now()) {
     },
     outputReferences: [],
     learningNotes: [],
+    validationResults: [],
     continuity: {
       status: 'unassessed',
       reviewState: 'candidate',
@@ -293,6 +317,9 @@ export function migrateReceipt(value, sessionId) {
   const learningNotes = Array.isArray(value.learningNotes)
     ? value.learningNotes.map((note) => normalizeLearningNote(note)).filter((note) => note && loadedSkillNames.has(note.skillName))
     : []
+  const validationResults = Array.isArray(value.validationResults)
+    ? value.validationResults.map((result) => normalizeValidationResult(result)).filter((result) => result && loadedSkillNames.has(result.skillName))
+    : []
   return {
     ...base,
     updatedAt: Number.isSafeInteger(value.updatedAt) ? value.updatedAt : createdAt,
@@ -302,6 +329,7 @@ export function migrateReceipt(value, sessionId) {
     humanAssessment: value.humanAssessment && typeof value.humanAssessment === 'object' ? value.humanAssessment : base.humanAssessment,
     outputReferences: Array.isArray(value.outputReferences) ? value.outputReferences : [],
     learningNotes,
+    validationResults,
     continuity: automaticContinuity(traceEvents, value.continuity),
   }
 }
@@ -428,6 +456,7 @@ export function rebuildReceipt(sessionId, events, previous = null) {
     humanAssessment: manual.humanAssessment ?? receipt.humanAssessment,
     outputReferences: Array.isArray(manual.outputReferences) ? manual.outputReferences : [],
     learningNotes: Array.isArray(manual.learningNotes) ? manual.learningNotes : [],
+    validationResults: Array.isArray(manual.validationResults) ? manual.validationResults : [],
     sourceSnapshots: Array.isArray(manual.sourceSnapshots) ? manual.sourceSnapshots : [],
     continuity: automaticContinuity(traceEvents, manual.continuity),
   }
@@ -481,6 +510,29 @@ export function setLearningNote(receipt, skillName, values, now = Date.now()) {
   }
 }
 
+export function setValidationResult(receipt, skillName, values, now = Date.now()) {
+  const name = safeSkillName(skillName)
+  if (!name || !receipt.traceEvents.some((trace) => trace.skillName === name && trace.status === 'loaded')) {
+    throw new Error('只能为本次成功加载的 Skill 保存验证结果')
+  }
+  const remaining = (receipt.validationResults ?? []).filter((item) => item.skillName !== name)
+  if (values?.status === 'unassessed') {
+    return { ...receipt, updatedAt: now, validationResults: remaining }
+  }
+  const existing = (receipt.validationResults ?? []).find((item) => item.skillName === name)
+  const result = normalizeValidationResult({
+    skillName: name,
+    ...(values ?? {}),
+    validatedAt: existing?.validatedAt ?? now,
+    updatedAt: now,
+  }, { strict: true })
+  return {
+    ...receipt,
+    updatedAt: now,
+    validationResults: [...remaining, result],
+  }
+}
+
 export function addOutputReference(receipt, relativeRef, now = Date.now()) {
   const value = cleanString(relativeRef, 240)
   if (!value) throw new Error('输出引用不能为空')
@@ -488,16 +540,31 @@ export function addOutputReference(receipt, relativeRef, now = Date.now()) {
     throw new Error('只允许工作区内的相对引用')
   }
   if (receipt.outputReferences.some((item) => item.relativeRef === value)) return receipt
+  const nextId = receipt.outputReferences.reduce((highest, item) => {
+    const match = /^output:(\d+)$/.exec(item.outputId)
+    return Math.max(highest, match ? Number(match[1]) : 0)
+  }, 0) + 1
   return {
     ...receipt,
     updatedAt: now,
     outputReferences: [...receipt.outputReferences, {
-      outputId: `output:${receipt.outputReferences.length + 1}`,
+      outputId: `output:${nextId}`,
       kind: 'local-relative-ref',
       relativeRef: value,
       linkedBy: 'human',
       confirmedAt: now,
     }],
+  }
+}
+
+export function removeOutputReference(receipt, outputId, now = Date.now()) {
+  const value = cleanString(outputId, 80)
+  if (!/^output:\d+$/.test(value)) throw new Error('outputId 无效')
+  if (!receipt.outputReferences.some((item) => item.outputId === value)) throw new Error('输出引用不存在')
+  return {
+    ...receipt,
+    updatedAt: now,
+    outputReferences: receipt.outputReferences.filter((item) => item.outputId !== value),
   }
 }
 
@@ -531,6 +598,7 @@ function buildLearningCards(receipt, methods, events) {
       })),
       evidenceState: steps.length > 0 ? 'structured-candidate' : 'no-structured-steps',
       note: (receipt.learningNotes ?? []).find((item) => item.skillName === method.name) ?? null,
+      validationResult: (receipt.validationResults ?? []).find((item) => item.skillName === method.name) ?? null,
       limitations: [
         '候选步骤来自本次返回的 Skill 指令，不代表 Agent 已经执行。',
         '版本比较只说明正文 Hash 是否相同，不证明 Skill 的作者、质量或安全性。',
@@ -645,6 +713,7 @@ export function buildViewModels(receipt) {
     continuity: receipt.continuity,
     learningCards,
     learningNotes: receipt.learningNotes ?? [],
+    validationResults: receipt.validationResults ?? [],
     sourceSnapshots: receipt.sourceSnapshots ?? [],
   }
   return {

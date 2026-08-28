@@ -13,6 +13,16 @@ function observedHashes(events) {
     .filter((value) => typeof value === 'string'))]
 }
 
+function userSearchText(note, validationResult) {
+  return [
+    note?.understanding,
+    note?.improvementIntent,
+    note?.validationPlan,
+    validationResult?.observedOutcome,
+    validationResult?.nextAction,
+  ].filter((value) => typeof value === 'string' && value.trim()).join('\n')
+}
+
 export function buildHistorySummaries(receipts) {
   const histories = []
   for (const receipt of receipts) {
@@ -22,6 +32,7 @@ export function buildHistorySummaries(receipts) {
       const successful = loadedEvents(receipt, skillName)
       const source = (receipt.sourceSnapshots ?? []).find((item) => item.skillName === skillName)
       const note = (receipt.learningNotes ?? []).find((item) => item.skillName === skillName)
+      const validationResult = (receipt.validationResults ?? []).find((item) => item.skillName === skillName)
       const identities = successful.map((event) => event.runtimeIdentity).filter((identity) => identity?.provider && identity?.sourceFingerprint)
       const uniqueIdentities = [...new Map(identities.map((identity) => [`${identity.provider}:${identity.sourceFingerprint}`, identity])).values()]
       const completeSingleIdentity = successful.length > 0 && identities.length === successful.length && uniqueIdentities.length === 1
@@ -29,6 +40,7 @@ export function buildHistorySummaries(receipts) {
         receiptId: receipt.receiptId,
         sessionId: receipt.sessionId,
         skillName,
+        sessionAt: safeTime(receipt.createdAt) ?? safeTime(receipt.updatedAt),
         updatedAt: safeTime(receipt.updatedAt),
         eventCount: events.length,
         loadedCount: successful.length,
@@ -44,10 +56,15 @@ export function buildHistorySummaries(receipts) {
         versionState: source?.match === 'mismatch' ? 'changed' : source?.match === 'match' ? 'match' : 'unavailable',
         learningNotePresent: Boolean(note),
         learningNoteUpdatedAt: safeTime(note?.updatedAt),
+        validationPlanPresent: Boolean(note?.validationPlan),
+        validationResultPresent: Boolean(validationResult),
+        validationStatus: validationResult?.status ?? null,
+        validationUpdatedAt: safeTime(validationResult?.updatedAt),
+        pendingReview: Boolean(note?.validationPlan) && !validationResult,
       })
     }
   }
-  return histories.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+  return histories.sort((a, b) => (b.sessionAt ?? 0) - (a.sessionAt ?? 0))
 }
 
 export function associationLevel(current, history, currentInstructionSha256 = null) {
@@ -86,9 +103,14 @@ function aggregateEntry(current, histories, currentInstructionSha256 = null, cat
     conflictCount: conflicts.length,
     confirmedLearningCount: exact.filter((item) => item.learningNotePresent).length,
     possibleLearningCount: candidates.filter((item) => item.learningNotePresent).length,
+    confirmedPendingReviewCount: exact.filter((item) => item.pendingReview).length,
+    possiblePendingReviewCount: candidates.filter((item) => item.pendingReview).length,
+    confirmedValidationCount: exact.filter((item) => item.validationResultPresent).length,
+    possibleValidationCount: candidates.filter((item) => item.validationResultPresent).length,
     observedState: exact.length ? 'observed' : candidates.length ? 'possible-history' : 'not-observed',
     learningState: exact.some((item) => item.learningNotePresent) ? 'has-learning' : candidates.some((item) => item.learningNotePresent) ? 'possible-learning' : 'no-learning',
     versionState: exact.some((item) => item.versionState === 'changed') ? 'changed' : exact.some((item) => item.versionState === 'match') ? 'match' : 'unavailable',
+    latestHistoryAt: related[0]?.sessionAt ?? null,
     histories: related,
   }
 }
@@ -108,16 +130,32 @@ function historicalEntry(skillName, histories, groupKey) {
     conflictCount: 0,
     confirmedLearningCount: 0,
     possibleLearningCount: related.filter((item) => item.learningNotePresent).length,
+    confirmedPendingReviewCount: 0,
+    possiblePendingReviewCount: related.filter((item) => item.pendingReview).length,
+    confirmedValidationCount: 0,
+    possibleValidationCount: related.filter((item) => item.validationResultPresent).length,
     observedState: related.length ? 'possible-history' : 'not-observed',
     learningState: related.some((item) => item.learningNotePresent) ? 'possible-learning' : 'no-learning',
     versionState: 'unavailable',
-    latestHistoryAt: related[0]?.updatedAt ?? null,
+    latestHistoryAt: related[0]?.sessionAt ?? null,
     histories: related,
   }
 }
 
-export function buildCatalogView({ catalogSnapshot, receipts, selectedSkillName = '', selectedEntryId = '', selectedDefinition = null, warningCount = 0 }) {
+export function buildCatalogView({ catalogSnapshot, receipts, selectedSkillName = '', selectedEntryId = '', selectedDefinition = null, warningCount = 0, searchQuery = '' }) {
   const histories = buildHistorySummaries(receipts)
+  const userTextByHistory = new Map()
+  for (const receipt of receipts) {
+    const names = new Set([
+      ...(receipt.learningNotes ?? []).map((item) => item.skillName),
+      ...(receipt.validationResults ?? []).map((item) => item.skillName),
+    ].filter(Boolean))
+    for (const skillName of names) {
+      const note = (receipt.learningNotes ?? []).find((item) => item.skillName === skillName)
+      const validationResult = (receipt.validationResults ?? []).find((item) => item.skillName === skillName)
+      userTextByHistory.set(`${receipt.sessionId}\u0000${skillName}`, userSearchText(note, validationResult))
+    }
+  }
   const currentSkills = catalogSnapshot.skills ?? []
   const currentNames = new Set(currentSkills.map((item) => item.name))
   const entries = currentSkills.map((current) => aggregateEntry(
@@ -144,6 +182,12 @@ export function buildCatalogView({ catalogSnapshot, receipts, selectedSkillName 
     return a.name.localeCompare(b.name, 'en')
   })
   const selected = entries.find((item) => selectedEntryId ? item.id === selectedEntryId : item.name === selectedSkillName) ?? null
+  const normalizedQuery = typeof searchQuery === 'string' ? searchQuery.trim().toLocaleLowerCase() : ''
+  const searchMatchEntryIds = entries.filter((entry) => {
+    if (!normalizedQuery) return true
+    const userText = entry.histories.map((history) => userTextByHistory.get(`${history.sessionId}\u0000${history.skillName}`)).filter(Boolean).join('\n')
+    return `${entry.name} ${entry.description || ''} ${userText}`.toLocaleLowerCase().includes(normalizedQuery)
+  }).map((entry) => entry.id)
   return {
     coverage: {
       status: catalogSnapshot.status,
@@ -153,6 +197,7 @@ export function buildCatalogView({ catalogSnapshot, receipts, selectedSkillName 
     },
     currentDiscoverableCount: catalogSnapshot.complete === true ? currentSkills.length : null,
     observedCandidateCount: currentSkills.length,
+    searchMatchEntryIds,
     entries: entries.map(({ histories: _histories, ...entry }) => entry),
     selected: selected ? {
       ...selected,

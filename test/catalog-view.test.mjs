@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { associationLevel, buildCatalogView } from '../src/core/catalog-view.mjs'
-import { emptyReceipt, rebuildReceipt, reduceSessionEvent, setLearningNote, setTraceRuntimeIdentity } from '../src/core/trace-reducer.mjs'
+import { associationLevel, buildCatalogView, buildHistorySummaries } from '../src/core/catalog-view.mjs'
+import { emptyReceipt, rebuildReceipt, reduceSessionEvent, setLearningNote, setTraceRuntimeIdentity, setValidationResult } from '../src/core/trace-reducer.mjs'
 
 function receiptFor(sessionId, name = 'demo-skill') {
   const events = [
@@ -92,4 +92,63 @@ test('current Skills sharing one provider source still receive unique entry ids'
     receipts: [],
   })
   assert.notEqual(catalog.entries[0].id, catalog.entries[1].id)
+})
+
+test('catalog derives pending review and recorded validation without changing association evidence', () => {
+  let pending = receiptFor('session-pending')
+  pending = setTraceRuntimeIdentity(pending, pending.traceEvents[0].eventId, { provider: 'filesystem', sourceFingerprint: current.sourceFingerprint, capturedAt: 2 }, 3)
+  pending = setLearningNote(pending, 'demo-skill', { validationPlan: '复测边界输入。' }, 4)
+  const first = buildCatalogView({
+    catalogSnapshot: { status: 'complete', complete: true, observedAt: 5, skills: [current] },
+    receipts: [pending],
+    selectedSkillName: 'demo-skill',
+  })
+  assert.equal(first.entries[0].confirmedPendingReviewCount, 1)
+  assert.equal(first.entries[0].confirmedValidationCount, 0)
+  assert.equal(first.selected.histories[0].associationLevel, 'exact')
+  assert.equal(first.selected.histories[0].pendingReview, true)
+
+  const recorded = setValidationResult(pending, 'demo-skill', { status: 'not-met', observedOutcome: '边界输入仍未被拦截。' }, 6)
+  const second = buildCatalogView({
+    catalogSnapshot: { status: 'complete', complete: true, observedAt: 7, skills: [current] },
+    receipts: [recorded],
+    selectedSkillName: 'demo-skill',
+  })
+  assert.equal(second.entries[0].confirmedPendingReviewCount, 0)
+  assert.equal(second.entries[0].confirmedValidationCount, 1)
+  assert.equal(second.selected.histories[0].validationStatus, 'not-met')
+  assert.equal(second.selected.histories[0].associationLevel, 'exact')
+})
+
+test('history chronology stays anchored to the original receipt time after validation edits', () => {
+  let older = receiptFor('session-older')
+  older = setLearningNote(older, 'demo-skill', { validationPlan: '复测边界输入。' }, 100)
+  older = setValidationResult(older, 'demo-skill', { status: 'inconclusive', observedOutcome: '仍需补充样本。' }, 200)
+  const newer = { ...receiptFor('session-newer'), createdAt: 2, updatedAt: 2 }
+  const histories = buildHistorySummaries([older, newer])
+  assert.deepEqual(histories.map((item) => item.sessionId), ['session-newer', 'session-older'])
+  assert.equal(histories.find((item) => item.sessionId === 'session-older').sessionAt, 1)
+  assert.equal(histories.find((item) => item.sessionId === 'session-older').updatedAt, 200)
+})
+
+test('catalog search matches bounded user records without exposing their text in list or history projections', () => {
+  let receipt = receiptFor('session-search')
+  receipt = setLearningNote(receipt, 'demo-skill', { understanding: '先检查拓扑再继续', validationPlan: '复测遮挡边界' }, 3)
+  receipt = setValidationResult(receipt, 'demo-skill', { status: 'met', observedOutcome: '遮挡边界通过', nextAction: '继续检查载体分离' }, 4)
+  const catalog = buildCatalogView({
+    catalogSnapshot: { status: 'complete', complete: true, observedAt: 5, skills: [current] },
+    receipts: [receipt],
+    selectedSkillName: 'demo-skill',
+    searchQuery: '载体分离',
+  })
+  assert.deepEqual(catalog.searchMatchEntryIds, [catalog.entries[0].id])
+  assert.equal(JSON.stringify(catalog.entries).includes('载体分离'), false)
+  assert.equal(JSON.stringify(catalog.selected.histories).includes('载体分离'), false)
+  assert.equal(JSON.stringify(buildHistorySummaries([receipt])).includes('载体分离'), false)
+  const noMatch = buildCatalogView({
+    catalogSnapshot: { status: 'complete', complete: true, observedAt: 5, skills: [current] },
+    receipts: [receipt],
+    searchQuery: '不存在的关键词',
+  })
+  assert.deepEqual(noMatch.searchMatchEntryIds, [])
 })

@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   addOutputReference,
+  removeOutputReference,
   buildViewModels,
   emptyReceipt,
   migrateReceipt,
@@ -9,6 +10,7 @@ import {
   reduceSessionEvent,
   setContinuityDecision,
   setLearningNote,
+  setValidationResult,
   setTraceRuntimeIdentity,
   setSourceSnapshots,
 } from '../src/core/trace-reducer.mjs'
@@ -41,7 +43,7 @@ test('pairs a native skill call and successful result without storing body text'
   receipt = reduceSessionEvent(receipt, skillCall())
   receipt = reduceSessionEvent(receipt, skillResult())
   assert.equal(receipt.traceEvents.length, 1)
-  assert.equal(receipt.schemaVersion, 4)
+  assert.equal(receipt.schemaVersion, 5)
   assert.equal(receipt.traceEvents[0].status, 'loaded')
   assert.equal(receipt.traceEvents[0].consumer, 'skill-tool')
   assert.equal(receipt.traceEvents[0].consumerIdentity, 'unavailable')
@@ -123,7 +125,7 @@ test('migrates stored schema 1 coverage without inventing missing evidence', () 
     traceEvents: [{ eventId: 'old:1', sessionId, skillName: 'old-skill', status: 'loaded', consumer: 'dsh-tool-skill' }],
   }
   const receipt = migrateReceipt(old, sessionId)
-  assert.equal(receipt.schemaVersion, 4)
+  assert.equal(receipt.schemaVersion, 5)
   assert.equal(receipt.coverage.status, 'verified-standard-contract')
   assert.deepEqual(receipt.coverage.verifiedConsumers, ['@deepseek-ai/dsh-tool-skill@0.1.1-rc.2', 'dsh-skillflux@0.2.0#962264b'])
   assert.equal(receipt.traceEvents[0].consumer, 'skill-tool')
@@ -229,6 +231,15 @@ test('output references reject absolute, remote, and parent paths', () => {
   }
 })
 
+test('output references can be removed without reusing an existing id', () => {
+  let receipt = addOutputReference(emptyReceipt(sessionId), 'docs/one.md', 1)
+  receipt = addOutputReference(receipt, 'docs/two.md', 2)
+  receipt = removeOutputReference(receipt, 'output:1', 3)
+  receipt = addOutputReference(receipt, 'docs/three.md', 4)
+  assert.deepEqual(receipt.outputReferences.map((item) => item.outputId), ['output:2', 'output:3'])
+  assert.throws(() => removeOutputReference(receipt, 'output:99'), /不存在/)
+})
+
 test('builds isolated learning cards for each successfully loaded Skill', () => {
   const events = [
     skillCall({ seq: 10, callId: 'a-1', name: 'skill-a', turn: 1, step: 1 }),
@@ -294,4 +305,46 @@ test('clearing all learning fields removes the local note', () => {
   receipt = setLearningNote(receipt, 'skill-a', { understanding: 'temporary' }, 3000)
   receipt = setLearningNote(receipt, 'skill-a', { understanding: '', improvementIntent: '', validationPlan: '' }, 4000)
   assert.deepEqual(receipt.learningNotes, [])
+})
+
+test('stores a bounded human validation result and restores it through rebuild', () => {
+  const events = [skillCall({ name: 'skill-a' }), skillResult()]
+  let receipt = rebuildReceipt(sessionId, events)
+  receipt = setLearningNote(receipt, 'skill-a', { validationPlan: '用缺失输入复测。' }, 3000)
+  receipt = setValidationResult(receipt, 'skill-a', {
+    status: 'met',
+    observedOutcome: '缺失输入被明确拦截。',
+    nextAction: '再补一个边界案例。',
+  }, 4000)
+  assert.deepEqual(receipt.validationResults[0], {
+    skillName: 'skill-a',
+    status: 'met',
+    observedOutcome: '缺失输入被明确拦截。',
+    nextAction: '再补一个边界案例。',
+    authorship: 'human',
+    validatedAt: 4000,
+    updatedAt: 4000,
+  })
+  receipt = rebuildReceipt(sessionId, events, receipt)
+  assert.equal(receipt.validationResults[0].status, 'met')
+  assert.equal(buildViewModels(receipt).receipt.learningCards[0].validationResult.observedOutcome, '缺失输入被明确拦截。')
+})
+
+test('validation results require observed load evidence, status and safe human text', () => {
+  const receipt = rebuildReceipt(sessionId, [skillCall({ name: 'skill-a' }), skillResult()])
+  assert.throws(() => setValidationResult(receipt, 'skill-b', { status: 'met', observedOutcome: 'ok' }), /成功加载/)
+  assert.throws(() => setValidationResult(receipt, 'skill-a', { status: 'invalid', observedOutcome: 'ok' }), /状态无效/)
+  assert.throws(() => setValidationResult(receipt, 'skill-a', { status: 'met', observedOutcome: '' }), /实际观察不能为空/)
+  assert.throws(() => setValidationResult(receipt, 'skill-a', { status: 'met', observedOutcome: '查看 \/Users/example/private/result' }), /绝对路径/)
+  assert.throws(() => setValidationResult(receipt, 'skill-a', { status: 'met', observedOutcome: 'x'.repeat(501) }), /500 字/)
+})
+
+test('clearing a validation result keeps the learning note and original receipt', () => {
+  let receipt = rebuildReceipt(sessionId, [skillCall({ name: 'skill-a' }), skillResult()])
+  receipt = setLearningNote(receipt, 'skill-a', { validationPlan: '复测一次。' }, 3000)
+  receipt = setValidationResult(receipt, 'skill-a', { status: 'inconclusive', observedOutcome: '样本不足。' }, 4000)
+  receipt = setValidationResult(receipt, 'skill-a', { status: 'unassessed' }, 5000)
+  assert.deepEqual(receipt.validationResults, [])
+  assert.equal(receipt.learningNotes[0].validationPlan, '复测一次。')
+  assert.equal(receipt.traceEvents.length, 1)
 })

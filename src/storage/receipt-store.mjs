@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -28,13 +28,34 @@ export function createReceiptStore(root = defaultRoot()) {
     async write(receipt) {
       await mkdir(root, { recursive: true, mode: 0o700 })
       const target = receiptFile(root, receipt.sessionId)
-      const temporary = `${target}.${process.pid}.tmp`
-      await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
-      await rename(temporary, target)
+      const temporary = `${target}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`
+      try {
+        await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
+        await rename(temporary, target)
+      } catch (error) {
+        await rm(temporary, { force: true }).catch(() => {})
+        throw error
+      }
       return receipt
     },
     async delete(sessionId) {
       await rm(receiptFile(root, sessionId), { force: true })
+    },
+    async clear() {
+      let files
+      try {
+        files = await readdir(root)
+      } catch (error) {
+        if (error?.code === 'ENOENT') return 0
+        throw error
+      }
+      let removed = 0
+      for (const file of files) {
+        if (!/^[a-f0-9]{64}\.json$/.test(file)) continue
+        await rm(join(root, file), { force: true })
+        removed += 1
+      }
+      return removed
     },
     async list() {
       let files
