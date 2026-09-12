@@ -17,7 +17,7 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追�
 | 项目 | 说明 |
 | --- | --- |
 | 插件名称 | `dsh-skill-trace` |
-| 适配平台 | DeepSeek Harness `web` Profile / Desktop（当前已在 DSH Desktop `0.8.3` 与 runtime `0.1.1-rc.2` 基线验证） |
+| 适配平台 | DeepSeek Harness `web` Profile / Desktop（当前运行基线：DSH Desktop `0.11.3` / runtime `0.1.5-rc.2`；此前基线验证于 Desktop `0.8.3` / runtime `0.1.1-rc.2`） |
 | 解决的问题 | Agent 加载了什么 Skill、何时加载、声明如何运行、我能否手动延续，都缺少用户可读的证据 |
 | 核心界面 | **Skill 收据**、**流程地图**、**我的 Skill** |
 | 证据范围 | 观测 `skill(name)` 的调用/结果；区分请求、成功、失败、未知与人工判断 |

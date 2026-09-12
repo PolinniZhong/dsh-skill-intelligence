@@ -304,7 +304,7 @@ window.__ModuleLoader__.load({
     }
 
     function installStyles() {
-      if (document.getElementById(STYLE_ID)) return () => {}
+      const previous = document.getElementById(STYLE_ID)
       const style = document.createElement('style')
       style.id = STYLE_ID
       style.textContent = `
@@ -336,8 +336,11 @@ window.__ModuleLoader__.load({
         @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.st-trace-state-dot{animation:none!important}}
         .st-session-chip{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2,rgba(22,27,36,.14));border-radius:999px;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#626871);font-size:11px;white-space:nowrap}.st-session-chip svg{color:var(--dsw-alias-state-business-primary,var(--dsw-static-deepseek-500,#3567d6))}
       `
-      document.head.appendChild(style)
-      return () => style.remove()
+      if (previous) previous.replaceWith(style)
+      else document.head.appendChild(style)
+      return () => {
+        if (document.getElementById(STYLE_ID) === style) style.remove()
+      }
     }
 
     async function api(path, options = {}) {

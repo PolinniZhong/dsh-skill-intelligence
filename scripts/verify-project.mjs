@@ -73,6 +73,8 @@ for (const requiredText of [
   '回看工作台',
   'function CatalogGuide()',
   'st-catalog-guide',
+  'if (previous) previous.replaceWith(style)',
+  'if (document.getElementById(STYLE_ID) === style) style.remove()',
   'st-guide-link',
   '打开 Skill Trace 使用指南',
   '把一次 Skill 使用，变成可回看的学习记录',
@@ -109,6 +111,7 @@ for (const requiredText of [
 }
 if (client.includes('Promise.all([buildReceipt') || client.includes('generateImage')) throw new Error('dual view must not generate duplicate analyses')
 if (client.includes('window.confirm(')) throw new Error('destructive actions must use inline confirmation')
+if (client.includes('if (document.getElementById(STYLE_ID)) return () => {}')) throw new Error('stylesheet lifecycle must not leave a newer client instance without ownership')
 if (/\.slice\(0,\s*4\)/.test(client)) throw new Error('trace views must not silently cap Skill events at four')
 if (client.includes('人工反馈') || client.includes("api('/assessment'")) throw new Error('feedback UI must remain absent until a real receiving loop exists')
 for (const supersededText of ['Skill 方法追踪', '方法收据', '方法地图', '方法加载结果', '方法延续卡', '本次运行概要']) {

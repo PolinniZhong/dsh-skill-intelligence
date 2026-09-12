@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0-beta.5 — 2026-08-28
+
+- Makes the client stylesheet hot-reload safe: each new client instance atomically replaces the prior style node and only removes the style it still owns.
+- Prevents an older plugin instance from stripping styles after a newer instance has mounted, which previously left receipt content rendered with browser-default controls and exposed SVG markers.
+- Changes no receipt evidence, local learning data, backup contents, Host API, or persistence behavior.
+
 ## 0.4.0-beta.4 — 2026-08-28
 
 - Distills the My Skills no-selection guide to one value statement, the existing seven-step path, and one consolidated evidence boundary.
