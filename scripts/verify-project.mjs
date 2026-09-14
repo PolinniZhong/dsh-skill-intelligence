@@ -119,9 +119,10 @@ for (const supersededText of ['Skill 方法追踪', '方法收据', '方法地�
 }
 
 const host = await readFile(resolve(root, 'src/dsh/host/index.js'), 'utf8')
-for (const requiredText of ['preferenceStore.read()', "'/skill-trace/preferences'", 'preferenceStore.write', 'shouldPersistReceipt', 'syncReceipt', 'store.prune', 'store.list()', 'store.clear()', "'/skill-trace/learning-note'", "'/skill-trace/validation-result'", "'/skill-trace/catalog'", "'/skill-trace/history-receipt'", "'/skill-trace/backups'", "'/skill-trace/backups/preview'", "'/skill-trace/backups/restore'", "'/skill-trace/receipts'", 'createVerifiedBackup', 'buildLocalArchive', 'mergeMissingReceiptData', 'createSessionMutationQueue', 'runMaintenance', 'restoreMissingReceipts(archive.receipts, store, cache, enqueue)', 'agentPresets?.serviceFor', 'scope: liveAgent', 'setLearningNote', 'setValidationResult']) {
+for (const requiredText of ['preferenceStore.read()', "'/skill-trace/preferences'", 'preferenceStore.write', 'shouldPersistReceipt', 'syncReceipt', 'store.prune', 'store.list()', 'store.clear()', "'/skill-trace/learning-note'", "'/skill-trace/validation-result'", "'/skill-trace/catalog'", "'/skill-trace/history-receipt'", "'/skill-trace/backups'", "'/skill-trace/backups/preview'", "'/skill-trace/backups/restore'", "'/skill-trace/receipts'", 'createVerifiedBackup', 'buildLocalArchive', 'mergeMissingReceiptData', 'createSessionMutationQueue', 'runMaintenance', 'restoreMissingReceipts(archive.receipts, store, cache, enqueue)', 'agentPresets?.serviceFor', 'scope: liveAgent', 'setLearningNote', 'setValidationResult', 'sessionEventLog(session)', 'session.snapshotEvents()']) {
   if (!host.includes(requiredText)) throw new Error(`preference persistence contract missing: ${requiredText}`)
 }
+if (host.includes('rebuildReceipt(sessionId, session.events')) throw new Error('host must rebuild from the live session log, not the removed session.events field')
 if (host.includes("'/skill-trace/assessment'")) throw new Error('assessment route must remain absent until a real receiving loop exists')
 
 const reducer = await readFile(resolve(root, 'src/core/trace-reducer.mjs'), 'utf8')

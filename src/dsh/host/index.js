@@ -24,6 +24,16 @@ export const name = 'dsh-skill-trace'
 // Catalog projection keeps original receipt chronology; later local edits only change updatedAt.
 const OBSERVED_EVENT_TYPES = new Set(['step/start', 'step/end', 'turn/end', 'tool/call', 'tool/result'])
 
+// DSH exposes a live session's durable log through `session.snapshotEvents()`.
+// The older `session.events` field it replaced is gone by runtime 0.1.2-rc.1, and
+// reading it silently yielded `undefined`, so every rebuild produced an empty
+// receipt. Accept both spellings so a runtime rename can never blank the views.
+export function sessionEventLog(session) {
+  if (typeof session?.snapshotEvents === 'function') return session.snapshotEvents()
+  if (Array.isArray(session?.events)) return session.events
+  return []
+}
+
 function sendJson(res, status, body) {
   const payload = JSON.stringify(body)
   res.writeHead(status, {
@@ -367,7 +377,7 @@ export function apply(ctx, config = {}) {
         cache.set(sessionId, receipt)
         return receipt
       }
-      let receipt = rebuildReceipt(sessionId, session.events, previous)
+      let receipt = rebuildReceipt(sessionId, sessionEventLog(session), previous)
       const { registry, liveAgent, cwd } = registryContext(sessionId)
       if (registry) {
         const sourceSnapshots = await buildSourceSnapshots(registry, receipt, cwd, { scope: liveAgent })
@@ -406,7 +416,7 @@ export function apply(ctx, config = {}) {
       const sessionId = String(session.id)
       return enqueue(sessionId, async () => {
         const previous = await load(sessionId)
-        let receipt = rebuildReceipt(sessionId, session.events, previous)
+        let receipt = rebuildReceipt(sessionId, sessionEventLog(session), previous)
         const previousLoaded = new Set((previous.traceEvents ?? []).filter((trace) => trace.status === 'loaded').map((trace) => trace.eventId))
         const newTraces = receipt.traceEvents.filter((trace) => trace.status === 'loaded' && !previousLoaded.has(trace.eventId))
         receipt = await captureRuntimeIdentity(receipt, sessionId, newTraces)
