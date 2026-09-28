@@ -246,8 +246,24 @@ export function computeRuntimeLayout(graph, options = {}) {
     if (entry.kind === 'invocation') return entry.source?.turn ?? 'none'
     return entry.synthetic?.turn ?? 'none'
   }
+  /**
+   * 一个受害者可能本身就是分组。此时必须记录**它内部的调用 id**，而不是分组的 id——
+   * 分组随后就被删掉了，记它的 id 等于把成员链断在这里。
+   *
+   * 实测一个 39 Turns 的会话：修复前 14 个 overflow 分组里有 **24 个成员引用指向已删分组**
+   * （断链），修复后为 0。溢出分组是靠 memberIds 说明"我代表了哪些调用"的，断链会让
+   * Inspector 报出无法解释的成员。
+   *
+   * **注意：这不是"运行流程里看不到 Skill"的原因。** 修好之后 Skill 仍然不可达——它在
+   * 到达这个循环之前就已经不在 view 里了，具体位置尚未查明（见 CHANGELOG beta.42）。
+   */
+  const expandMembers = (id, entry) => {
+    const nested = entry?.synthetic?.memberIds
+    return Array.isArray(nested) && nested.length ? nested : [id]
+  }
   const mergeInto = (turn, victims, label) => {
     for (const [id] of victims) view.delete(id)
+    const mergedMemberIds = victims.flatMap(([id, entry]) => expandMembers(id, entry))
     const overflowId = `overflow:${turn}`
     view.set(overflowId, {
       kind: 'group',
@@ -261,8 +277,8 @@ export function computeRuntimeLayout(graph, options = {}) {
         sublabel: turn === 'none' ? '未归属调用合并' : `Turn ${turn} 内合并`,
         status: 'partial',
         collapsed: true,
-        memberIds: victims.map(([id]) => id),
-        memberCount: victims.length,
+        memberIds: mergedMemberIds,
+        memberCount: mergedMemberIds.length,
       },
     })
     overflowNodes.push(overflowId)
