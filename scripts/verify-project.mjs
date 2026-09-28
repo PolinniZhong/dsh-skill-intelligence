@@ -36,7 +36,7 @@ for (const requiredText of [
   "view === 'receipt'",
   '当前对话暂未加载可追踪的 Skill。',
   '暂时无法确认当前对话是否加载了 Skill。',
-  "'data-simple': (view !== 'receipt')",
+  "'data-simple': 'true'",
   'method.callCount',
   'model.events',
   "api('/preferences'",
@@ -483,9 +483,12 @@ for (const requiredText of [
   }
   if (!/不评分|Scored: false/.test(panel)) throw new Error('the declaration panel must state that scoring is off')
 }
-// §14: the learning rail is not pinned beside a runtime canvas.
-if (!client.includes("data && hasTrace && view === 'receipt' ? h('aside'")) {
-  throw new Error('the learning rail must not be fixed beside the runtime canvas (§14)')
+// §14/§17.1: learning and validation are a section inside the receipt, not a rail.
+if (client.includes("h('aside', { className: 'st-aside' }")) {
+  throw new Error('the learning rail must not be pinned as a side column (§14)')
+}
+if (!client.includes("h('div', { className: 'st-panels' }, h(Aside,")) {
+  throw new Error('learning and validation must live inside the receipt flow (§17.1)')
 }
 if (!client.includes('alignments: data.views.receipt.runtime.alignments')) {
   throw new Error('the inspector must receive the declaration baseline')
@@ -534,6 +537,18 @@ if (!client.includes('function ReplayControls')) throw new Error('the canvas mus
   }
 }
 
+// §17/§18: the receipt is a set of sections, not a numbered wizard.
+if (client.includes("st-section-number' }, '1'")) {
+  throw new Error('the receipt must not use numbered step circles (§17.2)')
+}
+for (const requiredText of ['function ReceiptSection', 'st-run-line', "'运行摘要'", "'Skill 加载证据'", "'候选依赖'", "'Skill 声明'", "'学习与验证'"]) {
+  if (!client.includes(requiredText)) throw new Error(`receipt governance missing: ${requiredText}`)
+}
+// §17.1: every part can be folded, so a long receipt stays navigable.
+if (!client.includes("h('details', { className: 'st-section'")) {
+  throw new Error('receipt sections must be collapsible (§17.1)')
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -575,3 +590,4 @@ console.log('RUNTIME_FLOW_READONLY_OK')
 console.log('ELK_LAYOUT_BOUNDED_OK')
 console.log('CONTEXTUAL_INSPECTOR_OK')
 console.log('REPLAY_READ_ONLY_OK')
+console.log('RECEIPT_SECTIONS_OK')

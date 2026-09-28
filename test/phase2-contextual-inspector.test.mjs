@@ -163,12 +163,15 @@ test('§16 an unlinkable Skill explains itself rather than guessing', () => {
   assert.match(panel, /与其猜一个|Rather than guess/)
 })
 
-test('§14 the learning rail is not pinned beside a runtime canvas', () => {
-  // It may only appear on the receipt view, where recording a note is the task.
-  assert.ok(client.includes("data && hasTrace && view === 'receipt' ? h('aside'"),
-    'the learning rail must be limited to the receipt view')
-  const railLine = client.slice(client.indexOf("data && hasTrace && view === 'receipt' ? h('aside'"), client.indexOf('\n', client.indexOf("data && hasTrace && view === 'receipt' ? h('aside'")))
-  assert.equal(railLine.includes("view !== 'runtime'"), false)
+test('§14 the learning rail is not pinned beside anything', () => {
+  // It is not a column any more: §17.1 puts learning and validation inside the
+  // receipt flow, so nothing competes with the evidence for attention.
+  assert.equal(client.includes("h('aside', { className: 'st-aside' }"), false,
+    'the learning rail must not be rendered as a side column')
+  assert.ok(client.includes("h('div', { className: 'st-panels' }, h(Aside,"),
+    'learning and validation must render inside the receipt flow')
+  // The layout is single-track for every view.
+  assert.ok(client.includes("'data-simple': 'true'"))
 })
 
 test('the inspector receives the declaration baseline and the load index', () => {
