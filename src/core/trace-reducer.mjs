@@ -17,6 +17,7 @@ import {
   upgradeRuntimeEvents,
 } from './runtime-events.mjs'
 import { buildRuntimeGraph } from './runtime-graph.mjs'
+import { DECLARATION_STEP_LIMIT, buildAlignment, extractDeclarationSteps } from './runtime-alignment.mjs'
 
 // `classifyCapability` is re-exported so the classification contract keeps one
 // implementation and one import path for consumers already using the reducer.
@@ -236,19 +237,20 @@ function safeStepText(value) {
 }
 
 function extractContinuityCandidate(skillName, instructions) {
-  const steps = []
-  for (const line of instructions.split(/\r?\n/)) {
-    const match = line.match(/^\s{0,3}\d{1,2}[.)]\s+(.+)$/)
-    const title = safeStepText(match?.[1])
-    if (!title || steps.some((item) => item.title === title)) continue
-    steps.push({
-      order: steps.length + 1,
-      title,
-      skillName,
-      evidenceType: 'ordered-list-candidate',
+  // Dual channel: headings describe a declared process far more faithfully than
+  // stray numbered lists, which in real Skills are usually conditional branches.
+  // The channel and rule that produced each step ride along so the declaration
+  // stays auditable, and so alignment can map a step onto a runtime surface.
+  const extraction = extractDeclarationSteps(instructions)
+  const steps = extraction.steps
+    .map((step) => {
+      const title = safeStepText(step.title)
+      return title ? { order: 0, title, skillName, kind: step.kind, evidenceType: step.evidenceType } : null
     })
-    if (steps.length >= 5) break
-  }
+    .filter(Boolean)
+    .filter((step, index, all) => all.findIndex((other) => other.title === step.title) === index)
+    .slice(0, DECLARATION_STEP_LIMIT)
+    .map((step, index) => ({ ...step, order: index + 1 }))
 
   const dependencyMatchers = {
     network: /https?:\/\/|\b(?:network|online|web search|browse|curl|fetch)\b|联网|网络|浏览器|搜索网页/i,
@@ -265,7 +267,7 @@ function extractContinuityCandidate(skillName, instructions) {
     }))
     .map((type) => ({ type, evidenceType: 'keyword-signal' }))
 
-  return { steps, dependencySignals }
+  return { steps, dependencySignals, extractionChannel: extraction.channel, extractionNote: extraction.note }
 }
 
 function automaticContinuity(traceEvents, previous = null) {
@@ -1085,6 +1087,10 @@ export function buildViewModels(receipt) {
       // payload until the canvas phase asks for them; the graph itself is derived
       // and never persisted.
       graph: buildRuntimeGraph(receipt).stats,
+      // Declaration ↔ Runtime alignment, one entry per loaded Skill. Counts of
+      // evidence states only — never a compliance rate.
+      alignments: [...new Set(events.filter((event) => event.status === 'loaded').map((event) => event.name))]
+        .map((skillName) => buildAlignment(receipt, skillName)),
       invocationTypes: Object.fromEntries(INVOCATION_TYPES.map((type) => [
         type,
         events.filter((event) => event.invocationType === type).length,

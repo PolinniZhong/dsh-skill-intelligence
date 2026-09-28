@@ -91,6 +91,40 @@ Node `status` is evidence completeness (`observed` / `partial` / `unlinked`), no
 
 The graph is a pure function of the receipt: the same receipt always yields the same graph, and nothing in it depends on a viewport, a zoom level, or a previous layout. It is derived on read and never persisted.
 
+## Declaration ↔ Runtime Alignment
+
+`src/core/runtime-alignment.mjs` puts what a Skill declared next to what the run left evidence for. Three commitments hold:
+
+1. **No score.** Counts of evidence states are reported; compliance rates, percentages, and rankings are not. `scored: false` rides on every model, and a verify guard pins the absence of scoring fields.
+2. **Absence of evidence is not evidence of absence.** A declared step with no matching evidence is `insufficient`, never "not done". `not-observed` is deliberately absent from the vocabulary, because no amount of missing data can establish that an Agent skipped a step. Much of what a Skill asks for — deciding, weighing, planning — leaves no external trace.
+3. **Direct evidence is not generic evidence.** A `bash` call proves a command ran; it cannot prove the test step ran, because tool arguments are not stored. A step whose only match is a catch-all capability is `partial`.
+
+### Declaration extraction
+
+Two channels, with headings preferred:
+
+| Channel | When it applies |
+| --- | --- |
+| `heading` | A level-3+ heading inside a process section, or any heading carrying its own ordinal. A level-2 heading that *opens* a process section names the section and is not itself a step. |
+| `ordered-list` | A numbered item inside a process-ish section, or any numbered item in a body with no level-2 sections at all. |
+
+Precision is preferred over recall. A Skill whose body lists constraints under `## 硬约束` and keeps its real process in a referenced file genuinely declares no steps *here*; it reports `numbered-items-outside-a-process-section` rather than promoting its constraints into an alignment. The section, the channel, and the reason nothing was declared all ride along so the declaration stays auditable.
+
+Both sides are mapped into one shared vocabulary — `inspect`, `edit`, `execute`, `delegate`, `consult`, `produce`, `plan`, `other` — by deterministic keyword and tool-name rules. Classification is coarse by design and never rewrites the declaration.
+
+### Evidence states
+
+| Status | Means |
+| --- | --- |
+| `observed` | A direct, settled invocation matches the declared step. |
+| `partial` | Only a catch-all capability matched, or the matching invocation never settled. |
+| `insufficient` | No matching evidence was found. **This does not mean the step was skipped.** |
+| `unknown` | There was no runtime evidence to align against at all. |
+
+Every item carries `observedNodeIds`, `evidenceIds`, `matchedCapabilities`, and a `limitation` sentence stating what its status does and does not mean. A citation is a pointer, not a dump: lists are bounded samples while `matchCount` reports the true total.
+
+The declaration baseline is the durable published catalog. `inPublishedCatalog` distinguishes a Skill that was offered to the model from one loaded anyway by a user-explicit `/name` gesture, and reports `null` — not `false` — when no catalog was published at all.
+
 ## Main modules
 
 | Module | Responsibility |
@@ -99,6 +133,7 @@ The graph is a pure function of the receipt: the same receipt always yields the 
 | `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence |
 | `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations (Phase 1) |
 | `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships (Phase 2) |
+| `src/core/runtime-alignment.mjs` | Aligns declared Skill steps with runtime evidence; never scores and never claims a step was skipped (Phase 3) |
 | `src/core/source-snapshot.mjs` | Creates safe source identity/snapshot metadata |
 | `src/core/catalog-view.mjs` | Projects receipt, note, pending-review, validation-result, local search, and review-priority data into the read-only My Skills workspace |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |

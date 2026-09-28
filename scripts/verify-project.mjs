@@ -233,6 +233,36 @@ if (/data\.label|\.label\b/.test(runtimeModel.replace(/\/\*[\s\S]*?\*\//g, '').r
   throw new Error('the subagent catalog label is caller text and must not be read')
 }
 
+// Phase 3 Declaration <-> Runtime Alignment. Two promises are pinned here: the
+// alignment cannot express "the Agent skipped this", and it cannot produce a score.
+const alignmentModel = await readFile(resolve(root, 'src/core/runtime-alignment.mjs'), 'utf8')
+for (const requiredText of [
+  'export function buildAlignment',
+  'export function extractDeclarationSteps',
+  "export const ALIGNMENT_STATUSES = ['observed', 'partial', 'insufficient', 'unknown']",
+  "export const STEP_EXTRACTION_CHANNELS = ['heading', 'ordered-list']",
+  'scored: false',
+  '证据不足不等于 Agent 没有执行该步骤',
+]) {
+  if (!alignmentModel.includes(requiredText)) throw new Error(`phase 3 alignment contract missing: ${requiredText}`)
+}
+{
+  const statusLine = alignmentModel.split('\n').find((line) => line.startsWith('export const ALIGNMENT_STATUSES'))
+  for (const forbidden of ['not-observed', 'not_observed', 'skipped', 'not-done']) {
+    if (statusLine.includes(forbidden)) throw new Error(`the alignment must not claim a step was skipped: ${forbidden}`)
+  }
+  const code = alignmentModel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  for (const forbidden of ['complianceRate', 'compliance_rate', 'percent', 'ranking', 'followedRate']) {
+    if (code.includes(forbidden)) throw new Error(`the alignment must not score a Skill: ${forbidden}`)
+  }
+  // Headings must outrank stray numbered lists, or real constraint lists get
+  // relabelled as a declared process.
+  if (!alignmentModel.includes('headingCount ? \'heading\'')) {
+    throw new Error('the heading channel must outrank the ordered-list fallback')
+  }
+}
+if (!reducer.includes("from './runtime-alignment.mjs'")) throw new Error('the reducer must consume the alignment model')
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -266,3 +296,4 @@ console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')
 console.log('OBSERVATION_SURFACE_OK')
 console.log('RUNTIME_MODEL_OK')
 console.log('CORRELATION_PROVENANCE_OK')
+console.log('ALIGNMENT_NO_SCORE_OK')
