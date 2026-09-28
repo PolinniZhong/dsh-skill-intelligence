@@ -129,6 +129,13 @@ const reducer = await readFile(resolve(root, 'src/core/trace-reducer.mjs'), 'utf
 for (const requiredText of ['methodCount:', 'eventCount:', 'methods,', 'events,', 'turnDetails,', 'summary,', ": 'mixed'", 'learningCards', 'learningNotes', 'validationResults', 'setValidationResult', 'buildLearningCards']) {
   if (!reducer.includes(requiredText)) throw new Error(`projection contract missing: ${requiredText}`)
 }
+// Session format V4 retired the `tool-result` wrapper and lifted a tool result into a
+// first-class `tool` message. A reader that matches only the V3 wrapper returns no
+// content while still reporting `loaded`, which silently drops the instruction
+// fingerprint, the candidate steps, and version-drift detection.
+if (!reducer.includes("block?.type === 'tool-result'") || !reducer.includes('?? message')) {
+  throw new Error('tool result reader must accept both the retired V3 tool-result wrapper and the first-class V4 tool message')
+}
 
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
@@ -159,3 +166,4 @@ console.log('CLIENT_DUAL_VIEW_CONTRACT_OK')
 console.log('SOURCE_PRIVACY_FIELDS_OK')
 console.log('LOCAL_LEARNING_LOOP_OK')
 console.log('MY_SKILL_READ_ONLY_CATALOG_OK')
+console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')

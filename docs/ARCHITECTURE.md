@@ -20,10 +20,11 @@ DSH event stream
 ## Evidence model
 
 1. A matching `tool/call` and successful `tool/result` is recorded as a requested, successful load.
-2. The reducer can associate repeated loads and multiple Skills in the same session.
-3. A load record is not upgraded into proof of compliance, causal contribution, correctness, or usefulness.
-4. The user may separately write an understanding, an improvement intent, and a next validation plan. Those fields are personal notes, not model judgments.
-5. The user may later record whether that plan met expectations, what they observed, and what to do next. This is a human-authored validation result attached to the original session receipt, not a quality score or causal proof.
+2. The result payload is read from either session format the runtime can produce. V3 wrapped a tool result in exactly one `tool-result` block inside a `user` message; V4 lifts it into a first-class `tool` message and retires that wrapper, so the content, `toolCallId`, and `isError` live on the message itself. Reading only the V3 spelling made every V4 result look empty while the record still claimed `loaded`, which silently dropped the instruction fingerprint, the candidate steps, and version-drift detection.
+3. The reducer can associate repeated loads and multiple Skills in the same session.
+4. A load record is not upgraded into proof of compliance, causal contribution, correctness, or usefulness.
+5. The user may separately write an understanding, an improvement intent, and a next validation plan. Those fields are personal notes, not model judgments.
+6. The user may later record whether that plan met expectations, what they observed, and what to do next. This is a human-authored validation result attached to the original session receipt, not a quality score or causal proof.
 
 ## Main modules
 
@@ -95,3 +96,5 @@ The grid viewport can expand beyond the map's fixed coordinate system. A 1000px 
 ## Compatibility boundary
 
 The preview was exercised against a specific DSH Desktop/runtime baseline. DSH event schemas and consumer integrations may evolve. Any upgrade must re-check the `skill(name)` call/result pairing, session persistence, restart recovery, empty state, and host non-interference before it is claimed compatible.
+
+One such change already landed. The DSH session format V3 → V4 migration retired the `tool-result` wrapper block and lifted a tool result into a first-class `tool` message. Because the observer had matched only the V3 wrapper, sessions migrated to V4 recorded loads with no readable result: the instruction fingerprint, candidate steps, and version-drift detection were empty while the receipt still reported `loaded`. `test/session-format-v4-contract.test.mjs` now pins both spellings and is built from a captured V4 event, and `scripts/verify-project.mjs` rejects a return to V3-only matching. Prefer a captured real event over a hand-written fixture when pinning any event shape: the earlier fixtures encoded the V3 wrapper, which is why a green suite did not catch the break.

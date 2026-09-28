@@ -122,10 +122,23 @@ function parseArguments(value) {
   }
 }
 
+// Returns the object that carries a tool result's content, for either session
+// format this observer can meet:
+//
+//   - V3 wrapped the result in exactly one `tool-result` block, so the content
+//     lives on that block.
+//   - V4 lifted the result into a first-class `tool` message and retired the
+//     wrapper entirely, so the content lives directly on `data.message`.
+//
+// Reading only the V3 spelling made every V4 result look empty while still
+// being reported as a successful load, which silently dropped the instruction
+// fingerprint, the candidate steps, and version-drift detection.
 function resultBlock(event) {
-  const content = event?.data?.message?.content
+  const message = event?.data?.message
+  if (!message || typeof message !== 'object') return null
+  const content = message.content
   if (!Array.isArray(content)) return null
-  return content.find((block) => block?.type === 'tool-result') ?? null
+  return content.find((block) => block?.type === 'tool-result') ?? message
 }
 
 function safeErrorCode(value) {
