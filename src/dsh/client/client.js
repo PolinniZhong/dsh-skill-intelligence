@@ -371,7 +371,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-side{position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-flow-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 9px;color:var(--st-muted);font-size:11px}
       .st-flow-head strong{color:var(--st-text);font-size:12px}
-      .st-flow-legend{position:absolute;left:14px;bottom:14px;z-index:6;display:flex;gap:12px;padding:7px 10px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 95%,transparent);color:var(--st-muted);font-size:10.5px;box-shadow:0 4px 12px rgba(23,33,48,.08)}
+      .st-flow-legend{position:absolute;right:14px;top:14px;z-index:6;display:flex;gap:12px;padding:7px 10px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 95%,transparent);color:var(--st-muted);font-size:10.5px;box-shadow:0 4px 12px rgba(23,33,48,.08)}
       .st-flow-legend span{display:inline-flex;align-items:center;gap:5px}
       .st-flow-legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
       .st-flow-node{position:relative;display:flex;flex-direction:column;width:var(--st-node-width,190px);border:1px solid var(--st-border);border-radius:11px;background:var(--st-layer);box-shadow:0 4px 12px rgba(23,33,48,.045);overflow:hidden;cursor:pointer}
@@ -1743,7 +1743,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const evidencePanel = h('div', null,
       isEdge ? h('div', { className: 'st-rt-field' }, h('span', null, '两端'), h('strong', null, `${data.edge.from.label} → ${data.edge.to.label}`)) : null,
       data.ruleName ? h('div', { className: 'st-rt-field' }, h('span', null, '具名规则'), h('strong', null, data.ruleName)) : null,
-      h('div', { className: 'st-rt-field st-rt-why' }, h('span', null, localized('这条线为什么存在', 'Why this exists')), h('p', null, data.meaning)),
+      h('div', { className: 'st-rt-field st-rt-why' }, h('span', null, isEdge ? localized('这条线为什么存在', 'Why this line exists') : localized('它为什么在这里', 'Why this is here')), h('p', null, data.meaning)),
       h('div', { className: 'st-rt-field st-rt-limit' }, h('span', null, localized('它不表示什么', 'What it does not claim')), h('p', null, data.limit)),
       node?.collapsed ? h('div', { className: 'st-rt-field' },
         h('span', null, '折叠节点'),
