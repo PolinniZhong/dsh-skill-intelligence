@@ -36,7 +36,7 @@ for (const requiredText of [
   "view === 'receipt'",
   '当前对话暂未加载可追踪的 Skill。',
   '暂时无法确认当前对话是否加载了 Skill。',
-  "'data-simple': (!hasTrace && view !== 'runtime') || view === 'runtime'",
+  "'data-simple': (view !== 'receipt')",
   'method.callCount',
   'model.events',
   "api('/preferences'",
@@ -317,7 +317,7 @@ if (!inspectorModel.includes("limit: entry?.limit ??")) {
 for (const requiredText of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", 'computeRuntimeLayout(graph)', 'inspectRuntimeEdge', 'inspectRuntimeNode']) {
   if (!host.includes(requiredText)) throw new Error(`phase 4 route missing from host: ${requiredText}`)
 }
-for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'rtEdgePath', 'data.node.memberCount']) {
+for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'rtEdgePath', 'memberCount']) {
   if (!client.includes(requiredText)) throw new Error(`phase 4 canvas missing from client: ${requiredText}`)
 }
 // The client draws positions it was handed. If it ever computed them, the layout
@@ -456,6 +456,41 @@ if (!elkLayout.includes('catch (error)')) throw new Error('the ELK path must deg
 if (!host.includes('await computeRuntimeLayoutWithElk')) throw new Error('the runtime route must offer the ELK-assisted layout')
 if (!client.includes("data-engine")) throw new Error('the client must report which layout engine ran')
 
+// Contextual Inspector (§14), per-type tabs (§15) and 声明 ↔ 实际 (§16).
+const alignment = await readFile(resolve(root, 'src/core/runtime-alignment.mjs'), 'utf8')
+if (!alignment.includes('export function buildSkillLoadIndex')) {
+  throw new Error('the Skill load join must live on the Host, not in the UI')
+}
+// An ambiguous join must be dropped, never resolved to the nearest candidate.
+if (!alignment.includes('if (hits.length !== 1) continue')) {
+  throw new Error('an ambiguous Skill load must be left unlinked rather than guessed')
+}
+for (const requiredText of [
+  'INSPECTOR_TAB_LABELS',
+  'DeclarationPanel',
+  "tabs.includes(tab) ? tab : tabs[0]",
+  '不评分',
+]) {
+  if (!client.includes(requiredText)) throw new Error(`contextual inspector contract missing: ${requiredText}`)
+}
+// §16: the declaration surface may never grow a score.
+{
+  const panel = client.slice(client.indexOf('function DeclarationPanel'), client.indexOf('function inspectorStatusColor'))
+  for (const forbidden of ['遵循率', '百分比', '排名', 'score:', 'percent', 'complianceRate']) {
+    if (panel.includes(forbidden) && !panel.includes(`没有遵循率`)) {
+      throw new Error(`the declaration panel must not score a Skill: ${forbidden}`)
+    }
+  }
+  if (!/不评分|Scored: false/.test(panel)) throw new Error('the declaration panel must state that scoring is off')
+}
+// §14: the learning rail is not pinned beside a runtime canvas.
+if (!client.includes("data && hasTrace && view === 'receipt' ? h('aside'")) {
+  throw new Error('the learning rail must not be fixed beside the runtime canvas (§14)')
+}
+if (!client.includes('alignments: data.views.receipt.runtime.alignments')) {
+  throw new Error('the inspector must receive the declaration baseline')
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -495,3 +530,4 @@ console.log('SESSION_LOG_RECOVERY_OK')
 console.log('CLIENT_BUNDLE_CONTRACT_OK')
 console.log('RUNTIME_FLOW_READONLY_OK')
 console.log('ELK_LAYOUT_BOUNDED_OK')
+console.log('CONTEXTUAL_INSPECTOR_OK')

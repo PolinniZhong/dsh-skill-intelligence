@@ -21,6 +21,7 @@ import { buildRuntimeGraph } from '../../core/runtime-graph.mjs'
 import { computeRuntimeLayout } from '../../core/runtime-layout.mjs'
 import { computeRuntimeLayoutWithElk } from '../../core/runtime-layout-elk.mjs'
 import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
+import { buildSkillLoadIndex } from '../../core/runtime-alignment.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
@@ -572,6 +573,10 @@ export function apply(ctx, config = {}) {
               // ELK orders within each layer while it is affordable; the placer keeps
               // the geometry so height stays bounded. Which engine ran is reported.
               layout: await computeRuntimeLayoutWithElk(graph, { includeMemberIds: false, includeHiddenIds: false }),
+              // Which call loaded which Skill. Derived here, on the Host, because the
+              // Skill name never comes from tool arguments; the graph node only ever
+              // says "skill". Only unambiguous joins are reported.
+              skillLoads: buildSkillLoadIndex(receipt, graph),
             })
             return
           }

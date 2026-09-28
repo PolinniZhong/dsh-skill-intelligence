@@ -9,7 +9,7 @@
 // Never point `exports['./client']` at this file: the shell reads the client entry
 // verbatim and does not bundle it.
   const React = require('react')
-const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
+const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-flow.js')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -395,6 +395,15 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
       .st-flow-node-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;font-size:9.5px;color:var(--st-faint)}
       .st-flow-node-status{display:inline-flex;align-items:center;gap:3px;font-weight:600}
       .st-flow-handle{width:5px;height:5px;border:0;background:var(--st-node-color);opacity:.55}
+      .st-rt-tabs{display:flex;gap:2px;margin:0 0 10px;padding:2px;border:1px solid var(--st-border);border-radius:7px;background:var(--st-layer-2)}
+      .st-rt-tab{flex:1;min-height:26px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);font-size:10.5px;cursor:pointer}
+      .st-rt-tab[aria-selected="true"]{background:var(--st-layer);color:var(--st-brand);font-weight:600}
+      .st-rt-align{margin:0;padding:0;list-style:none;display:grid;gap:7px}
+      .st-rt-align li{padding:7px 8px;border:1px solid var(--st-border-soft);border-radius:7px}
+      .st-rt-align strong{display:block;margin:2px 0 3px;font-size:11.5px;line-height:1.4}
+      .st-rt-align-head{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px}
+      .st-rt-align-status{display:inline-flex;align-items:center;gap:3px;font-weight:650}
+      .st-rt-align-limit{margin:0;color:var(--st-faint);font-size:10px;line-height:1.5}
       .react-flow__attribution{display:none}
       @media(max-width:1050px){.st-flow{grid-template-columns:minmax(0,1fr)}.st-flow-side{position:static;max-height:none}.st-flow-canvas{height:60dvh}}
       .st-rt-legend span{display:inline-flex;align-items:center;gap:4px}
@@ -1467,8 +1476,84 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
     const mid = (edge.x1 + edge.x2) / 2
     return `M ${edge.x1} ${edge.y1} C ${mid} ${edge.y1}, ${mid} ${edge.y2}, ${edge.x2} ${edge.y2}`
   }
+  /** §15: the tabs offered depend on what is selected, not one shape for everything. */
+  const INSPECTOR_TAB_LABELS = {
+    evidence: '运行证据',
+    relations: '关联关系',
+    declaration: '声明 ↔ 实际',
+    relation: '关系证据',
+  }
 
-  function RuntimeInspector({ data, loading, error, onSelectEdge, onClose }) {
+  /** §16: what a declaration note means, in the only vocabulary allowed here. */
+  const DECLARATION_NOTE_TEXT = {
+    'numbered-items-outside-a-process-section': '该 Skill 的正文把编号条目写在非流程章节下（如"硬约束"），流程本身在别处；把那些条目当成步骤会是错误标注，因此不抽取。',
+    'no-declared-process': '该 Skill 的正文没有声明可抽取的流程步骤。',
+    'no-instructions': '没有读到该 Skill 的正文。',
+  }
+
+  /**
+   * 声明 ↔ 实际 (§16).
+   *
+   * The whole point is what is *not* here: no compliance rate, no percentage, no
+   * skill score. Only the evidence state of each declared step, and the sentence
+   * saying what that state does and does not mean.
+   */
+  function DeclarationPanel({ alignment, load }) {
+    if (!load) {
+      return h('div', null,
+        h('p', { className: 'st-rt-notes' }, localized(
+          '这次调用无法唯一对应到一次 Skill 加载记录（例如用户以 /名称 直接加载时不会产生工具调用），因此不能确定它声明了什么。与其猜一个，这里留空。',
+          'This call cannot be tied to exactly one Skill load, so what it declared is unknown. Rather than guess, this is left empty.')))
+    }
+    if (!alignment) {
+      return h('div', null,
+        h('p', { className: 'st-rt-kicker' }, raw(load.skillName)),
+        h('p', { className: 'st-rt-notes' }, localized('这次加载没有留下可对齐的声明步骤。', 'This load left no declarable steps to align against.')))
+    }
+    const declaration = alignment.declaration
+    return h('div', null,
+      h('p', { className: 'st-rt-kicker' }, localized(
+        `${raw(alignment.skillName)} · 声明 ${declaration.stepCount} 步 · 抽取通道 ${declaration.channel ?? '无'}`,
+        `${raw(alignment.skillName)} · ${declaration.stepCount} declared step(s) · channel ${declaration.channel ?? 'none'}`)),
+      declaration.note ? h('p', { className: 'st-rt-notes' }, DECLARATION_NOTE_TEXT[declaration.note] ?? declaration.note) : null,
+      declaration.inPublishedCatalog === false
+        ? h('p', { className: 'st-rt-notes' }, localized('这次加载不在已发布目录中——用户显式加载了一个未发布给模型的 Skill。', 'This load is not in the published catalog: a user-explicit load of a Skill not offered to the model.'))
+        : null,
+      alignment.items.length
+        ? h('ul', { className: 'st-rt-align' }, ...alignment.items.map((item) => h('li', { key: item.declarationStepId },
+          h('div', { className: 'st-rt-align-head' },
+            h('span', { className: 'st-rt-align-status', style: { color: inspectorStatusColor(item.status) } },
+              h('i', { 'aria-hidden': 'true' }, inspectorStatusGlyph(item.status)),
+              item.status),
+            h('code', null, item.kind)),
+          h('strong', null, item.title),
+          h('p', { className: 'st-rt-align-limit' }, item.limitation))))
+        : h('p', { className: 'st-rt-notes' }, localized('这次加载没有可抽取的声明步骤。', 'No declarable steps were extracted from this load.')),
+      h('p', { className: 'st-rt-notes' }, localized(
+        `证据状态计数：observed ${alignment.stats.observed} · partial ${alignment.stats.partial} · insufficient ${alignment.stats.insufficient} · unknown ${alignment.stats.unknown}。这里不评分——没有遵循率、百分比或排名。`,
+        `Evidence counts: observed ${alignment.stats.observed} · partial ${alignment.stats.partial} · insufficient ${alignment.stats.insufficient} · unknown ${alignment.stats.unknown}. Scored: false — no compliance rate, percentage or ranking.`)))
+  }
+
+  function inspectorStatusColor(status) {
+    return (STATUS_COLORS && STATUS_COLORS[status]) || '#94a3b8'
+  }
+
+  function inspectorStatusGlyph(status) {
+    return { observed: '●', partial: '◐', candidate: '◌', unknown: '○', unlinked: '◍', insufficient: '○', failed: '✕', success: '●' }[status] ?? '○'
+  }
+
+  /**
+   * §14: a contextual inspector.
+   *
+   * What it shows follows the selection — an edge is evidence for a relation, a
+   * Skill carries its declaration, anything else carries its relations. Nothing is
+   * fixed to the side of the page while the user is reading a run.
+   */
+  function RuntimeInspector({ data, loading, error, onSelectEdge, onClose, alignments, skillLoads }) {
+    const selectionKey = data?.edge?.id ?? data?.nodeId ?? ''
+    const [tab, setTab] = React.useState('')
+    React.useEffect(() => { setTab('') }, [selectionKey])
+
     if (loading) return h('aside', { className: 'st-rt-inspector' }, h('p', { className: 'st-rt-kicker' }, '正在读取依据…'))
     if (error) return h('aside', { className: 'st-rt-inspector' }, h('p', { className: 'st-rt-field' }, error))
     if (!data) return h('aside', { className: 'st-rt-inspector' },
@@ -1481,26 +1566,37 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
       h('button', { className: 'st-button', type: 'button', onClick: onClose }, '返回'))
 
     const isEdge = Boolean(data.edge)
+    const node = data.node
     const relations = Array.isArray(data.relations) ? data.relations : []
     const evidence = Array.isArray(data.evidence) ? data.evidence : []
-    return h('aside', { className: 'st-rt-inspector' },
-      h('h3', null, isEdge ? `关系 · ${data.edge.type}` : (data.node.label || data.node.id)),
-      h('p', { className: 'st-rt-kicker' }, isEdge
-        ? localized(`${data.edge.derivation} · ${data.edge.status}`, `${data.edge.derivation} · ${data.edge.status}`)
-        : localized(`${data.node.kind}${data.node.outcome ? ` · ${data.node.outcome}` : ''} · 证据 ${data.node.status}`, `${data.node.kind}${data.node.outcome ? ` · ${data.node.outcome}` : ''} · evidence ${data.node.status}`)),
+    const isSkill = !isEdge && node?.capabilityId === 'skill'
+    const load = isSkill ? (skillLoads ?? []).find((entry) => entry.nodeId === node.id) ?? null : null
+    const alignment = load ? (alignments ?? []).find((entry) => entry.skillName === load.skillName) ?? null : null
 
+    const tabs = isEdge ? ['relation'] : (isSkill ? ['evidence', 'declaration', 'relations'] : ['evidence', 'relations'])
+    const active = tabs.includes(tab) ? tab : tabs[0]
+
+    const evidencePanel = h('div', null,
       isEdge ? h('div', { className: 'st-rt-field' }, h('span', null, '两端'), h('strong', null, `${data.edge.from.label} → ${data.edge.to.label}`)) : null,
       data.ruleName ? h('div', { className: 'st-rt-field' }, h('span', null, '具名规则'), h('strong', null, data.ruleName)) : null,
       h('div', { className: 'st-rt-field st-rt-why' }, h('span', null, localized('这条线为什么存在', 'Why this exists')), h('p', null, data.meaning)),
       h('div', { className: 'st-rt-field st-rt-limit' }, h('span', null, localized('它不表示什么', 'What it does not claim')), h('p', null, data.limit)),
-
-      data.node?.collapsed ? h('div', { className: 'st-rt-field' },
+      node?.collapsed ? h('div', { className: 'st-rt-field' },
         h('span', null, '折叠节点'),
         h('p', null, localized(
-          `它代表 ${data.node.memberCount} 个节点${data.memberIds.length < data.node.memberCount ? `，此处列出其中 ${data.memberIds.length} 个` : ''}：${data.memberIds.slice(0, 4).map((id) => id.replace(/^invocation:/, '').slice(-8)).join('、')}${data.memberIds.length > 4 ? ' …' : ''}`,
-          `Stands for ${data.node.memberCount} node(s)${data.memberIds.length < data.node.memberCount ? `, ${data.memberIds.length} named here` : ''}`))) : null,
+          `它代表 ${node.memberCount} 个节点${data.memberIds.length < node.memberCount ? `，此处列出其中 ${data.memberIds.length} 个` : ''}：${data.memberIds.slice(0, 4).map((id) => id.replace(/^invocation:/, '').slice(-8)).join('、')}${data.memberIds.length > 4 ? ' …' : ''}`,
+          `Stands for ${node.memberCount} node(s)${data.memberIds.length < node.memberCount ? `, ${data.memberIds.length} named here` : ''}`))) : null,
+      h('div', { className: 'st-rt-field' },
+        h('span', null, localized(`支撑事件 ${evidence.length}${data.evidenceIds?.length > evidence.length ? ` / ${data.evidenceIds.length}` : ''}`, `Evidence ${evidence.length}`)),
+        evidence.length
+          ? h('ul', { className: 'st-rt-evidence' }, ...evidence.slice(0, 14).map((event) => h('li', { key: event.eventId },
+            h('span', null, event.type),
+            h('code', null, event.eventId.split(':re:')[1] ?? event.eventId.slice(-10)))))
+          : h('p', null, localized('没有可展示的事件', 'No events to show'))),
+      h('p', { className: 'st-rt-notes' }, data.evidenceBoundary?.note ?? ''))
 
-      relations.length ? h('div', null,
+    const relationsPanel = relations.length
+      ? h('div', null,
         h('p', { className: 'st-rt-kicker' }, localized(`关系 ${relations.length} 条`, `${relations.length} relation(s)`)),
         ...relations.slice(0, 12).map((relation, index) => h('button', {
           key: `${relation.edgeId}:${index}`,
@@ -1514,21 +1610,29 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
           h('span', null, relation.other.label),
           h('em', null, relation.status)),
         h('p', null, relation.meaning),
-        h('p', null, relation.limit)))) : null,
+        h('p', null, relation.limit))))
+      : h('p', { className: 'st-rt-notes' }, localized('这个节点没有可展示的关系。', 'This node has no relations to show.'))
 
-      h('div', { className: 'st-rt-field' },
-        h('span', null, localized(`支撑事件 ${evidence.length}${data.evidenceIds?.length > evidence.length ? ` / ${data.evidenceIds.length}` : ''}`, `Evidence ${evidence.length}`)),
-        evidence.length
-          ? h('ul', { className: 'st-rt-evidence' }, ...evidence.slice(0, 14).map((event) => h('li', { key: event.eventId },
-            h('span', null, event.type),
-            h('code', null, event.eventId.split(':re:')[1] ?? event.eventId.slice(-10)))))
-          : h('p', null, localized('没有可展示的事件', 'No events to show'))),
-
-      h('p', { className: 'st-rt-notes' }, data.evidenceBoundary?.note ?? ''),
+    return h('aside', { className: 'st-rt-inspector' },
+      h('h3', null, isEdge ? `关系 · ${data.edge.type}` : (node.label || node.id)),
+      h('p', { className: 'st-rt-kicker' }, isEdge
+        ? localized(`${data.edge.derivation} · ${data.edge.status}`, `${data.edge.derivation} · ${data.edge.status}`)
+        : localized(`${node.kind}${node.outcome ? ` · ${node.outcome}` : ''} · 证据 ${node.status}${load ? ` · ${raw(load.skillName)}` : ''}`, `${node.kind}${node.outcome ? ` · ${node.outcome}` : ''} · evidence ${node.status}${load ? ` · ${raw(load.skillName)}` : ''}`)),
+      h('div', { className: 'st-rt-tabs', role: 'tablist' }, ...tabs.map((key) => h('button', {
+        key,
+        className: 'st-rt-tab',
+        type: 'button',
+        role: 'tab',
+        'aria-selected': active === key,
+        onClick: () => setTab(key),
+      }, raw(INSPECTOR_TAB_LABELS[key])))),
+      active === 'declaration' ? h(DeclarationPanel, { alignment, load })
+        : active === 'relations' ? relationsPanel
+          : evidencePanel,
       h('button', { className: 'st-button', type: 'button', onClick: onClose }, localized('返回概览', 'Back to overview')))
   }
 
-  function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, onSelect, onCloseInspect }) {
+  function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, onSelect, onCloseInspect }) {
     if (loading && !data) return h('div', { className: 'st-rt-empty' }, '正在重建运行图谱…')
     if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
     if (!data) return h('div', { className: 'st-rt-empty' }, '当前对话暂未产生可重建的运行证据。')
@@ -1592,7 +1696,7 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
         h('div', { className: 'st-rt-legend' },
           ...Object.entries(RT_CAPABILITY_COLOR).filter(([key]) => ['skill', 'cli', 'tool', 'mcp', 'subagent'].includes(key)).map(([key, color]) => h('span', { key }, h('i', { style: { background: color } }), key))),
         h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))),
-      h(RuntimeInspector, { data: inspect, loading: inspectLoading, error: inspectError, onSelectEdge: (edgeId) => onSelect({ edgeId }), onClose: onCloseInspect }))
+      h(RuntimeInspector, { data: inspect, loading: inspectLoading, error: inspectError, alignments, skillLoads, onSelectEdge: (edgeId) => onSelect({ edgeId }), onClose: onCloseInspect }))
   }
 
   /**
@@ -1602,7 +1706,7 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
    * Host computed and, on click, asks the Host why that line exists. It never reads
    * events and never derives a relationship (§32).
    */
-  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, onSelect, onCloseInspect }) {
+  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, onSelect, onCloseInspect }) {
     if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建本次运行流程…', 'Rebuilding the runtime flow…'))
     if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
     if (!data) return h('div', { className: 'st-rt-empty' }, localized('当前对话暂无可重建的运行流程。', 'No reconstructable runtime flow in this conversation.'))
@@ -1638,6 +1742,8 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
           loading: inspectLoading,
           error: inspectError,
           onSelectEdge: (edgeId) => onSelect({ edgeId }),
+          alignments,
+          skillLoads,
           onClose: onCloseInspect,
         }),
         h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))))
@@ -1734,6 +1840,8 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
     const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
       : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
         : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, {
+            alignments: data.views.receipt.runtime.alignments,
+            skillLoads: runtime?.skillLoads,
           data: runtime,
           loading: runtimeLoading,
           error: runtimeError,
@@ -1747,6 +1855,8 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
           // §4/§21: 运行流程 is the same graph at reading density; 运行图谱 stays the
           // dense view. Both are read-only and both answer through the same inspector.
           : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, {
+            alignments: data.views.receipt.runtime.alignments,
+            skillLoads: runtime?.skillLoads,
             data: runtime,
             loading: runtimeLoading,
             error: runtimeError,
@@ -1765,7 +1875,7 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
     const catalogSubtitle = !catalogMeta ? '正在读取当前目录…' : catalogMeta.coverage.status === 'coverage-unknown' ? localized('当前目录无法确认 · 仅显示本地历史', 'Catalog cannot be confirmed · Showing local history only') : catalogMeta.coverage.status === 'incomplete' ? localized(`目录可能不完整 · 已发现 ${catalogMeta.observedCandidateCount ?? 0} 个候选`, `Catalog may be incomplete · ${catalogMeta.observedCandidateCount ?? 0} candidate(s) found`) : localized(`当前可发现 ${catalogMeta.currentDiscoverableCount ?? 0} 个 Skill · ${data?.workspaceLabel || '工作区未连接'}`, `${catalogMeta.currentDiscoverableCount ?? 0} Skill(s) currently discoverable · ${data?.workspaceLabel || t('工作区未连接')}`)
     const content = screen === 'catalog'
       ? h(CatalogPage, { sessionId, context: catalogContext, onContextChange: setCatalogContext, reloadSignal: catalogReload, onMeta: setCatalogMeta, onDataCleared: () => { setCatalogReload((value) => value + 1); load() } })
-      : h('div', { className: 'st-layout', 'data-simple': (!hasTrace && view !== 'runtime') || view === 'runtime' ? 'true' : undefined }, h('main', { className: 'st-main', 'aria-busy': loading }, error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null, sessionContent), data && hasTrace && view !== 'runtime' ? h('aside', { className: 'st-aside' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })) : null)
+      : h('div', { className: 'st-layout', 'data-simple': (view !== 'receipt') ? 'true' : undefined }, h('main', { className: 'st-main', 'aria-busy': loading }, error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null, sessionContent), data && hasTrace && view === 'receipt' ? h('aside', { className: 'st-aside' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })) : null)
 
     return h('section', { 'data-plugin': 'dsh-skill-trace', 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
