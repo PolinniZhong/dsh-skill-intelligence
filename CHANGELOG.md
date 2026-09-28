@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0-beta.19 — 2026-09-28
+
+- **修掉一个会让整个插件消失的问题。** 上一版用静态 `import` 载入 ELK。宿主插件是一个模块图：顶层 import 失败 = **整个插件加载失败**——图谱、收据、对齐三个视图一起消失，而失败原因只是「一个可选的布局优化不可用」。实测确认：把 `elkjs` 移走后，宿主模块无法导入。现在改为首次使用时动态载入，失败即返回 `null`，布局降级为确定性并在 `engineNote` 说明原因（实测：宿主仍可正常导入并降级）。
+- **修掉安装链路：git 托管的包，其依赖不会被 lockfile 协调带进来。** `dsh plugin install` 以 lockfile 为准，而 lockfile 里 `dsh-skill-trace` 的快照没有 `dependencies` 字段（它是零依赖时期生成的），因此 pnpm 报「Already up to date」而 `elkjs` 从未落盘。修法：在 lockfile 中补上该包的 `dependencies` 与 ELK 自身的 `packages`/`snapshots` 条目，并在 profile 的 `package.json` 中显式声明 `elkjs`——插件从 `<profile>/node_modules` 向上查找即可解析。
+- 实测（已装副本）：`elk` 用于 ≤80 节点的视图（46 节点 62ms），超过预算走确定性布局（1–5ms）；两条路径画布高度均 ≤1036px。
+
 ## 0.4.0-beta.18 — 2026-09-28
 
 UI 治理第三批：**ELK 宿主侧布局**（§12/§34/§35/§36），P1 收尾。

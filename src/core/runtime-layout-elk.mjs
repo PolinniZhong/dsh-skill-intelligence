@@ -25,7 +25,6 @@
  * @module runtime-layout-elk
  */
 
-import ELK from 'elkjs/lib/elk.bundled.js'
 import { computeRuntimeLayout } from './runtime-layout.mjs'
 
 export const LAYOUT_ENGINE_ELK = 'elk'
@@ -38,10 +37,25 @@ export const LAYOUT_ENGINE_DETERMINISTIC = 'deterministic'
  */
 export const ELK_NODE_LIMIT = 80
 
-let sharedEngine
-function elkEngine() {
-  if (!sharedEngine) sharedEngine = new ELK()
-  return sharedEngine
+let enginePromise
+
+/**
+ * Load ELK on first use, and treat it as replaceable rather than required.
+ *
+ * A static import would make a missing or unpublishable package take the whole Host
+ * plugin down with it — the graph, the receipt and the alignment views included —
+ * because a failed top-level import is a failed plugin load. The engine is an
+ * optimisation, so its absence is allowed to mean "use the deterministic layout".
+ *
+ * @returns the engine, or `null` when it cannot be loaded.
+ */
+async function elkEngine() {
+  if (!enginePromise) {
+    enginePromise = import('elkjs/lib/elk.bundled.js')
+      .then((module) => new (module.default ?? module.ELK)())
+      .catch(() => null)
+  }
+  return enginePromise
 }
 
 /** Build the ELK graph, pinning each node to its §35 layer as a partition. */
@@ -110,8 +124,17 @@ export async function computeRuntimeLayoutWithElk(graph, options = {}) {
     }
   }
 
+  const engine = await elkEngine()
+  if (!engine) {
+    return {
+      ...base,
+      engine: LAYOUT_ENGINE_DETERMINISTIC,
+      engineNote: 'ELK is not installed; using the deterministic layout',
+    }
+  }
+
   try {
-    const result = await elkEngine().layout(toElkGraph(base))
+    const result = await engine.layout(toElkGraph(base))
     const ranks = ranksFromElk(base, result)
     if (!ranks) {
       return { ...base, engine: LAYOUT_ENGINE_DETERMINISTIC, engineNote: 'ELK returned no usable ordering' }
