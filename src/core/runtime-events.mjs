@@ -39,6 +39,11 @@ export const RUNTIME_EVENT_TYPES = [
   'invocation.result',
   /** A user-explicit `/name` load. DSH injects it; no tool call exists. */
   'skill.invocation',
+  /**
+   * DSH recorded a direct child session of this one. The event names the child
+   * and its mode; it does not name the invocation that created it.
+   */
+  'subagent.spawn',
   /** Derived: an invocation repeated a failed one under the same rule. */
   'retry',
 ]
@@ -63,6 +68,9 @@ export const INVOCATION_RESOLUTIONS = ['matched', 'unresolved-request', 'orphan-
  */
 export const RETRY_RULE = 'same-turn-repeat-after-failure'
 
+/** Modes DSH records for a direct child session. */
+export const SUBAGENT_MODES = ['one-shot', 'continuable', 'unknown']
+
 // Bounded projection of a run, counted in normalized events rather than in
 // invocations because a settled invocation costs two events.
 export const RUNTIME_EVENT_LIMIT = 2000
@@ -75,17 +83,22 @@ export function cleanString(value, maxLength = 160) {
 }
 
 /**
- * A registered tool name. MCP tools are the composed `mcp__<server>__<raw>` form.
+ * A bounded identifier: a tool name, a session id, an MCP server name.
  *
- * The length is checked before any trimming: truncating an over-long identifier
- * would turn it into a *different* valid name, and recording that would be
- * inventing an invocation that never happened.
+ * The length is checked before any trimming, because truncating an over-long
+ * identifier would turn it into a *different* valid name and recording that
+ * would be inventing something that never happened.
  */
-export function safeToolName(value) {
+export function safeIdentifier(value, maxLength = RUNTIME_EVENT_NAME_MAX) {
   if (typeof value !== 'string') return ''
   const name = value.trim()
-  if (!name || name.length > RUNTIME_EVENT_NAME_MAX) return ''
+  if (!name || name.length > maxLength) return ''
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(name) ? name : ''
+}
+
+/** A registered tool name. MCP tools are the composed `mcp__<server>__<raw>` form. */
+export function safeToolName(value) {
+  return safeIdentifier(value)
 }
 
 export function safeErrorCode(value) {
@@ -223,6 +236,38 @@ export function normalizeSkillInvocation(event, context) {
     capabilityId: 'skill',
     capabilityName: skillName,
     invocationId: `skill-invocation:${Number.isSafeInteger(event.seq) ? event.seq : 'unknown'}`,
+  }, {})
+}
+
+/**
+ * Normalize a `subagent/catalog` into a spawn event.
+ *
+ * DSH emits this parent-owned event when it creates a direct child session, so
+ * the child relationship is a host fact rather than an inference. The event
+ * carries a free-text `label`; it is deliberately not read, because it is caller
+ * text and this plugin does not store prompts or task descriptions.
+ * @param event - the DSH `subagent/catalog` session event.
+ * @param context - `sessionId`, attributed `turn`/`step`.
+ */
+export function normalizeSubagentSpawn(event, context) {
+  const data = event?.data ?? {}
+  const childId = safeIdentifier(data.childId)
+  if (!childId) return null
+  const base = baseEvent({
+    sessionId: context.sessionId,
+    seq: event.seq,
+    timestamp: event.time,
+    type: 'subagent.spawn',
+  })
+  return withOptional({
+    ...base,
+    turn: context.turn ?? null,
+    step: context.step ?? null,
+    status: 'success',
+    capabilityId: 'subagent',
+    capabilityName: 'subagent',
+    childId,
+    mode: SUBAGENT_MODES.includes(data.mode) ? data.mode : 'unknown',
   }, {})
 }
 
@@ -473,6 +518,9 @@ export function upgradeRuntimeEvent(value) {
   if (value.rule === RETRY_RULE) event.rule = RETRY_RULE
   const retryOf = cleanString(value.retryOf, RUNTIME_EVENT_CALL_ID_MAX)
   if (retryOf) event.retryOf = retryOf
+  const childId = safeIdentifier(value.childId)
+  if (childId) event.childId = childId
+  if (SUBAGENT_MODES.includes(value.mode)) event.mode = value.mode
   return [event]
 }
 
@@ -515,6 +563,7 @@ export function summarizeRuntime(runtimeEvents, overflow = 0) {
     overflow: Math.max(0, Number(overflow) || 0),
     derivedCount: events.filter((event) => event.source === 'derived').length,
     retryCount: events.filter((event) => event.type === 'retry').length,
+    spawnCount: events.filter((event) => event.type === 'subagent.spawn').length,
     byCapability,
     byStatus,
     byResolution,

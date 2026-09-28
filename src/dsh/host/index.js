@@ -10,6 +10,7 @@ import {
   removeOutputReference,
   setContinuityDecision,
   setLearningNote,
+  setRuntimeLineage,
   setSourceSnapshots,
   setTraceRuntimeIdentity,
   setValidationResult,
@@ -38,6 +39,9 @@ const OBSERVED_EVENT_TYPES = new Set([
   'tool/call',
   'tool/result',
   'user/message',
+  // Parent-owned direct-child catalog: the durable, explicit subagent correlation
+  // key, so a spawned child never has to be inferred from tool ordering.
+  'subagent/catalog',
 ])
 
 // DSH exposes a live session's durable log through `session.snapshotEvents()`.
@@ -139,6 +143,7 @@ function publicReceipt(receipt) {
     runtimeEventOverflow: receipt.runtimeEventOverflow ?? 0,
     catalogPublished: receipt.catalogPublished ?? null,
     catalogPublicationCount: receipt.catalogPublicationCount ?? 0,
+    lineage: receipt.lineage ?? { parentSessionId: null, delegationDepth: null },
     outputReferences: receipt.outputReferences,
     learningNotes: receipt.learningNotes,
     validationResults: receipt.validationResults,
@@ -405,6 +410,18 @@ export function apply(ctx, config = {}) {
       return next
     }
 
+    // Session-header lineage. A child session's header names its parent and its
+    // delegation depth, so the parent link is a durable header fact rather than a
+    // relationship this plugin has to infer.
+    function withLineage(receipt, sessionId) {
+      const header = webCtx.sessions.get(sessionId)?.header
+      if (!header) return receipt
+      return setRuntimeLineage(receipt, {
+        parentSessionId: header.parentSession,
+        delegationDepth: header.delegationDepth,
+      })
+    }
+
     async function refreshFromLiveSession(sessionId) {
       const previous = await load(sessionId)
       const session = webCtx.sessions.get(sessionId)
@@ -426,6 +443,7 @@ export function apply(ctx, config = {}) {
         const sourceSnapshots = await buildSourceSnapshots(registry, receipt, cwd, { scope: liveAgent })
         receipt = setSourceSnapshots(receipt, sourceSnapshots)
       }
+      receipt = withLineage(receipt, sessionId)
       cache.set(sessionId, receipt)
       return receipt
     }
@@ -451,6 +469,7 @@ export function apply(ctx, config = {}) {
           const loaded = receipt.traceEvents.find((trace) => trace.resultSeq === event.seq && trace.status === 'loaded')
           if (loaded) receipt = await captureRuntimeIdentity(receipt, sessionId, [loaded])
         }
+        receipt = withLineage(receipt, sessionId)
         cache.set(sessionId, receipt)
         // Skill evidence is written the moment it is observed. Everything else —
         // including the runtime event stream — is written at the turn boundary.
@@ -468,6 +487,7 @@ export function apply(ctx, config = {}) {
         const previousLoaded = new Set((previous.traceEvents ?? []).filter((trace) => trace.status === 'loaded').map((trace) => trace.eventId))
         const newTraces = receipt.traceEvents.filter((trace) => trace.status === 'loaded' && !previousLoaded.has(trace.eventId))
         receipt = await captureRuntimeIdentity(receipt, sessionId, newTraces)
+        receipt = withLineage(receipt, sessionId)
         cache.set(sessionId, receipt)
         await syncReceipt(receipt)
       })

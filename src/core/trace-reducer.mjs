@@ -9,11 +9,14 @@ import {
   normalizeRequest,
   normalizeResult,
   normalizeSkillInvocation,
+  normalizeSubagentSpawn,
   safeErrorCode,
+  safeIdentifier,
   safeToolName,
   summarizeRuntime,
   upgradeRuntimeEvents,
 } from './runtime-events.mjs'
+import { buildRuntimeGraph } from './runtime-graph.mjs'
 
 // `classifyCapability` is re-exported so the classification contract keeps one
 // implementation and one import path for consumers already using the reducer.
@@ -347,6 +350,10 @@ export function emptyReceipt(sessionId, now = Date.now()) {
     // snapshot answers a different question and drifts once the session ends.
     catalogPublished: null,
     catalogPublicationCount: 0,
+    // Durable session-header lineage. `parentSession` and `delegationDepth` come
+    // from the host header, not from an inferred relationship, so a child receipt
+    // can point at its parent without guessing.
+    lineage: { parentSessionId: null, delegationDepth: null },
     sourceSnapshots: [],
     humanAssessment: {
       value: 'pending',
@@ -400,6 +407,16 @@ function normalizeCatalogPublished(value) {
   }
 }
 
+// Session-header lineage. Both fields are durable DSH header facts: a child
+// session's header names its parent, and `delegationDepth` records the depth.
+function normalizeLineage(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { parentSessionId: null, delegationDepth: null }
+  return {
+    parentSessionId: safeIdentifier(value.parentSessionId, 240) || null,
+    delegationDepth: Number.isSafeInteger(value.delegationDepth) && value.delegationDepth >= 0 ? value.delegationDepth : null,
+  }
+}
+
 export function migrateReceipt(value, sessionId) {
   if (!value || typeof value !== 'object') return emptyReceipt(sessionId)
   const createdAt = Number.isSafeInteger(value.createdAt) ? value.createdAt : Date.now()
@@ -448,6 +465,7 @@ export function migrateReceipt(value, sessionId) {
     runtimeEventOverflow: storedRuntimeOverflow + upgradedRuntime.dropped,
     catalogPublished: normalizeCatalogPublished(value.catalogPublished),
     catalogPublicationCount: Number.isSafeInteger(value.catalogPublicationCount) ? Math.max(0, value.catalogPublicationCount) : 0,
+    lineage: normalizeLineage(value.lineage),
     sourceSnapshots: Array.isArray(value.sourceSnapshots) ? value.sourceSnapshots.map(normalizeSourceSnapshot).filter(Boolean) : [],
     humanAssessment: value.humanAssessment && typeof value.humanAssessment === 'object' ? value.humanAssessment : base.humanAssessment,
     outputReferences: Array.isArray(value.outputReferences) ? value.outputReferences : [],
@@ -656,6 +674,21 @@ function reduceUserMessage(receipt, event) {
   return receipt
 }
 
+// DSH created a direct child session. The catalog event is parent-owned and names
+// the child, so this is host fact — but it names only the child, not the
+// invocation that created it. Correlation decides later whether that attribution
+// can be made at all, and refuses to guess when it cannot.
+function reduceSubagentCatalog(receipt, event) {
+  const normalized = normalizeSubagentSpawn(event, {
+    sessionId: receipt.sessionId,
+    turn: observedTurn(receipt, event?.data),
+    step: observedStep(receipt, event?.data),
+  })
+  if (!normalized) return receipt
+  if (receipt.runtimeEvents.some((item) => item.eventId === normalized.eventId)) return receipt
+  return { ...receipt, ...appendRuntimeEvents(receipt, [normalized]) }
+}
+
 /**
  * Whether one session event can carry Skill evidence that no tool call exposes:
  * a user-explicit `/name` load, or the published skill catalog. The host uses
@@ -674,6 +707,7 @@ export function reduceSessionEvent(source, event) {
   const data = event?.data ?? {}
 
   if (event?.type === 'user/message') return reduceUserMessage(receipt, event)
+  if (event?.type === 'subagent/catalog') return reduceSubagentCatalog(receipt, event)
 
   // Phase 0: every tool invocation is recorded, not only `skill`. Tool, CLI and
   // MCP invocations already arrive on this stream — discarding them here is what
@@ -767,6 +801,7 @@ export function rebuildReceipt(sessionId, events, previous = null) {
     learningNotes: Array.isArray(manual.learningNotes) ? manual.learningNotes : [],
     validationResults: Array.isArray(manual.validationResults) ? manual.validationResults : [],
     sourceSnapshots: Array.isArray(manual.sourceSnapshots) ? manual.sourceSnapshots : [],
+    lineage: normalizeLineage(manual.lineage),
     continuity: automaticContinuity(traceEvents, manual.continuity),
   }
 }
@@ -791,6 +826,20 @@ export function setSourceSnapshots(receipt, sourceSnapshots, now = Date.now()) {
     updatedAt: now,
     sourceSnapshots: Array.isArray(sourceSnapshots) ? sourceSnapshots.map(normalizeSourceSnapshot).filter(Boolean) : [],
   }
+}
+
+/**
+ * Record the durable session-header lineage. Called by the host with the live
+ * header, because the parent link lives on the header rather than in an event.
+ * @param receipt - the receipt to stamp.
+ * @param lineage - `parentSessionId` / `delegationDepth` from the session header.
+ * @param now - update timestamp.
+ */
+export function setRuntimeLineage(receipt, lineage, now = Date.now()) {
+  const next = normalizeLineage(lineage)
+  const current = receipt.lineage ?? { parentSessionId: null, delegationDepth: null }
+  if (next.parentSessionId === current.parentSessionId && next.delegationDepth === current.delegationDepth) return receipt
+  return { ...receipt, updatedAt: now, lineage: next }
 }
 
 export function setTraceRuntimeIdentity(receipt, eventId, runtimeIdentity, now = Date.now()) {
@@ -1032,6 +1081,10 @@ export function buildViewModels(receipt) {
     runtime: {
       ...summarizeRuntime(receipt.runtimeEvents ?? [], receipt.runtimeEventOverflow ?? 0),
       invocations: aggregateInvocations(receipt.runtimeEvents ?? []),
+      // Correlated graph counts. The node and edge arrays stay out of the client
+      // payload until the canvas phase asks for them; the graph itself is derived
+      // and never persisted.
+      graph: buildRuntimeGraph(receipt).stats,
       invocationTypes: Object.fromEntries(INVOCATION_TYPES.map((type) => [
         type,
         events.filter((event) => event.invocationType === type).length,

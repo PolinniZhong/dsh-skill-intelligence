@@ -63,6 +63,34 @@ Skill evidence keeps immediate durability — a newly opened load, a settled loa
 
 `catalogPublished` holds the Declaration baseline: the entries DSH durably published into this session, i.e. what the model was actually offered. A replacement publication supersedes the previous baseline and increments `catalogPublicationCount`. This is deliberately not a live registry snapshot, which answers what is installed *now* and drifts once the session ends. `entriesDigest` hashes the published names so drift can be checked without comparing description wording.
 
+## Correlation and provenance
+
+`src/core/runtime-graph.mjs` turns the normalized stream into nodes and edges. One rule sits above every other in it:
+
+> **Graph completeness < Graph truthfulness.**
+
+The graph may be incomplete. It may never be wrong. Every emitted edge must cite at least one event the receipt still holds; an edge that cannot is dropped and counted in `droppedEdgeCount` rather than softened into a weaker claim. A relationship that cannot be established is reported as `unlinked` with a reason, never filled in with whichever node happened to be nearby.
+
+Relation priority, highest first:
+
+| Level | Evidence | Emitted as |
+| --- | --- | --- |
+| P0 runtime-native | `invocationId` (`callId`), `subagent/catalog.childId`, `turn` / `step` | `direct` / `observed` |
+| P1 structured host field | a host-published field that names its own subject | `correlated` |
+| P2 containment | session → turn → invocation | `direct` / `observed` — this is structure, not causation |
+| P3 bounded rule | one named, narrow rule | `candidate` only |
+| P4 | nothing usable | `unlinked` |
+
+Containment and subagent spawns are observed because they rest on host facts. Adjacency is the only heuristic in the engine: it is bounded to **consecutive invocations inside one step** and emitted `candidate` under `same-step-adjacent-invocation`.
+
+`subagent/catalog` is the parent-owned direct-child catalog, so a spawned child is observed rather than inferred from tool ordering. The catalog's free-text `label` is deliberately not read — it is caller text, and this plugin stores no prompts or task descriptions. A child is attributed to the invocation that created it **only** when exactly one subagent invocation exists in that turn, under `sole-subagent-invocation-in-turn`; with two concurrent spawns the child stays attributed to the session alone and its node is `partial`.
+
+The edge vocabulary is closed on purpose: `contains`, `spawns`, `retries`, `follows`. There is no `uses` and no `produces` edge, because attributing a tool call to a Skill needs alignment evidence this phase does not have. No edge type can express "this caused that", because the runtime never said so. `scripts/verify-project.mjs` pins both the node and edge vocabularies as exact literals, so widening them has to be a visible, deliberate change.
+
+Node `status` is evidence completeness (`observed` / `partial` / `unlinked`), not outcome; a fully observed failure is `observed` with `outcome: 'failure'`.
+
+The graph is a pure function of the receipt: the same receipt always yields the same graph, and nothing in it depends on a viewport, a zoom level, or a previous layout. It is derived on read and never persisted.
+
 ## Main modules
 
 | Module | Responsibility |
@@ -70,6 +98,7 @@ Skill evidence keeps immediate durability — a newly opened load, a settled loa
 | `src/dsh/host/index.js` | DSH lifecycle bridge, event observation, privacy policy, local persistence wiring |
 | `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence |
 | `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations (Phase 1) |
+| `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships (Phase 2) |
 | `src/core/source-snapshot.mjs` | Creates safe source identity/snapshot metadata |
 | `src/core/catalog-view.mjs` | Projects receipt, note, pending-review, validation-result, local search, and review-priority data into the read-only My Skills workspace |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |

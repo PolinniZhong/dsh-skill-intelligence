@@ -188,6 +188,51 @@ if (!runtimeModel.includes('candidate.turn !== turn')) throw new Error('the retr
 if (runtimeModel.includes('getTime()') || runtimeModel.includes('Date.now() -')) throw new Error('runtime correlation must not use wall-clock adjacency')
 if (!reducer.includes("from './runtime-events.mjs'")) throw new Error('the reducer must consume the shared runtime model')
 
+// Phase 2 correlation and provenance. The graph may be incomplete; it may never
+// assert a relationship the runtime did not report.
+const graphModel = await readFile(resolve(root, 'src/core/runtime-graph.mjs'), 'utf8')
+for (const requiredText of [
+  'export function buildRuntimeGraph',
+  'export const FOLLOWS_RULE',
+  'export const SPAWN_ATTRIBUTION_RULE',
+  'export const EDGE_TYPES',
+  "'contains', 'spawns', 'retries', 'follows'",
+  'unlinked',
+  'droppedEdgeCount',
+  'Graph completeness < Graph truthfulness',
+]) {
+  if (!graphModel.includes(requiredText)) throw new Error(`phase 2 graph contract missing: ${requiredText}`)
+}
+// The edge vocabulary is closed on purpose: there is no causal edge type, because
+// the runtime never reported causation. Pinned as an exact literal so adding one
+// has to be a deliberate, visible change.
+{
+  const edgeTypesLine = graphModel.split('\n').find((line) => line.startsWith('export const EDGE_TYPES'))
+  if (edgeTypesLine !== "export const EDGE_TYPES = ['contains', 'spawns', 'retries', 'follows']") {
+    throw new Error('the edge vocabulary must stay closed and non-causal')
+  }
+  const nodeTypesLine = graphModel.split('\n').find((line) => line.startsWith('export const NODE_TYPES'))
+  if (nodeTypesLine !== "export const NODE_TYPES = ['session', 'turn', 'skill', 'tool', 'cli', 'mcp', 'subagent']") {
+    throw new Error('the node vocabulary must stay closed')
+  }
+}
+{
+  // Layout is a view concern: the graph model must carry no coordinates, and the
+  // same receipt must yield the same graph at any window size.
+  const code = graphModel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  if (/\bviewport\b|\bzoom\b|\bposition\s*:|[xy]\s*:\s*-?\d/.test(code)) {
+    throw new Error('the graph model must carry no layout state')
+  }
+}
+for (const requiredText of ["'subagent/catalog'", 'withLineage', 'setRuntimeLineage']) {
+  if (!host.includes(requiredText)) throw new Error(`phase 2 correlation input missing from host: ${requiredText}`)
+}
+if (!runtimeModel.includes("'subagent.spawn'")) throw new Error('the runtime model must carry the durable spawn event')
+// The catalog label is caller text and must never be read.
+if (/data\.label|\.label\b/.test(runtimeModel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''))) {
+  throw new Error('the subagent catalog label is caller text and must not be read')
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -220,3 +265,4 @@ console.log('MY_SKILL_READ_ONLY_CATALOG_OK')
 console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')
 console.log('OBSERVATION_SURFACE_OK')
 console.log('RUNTIME_MODEL_OK')
+console.log('CORRELATION_PROVENANCE_OK')
