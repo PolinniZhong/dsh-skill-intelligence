@@ -1768,8 +1768,15 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     }, [playing, total])
     React.useEffect(() => { setReplayIndex(-1); setPlaying(false) }, [data?.sessionId, total])
 
-    const flowLayout = React.useMemo(() => filterLayout(layout, { hideCandidate: true }), [layout])
-    const candidateCount = (layout?.edges?.length ?? 0) - (flowLayout?.edges?.length ?? 0)
+    // Hooks run before the guards below, so they may only touch `data` — referring to
+    // the `layout` binding here would read it in its temporal dead zone and throw on
+    // every render, which is a blank panel rather than a visible error.
+    const sourceLayout = data?.layout ?? null
+    const flowLayout = React.useMemo(
+      () => (sourceLayout ? filterLayout(sourceLayout, { hideCandidate: true }) : null),
+      [sourceLayout],
+    )
+    const candidateCount = (sourceLayout?.edges?.length ?? 0) - (flowLayout?.edges?.length ?? 0)
 
     const replay = replayIndex >= 0 && timeline
       ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
@@ -1992,3 +1999,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     ctx.slots.inject('conversation.view', () => ctx.slots.register({ name: 'conversation.view', id: 'skill-trace', order: 70, label: () => t('Skill 追踪'), locale: NS }, (props) => h(Workbench, props)))
     ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({ name: 'conversation.session.header.utilities', id: 'skill-trace-status', order: 75, label: () => t('Skill 追踪状态'), locale: NS }, (props) => h(SessionStatus, props)))
   }
+
+  // Test seam. The shell reads only `inject` and `apply`; exposing the views lets the
+  // render smoke test execute each one against a real payload. Source assertions cannot
+  // see a component that throws while rendering — a hook reading a binding declared below
+  // it passes every string check and still leaves the user with a blank panel.
+  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside }

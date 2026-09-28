@@ -40,7 +40,9 @@ test('the bundle is loaded by the real loader into a working plugin', () => {
 
   const required = []
   const plugin = definition.factory(seedRequire(required))
-  assert.deepEqual(Object.keys(plugin).sort(), ['apply', 'inject'])
+  // `apply` and `inject` are the shell's contract; `__views` is the render smoke
+  // test's seam and is ignored by the shell.
+  assert.deepEqual(Object.keys(plugin).filter((key) => !key.startsWith('__')).sort(), ['apply', 'inject'])
   assert.equal(typeof plugin.apply, 'function')
   // Every module it asked for must be a seed word the shell provides.
   for (const spec of new Set(required)) {
