@@ -369,6 +369,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-side{position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-flow-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 9px;color:var(--st-muted);font-size:11px}
       .st-flow-head strong{color:var(--st-text);font-size:12px}
+      .st-flow-legend{position:absolute;left:14px;bottom:14px;z-index:6;display:flex;gap:14px;padding:7px 11px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 94%,transparent);color:var(--st-muted);font-size:10.5px}
+      .st-flow-legend span{display:inline-flex;align-items:center;gap:5px}
+      .st-flow-legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
       .st-flow-node{position:relative;display:flex;flex-direction:column;width:var(--st-node-width,190px);border:1px solid var(--st-border);border-radius:11px;background:var(--st-layer);box-shadow:0 4px 12px rgba(23,33,48,.045);overflow:hidden;cursor:pointer}
       .st-flow-node:hover{box-shadow:0 7px 18px rgba(23,33,48,.08)}
       .st-flow-node-bar{height:3px;background:var(--st-node-color);flex:none}
@@ -733,7 +736,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         h(FingerprintSection, { fingerprint: model.runtime?.fingerprint })),
       h(ReceiptSection, { title: 'Skill 声明', note: localized('Skill 自称要做什么；不代表已经执行', 'What the Skill says it does; not proof it ran') },
         h('div', { className: 'st-learning-cards' }, learningNodes)),
-      h(ReceiptSection, { title: '学习与验证', note: localized('你的记录与本地产出引用', 'Your notes and local output references') },
+      // 这一节渲染的是「继续使用指南」，此前标题写成「学习与验证」——名不符实。
+      // 冲突②选 A 之后学习只在 Skill Inspector，所以这里必须是它真正的内容名。
+      h(ReceiptSection, { title: '继续方式', note: localized('候选步骤与人工判断；不是对开发者的反馈', 'Candidate steps and your call; not feedback about you') },
         h('div', { className: 'st-continuity' },
           h('div', { className: 'st-continuity-head' }, h('strong', null, '继续使用指南'), statusBadge(model.continuity?.status || 'unknown')),
           h('div', { className: 'st-continuity-steps' }, nextStepNodes))),
@@ -1075,28 +1080,8 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     return h(React.Fragment, null,
       data.activeView === 'map' ? h(Inspector, { node: selectedNode, model: data.views.map }) : null,
       error ? h('div', { className: 'st-error', role: 'alert' }, error) : null,
-      learningCards.length ? h('section', { className: 'st-panel' },
-        h('h2', null, '我的理解与迭代'),
-        h('p', { className: 'st-panel-note' }, '填写后保存在当前会话的本地收据中，回来选择这个 Skill 即可继续查看和编辑；不会上传，也不会写回或发布 Skill。'),
-        activeLearningCard?.versionState === 'changed' ? h('div', { className: 'st-version-warning' }, '当前版本与本次观察版本不同，请先核对版本再迭代。') : null,
-        h('form', { className: 'st-learning-form', onSubmit: saveLearningNote },
-          learningCards.length > 1 ? h('label', { className: 'st-field-label' }, '当前 Skill', h('select', { className: 'st-select', value: learningSkill, onChange: (event) => learningDirty ? setPendingLearningSkill(event.target.value) : setLearningSkill(event.target.value) }, learningCards.map((card) => h('option', { key: card.skillName, value: card.skillName }, raw(card.skillName))))) : h('div', { className: 'st-notice' }, raw(learningSkill)),
-          pendingLearningSkill ? h('div', { className: 'st-notice', role: 'alert' },
-            h('p', { style: { margin: '0 0 8px' } }, '当前有未保存的修改。要放弃修改并切换 Skill 吗？'),
-            h('div', { className: 'st-validation-actions' },
-              h('button', { className: 'st-button', type: 'button', onClick: () => { clearDraft(learningDraftId); setLearningSkill(pendingLearningSkill); setPendingLearningSkill('') } }, '放弃修改并切换'),
-              h('button', { className: 'st-button', type: 'button', onClick: () => setPendingLearningSkill('') }, '继续编辑'))) : null,
-          h('label', { className: 'st-field-label' }, '我的理解', h('textarea', { className: 'st-textarea', maxLength: 500, value: learningDraft.understanding, onChange: (event) => updateLearningDraft('understanding', event.target.value), placeholder: '例如：它先确认输入，再按步骤执行，最后复核结果。' }), h('span', { className: 'st-field-count' }, `${learningDraft.understanding.length}/500`)),
-          h('label', { className: 'st-field-label' }, '我想改进', h('textarea', { className: 'st-textarea', maxLength: 500, value: learningDraft.improvementIntent, onChange: (event) => updateLearningDraft('improvementIntent', event.target.value), placeholder: '例如：补充失败分支和不适用场景。' }), h('span', { className: 'st-field-count' }, `${learningDraft.improvementIntent.length}/500`)),
-          h('label', { className: 'st-field-label' }, '下次如何验证', h('textarea', { className: 'st-textarea', maxLength: 500, value: learningDraft.validationPlan, onChange: (event) => updateLearningDraft('validationPlan', event.target.value), placeholder: '例如：用正常输入和缺失输入各跑一次。' }), h('span', { className: 'st-field-count' }, `${learningDraft.validationPlan.length}/500`)),
-          h('div', { className: 'st-learning-actions' },
-            h('button', { className: 'st-button st-button-primary', type: 'submit', disabled: busy === 'learning' }, busy === 'learning' ? '保存中' : '保存到本地'),
-            h('button', { className: 'st-button', type: 'button', disabled: busy === 'copy', onClick: copyLearningChecklist }, h(Icon, { name: 'copy', size: 14 }), busy === 'copy' ? '复制中' : '复制继续行动卡'))),
-        learningState ? h('div', { className: learningDirty ? 'st-review-boundary' : 'st-save-state', role: 'status' }, renderLocalState(learningState)) : null,
-        learningDirty ? h('div', { className: 'st-local-only' }, h(Icon, { name: 'info', size: 14 }), '未保存草稿只暂存在当前 Desktop 运行期间；保存后才会进入本地收据与备份。') : null,
-        copyState ? h('div', { className: 'st-copy-state', role: 'status' }, copyState) : null,
-        h('div', { className: 'st-local-only' }, h(Icon, { name: 'info', size: 14 }), '行动卡只包含短指纹、候选步骤、原收据时间和你主动填写的内容；不包含完整 Skill 正文。'),
-        h(ValidationEditor, { sessionId: receipt.sessionId, skillName: learningSkill, initialResult: savedValidationResult, hasValidationPlan: Boolean(savedLearningNote?.validationPlan), onSaved: onUpdate })) : null,
+      // 冲突②选 A：学习与验证只在 Skill Inspector 的「学习验证」Tab 里。
+        // Aside 曾在这里再渲染一次「我的理解与迭代」，造成同一内容两处出现。
       h('section', { className: 'st-panel' },
         h('h2', null, '继续方式判断'),
         h('p', { className: 'st-panel-note' }, '候选步骤由确定性规则提取。请选择你是否能按这张卡继续；这不是对开发者的反馈。'),

@@ -137,6 +137,9 @@ function RuntimeNode({ data }) {
 
 const NODE_TYPES = { dsht: RuntimeNode }
 
+/** 图例只列四种类型色——与 §25.1「类型色仅用于节点」一致。 */
+const LEGEND_LABELS = { skill: 'Skill', tool: 'Tool', mcp: 'MCP', cli: 'CLI' }
+
 const KIND_LABELS = {
   session: '会话',
   turn: 'Turn',
@@ -278,7 +281,7 @@ function neighbourhoodOf(layout, nodeId) {
  *
  * `onSelect` receives `{ nodeId }` or `{ edgeId }`; the Host answers what it means.
  */
-function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniMap = true, replay = null }) {
+function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniMap = false, replay = null }) {
   const focus = selectedId?.nodeId
   const dim = focus ? neighbourhoodOf(layout, focus) : null
 
@@ -314,8 +317,15 @@ function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniM
     onEdgeClick: (event, edge) => onSelect({ edgeId: edge.id }),
     onPaneClick: () => onBackground?.(),
   },
-  React.createElement(Background, { color: '#e2e8f0', gap: 18, size: 1 }),
-  React.createElement(Controls, { showInteractive: false, position: 'top-right' }),
+  // 点阵底纹：功能网格，低对比（§25.2 豁免「复杂背景纹理」，但要求低对比）
+  React.createElement(Background, { color: '#dfe4ea', gap: 20, size: 1 }),
+  React.createElement(Controls, { showInteractive: false, position: 'top-left' }),
+  // 图例：preview 的左下角图例，颜色与节点类型色同源
+  React.createElement('div', { className: 'st-flow-legend', 'aria-hidden': 'true' },
+    ['skill', 'tool', 'mcp', 'cli'].map((tone) => React.createElement('span', { key: tone },
+      React.createElement('i', { style: { background: CAPABILITY_COLORS[tone] } }),
+      React.createElement('span', null, LEGEND_LABELS[tone])))),
+  // preview 没有 MiniMap，所以默认不画；需要时仍可通过 showMiniMap 打开。
   showMiniMap ? React.createElement(MiniMap, { pannable: true, zoomable: true, position: 'bottom-right', nodeColor: (node) => node.data?.color ?? '#94a3b8' }) : null)
 }
 
