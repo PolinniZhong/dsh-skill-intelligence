@@ -22,6 +22,7 @@ import { computeRuntimeLayout } from '../../core/runtime-layout.mjs'
 import { computeRuntimeLayoutWithElk } from '../../core/runtime-layout-elk.mjs'
 import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
 import { buildSkillLoadIndex } from '../../core/runtime-alignment.mjs'
+import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
@@ -58,6 +59,11 @@ export function sessionEventLog(session) {
   if (typeof session?.snapshotEvents === 'function') return session.snapshotEvents()
   if (Array.isArray(session?.events)) return session.events
   return []
+}
+
+/** The canvas never reads member lists; the timeline already used them. */
+function stripMemberIds(layout) {
+  return { ...layout, nodes: layout.nodes.map((node) => ({ ...node, memberIds: [] })) }
 }
 
 function sendJson(res, status, body) {
@@ -559,6 +565,7 @@ export function apply(ctx, config = {}) {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
             const graph = buildRuntimeGraph(receipt)
+            const layoutWithMembers = await computeRuntimeLayoutWithElk(graph, { includeHiddenIds: false })
             sendJson(res, 200, {
               ok: true,
               sessionId,
@@ -572,7 +579,12 @@ export function apply(ctx, config = {}) {
               },
               // ELK orders within each layer while it is affordable; the placer keeps
               // the geometry so height stays bounded. Which engine ran is reported.
-              layout: await computeRuntimeLayoutWithElk(graph, { includeMemberIds: false, includeHiddenIds: false }),
+              //
+              // Computed with members so the replay timeline can resolve an event to
+              // the group that drew it; the member lists are then dropped from the
+              // payload, which is what `includeMemberIds: false` did before.
+              layout: stripMemberIds(layoutWithMembers),
+              timeline: buildReplayTimeline(graph, layoutWithMembers, receipt.runtimeEvents),
               // Which call loaded which Skill. Derived here, on the Host, because the
               // Skill name never comes from tool arguments; the graph node only ever
               // says "skill". Only unambiguous joins are reported.

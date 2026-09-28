@@ -404,6 +404,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
       .st-rt-align-head{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px}
       .st-rt-align-status{display:inline-flex;align-items:center;gap:3px;font-weight:650}
       .st-rt-align-limit{margin:0;color:var(--st-faint);font-size:10px;line-height:1.5}
+      .st-replay{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 9px;padding:6px 8px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer-2)}
+      .st-replay-range,.st-replay-count{font-size:10.5px;color:var(--st-muted);font-variant-numeric:tabular-nums}
+      .st-replay-count{font-weight:650;color:var(--st-text)}
+      .st-replay-note{flex-basis:100%;color:var(--st-faint);font-size:10px}
+      .st-flow-node[data-replay="future"]{opacity:.22}
+      .st-flow-node[data-replay="current"]{box-shadow:0 0 0 2px var(--st-brand),0 2px 8px rgba(15,23,42,.16)}
+      .st-flow-node[data-replay="current"] .st-flow-node-title{font-weight:650}
       .react-flow__attribution{display:none}
       @media(max-width:1050px){.st-flow{grid-template-columns:minmax(0,1fr)}.st-flow-side{position:static;max-height:none}.st-flow-canvas{height:60dvh}}
       .st-rt-legend span{display:inline-flex;align-items:center;gap:4px}
@@ -1706,7 +1713,58 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
    * Host computed and, on click, asks the Host why that line exists. It never reads
    * events and never derives a relationship (§32).
    */
+  /**
+   * 回放 (§37).
+   *
+   * A step-through of the run in runtime-event order — Step 1, Step 2, Step 3 — not a
+   * video. It is pure view state: it reads the Host's timeline and never writes, so a
+   * replay cannot change what the receipt says happened.
+   */
+  function ReplayControls({ timeline, index, playing, onIndex, onPlaying }) {
+    if (!timeline?.steps?.length) return null
+    const total = timeline.steps.length
+    const at = index < 0 ? 0 : index
+    const clock = (value) => {
+      if (typeof value !== 'number') return '—'
+      try { return new Date(value).toLocaleTimeString('zh-CN', { hour12: false }) } catch (_) { return '—' }
+    }
+    return h('div', { className: 'st-replay', role: 'group', 'aria-label': '运行回放' },
+      h('span', { className: 'st-replay-range' }, `${clock(timeline.startedAt)} — ${clock(timeline.endedAt)}`),
+      h('span', { className: 'st-replay-count', role: 'status' },
+        localized(`当前：${index < 0 ? '—' : at + 1} / ${total} 步`, `Step ${index < 0 ? '—' : at + 1} / ${total}`)),
+      h('button', { className: 'st-button', type: 'button', 'aria-pressed': playing, disabled: index < 0 && total === 0, onClick: () => onPlaying(!playing) },
+        h(Icon, { name: playing ? 'pause' : 'arrow', size: 13 }), playing ? localized('暂停', 'Pause') : localized('回放', 'Replay')),
+      h('button', { className: 'st-button', type: 'button', disabled: at <= 0, onClick: () => { onPlaying(false); onIndex(at - 1) } }, localized('上一步', 'Previous')),
+      h('button', { className: 'st-button', type: 'button', disabled: at >= total - 1, onClick: () => { onPlaying(false); onIndex(at + 1) } }, localized('下一步', 'Next')),
+      h('button', { className: 'st-button', type: 'button', disabled: index < 0, onClick: () => { onPlaying(false); onIndex(-1) } }, localized('退出回放', 'Exit replay')),
+      h('span', { className: 'st-replay-note' }, localized(
+        `回放只按运行事件顺序逐节点高亮；它不改变收据内容。${timeline.truncated ? `（超过 ${timeline.steps.length} 步后已截断）` : ''}`,
+        `Replay highlights nodes in event order; it never changes the receipt.${timeline.truncated ? ' Truncated past the step limit.' : ''}`)))
+  }
+
   function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, onSelect, onCloseInspect }) {
+    const timeline = data?.timeline ?? null
+    const [replayIndex, setReplayIndex] = React.useState(-1)
+    const [playing, setPlaying] = React.useState(false)
+    const total = timeline?.steps?.length ?? 0
+
+    // Advancing is a step, not an animation: one node per tick, pausable at any point.
+    React.useEffect(() => {
+      if (!playing || total === 0) return undefined
+      const timer = setInterval(() => {
+        setReplayIndex((current) => {
+          if (current >= total - 1) { setPlaying(false); return current }
+          return current + 1
+        })
+      }, 900)
+      return () => clearInterval(timer)
+    }, [playing, total])
+    React.useEffect(() => { setReplayIndex(-1); setPlaying(false) }, [data?.sessionId, total])
+
+    const replay = replayIndex >= 0 && timeline
+      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
+      : null
+
     if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建本次运行流程…', 'Rebuilding the runtime flow…'))
     if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
     if (!data) return h('div', { className: 'st-rt-empty' }, localized('当前对话暂无可重建的运行流程。', 'No reconstructable runtime flow in this conversation.'))
@@ -1731,8 +1789,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
           h('span', { 'data-engine': layout.engine ?? 'unknown' }, localized(
             layout.engine === 'elk' ? '布局：ELK（层内交叉最小化）' : '布局：确定性（ELK 已在超过节点预算时跳过）',
             layout.engine === 'elk' ? 'Layout: ELK (crossing-minimised)' : 'Layout: deterministic (ELK skipped past its node budget)'))),
+        h(ReplayControls, { timeline, index: replayIndex, playing, onIndex: setReplayIndex, onPlaying: setPlaying }),
         h('div', { className: 'st-flow-canvas' },
-          h(RuntimeFlowView, { layout, selectedId, onSelect, onBackground: onCloseInspect }))),
+          h(RuntimeFlowView, { layout, selectedId, onSelect, onBackground: onCloseInspect, replay }))),
       h('div', { className: 'st-flow-side' },
         hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
           `另有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；折叠节点上标明了它代表多少项，点开可看它代表哪些节点。`,

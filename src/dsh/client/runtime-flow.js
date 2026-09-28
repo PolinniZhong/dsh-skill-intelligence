@@ -93,6 +93,7 @@ function RuntimeNode({ data }) {
     'data-kind': data.kind,
     'data-status': data.status,
     'data-dimmed': data.dimmed ? 'true' : undefined,
+    'data-replay': data.replay ?? undefined,
     style: { '--st-node-color': color, '--st-node-width': `${data.width}px` },
   },
   React.createElement(Handle, { type: 'target', position: Position.Left, className: 'st-flow-handle' }),
@@ -126,7 +127,7 @@ const STATUS_LABELS = {
 }
 
 /** Convert the Host's layout into React Flow's model. Presentation only. */
-function toFlowNodes(layout, selectedId, dim) {
+function toFlowNodes(layout, selectedId, dim, replay) {
   return layout.nodes.map((node) => ({
     id: node.id,
     type: 'dsht',
@@ -146,6 +147,9 @@ function toFlowNodes(layout, selectedId, dim) {
         : (KIND_LABELS[node.kind] ?? node.kind),
       statusLabel: STATUS_LABELS[node.status] ?? node.status,
       dimmed: dim ? !dim.has(node.id) : false,
+      // §37: replay walks the run in event order. Nodes not yet reached recede; the
+      // step being read is the only one at full weight.
+      replay: replay ? (replay.currentId === node.id ? 'current' : (replay.seenIds.has(node.id) ? 'past' : 'future')) : null,
     },
   }))
 }
@@ -187,11 +191,11 @@ function neighbourhoodOf(layout, nodeId) {
  *
  * `onSelect` receives `{ nodeId }` or `{ edgeId }`; the Host answers what it means.
  */
-function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniMap = true }) {
+function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniMap = true, replay = null }) {
   const focus = selectedId?.nodeId
   const dim = focus ? neighbourhoodOf(layout, focus) : null
 
-  const nodes = React.useMemo(() => toFlowNodes(layout, selectedId?.nodeId, dim), [layout, selectedId?.nodeId, dim])
+  const nodes = React.useMemo(() => toFlowNodes(layout, selectedId?.nodeId, dim, replay), [layout, selectedId?.nodeId, dim, replay])
   const edges = React.useMemo(() => toFlowEdges(layout, selectedId?.edgeId, dim), [layout, selectedId?.edgeId, dim])
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes)

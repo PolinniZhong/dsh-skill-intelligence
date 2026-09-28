@@ -491,6 +491,49 @@ if (!client.includes('alignments: data.views.receipt.runtime.alignments')) {
   throw new Error('the inspector must receive the declaration baseline')
 }
 
+// Runtime replay (§37). It is a read of the Host's timeline: stepping must not be
+// able to change what the receipt says happened, and it must not become a video.
+const replay = await readFile(resolve(root, 'src/core/runtime-replay.mjs'), 'utf8')
+for (const requiredText of [
+  'export function buildReplayTimeline',
+  'export const REPLAY_STEP_LIMIT',
+  'truncated',
+  'startedAt',
+]) {
+  if (!replay.includes(requiredText)) throw new Error(`replay contract missing: ${requiredText}`)
+}
+// A step must land on a drawn node, so a folded group has to be resolvable.
+if (!replay.includes('node.memberIds ?? []')) {
+  throw new Error('the timeline must resolve an event to the group that drew it')
+}
+if (!replay.includes('if (nodeId === last) continue')) {
+  throw new Error('consecutive events on one node must be one step, not two')
+}
+// Truncation must be reported rather than silent.
+if (!replay.includes('truncated = true')) throw new Error('a truncated timeline must say so')
+{
+  const code = replay.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  for (const forbidden of ['writeFile', 'fetch(', 'store.']) {
+    if (code.includes(forbidden)) throw new Error(`replay must not write: ${forbidden}`)
+  }
+}
+if (!client.includes('function ReplayControls')) throw new Error('the canvas must offer replay controls')
+{
+  const start = client.indexOf('function ReplayControls')
+  const block = client.slice(start, client.indexOf('function FlowCanvas'))
+  // §37: a step-through, not an auto-playing video.
+  for (const forbidden of ['requestAnimationFrame', '@keyframes', 'transition:']) {
+    if (block.includes(forbidden)) throw new Error(`replay must not animate: ${forbidden}`)
+  }
+  if (!block.includes('上一步') || !block.includes('下一步') || !block.includes('暂停')) {
+    throw new Error('replay must offer step, step back and pause')
+  }
+  // And it may not write while replaying.
+  for (const forbidden of ['api(', 'onUpdate', 'setData(']) {
+    if (block.includes(forbidden)) throw new Error(`replay must not call the API: ${forbidden}`)
+  }
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -531,3 +574,4 @@ console.log('CLIENT_BUNDLE_CONTRACT_OK')
 console.log('RUNTIME_FLOW_READONLY_OK')
 console.log('ELK_LAYOUT_BOUNDED_OK')
 console.log('CONTEXTUAL_INSPECTOR_OK')
+console.log('REPLAY_READ_ONLY_OK')
