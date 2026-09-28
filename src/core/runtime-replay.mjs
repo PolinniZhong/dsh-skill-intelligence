@@ -38,7 +38,9 @@ export function buildReplayTimeline(graph, layout, runtimeEvents) {
   const ownerOf = new Map()
   for (const node of nodes) {
     if (node.graphNodeId) ownerOf.set(node.graphNodeId, node.id)
-    for (const memberId of node.memberIds ?? []) ownerOf.set(memberId, node.id)
+    // Only a folded node stands in for its members. A capability node also lists the
+    // calls it groups, but those calls are drawn — a replay step belongs on the call.
+    if (node.collapsed) for (const memberId of node.memberIds ?? []) ownerOf.set(memberId, node.id)
   }
 
   const steps = []

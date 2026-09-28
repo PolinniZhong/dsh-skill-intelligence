@@ -652,6 +652,43 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
   if (dividers < 8) throw new Error(`§27: structure should lean on dividers (${dividers})`)
 }
 
+// §8/§35: the five-layer model.
+const layoutModule = await readFile(resolve(root, 'src/core/runtime-layout.mjs'), 'utf8')
+for (const requiredText of [
+  "if (kind === 'capability') return 2",
+  "if (kind === 'result' || kind === 'error') return 4",
+  "if (kind === 'turn' || kind === 'child') return 1",
+  'capability: { width:',
+  'result: { width:',
+  'error: { width:',
+  'capabilityNodeCount',
+  'skippedLevelCount',
+]) {
+  if (!layoutModule.includes(requiredText)) throw new Error(`five-layer model missing: ${requiredText}`)
+}
+// §32: the projection may only draw containment. If it could cite a correlation rule or
+// emit another relation type, the canvas would be inferring relationships again.
+{
+  const fn = layoutModule.slice(layoutModule.indexOf('const projectedEdges'))
+  for (const forbidden of ["type: 'follows'", "type: 'spawns'", "type: 'retries'", 'rule: \'']) {
+    if (fn.includes(forbidden)) throw new Error(`§32: the projection may not draw ${forbidden}`)
+  }
+}
+// §36: the projected levels share the hard bound rather than sitting on top of it.
+if (!layoutModule.includes('projectionBudget = Math.max(0, nodeLimit - view.size)')) {
+  throw new Error('§36: the layer projection must share the node budget')
+}
+// The canvas has to know the kinds it is asked to draw.
+const flowModule = await readFile(resolve(root, 'src/dsh/client/runtime-flow.js'), 'utf8')
+for (const requiredText of ["capability: '能力'", "result: '结果'", "error: '错误'", 'CAPABILITY_COLORS.error', 'CAPABILITY_COLORS.result']) {
+  if (!flowModule.includes(requiredText)) throw new Error(`the canvas cannot draw §35 layer 2 or 4: ${requiredText}`)
+}
+// The outcome level is about outcome, not capability — and its colour needs a label
+// beside it so §9 holds.
+if (!flowModule.includes("if (node.kind === 'capability') return CAPABILITY_COLORS[node.capabilityId]")) {
+  throw new Error('a capability node must take the colour of the capability it groups')
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -697,3 +734,4 @@ console.log('RECEIPT_SECTIONS_OK')
 console.log('GRAPH_FILTERS_OK')
 console.log('MY_SKILLS_SLIM_OK')
 console.log('VISUAL_TOKENS_OK')
+console.log('FIVE_LAYER_MODEL_OK')

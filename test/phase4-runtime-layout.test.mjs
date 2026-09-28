@@ -65,14 +65,17 @@ function graphWith({ turns = 1, perTurn = 2, name = 'bash' } = {}) {
   return { graph: buildRuntimeGraph(receipt), receipt }
 }
 
-test('a small graph draws every node and groups nothing', () => {
+test('a small graph draws every node and folds nothing', () => {
   const { graph } = graphWith({ turns: 2, perTurn: 3 })
   const layout = computeRuntimeLayout(graph)
   assert.equal(layout.modelVersion, LAYOUT_MODEL_VERSION)
   assert.equal(layout.mode, 'expanded')
-  assert.equal(layout.nodes.length, graph.nodes.length)
+  // Every node the graph proved is drawn — §35's levels are added on top of that, not
+  // in place of it.
+  const drawn = new Set(layout.nodes.map((node) => node.graphNodeId).filter(Boolean))
+  for (const node of graph.nodes) assert.ok(drawn.has(node.id), `graph node not drawn: ${node.id}`)
   assert.equal(layout.hidden.nodeCount, 0)
-  assert.equal(layout.stats.collapsedNodeCount, 0)
+  assert.equal(layout.stats.collapsedNodeCount, 0, 'nothing may be folded at this size')
 })
 
 test('a busy turn collapses into one node per capability', () => {

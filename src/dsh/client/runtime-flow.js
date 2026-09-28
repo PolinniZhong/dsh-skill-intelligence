@@ -33,6 +33,9 @@ const CAPABILITY_COLORS = {
   subagent: '#c2410c',
   mixed: '#64748b',
   'turn-range': '#334155',
+  // §35 layer 4: an outcome is not a capability, so it gets its own two colours.
+  result: '#0f766e',
+  error: '#b91c1c',
   unknown: '#94a3b8',
 }
 
@@ -71,6 +74,13 @@ function capabilityColor(node) {
   if (node.kind === 'session') return CAPABILITY_COLORS.session
   if (node.kind === 'turn') return CAPABILITY_COLORS.turn
   if (node.kind === 'child') return CAPABILITY_COLORS.subagent
+  // §35 layer 2 takes the colour of the capability it groups, so the column reads
+  // as one level rather than as a new kind of thing.
+  if (node.kind === 'capability') return CAPABILITY_COLORS[node.capabilityId] ?? CAPABILITY_COLORS.unknown
+  // Layer 4 is about outcome, not capability. §9 forbids colour as the only signal,
+  // and here the colour *is* the outcome — the label and glyph still carry it.
+  if (node.kind === 'error') return CAPABILITY_COLORS.error
+  if (node.kind === 'result') return CAPABILITY_COLORS.result
   return CAPABILITY_COLORS[node.capabilityId] ?? CAPABILITY_COLORS.unknown
 }
 
@@ -116,6 +126,10 @@ const KIND_LABELS = {
   invocation: '调用',
   group: '折叠',
   child: 'Subagent',
+  // §35 layers 2 (Capability) and 4 (Result / Error).
+  capability: '能力',
+  result: '结果',
+  error: '错误',
 }
 
 const STATUS_LABELS = {

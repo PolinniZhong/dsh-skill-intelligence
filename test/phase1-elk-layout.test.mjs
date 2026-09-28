@@ -103,7 +103,8 @@ test('ELK is given the §35 layers as partitions', () => {
   assert.equal(elkGraph.layoutOptions['elk.partitioning.activate'], 'true')
   // Every node carries its structural layer, and the layers are the ones §35 names.
   const partitions = new Set(elkGraph.children.map((child) => child.layoutOptions['elk.partitioning.partition']))
-  for (const value of partitions) assert.match(value, /^[0-3]$/)
+  // §35 names five layers now, so a partition is 0-4.
+  for (const value of partitions) assert.match(value, /^[0-4]$/)
   assert.deepEqual([...partitions].sort(), [...new Set(base.nodes.map((node) => node.layer))].map(String).sort())
 })
 

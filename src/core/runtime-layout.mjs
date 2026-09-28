@@ -63,6 +63,10 @@ const KIND_SIZES = {
   invocation: { width: 300, height: 30 },
   group: { width: 300, height: 30 },
   child: { width: 240, height: 30 },
+  // §8 node types the canvas had no sizing for.
+  capability: { width: 240, height: 30 },
+  result: { width: 220, height: 28 },
+  error: { width: 260, height: 28 },
 }
 
 function kindOf(node) {
@@ -73,10 +77,19 @@ function kindOf(node) {
   return 'invocation'
 }
 
+/**
+ * §35's five layers. A layer is a reading level, never a causal claim: the vertical
+ * position says "this sits at the capability level of this run", not "this caused that".
+ *
+ *   0 Task / Session      1 Turn / Agent       2 Capability
+ *   3 Tool / MCP / CLI    4 Result / Error
+ */
 function layerOf(kind) {
   if (kind === 'session') return 0
-  if (kind === 'turn') return 1
-  if (kind === 'invocation' || kind === 'group') return 2
+  // A delegated child session is an Agent, and §35 puts Agent with Turn.
+  if (kind === 'turn' || kind === 'child') return 1
+  if (kind === 'capability') return 2
+  if (kind === 'result' || kind === 'error') return 4
   return 3
 }
 
@@ -274,6 +287,100 @@ export function computeRuntimeLayout(graph, options = {}) {
     if (rest.length >= 2) mergeInto('rest', rest, `其余 ${rest.length} 项（全部 Turn）`)
   }
 
+  // -- capability and outcome levels (§8/§35) --------------------------------
+  // Layer 2 groups the calls a Turn made of one capability; layer 4 holds what those
+  // calls produced. A capability node is drawn only where it actually groups something:
+  // a lone call needs no parent standing between it and its Turn.
+  //
+  // Everything here is derived from fields the Runtime events already carry — `turn`,
+  // `capabilityId`, `invocationId`, and the result event's `status`. No edge below is an
+  // inference (§32); each one is containment the evidence itself states.
+  const projectedEdges = []
+  const turnIdOf = new Map()
+  for (const turn of turnNodes) turnIdOf.set(turn.turn ?? 'none', turn.id)
+
+  const byCapability = new Map()
+  for (const [id, entry] of view) {
+    if (entry.kind !== 'invocation') continue
+    const source = entry.source
+    const key = `${source.turn ?? 'none'}|${source.capabilityId ?? 'unknown'}`
+    if (!byCapability.has(key)) {
+      byCapability.set(key, { turn: source.turn ?? 'none', capabilityId: source.capabilityId ?? 'unknown', members: [] })
+    }
+    byCapability.get(key).members.push({ id, source })
+  }
+
+  const evidenceOfNode = (source) => source?.evidenceEventIds ?? []
+  const makeEdge = (from, to, evidenceIds, derivation) => ({
+    id: `${from}->${to}:${derivation}`,
+    from, to, type: 'contains', status: 'observed',
+    derivation, rule: null, evidenceIds,
+  })
+  const makeNode = (id, layer, capabilityId, label, sublabel, status, outcome, memberIds = [], memberCount = 0) => ({
+    id, kind: layer === 2 ? 'capability' : (outcome === 'failure' ? 'error' : 'result'),
+    synthetic: {
+      id, layer, capabilityId, label, sublabel, status,
+      outcome: outcome ?? null, collapsed: false, memberIds, memberCount,
+    },
+  })
+
+  // The projection shares the hard bound with the drawn graph rather than sitting on
+  // top of it: §35's levels are never a reason to exceed the budget, and when the
+  // budget is gone the levels a reader does not get are counted, not silently dropped.
+  let projectionBudget = Math.max(0, nodeLimit - view.size)
+  let skippedLevels = 0
+
+  // Capability nodes first: they carry the structure a reader needs most.
+  const groups = [...byCapability.values()]
+    .filter((group) => group.members.length >= 2)
+    .sort((a, b) => b.members.length - a.members.length || String(a.turn).localeCompare(String(b.turn)))
+  const withCapability = []
+  for (const group of groups) {
+    if (projectionBudget <= 0) { skippedLevels += 1; continue }
+    const capId = `capability:${group.turn}:${group.capabilityId}`
+    const failures = group.members.filter((member) => member.source.outcome === 'failure')
+    const status = failures.length ? 'failure'
+      : group.members.some((member) => member.source.status === 'partial') ? 'partial' : 'observed'
+    view.set(capId, makeNode(capId, 2, group.capabilityId, group.capabilityId,
+      `Turn ${group.turn} · ${group.members.length} 次调用`, status, failures.length ? 'failure' : 'success',
+      group.members.map((member) => member.id), group.members.length))
+    projectionBudget -= 1
+    const turnId = turnIdOf.get(group.turn)
+    const turnEvidence = group.members.flatMap((member) => evidenceOfNode(member.source))
+    if (turnId) projectedEdges.push(makeEdge(turnId, capId, turnEvidence, 'layout:capability-of-turn'))
+    for (const member of group.members) {
+      projectedEdges.push(makeEdge(capId, member.id, evidenceOfNode(member.source), 'layout:capability-of-turn'))
+    }
+    withCapability.push({ group, capId, failures })
+  }
+
+  // Then outcomes. A failure always gets its own node — it is the thing a reader is
+  // looking for — while a clean group gets one Result node standing for its calls.
+  //
+  // The budget is stated rather than silent: past it the outcome level is skipped, and
+  // the count of what was skipped is reported with the layout.
+  let skippedOutcomes = 0
+  for (const { group, capId, failures } of withCapability) {
+    for (const member of failures) {
+      if (projectionBudget <= 0) { skippedOutcomes += 1; continue }
+      const errorId = `error:${member.source.invocationId ?? member.id}`
+      view.set(errorId, makeNode(errorId, 4, group.capabilityId, '失败',
+        `Turn ${group.turn} · ${group.capabilityId}`.trim(), 'failure', 'failure', [member.id], 1))
+      projectedEdges.push(makeEdge(capId, errorId, evidenceOfNode(member.source), 'layout:outcome-of-call'))
+      projectionBudget -= 1
+    }
+    if (failures.length === group.members.length) continue
+    if (projectionBudget <= 0) { skippedOutcomes += 1; continue }
+    const resultId = `result:${group.turn}:${group.capabilityId}`
+    const okCount = group.members.length - failures.length
+    const okMembers = group.members.filter((member) => member.source.outcome !== 'failure')
+    view.set(resultId, makeNode(resultId, 4, group.capabilityId, '结果',
+      `${okCount} 次成功`, 'observed', 'success', okMembers.map((member) => member.id), okCount))
+    projectedEdges.push(makeEdge(capId, resultId,
+      okMembers.flatMap((member) => evidenceOfNode(member.source)), 'layout:outcome-of-call'))
+    projectionBudget -= 1
+  }
+
   // -- place ----------------------------------------------------------------
   const layers = new Map()
   for (const [id, entry] of view) {
@@ -336,8 +443,8 @@ export function computeRuntimeLayout(graph, options = {}) {
       const node = {
         id: item.id,
         kind: item.kind,
-        label: item.kind === 'group' ? source.label : labelOf(source),
-        sublabel: item.kind === 'group' ? source.sublabel : sublabelOf(source),
+        label: item.entry.synthetic ? (source.label ?? labelOf(source)) : labelOf(source),
+        sublabel: item.entry.synthetic ? source.sublabel ?? null : sublabelOf(source),
         capabilityId: source.capabilityId ?? null,
         status: source.status ?? 'unknown',
         outcome: source.outcome ?? null,
@@ -367,7 +474,7 @@ export function computeRuntimeLayout(graph, options = {}) {
   const seen = new Map()
   const evidenceOf = new Map()
   let hiddenInside = 0
-  for (const edge of graphEdges) {
+  for (const edge of [...graphEdges, ...projectedEdges]) {
     const from = position.has(edge.from) ? edge.from : resolve(edge.from)
     const to = position.has(edge.to) ? edge.to : resolve(edge.to)
     if (!position.has(from) || !position.has(to)) continue
@@ -445,6 +552,12 @@ export function computeRuntimeLayout(graph, options = {}) {
       collapsedNodeCount: placed.filter((node) => node.collapsed).length,
       candidateEdgeCount: routed.filter((edge) => edge.status === 'candidate').length,
       overflowNodeIds: overflowNodes,
+      // §35 levels that were projected, and how many outcome nodes the budget skipped.
+      capabilityNodeCount: placed.filter((node) => node.kind === 'capability').length,
+      resultNodeCount: placed.filter((node) => node.kind === 'result').length,
+      errorNodeCount: placed.filter((node) => node.kind === 'error').length,
+      skippedOutcomeCount: skippedOutcomes,
+      skippedLevelCount: skippedLevels,
     },
   }
 }
