@@ -168,8 +168,13 @@ test('§14 the learning rail is not pinned beside anything', () => {
   // receipt flow, so nothing competes with the evidence for attention.
   assert.equal(client.includes("h('aside', { className: 'st-aside' }"), false,
     'the learning rail must not be rendered as a side column')
-  assert.ok(client.includes("h('div', { className: 'st-panels' }, h(Aside,"),
-    'learning and validation must render inside the receipt flow')
+  // §38: it is a collapsible section, and it starts collapsed.
+  assert.ok(client.includes("className: 'st-section st-panels'"),
+    'learning and validation must render inside the receipt flow as a section')
+  assert.ok(client.includes("h('details', { className: 'st-section st-panels' }"),
+    'the learning section must be collapsible')
+  assert.equal(/h\('details', \{ className: 'st-section st-panels'[^)]*open: true/.test(client), false,
+    'the learning section must not start open (§38)')
   // The layout is single-track for every view.
   assert.ok(client.includes("'data-simple': 'true'"))
 })

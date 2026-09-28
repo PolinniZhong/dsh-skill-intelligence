@@ -487,9 +487,21 @@ for (const requiredText of [
 if (client.includes("h('aside', { className: 'st-aside' }")) {
   throw new Error('the learning rail must not be pinned as a side column (§14)')
 }
-if (!client.includes("h('div', { className: 'st-panels' }, h(Aside,")) {
+if (!client.includes("h('details', { className: 'st-section st-panels' }")) {
   throw new Error('learning and validation must live inside the receipt flow (§17.1)')
 }
+// §38: it starts collapsed, so recording a note never pushes evidence down the page.
+if (/className: 'st-section st-panels'[^)]*open: true/.test(client)) {
+  throw new Error('the learning section must default to collapsed (§38)')
+}
+// §13: replay belongs to the canvas, so both densities have it.
+for (const name of ['FlowCanvas', 'RuntimeView']) {
+  const start = client.indexOf(`function ${name}(`)
+  const body = client.slice(start, client.indexOf('\n  function ', start + 10))
+  if (!body.includes('ReplayControls')) throw new Error(`§13: ${name} must offer replay`)
+}
+// §22 lists "all events" as its own control, not as the absence of a toggle.
+if (!client.includes("'显示全部事件'")) throw new Error('§22: the graph view needs an explicit all-events control')
 if (!client.includes('alignments: data.views.receipt.runtime.alignments')) {
   throw new Error('the inspector must receive the declaration baseline')
 }

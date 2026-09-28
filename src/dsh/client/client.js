@@ -392,9 +392,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-replay-note{flex-basis:100%;color:var(--st-faint);font-size:10.5px}
       .st-run-line{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 0 0;color:var(--st-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
       .st-run-workspace{margin-left:auto;color:var(--st-faint);font-size:10.5px}
-      .st-panels{display:grid;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--st-border)}
+      .st-panels{display:block;margin-top:10px}
       .st-section{border:0;border-bottom:1px solid var(--st-border-soft);padding:0}
       .st-section:last-of-type{border-bottom:0}
+      .st-panels > .st-section-body{display:grid;gap:12px}
       .st-section-head{display:flex;align-items:baseline;gap:8px;padding:11px 0;cursor:pointer;list-style:none}
       .st-section-head::-webkit-details-marker{display:none}
       .st-section-head::before{content:"›";color:var(--st-faint);font-size:13px;transition:none}
@@ -1669,6 +1670,23 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const [types, setTypes] = React.useState([])
     const [hideCandidate, setHideCandidate] = React.useState(true)
     const [failuresOnly, setFailuresOnly] = React.useState(false)
+    // §13 asks the canvas to support replay; both densities get it, sharing one
+    // implementation rather than one being able to walk a run and the other not.
+    const [replayIndex, setReplayIndex] = React.useState(-1)
+    const [playing, setPlaying] = React.useState(false)
+    const timeline = data?.timeline ?? null
+    const total = timeline?.steps?.length ?? 0
+    React.useEffect(() => {
+      if (!playing || total === 0) return undefined
+      const timer = setInterval(() => {
+        setReplayIndex((current) => {
+          if (current >= total - 1) { setPlaying(false); return current }
+          return current + 1
+        })
+      }, 900)
+      return () => clearInterval(timer)
+    }, [playing, total])
+    React.useEffect(() => { setReplayIndex(-1); setPlaying(false) }, [data?.sessionId, total])
 
     if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建运行图谱…', 'Rebuilding the runtime graph…'))
     if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
@@ -1705,12 +1723,29 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           h('button', { className: 'st-filter', type: 'button', 'aria-pressed': hideCandidate, onClick: () => setHideCandidate((value) => !value) },
             localized('仅显示主路径', 'Main path only')),
           h('button', { className: 'st-filter', type: 'button', 'aria-pressed': failuresOnly, onClick: () => setFailuresOnly((value) => !value) },
-            localized('只看失败/重试', 'Failures and retries'))),
+            localized('只看失败/重试', 'Failures and retries')),
+          // §22 lists this as its own control rather than leaving it as the absence of
+          // the main-path toggle.
+          h('button', {
+            className: 'st-filter',
+            type: 'button',
+            'aria-pressed': !hideCandidate && types.length === 0 && !failuresOnly,
+            onClick: () => { setTypes([]); setFailuresOnly(false); setHideCandidate(false) },
+          }, localized('显示全部事件', 'All events'))),
         h('p', { className: 'st-rt-notes', role: 'status' }, localized(
           `已隐藏 ${shown.hiddenNodes} 个节点与 ${shown.hiddenEdges} 条关系。${hideCandidate ? '「仅显示主路径」会隐藏候选关系（虚线）——那是证据最弱的一类。' : '当前包含候选关系（虚线），它们只是候选。'}`,
           `Hiding ${shown.hiddenNodes} node(s) and ${shown.hiddenEdges} relation(s). ${hideCandidate ? '"Main path only" hides candidate relations — the weakest class of evidence.' : 'Candidate relations (dashed) are currently shown; they are candidates only.'}`)),
+        h(ReplayControls, { timeline, index: replayIndex, playing, onIndex: setReplayIndex, onPlaying: setPlaying }),
         h('div', { className: 'st-flow-canvas' },
-          h(RuntimeFlowView, { layout: filtered, selectedId, onSelect, onBackground: onCloseInspect }))),
+          h(RuntimeFlowView, {
+            layout: filtered,
+            selectedId,
+            onSelect,
+            onBackground: onCloseInspect,
+            replay: replayIndex >= 0 && timeline
+              ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
+              : null,
+          }))),
       h('div', { className: 'st-flow-side' },
         shown.hiddenNodes || data.layout.hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
           `本次运行共 ${data.layout.hidden.nodeCount + stats.renderedNodeCount} 个节点；画布与筛选之外的部分已被折叠，折叠节点上标明它代表多少项。`,
@@ -1970,7 +2005,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null,
           sessionContent,
           data && hasTrace && view === 'receipt'
-            ? h('div', { className: 'st-panels' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load }))
+            ? // §38: collapsed by default. Recording a note is a second-order task; it must not
+            // push the evidence down the page just because the page was opened.
+            h('details', { className: 'st-section st-panels' },
+              h('summary', { className: 'st-section-head' },
+                h('span', { className: 'st-section-name' }, localized('学习与验证', 'Learning and validation')),
+                h('span', { className: 'st-section-note' }, localized('你的记录与本地产出引用；默认收起', 'Your notes and local output references; collapsed by default'))),
+              h('div', { className: 'st-section-body' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })))
             : null))
 
     return h('section', { 'data-plugin': 'dsh-skill-trace', 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
