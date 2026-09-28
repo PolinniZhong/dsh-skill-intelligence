@@ -65,6 +65,22 @@ export function sessionEventLog(session) {
 /** §21: how dense the debug view may get, against the flow view's default budget. */
 const GRAPH_NODE_LIMIT = 400
 
+/**
+ * §21：运行流程是**高层阅读视图**，运行图谱是**低层调试视图**——两者的差别必须在
+ * 密度上，而不只是同一张图挂上筛选。
+ *
+ * 实测一个真实会话（39 Turns / 644 Steps）在默认预算下渲染出 195 个节点，
+ * 铺开成一面线条墙；而 §20.1/§21 要的是「Session → Turn → Capability → 主要 Runtime
+ * Event」。所以运行流程的节点预算按阅读密度定，而不是按硬上限定。
+ */
+const FLOW_NODE_LIMIT = 40
+
+/**
+ * 运行流程还要折叠 Turn 列。一个 39 Turns 的真实会话若逐个画出 Turn，就是一根 34 行
+ * 的竖条——仍然不可读。§36 的区间折叠按阅读密度触发，而不是按硬上限。
+ */
+const FLOW_TURN_LIMIT = 12
+
 /** The canvas never reads member lists; the timeline already used them. */
 function stripMemberIds(layout) {
   return { ...layout, nodes: layout.nodes.map((node) => ({ ...node, memberIds: [] })) }
@@ -574,7 +590,8 @@ export function apply(ctx, config = {}) {
             const detail = url.searchParams.get('detail') === 'graph' ? 'graph' : 'flow'
             const layoutWithMembers = await computeRuntimeLayoutWithElk(graph, {
               includeHiddenIds: false,
-              ...(detail === 'graph' ? { nodeLimit: GRAPH_NODE_LIMIT } : {}),
+              nodeLimit: detail === 'graph' ? GRAPH_NODE_LIMIT : FLOW_NODE_LIMIT,
+              turnNodeLimit: detail === 'graph' ? undefined : FLOW_TURN_LIMIT,
             })
             sendJson(res, 200, {
               ok: true,

@@ -206,8 +206,9 @@ export function computeRuntimeLayout(graph, options = {}) {
   // A long session has one `turn` node per turn, and those alone can exceed the
   // bound — collapsing invocations cannot help. Ranges are the next axis down.
   const overflowNodes = []
-  if (turnNodes.length > MAX_TURN_NODES) {
-    const rangeSize = Math.ceil(turnNodes.length / MAX_TURN_NODES)
+  const turnNodeLimit = Number.isSafeInteger(options.turnNodeLimit) ? options.turnNodeLimit : MAX_TURN_NODES
+  if (turnNodes.length > turnNodeLimit) {
+    const rangeSize = Math.ceil(turnNodes.length / turnNodeLimit)
     for (let index = 0; index < turnNodes.length; index += rangeSize) {
       const slice = turnNodes.slice(index, index + rangeSize)
       const first = slice[0].turn ?? index
