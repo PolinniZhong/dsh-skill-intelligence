@@ -117,6 +117,9 @@ export async function bundleClient({ minify = true, sourcemap = true } = {}) {
     // The shell serves bundles as `text/javascript; charset=utf-8`, so escaping
     // non-ASCII would only inflate the artifact and hide the copy.
     charset: 'utf8',
+    // A dependency's stylesheet has to travel inside the bundle: the client cannot
+    // fetch a second file, so CSS arrives as text and is injected at runtime.
+    loader: { '.css': 'text' },
     minify,
     sourcemap: sourcemap ? 'external' : false,
     external: CLIENT_SEED_MODULES,

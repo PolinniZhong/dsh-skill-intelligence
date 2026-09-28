@@ -9,6 +9,7 @@
 // Never point `exports['./client']` at this file: the shell reads the client entry
 // verbatim and does not bundle it.
   const React = require('react')
+const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -173,6 +174,7 @@
   const STYLE_ID = 'dsh-skill-trace-style'
   const API_ROOT = '/skill-trace'
   const VIEW_KEY = 'dsh-skill-trace.default-view'
+  const FLOW_STYLE_ID = 'dsh-skill-trace-flow-style'
   const DRAFT_KEY = 'dsh-skill-trace.unsaved-drafts.v1'
   const DRAFT_LIMIT = 24
   const volatileDrafts = new Set()
@@ -379,6 +381,22 @@
       .st-rt-notes{margin:10px 0 0;padding:9px 10px;border-radius:7px;background:var(--st-layer-2);color:var(--st-faint);font-size:10px;line-height:1.6}
       .st-rt-empty{display:grid;place-items:center;min-height:180px;color:var(--st-muted);font-size:12px}
       .st-rt-legend{display:flex;flex-wrap:wrap;gap:10px;margin:9px 0 0;color:var(--st-faint);font-size:10px}
+
+      .st-flow{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
+      .st-flow-canvas{min-width:0;height:calc(100dvh - 210px);min-height:420px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);overflow:hidden}
+      .st-flow-side{position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
+      .st-flow-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 9px;color:var(--st-muted);font-size:11px}
+      .st-flow-head strong{color:var(--st-text);font-size:12px}
+      .st-flow-node{position:relative;display:flex;align-items:stretch;width:var(--st-node-width,220px);border:1px solid var(--st-border);border-left:0;border-radius:6px;background:var(--st-layer);box-shadow:0 1px 2px rgba(15,23,42,.06);overflow:hidden}
+      .st-flow-node[data-dimmed="true"]{opacity:.28}
+      .st-flow-node-bar{width:3px;background:var(--st-node-color)}
+      .st-flow-node-body{flex:1;min-width:0;padding:6px 8px}
+      .st-flow-node-title{font-size:11.5px;line-height:1.3;color:var(--st-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .st-flow-node-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;font-size:9.5px;color:var(--st-faint)}
+      .st-flow-node-status{display:inline-flex;align-items:center;gap:3px;font-weight:600}
+      .st-flow-handle{width:5px;height:5px;border:0;background:var(--st-node-color);opacity:.55}
+      .react-flow__attribution{display:none}
+      @media(max-width:1050px){.st-flow{grid-template-columns:minmax(0,1fr)}.st-flow-side{position:static;max-height:none}.st-flow-canvas{height:60dvh}}
       .st-rt-legend span{display:inline-flex;align-items:center;gap:4px}
       .st-rt-legend i{width:9px;height:9px;border-radius:2px}
       @media(max-width:1050px){.st-runtime{grid-template-columns:minmax(0,1fr)}.st-rt-inspector{position:static;max-height:none}}
@@ -387,6 +405,26 @@
     else document.head.appendChild(style)
     return () => {
       if (document.getElementById(STYLE_ID) === style) style.remove()
+    }
+  }
+
+  /**
+   * Install React Flow's own stylesheet.
+   *
+   * It travels inside the bundle as text (`.css` is loaded as text at build time)
+   * because the client ships as a single script and cannot fetch a second file. It
+   * lives under its own style id so the two stylesheets have independent lifetimes.
+   */
+  function installFlowStyles() {
+    if (!flowStylesheet || typeof document === 'undefined') return () => {}
+    const previous = document.getElementById(FLOW_STYLE_ID)
+    const style = document.createElement('style')
+    style.id = FLOW_STYLE_ID
+    style.textContent = flowStylesheet
+    if (previous) previous.replaceWith(style)
+    else document.head.appendChild(style)
+    return () => {
+      if (document.getElementById(FLOW_STYLE_ID) === style) style.remove()
     }
   }
 
@@ -1557,6 +1595,49 @@
       h(RuntimeInspector, { data: inspect, loading: inspectLoading, error: inspectError, onSelectEdge: (edgeId) => onSelect({ edgeId }), onClose: onCloseInspect }))
   }
 
+  /**
+   * 运行流程 (§6–§13) — the Runtime Flow canvas.
+   *
+   * Read-only runtime replay, not a workflow editor (§2.2). It draws the layout the
+   * Host computed and, on click, asks the Host why that line exists. It never reads
+   * events and never derives a relationship (§32).
+   */
+  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, onSelect, onCloseInspect }) {
+    if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建本次运行流程…', 'Rebuilding the runtime flow…'))
+    if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
+    if (!data) return h('div', { className: 'st-rt-empty' }, localized('当前对话暂无可重建的运行流程。', 'No reconstructable runtime flow in this conversation.'))
+
+    const layout = data.layout
+    const stats = layout.stats
+    const hidden = layout.hidden
+    const selectedId = inspect?.edge?.id
+      ? { edgeId: inspect.edge.id }
+      : (inspect?.nodeId ? { nodeId: inspect.nodeId } : null)
+
+    return h('div', { className: 'st-flow' },
+      h('div', null,
+        h('div', { className: 'st-flow-head' },
+          h('strong', null, localized('本次运行流程', 'Runtime flow for this session')),
+          h('span', null, localized(
+            `${stats.renderedNodeCount} 个节点 · ${stats.renderedEdgeCount} 条关系 · 原图 ${stats.graphNodeCount} 个节点`,
+            `${stats.renderedNodeCount} nodes · ${stats.renderedEdgeCount} relations · graph has ${stats.graphNodeCount}`)),
+          h('span', null, localized('拖动平移 · 滚轮缩放 · 右上角适配', 'Drag to pan · scroll to zoom · fit at top right'))),
+        h('div', { className: 'st-flow-canvas' },
+          h(RuntimeFlowView, { layout, selectedId, onSelect, onBackground: onCloseInspect }))),
+      h('div', { className: 'st-flow-side' },
+        hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
+          `另有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；折叠节点上标明了它代表多少项，点开可看它代表哪些节点。`,
+          `${hidden.nodeCount} nodes and ${hidden.edgeCount + hidden.collapsedInsideCount} relations are folded; a folded node names how many it stands for.`)) : null,
+        h(RuntimeInspector, {
+          data: inspect,
+          loading: inspectLoading,
+          error: inspectError,
+          onSelectEdge: (edgeId) => onSelect({ edgeId }),
+          onClose: onCloseInspect,
+        }),
+        h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))))
+  }
+
   function Workbench(props) {
     React.useSyncExternalStore(
       (listener) => localeService.subscribe(listener),
@@ -1625,7 +1706,8 @@
       setCatalogMeta(null); preferenceSession.current = null; load()
     }, [load])
 
-    React.useEffect(() => { if (view === 'runtime' && !runtime && !runtimeLoading) loadRuntime() }, [view, runtime, runtimeLoading, loadRuntime])
+    // 运行流程 and 运行图谱 are two densities of the same runtime graph, so both need it.
+      React.useEffect(() => { if ((view === 'runtime' || view === 'map') && !runtime && !runtimeLoading) loadRuntime() }, [view, runtime, runtimeLoading, loadRuntime])
 
     function chooseView(next) {
       setScreen('session'); setView(next); setError(''); setInspect(null)
@@ -1657,7 +1739,20 @@
           onSelect: selectRuntime,
           onCloseInspect: () => setInspect(null),
         })
-          : data && !hasTrace ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
+          // §4/§21: 运行流程 is the same graph at reading density; 运行图谱 stays the
+          // dense view. Both are read-only and both answer through the same inspector.
+          : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, {
+            data: runtime,
+            loading: runtimeLoading,
+            error: runtimeError,
+            onRetry: loadRuntime,
+            inspect,
+            inspectLoading,
+            inspectError,
+            onSelect: selectRuntime,
+            onCloseInspect: () => setInspect(null),
+          })
+            : data && !hasTrace ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
             : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel }) : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
     const sessionSubtitle = !data ? '正在读取当前会话…'
       : view === 'runtime' ? (runtime ? localized(`运行图谱 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 边 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime graph · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} edges · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行图谱…`, `${data.workspaceLabel} · rebuilding the runtime graph…`))
@@ -1688,6 +1783,7 @@
     translate = ctx.locale.bind(NS)
     ctx.effect(() => ctx.locale.register(NS, { zh: ZH, en: EN }), 'dsh-skill-trace: locale dictionaries')
     ctx.effect(() => installStyles(), 'dsh-skill-trace: stylesheet')
+    ctx.effect(() => installFlowStyles(), 'dsh-skill-trace: canvas stylesheet')
     ctx.effect(() => installDraftBeforeUnload(), 'dsh-skill-trace: protect unsaved local drafts')
     ctx.slots.inject('conversation.view', () => ctx.slots.register({ name: 'conversation.view', id: 'skill-trace', order: 70, label: () => t('Skill 追踪'), locale: NS }, (props) => h(Workbench, props)))
     ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({ name: 'conversation.session.header.utilities', id: 'skill-trace-status', order: 75, label: () => t('Skill 追踪状态'), locale: NS }, (props) => h(SessionStatus, props)))

@@ -1,0 +1,4 @@
+{
+  "//": "The client is CommonJS: the DSH web shell loads it as a browser script that calls require('react'). The package root is `type: module`, so this scope marks the directory explicitly rather than relying on a bundler's guess.",
+  "type": "commonjs"
+}

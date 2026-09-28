@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
+import { seedRequire } from './helpers/react-stub.mjs'
 import {
   CLIENT_ID,
   CLIENT_OUTPUT,
@@ -38,15 +39,14 @@ test('the bundle is loaded by the real loader into a working plugin', () => {
   assert.equal(definition.id, CLIENT_ID)
 
   const required = []
-  const plugin = definition.factory((spec) => {
-    required.push(spec)
-    if (!CLIENT_SEED_MODULES.includes(spec)) throw new Error(`unresolvable module: ${spec}`)
-    return { createElement() {}, useState() {}, useEffect() {}, useCallback: (fn) => fn, useRef: () => ({}), useSyncExternalStore() {}, createContext: () => ({}) }
-  })
+  const plugin = definition.factory(seedRequire(required))
   assert.deepEqual(Object.keys(plugin).sort(), ['apply', 'inject'])
   assert.equal(typeof plugin.apply, 'function')
-  // The one module this plugin is allowed to need.
-  assert.deepEqual([...new Set(required)], ['react'])
+  // Every module it asked for must be a seed word the shell provides.
+  for (const spec of new Set(required)) {
+    assert.ok(CLIENT_SEED_MODULES.includes(spec), `the shell cannot resolve ${spec}`)
+  }
+  assert.ok(required.includes('react'))
 })
 
 test('every require in the artifact is a platform seed word', () => {

@@ -390,6 +390,45 @@ if (!builder.shippedBundleIsFresh()) {
   if (unresolved.length > 0) throw new Error(`the bundle requires modules the shell cannot resolve: ${unresolved.join(', ')}`)
 }
 
+// Runtime Flow canvas governance (§2.2, §8–§13, §32).
+//
+// The canvas is a read-only runtime replay. Both ways it could go wrong are quiet:
+// it could let a click change the run, or it could carry meaning by colour and line
+// alone. Neither would fail a type check.
+const canvas = await readFile(resolve(root, 'src/dsh/client/runtime-flow.js'), 'utf8')
+for (const requiredText of [
+  'export',                       // (module shape checked below)
+  'nodesDraggable: false',
+  'nodesConnectable: false',
+  'edgesUpdatable: false',
+  'panOnDrag: true',
+  'zoomOnScroll: true',
+  'fitView: true',
+  'STATUS_GLYPHS',
+  'KIND_LABELS',
+  "edge.status === 'candidate'",
+]) {
+  if (requiredText === 'export') continue
+  if (!canvas.includes(requiredText)) throw new Error(`canvas contract missing: ${requiredText}`)
+}
+if (!canvas.includes('module.exports = { RuntimeFlowView')) {
+  throw new Error('the canvas must export RuntimeFlowView')
+}
+// §2.2: no affordance that could turn a user action into a claim about the run.
+for (const forbidden of ['onConnect:', 'onReconnect:', 'nodesDraggable: true', 'edgesUpdatable: true']) {
+  if (canvas.includes(forbidden)) throw new Error(`the canvas must stay read-only: ${forbidden}`)
+}
+// §32: it consumes a view model and never reaches for evidence itself.
+for (const forbidden of ['runtimeEvents', 'evidenceIds', '/context?', 'arguments']) {
+  if (canvas.includes(forbidden)) throw new Error(`the canvas must not read evidence directly: ${forbidden}`)
+}
+// §10.2: a candidate relationship may never be drawn as a settled one.
+if (!/follows:\s*\{[^}]*dashed:\s*true/.test(canvas)) {
+  throw new Error('the follows relation must be drawn dashed')
+}
+if (!client.includes('h(FlowCanvas')) throw new Error('运行流程 must render the Runtime Flow canvas')
+if (!client.includes('installFlowStyles')) throw new Error("React Flow's stylesheet must be installed by the client")
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -427,3 +466,4 @@ console.log('ALIGNMENT_NO_SCORE_OK')
 console.log('CANVAS_BOUNDED_OK')
 console.log('SESSION_LOG_RECOVERY_OK')
 console.log('CLIENT_BUNDLE_CONTRACT_OK')
+console.log('RUNTIME_FLOW_READONLY_OK')

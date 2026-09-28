@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import test from 'node:test'
+import { seedRequire } from './helpers/react-stub.mjs'
 
 // Load the artifact the shell actually loads, not the source it was built from:
 // the registration wrapper only exists in the bundle.
@@ -52,11 +53,9 @@ function loadClientFactory(document) {
 
 function applyClient(factory) {
   const effects = new Map()
-  const React = { createElement() {} }
-  const plugin = factory((name) => {
-    assert.equal(name, 'react')
-    return React
-  })
+  // The client may require any platform seed word; the harness resolves those and
+  // throws for anything else, so a passing test still proves resolvability.
+  const plugin = factory(seedRequire())
   plugin.apply({
     effect(setup, label) { effects.set(label, setup()) },
     locale: {
