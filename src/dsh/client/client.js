@@ -372,6 +372,9 @@ window.__ModuleLoader__.load({
         .st-rt-evidence code{font-size:9.5px;color:var(--st-faint)}
         .st-rt-notes{margin:10px 0 0;padding:9px 10px;border-radius:7px;background:var(--st-layer-2);color:var(--st-faint);font-size:10px;line-height:1.6}
         .st-rt-empty{display:grid;place-items:center;min-height:180px;color:var(--st-muted);font-size:12px}
+        .st-rt-legend{display:flex;flex-wrap:wrap;gap:10px;margin:9px 0 0;color:var(--st-faint);font-size:10px}
+        .st-rt-legend span{display:inline-flex;align-items:center;gap:4px}
+        .st-rt-legend i{width:9px;height:9px;border-radius:2px}
         @media(max-width:1050px){.st-runtime{grid-template-columns:minmax(0,1fr)}.st-rt-inspector{position:static;max-height:none}}
       `
       if (previous) previous.replaceWith(style)
@@ -1449,7 +1452,9 @@ window.__ModuleLoader__.load({
 
         data.node?.collapsed ? h('div', { className: 'st-rt-field' },
           h('span', null, '折叠节点'),
-          h('p', null, localized(`它代表 ${data.memberIds.length} 个节点：${data.memberIds.slice(0, 4).map((id) => id.replace(/^invocation:/, '').slice(-8)).join('、')}${data.memberIds.length > 4 ? ' …' : ''}`, `Stands for ${data.memberIds.length} nodes`))) : null,
+          h('p', null, localized(
+            `它代表 ${data.node.memberCount} 个节点${data.memberIds.length < data.node.memberCount ? `，此处列出其中 ${data.memberIds.length} 个` : ''}：${data.memberIds.slice(0, 4).map((id) => id.replace(/^invocation:/, '').slice(-8)).join('、')}${data.memberIds.length > 4 ? ' …' : ''}`,
+            `Stands for ${data.node.memberCount} node(s)${data.memberIds.length < data.node.memberCount ? `, ${data.memberIds.length} named here` : ''}`))) : null,
 
         relations.length ? h('div', null,
           h('p', { className: 'st-rt-kicker' }, localized(`关系 ${relations.length} 条`, `${relations.length} relation(s)`)),
@@ -1540,7 +1545,7 @@ window.__ModuleLoader__.load({
           stats.unlinkedNodeCount || data.graph.unlinked.length ? h('p', { className: 'st-rt-notes' },
             localized(`无法确定归属的调用 ${data.graph.unlinked.length} 个，已列入 unlinked，不会挂到最近的节点上。`,
               `${data.graph.unlinked.length} call(s) could not be placed and are reported unlinked.`)) : null,
-          h('div', { className: 'st-rough-legend' },
+          h('div', { className: 'st-rt-legend' },
             ...Object.entries(RT_CAPABILITY_COLOR).filter(([key]) => ['skill', 'cli', 'tool', 'mcp', 'subagent'].includes(key)).map(([key, color]) => h('span', { key }, h('i', { style: { background: color } }), key))),
           h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))),
         h(RuntimeInspector, { data: inspect, loading: inspectLoading, error: inspectError, onSelectEdge: (edgeId) => onSelect({ edgeId }), onClose: onCloseInspect }))

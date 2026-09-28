@@ -194,6 +194,12 @@ test('a collapsed group is answered by naming the nodes it stands for', () => {
   for (const id of inspected.memberIds) assert.equal(known.has(id), true)
   assert.ok(inspected.evidence.length > 0)
   assert.equal(inspected.evidence.length <= INSPECTOR_EVIDENCE_LIMIT, true)
+  // A folded node still explains itself, and still states its limit.
+  assert.ok(inspected.meaning.length > 0)
+  assert.equal(inspected.limit.includes('不主张任何关系'), true)
+  // The true member count survives even though the named list is a sample.
+  assert.equal(inspected.node.memberCount, group.memberCount)
+  assert.ok(inspected.node.memberCount >= inspected.memberIds.length)
 })
 
 test('inspection is a lookup, so cost does not grow with the run', () => {

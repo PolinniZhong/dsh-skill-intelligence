@@ -181,6 +181,8 @@ export function inspectRuntimeNode(graph, runtimeEvents, nodeId, options = {}) {
       },
       memberIds,
       relations: [],
+      meaning: '这是一个折叠节点：它把同一 Turn 内同一能力的多次调用合并成一个方块，避免画布被上千个方块淹没。',
+      limit: '折叠节点本身不主张任何关系。它代表哪些调用、每一次调用各自的依据，要看它列出的成员。',
       evidence,
       missingEvidenceIds,
       evidenceBoundary: evidenceBoundary(),

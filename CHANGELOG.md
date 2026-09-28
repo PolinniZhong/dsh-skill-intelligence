@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0-beta.14 — 2026-09-28
+
+- Fixes an honesty bug found by running the acceptance checks against the live Host: a collapsed node was described by the size of the sample list it received rather than the number of nodes it stands for, so a group standing for 61 calls announced "represents 24 nodes". It now reports the true count, and the named list is labelled as a sample of it.
+- A folded node now explains itself. Clicking one used to return no meaning and no limit, which read as an unexplained box; it now says that folding merges same-capability calls within a turn to keep the canvas readable, and that the folded node itself claims no relationship.
+- Defines the capability legend style, which the canvas referenced but never declared.
+- Adds a verify guard so a folded node can never again be described by its sample length.
+
 ## 0.4.0-beta.13 — 2026-09-28
 
 - Adds the **runtime graph canvas** as a third view inside the plugin. This is the first UI change since beta.5, and the first time the runtime model is visible from DeepSeek Harness itself.

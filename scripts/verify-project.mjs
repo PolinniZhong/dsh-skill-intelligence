@@ -317,13 +317,18 @@ if (!inspectorModel.includes("limit: entry?.limit ??")) {
 for (const requiredText of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", 'computeRuntimeLayout(graph)', 'inspectRuntimeEdge', 'inspectRuntimeNode']) {
   if (!host.includes(requiredText)) throw new Error(`phase 4 route missing from host: ${requiredText}`)
 }
-for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'rtEdgePath']) {
+for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'rtEdgePath', 'data.node.memberCount']) {
   if (!client.includes(requiredText)) throw new Error(`phase 4 canvas missing from client: ${requiredText}`)
 }
 // The client draws positions it was handed. If it ever computed them, the layout
 // would stop being one reviewable, testable thing on the Host side.
 for (const forbidden of ['MAX_ROWS_PER_COLUMN', 'LAYOUT_NODE_LIMIT', 'computeRuntimeLayout']) {
   if (client.includes(forbidden)) throw new Error(`the client must not compute layout: ${forbidden}`)
+}
+// A folded node must be described by its true member count, never by the size of
+// the sample list the canvas happened to receive.
+if (/它代表 \$\{data\.memberIds\.length\}/.test(client)) {
+  throw new Error('a folded node must report its true member count, not the sample length')
 }
 
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
