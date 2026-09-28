@@ -351,6 +351,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-rt-inspector{border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:13px 14px;position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-rt-inspector h3{margin:0 0 2px;font-size:12.5px}
       .st-rt-kicker{margin:0 0 10px;color:var(--st-faint);font-size:10.5px}
+      .st-rt-eyebrow{margin:0 0 3px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--st-faint)}
       .st-rt-section{margin:0 0 14px}
       .st-rt-section h3{margin:0 0 7px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--st-faint)}
       .st-rt-meta{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:baseline;font-size:11px}
@@ -388,6 +389,14 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
       .st-flow-node{position:relative;display:flex;flex-direction:column;width:var(--st-node-width,190px);border:1px solid var(--st-border);border-radius:11px;background:var(--st-layer);box-shadow:0 4px 12px rgba(23,33,48,.045);overflow:hidden;cursor:pointer}
       .st-flow-node:hover{box-shadow:0 7px 18px rgba(23,33,48,.08)}
+      /* 键盘可达（§13）：preview 用 outline，实现沿用同一做法。 */
+      .st-flow-node:focus-visible{outline:2px solid var(--st-brand);outline-offset:2px}
+      /* 过渡：objective 明确要求。preview 没有过渡，但状态切换（hover / 聚焦降权 / 回放）
+         若瞬变会读成"画面闪了一下"；160ms 足以让它读成一次状态变化。 */
+      .st-flow-node{transition:box-shadow .16s ease,opacity .16s ease,border-color .16s ease}
+      .st-flow-node[data-dimmed="true"]{transition:opacity .16s ease}
+      .react-flow__edge-path{transition:stroke-width .16s ease,opacity .16s ease}
+      .st-flow-node[data-replay="current"]{transition:box-shadow .16s ease}
       .st-flow-node-bar{height:3px;background:var(--st-node-color);flex:none}
       .st-flow-node-head{display:flex;gap:9px;align-items:center;padding:10px 11px 7px}
       .st-flow-node-icon{width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:8px;background:color-mix(in srgb,var(--st-node-color) 12%,transparent);color:var(--st-node-color);font-size:11px;font-weight:700}
@@ -1813,6 +1822,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       : h('p', { className: 'st-rt-notes' }, localized('这个节点没有可展示的关系。', 'This node has no relations to show.'))
 
     return h('aside', { className: 'st-rt-inspector' },
+      // preview 的 Inspector 顶部有一个 kicker，先说明「现在看的是什么」（§14 Contextual：
+      // 检查器始终知道自己的对象是节点还是关系）。
+      h('p', { className: 'st-rt-eyebrow' }, isEdge ? localized('当前关系', 'Current relation') : localized('当前节点', 'Current node')),
       h('h3', null, isEdge ? `关系 · ${data.edge.type}` : (node.label || node.id)),
       h('p', { className: 'st-rt-kicker' }, isEdge
         ? localized(`${data.edge.derivation} · ${data.edge.status}`, `${data.edge.derivation} · ${data.edge.status}`)

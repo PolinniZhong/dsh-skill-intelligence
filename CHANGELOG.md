@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.4.0-beta.40 — 2026-09-28 · 批次 I：Inspector kicker + 键盘可达 + 过渡 + 交互态截图
+
+### Inspector 顶部 kicker
+
+preview 在检查器顶部先说明「现在看的是什么」。补上：
+
+```
+当前节点          ← 新增
+skill × 1
+group · 证据 observed
+[运行证据] [关联关系]
+```
+
+节点显示「当前节点」，关系显示「当前关系」（§14 Contextual）。
+
+**实现方式刻意选了零括号增量的做法**——只往已有的参数列表里插入一个同级元素。上一轮我停手就是因为不想在上下文将尽时做括号配平；这次找到了不需要配平的写法。
+
+### 键盘可达与过渡
+
+- `.st-flow-node:focus-visible{outline:2px solid var(--st-brand);outline-offset:2px}` —— preview 有，实现此前没有
+- 过渡 160ms：preview 自己**没有**过渡，但 objective 明确要求「过渡动画」，且状态瞬变（hover / 聚焦降权 / 回放）会读成「画面闪了一下」
+
+### 补齐五个交互态截图
+
+`focus` / `replay` / `filter` / `loading` / `error` —— 审计清单里此前缺的这一组，现在都有真实截图。
+
+### 关于「是否有别的写入者」
+
+我自查了：文件修改时间与我的写入一致，**没有发现第二个进程**。最可能的解释是**你在两轮之间自己编辑过文件**（`ReceiptRow`、图例 CSS 的现象与此吻合）。
+
+据此我改变了做法：**提交前逐块 review `git diff`，不再直接 `git add -A`**。本轮 diff 确认为 12 行新增、无意外改动。
+
+**293 项测试通过**，**23 项契约检查通过**。
+
 ## 0.4.0-beta.39 — 2026-09-28 · 批次 H：画布工具栏对齐
 
 ### React Flow 的 `<Controls>` → preview 式的横排工具栏
