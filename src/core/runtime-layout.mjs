@@ -283,13 +283,19 @@ export function computeRuntimeLayout(graph, options = {}) {
     layers.get(layer).push({ id, entry, kind })
   }
 
-  const order = (item) => {
+  const defaultOrder = (item) => {
     const source = item.entry.source ?? item.entry.synthetic
     if (item.kind === 'turn') return [source.turn ?? 0]
     if (item.kind === 'invocation') return [source.turn ?? 1e6, source.step ?? 0, source.invocationId ?? '']
     if (item.kind === 'group') return [source.id]
     return [0]
   }
+  // Ordering within a layer is a layout decision, not a fact about the run. An
+  // engine may supply its own (ELK minimizes edge crossings); when it does, the
+  // layers themselves are still the structural ones from §35.
+  const order = typeof options.orderOf === 'function'
+    ? (item) => options.orderOf(item.id) ?? defaultOrder(item)
+    : defaultOrder
   for (const items of layers.values()) {
     items.sort((a, b) => {
       const left = order(a)

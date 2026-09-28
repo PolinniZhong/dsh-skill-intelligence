@@ -1621,7 +1621,12 @@ const { RuntimeFlowView, flowStylesheet } = require('./runtime-flow.js')
           h('span', null, localized(
             `${stats.renderedNodeCount} 个节点 · ${stats.renderedEdgeCount} 条关系 · 原图 ${stats.graphNodeCount} 个节点`,
             `${stats.renderedNodeCount} nodes · ${stats.renderedEdgeCount} relations · graph has ${stats.graphNodeCount}`)),
-          h('span', null, localized('拖动平移 · 滚轮缩放 · 右上角适配', 'Drag to pan · scroll to zoom · fit at top right'))),
+          h('span', null, localized('拖动平移 · 滚轮缩放 · 右上角适配', 'Drag to pan · scroll to zoom · fit at top right')),
+          // Which engine laid this out is reported rather than silently swapped:
+          // one minimises crossings, the other is the only one affordable at scale.
+          h('span', { 'data-engine': layout.engine ?? 'unknown' }, localized(
+            layout.engine === 'elk' ? '布局：ELK（层内交叉最小化）' : '布局：确定性（ELK 已在超过节点预算时跳过）',
+            layout.engine === 'elk' ? 'Layout: ELK (crossing-minimised)' : 'Layout: deterministic (ELK skipped past its node budget)'))),
         h('div', { className: 'st-flow-canvas' },
           h(RuntimeFlowView, { layout, selectedId, onSelect, onBackground: onCloseInspect }))),
       h('div', { className: 'st-flow-side' },

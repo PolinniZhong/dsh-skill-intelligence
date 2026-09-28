@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-trace",
-  "version": "0.4.0-beta.17",
+  "version": "0.4.0-beta.18",
   "type": "module",
   "description": "Local-first Skill load evidence, learning cards, and iteration preparation for DeepSeek Harness",
   "license": "MIT",
@@ -60,5 +60,8 @@
   "devDependencies": {
     "@xyflow/react": "^12.12.0",
     "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "elkjs": "^0.12.0"
   }
 }

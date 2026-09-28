@@ -19,6 +19,7 @@ import { buildCatalogView } from '../../core/catalog-view.mjs'
 import { readSessionEvents } from '../../core/session-log.mjs'
 import { buildRuntimeGraph } from '../../core/runtime-graph.mjs'
 import { computeRuntimeLayout } from '../../core/runtime-layout.mjs'
+import { computeRuntimeLayoutWithElk } from '../../core/runtime-layout-elk.mjs'
 import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
@@ -568,7 +569,9 @@ export function apply(ctx, config = {}) {
                 nodeCount: graph.nodes.length,
                 edgeCount: graph.edges.length,
               },
-              layout: computeRuntimeLayout(graph, { includeMemberIds: false, includeHiddenIds: false }),
+              // ELK orders within each layer while it is affordable; the placer keeps
+              // the geometry so height stays bounded. Which engine ran is reported.
+              layout: await computeRuntimeLayoutWithElk(graph, { includeMemberIds: false, includeHiddenIds: false }),
             })
             return
           }

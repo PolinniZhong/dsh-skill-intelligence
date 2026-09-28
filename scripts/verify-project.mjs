@@ -429,6 +429,33 @@ if (!/follows:\s*\{[^}]*dashed:\s*true/.test(canvas)) {
 if (!client.includes('h(FlowCanvas')) throw new Error('运行流程 must render the Runtime Flow canvas')
 if (!client.includes('installFlowStyles')) throw new Error("React Flow's stylesheet must be installed by the client")
 
+// ELK-assisted layout (§12/§34/§35/§36).
+//
+// ELK owns crossing minimisation inside §35's layers. It must not own geometry:
+// its own coordinates produced a 4804 × 4937 canvas on a real session, the vertical
+// strip §20/§36 exist to prevent. And it must not run unbounded — measured at 556 ms
+// for 120–200 rendered nodes.
+const elkLayout = await readFile(resolve(root, 'src/core/runtime-layout-elk.mjs'), 'utf8')
+for (const requiredText of [
+  'export async function computeRuntimeLayoutWithElk',
+  'export const ELK_NODE_LIMIT',
+  "elk.partitioning.partition",
+  "'elk.layered.layering.strategy': 'PARTITIONING'",
+  "engine: LAYOUT_ENGINE_ELK",
+  "engine: LAYOUT_ENGINE_DETERMINISTIC",
+]) {
+  if (!elkLayout.includes(requiredText)) throw new Error(`ELK layout contract missing: ${requiredText}`)
+}
+// Ordering only: the placer must be what produces the final geometry, so the height
+// bound survives.
+if (!elkLayout.includes('computeRuntimeLayout(graph, { ...options, orderOf:')) {
+  throw new Error('ELK must supply ordering only; the placer owns geometry so §36 holds')
+}
+// A layout engine may never take the view down with it.
+if (!elkLayout.includes('catch (error)')) throw new Error('the ELK path must degrade instead of throwing')
+if (!host.includes('await computeRuntimeLayoutWithElk')) throw new Error('the runtime route must offer the ELK-assisted layout')
+if (!client.includes("data-engine")) throw new Error('the client must report which layout engine ran')
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -467,3 +494,4 @@ console.log('CANVAS_BOUNDED_OK')
 console.log('SESSION_LOG_RECOVERY_OK')
 console.log('CLIENT_BUNDLE_CONTRACT_OK')
 console.log('RUNTIME_FLOW_READONLY_OK')
+console.log('ELK_LAYOUT_BOUNDED_OK')
