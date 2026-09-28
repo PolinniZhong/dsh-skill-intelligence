@@ -379,6 +379,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-side{position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-flow-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 9px;color:var(--st-muted);font-size:11px}
       .st-flow-head strong{color:var(--st-text);font-size:12px}
+      .st-flow-toolbar{position:absolute;left:14px;top:14px;z-index:10;display:flex;align-items:center;gap:3px;padding:5px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 95%,transparent);box-shadow:0 4px 12px rgba(23,33,48,.045)}
+      .st-flow-tool{width:28px;height:28px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--st-muted);font-size:14px;cursor:pointer}
+      .st-flow-tool:hover{background:var(--st-layer-2);color:var(--st-text)}
+      .st-flow-zoom{width:42px;text-align:center;font-size:11px;color:var(--st-muted);font-variant-numeric:tabular-nums}
       .st-flow-legend{position:absolute;right:14px;top:14px;z-index:6;display:flex;gap:12px;padding:7px 10px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 95%,transparent);color:var(--st-muted);font-size:10.5px;box-shadow:0 4px 12px rgba(23,33,48,.08)}
       .st-flow-legend span{display:inline-flex;align-items:center;gap:5px}
       .st-flow-legend i{width:7px;height:7px;border-radius:50%;display:inline-block}

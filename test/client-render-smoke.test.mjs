@@ -51,7 +51,9 @@ const REACT_FLOW_STUB = {
   MiniMap: () => null,
   Panel: () => null,
   ReactFlowProvider: ({ children }) => children,
-  useReactFlow: () => ({ fitView: async () => {} }),
+  useReactFlow: () => ({ fitView: async () => {}, zoomIn: async () => {}, zoomOut: async () => {} }),
+  // §13 画布工具栏用 useViewport 读缩放比例；桩里缺了它会让每次渲染都抛。
+  useViewport: () => ({ zoom: 1, x: 0, y: 0 }),
   Handle: () => null,
   Position: { Left: 'left', Right: 'right' },
   useNodesState: (initial) => [initial, () => {}, () => {}],

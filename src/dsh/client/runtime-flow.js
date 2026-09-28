@@ -22,6 +22,7 @@ const {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useViewport,
 } = require('@xyflow/react')
 const flowStylesheet = require('@xyflow/react/dist/style.css')
 
@@ -290,6 +291,25 @@ function neighbourhoodOf(layout, nodeId) {
  *
  * `onSelect` receives `{ nodeId }` or `{ edgeId }`; the Host answers what it means.
  */
+/**
+ * 画布工具栏。对齐 `preview.html`：左上角**横排**，中间夹一个百分比读数。
+ *
+ * React Flow 自带的 `<Controls>` 是竖排图标、没有读数——形状与 preview 不同，而缩放比例
+ * 是用户判断"现在看的是全局还是局部"的主要线索，不该省掉。
+ */
+function CanvasToolbar() {
+  const flow = useReactFlow()
+  const { zoom } = useViewport()
+  const button = (label, title, onClick) => React.createElement('button', {
+    className: 'st-flow-tool', type: 'button', title, 'aria-label': title, onClick,
+  }, label)
+  return React.createElement('div', { className: 'st-flow-toolbar', role: 'toolbar', 'aria-label': '画布缩放' },
+    button('−', '缩小', () => flow.zoomOut()),
+    React.createElement('span', { className: 'st-flow-zoom', 'aria-live': 'polite' }, `${Math.round((zoom || 1) * 100)}%`),
+    button('＋', '放大', () => flow.zoomIn()),
+    button('⌂', '适配画布', () => flow.fitView({ padding: 0.12 })))
+}
+
 function RuntimeFlowCanvas({ layout, selectedId, onSelect, onBackground, showMiniMap = false, replay = null, fitSignal = 0, showErrorInLegend = false, density = 'flow' }) {
   const { fitView } = useReactFlow()
   const focus = selectedId?.nodeId
@@ -333,7 +353,7 @@ function RuntimeFlowCanvas({ layout, selectedId, onSelect, onBackground, showMin
   },
   // 点阵底纹：功能网格，低对比（§25.2 豁免「复杂背景纹理」，但要求低对比）
   React.createElement(Background, { color: '#dfe4ea', gap: 20, size: 1 }),
-  React.createElement(Controls, { showInteractive: false, position: 'top-left' }),
+  React.createElement(CanvasToolbar, null),
   React.createElement(Panel, { position: density === 'graph' ? 'bottom-left' : 'top-right', className: 'st-flow-legend', 'aria-hidden': 'true' },
     legendTones.map((tone) => React.createElement('span', { key: tone },
       React.createElement('i', { style: { background: CAPABILITY_COLORS[tone] } }),
