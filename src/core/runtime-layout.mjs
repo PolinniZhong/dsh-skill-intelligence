@@ -42,7 +42,7 @@ export const AGGREGATE_NODE_THRESHOLD = 30
 export const AGGREGATE_EDGE_THRESHOLD = 50
 
 /** A layer taller than this wraps into sub-columns. */
-export const MAX_ROWS_PER_COLUMN = 26
+export const MAX_ROWS_PER_COLUMN = 7
 
 /** A session with more turns than this folds them into ranges. */
 export const MAX_TURN_NODES = 36
@@ -60,20 +60,22 @@ export const LAYOUT_MEMBER_LIMIT = 24
 
 const PADDING = 28
 const COLUMN_GAP = 70
-const ROW_GAP = 8
-const ROW_HEIGHT = 30
+const ROW_GAP = 10
+// 节点高度对齐 preview 后是 115，行距必须跟着走，否则节点会互相重叠。
+const ROW_HEIGHT = 115
 
 const KIND_SIZES = {
-  session: { width: 210, height: 34 },
-  turn: { width: 176, height: 30 },
-  invocation: { width: 300, height: 30 },
-  group: { width: 300, height: 30 },
-  child: { width: 240, height: 30 },
-  // §8 node types the canvas had no sizing for.
-  capability: { width: 240, height: 30 },
-  result: { width: 220, height: 28 },
-  error: { width: 260, height: 28 },
-}
+    // 对齐 preview.html：节点统一 190 宽，高度＝色条 3 + 头 45 + 体 38 + 脚 29。
+    // 不再因为类型不同而宽窄不一——preview 的一致模块感来自这里。
+    session: { width: 190, height: 115 },
+    turn: { width: 190, height: 115 },
+    invocation: { width: 190, height: 115 },
+    group: { width: 190, height: 115 },
+    child: { width: 190, height: 115 },
+    capability: { width: 190, height: 115 },
+    result: { width: 190, height: 115 },
+    error: { width: 190, height: 115 },
+  }
 
 function kindOf(node) {
   if (node.type === 'session') return 'session'
@@ -407,7 +409,13 @@ export function computeRuntimeLayout(graph, options = {}) {
     const source = item.entry.source ?? item.entry.synthetic
     if (item.kind === 'turn') return [source.turn ?? 0]
     if (item.kind === 'invocation') return [source.turn ?? 1e6, source.step ?? 0, source.invocationId ?? '']
-    if (item.kind === 'group') return [source.id]
+    // Turn 区间必须按**起始 Turn 号**排，而不是按 id 字符串——否则 "turnrange:12-14"
+    // 会排在 "turnrange:5-8" 前面，读者看到的是乱序的 1-4, 12-14, … , 5-8, 9-11。
+    if (item.kind === 'group') {
+      const range = /^turnrange:(\d+)-(\d+)$/.exec(String(source.id))
+      if (range) return [0, Number(range[1]), Number(range[2])]
+      return [1, source.id]
+    }
     return [0]
   }
   // Ordering within a layer is a layout decision, not a fact about the run. An

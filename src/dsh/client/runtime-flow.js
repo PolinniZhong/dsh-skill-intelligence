@@ -96,25 +96,42 @@ function glyphOf(status) {
  * One node. Content is deliberately small (§7.1): the detail belongs in the
  * Inspector, not inside the box.
  */
+/**
+ * 一个节点。内容刻意很少（§7.1）：细节属于 Inspector，不属于盒子。
+ *
+ * 结构对齐 `preview.html`：顶部类型色条 → 图标 + 标题 + 类型 → 正文 → 页脚（状态 + 右侧）。
+ * 类型色只出现在色条、图标与状态点上（§25.1「类型色仅用于节点」）。
+ */
 function RuntimeNode({ data }) {
   const color = data.color
+  // 图标用类型名首字符：与 preview 的 .n-icon 一致，不需要额外图标资源。
+  const initial = (data.kindLabel || '?').slice(0, 1)
+  const kindKey = data.capabilityId || data.kind
   return React.createElement('div', {
     className: 'st-flow-node',
     'data-kind': data.kind,
     'data-status': data.status,
     'data-dimmed': data.dimmed ? 'true' : undefined,
     'data-replay': data.replay ?? undefined,
+    'data-collapsed': data.collapsed ? 'true' : undefined,
+    'data-tone': kindKey,
     style: { '--st-node-color': color, '--st-node-width': `${data.width}px` },
+    title: data.label,
   },
   React.createElement(Handle, { type: 'target', position: Position.Left, className: 'st-flow-handle' }),
   React.createElement('span', { className: 'st-flow-node-bar', 'aria-hidden': 'true' }),
-  React.createElement('div', { className: 'st-flow-node-body' },
-    React.createElement('div', { className: 'st-flow-node-title' }, data.label),
-    React.createElement('div', { className: 'st-flow-node-meta' },
-      React.createElement('span', null, data.kindLabel),
-      React.createElement('span', { className: 'st-flow-node-status', style: { color: statusColor(data.status) } },
-        React.createElement('i', { 'aria-hidden': 'true' }, glyphOf(data.status)),
-        data.statusLabel))),
+  React.createElement('div', { className: 'st-flow-node-head' },
+    React.createElement('span', { className: 'st-flow-node-icon', 'aria-hidden': 'true' }, initial),
+    React.createElement('span', { className: 'st-flow-node-heading' },
+      React.createElement('span', { className: 'st-flow-node-title' }, data.label),
+      React.createElement('span', { className: 'st-flow-node-type' }, data.kindLabel))),
+  React.createElement('div', { className: 'st-flow-node-body' }, data.sublabel || ''),
+  React.createElement('div', { className: 'st-flow-node-foot' },
+    React.createElement('span', { className: 'st-flow-node-status', style: { color: statusColor(data.status) } },
+      React.createElement('i', { className: 'st-flow-node-dot', 'aria-hidden': 'true' }),
+      data.statusLabel),
+    React.createElement('span', { className: 'st-flow-node-right' },
+      data.collapsed && data.memberCount ? `${data.memberCount} 项` : '')),
   React.createElement(Handle, { type: 'source', position: Position.Right, className: 'st-flow-handle' }))
 }
 
