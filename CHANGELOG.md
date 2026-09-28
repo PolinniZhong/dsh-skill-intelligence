@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.4.0-beta.37 — 2026-09-28 · 批次 F：Inspector 区块化
+
+对照图里最大的一块（审计 I3）。
+
+### 平铺字段 → preview 的三段结构
+
+| | 改前 | 改后（= preview） |
+|---|---|---|
+| 结构 | 7 个 `st-rt-field` 平铺，无标题 | **三个 `section > h3`**：`运行摘要` / `RUNTIME 关联` / `当前说明` |
+| 运行摘要 | 无 | **label/value 栅格**（节点类型 / 状态 / 角色 / 代表 / 支撑事件） |
+| 说明文字 | 与字段混在一起 | 归入`当前说明`，语义/边界/折叠成员各占一段 |
+
+**信息层级靠分组建立，不靠增加字段。** preview 的 Inspector 之所以读起来清楚，是因为它先分组再放内容。
+
+### 顺带的过程记录
+
+改完第一次跑测试，**真实渲染冒烟测试立刻失败**：
+
+```
+ReferenceError: KIND_LABELS is not defined
+  FlowCanvas threw on variant 0
+```
+
+`KIND_LABELS` 定义在 `runtime-flow.js` 里、**没有导出**，我在 `client.js` 里直接用了。已改为本地的 `INSPECT_KIND_LABELS`。
+
+这正是那条约束的价值——**源码字符串断言看不见这个，只有真渲染才会抛。**
+
+### 仍未处理
+
+- Inspector 顶部的 `当前节点` kicker（preview 有；实现没有。**我知道怎么加，但需要精细的括号闭合，不在上下文将尽时做**）
+- `Runtime 关联` 的每一行在 preview 里带 `Observed` / `Candidate` 状态标签；实现只显示事件 id
+- 画布工具栏仍是 React Flow 的竖排，无百分比
+- `fitView` 下的画布缩放
+
+**293 项测试通过**，**23 项契约检查通过**。
+
 ## 0.4.0-beta.36 — 2026-09-28 · 批次 E：并排对照图 + 修正我自己改错的地方
 
 ### 补上缺失的交付物：preview vs 实现并排对照图

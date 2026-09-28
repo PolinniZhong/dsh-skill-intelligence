@@ -349,6 +349,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-rt-inspector{border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:13px 14px;position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-rt-inspector h3{margin:0 0 2px;font-size:12.5px}
       .st-rt-kicker{margin:0 0 10px;color:var(--st-faint);font-size:10.5px}
+      .st-rt-section{margin:0 0 14px}
+      .st-rt-section h3{margin:0 0 7px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--st-faint)}
+      .st-rt-meta{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:baseline;font-size:11px}
+      .st-rt-meta span{color:var(--st-muted)}
+      .st-rt-meta strong{font-weight:600;color:var(--st-text);text-align:right}
+      .st-rt-field-note{margin:0;color:var(--st-faint);font-size:11px}
       .st-rt-field{margin:0 0 9px;padding:8px 9px;border-radius:7px;background:var(--st-layer-2)}
       .st-rt-field span{display:block;color:var(--st-faint);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
       .st-rt-field p{margin:3px 0 0;font-size:11px;line-height:1.55}
@@ -1711,6 +1717,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   }
 
 
+  /** Inspector 显示用的节点类型名。runtime-flow.js 的 KIND_LABELS 没有导出。 */
+  const INSPECT_KIND_LABELS = {
+    session: '会话', turn: 'Turn', invocation: '调用', capability: '能力',
+    group: '折叠分组', child: '子步骤', result: '结果', error: '错误', 'turn-range': 'Turn 区间',
+  }
+
   function RuntimeInspector({ data, loading, error, onSelectEdge, onClose, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdate }) {
     const selectionKey = data?.edge?.id ?? data?.nodeId ?? ''
     const [tab, setTab] = React.useState('')
@@ -1740,24 +1752,41 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const tabs = isEdge ? ['relation'] : (isSkill ? ['evidence', 'declaration', 'learning'] : ['evidence', 'relations'])
     const active = tabs.includes(tab) ? tab : tabs[0]
 
+    // preview 的 Inspector 是「kicker + 标题 + 副标题 + Tabs」，正文按 section 分组，
+// 每组一个 h3；而不是把字段平铺成一张列表。信息层级靠分组建立，不靠更多字段。
+    const metaPairs = []
+    const pushPair = (k, v) => { if (v !== undefined && v !== null && v !== '') metaPairs.push(h('span', { key: k }, k), h('strong', { key: `${k}-v` }, v)) }
+    if (isEdge) {
+      pushPair(localized('两端', 'Ends'), `${data.edge.from.label} → ${data.edge.to.label}`)
+      pushPair(localized('具名规则', 'Named rule'), data.ruleName)
+    } else {
+      pushPair(localized('节点类型', 'Node kind'), INSPECT_KIND_LABELS[node?.kind] ?? node?.kind)
+      pushPair(localized('状态', 'Status'), node?.status)
+      pushPair(localized('角色', 'Role'), node?.role)
+      pushPair(localized('代表', 'Stands for'), node?.collapsed ? localized(`${node.memberCount} 个节点`, `${node.memberCount} node(s)`) : null)
+    }
+    pushPair(localized('支撑事件', 'Evidence'), data.evidenceIds?.length ? String(data.evidenceIds.length) : (evidence.length ? String(evidence.length) : null))
+
     const evidencePanel = h('div', null,
-      isEdge ? h('div', { className: 'st-rt-field' }, h('span', null, '两端'), h('strong', null, `${data.edge.from.label} → ${data.edge.to.label}`)) : null,
-      data.ruleName ? h('div', { className: 'st-rt-field' }, h('span', null, '具名规则'), h('strong', null, data.ruleName)) : null,
-      h('div', { className: 'st-rt-field st-rt-why' }, h('span', null, isEdge ? localized('这条线为什么存在', 'Why this line exists') : localized('它为什么在这里', 'Why this is here')), h('p', null, data.meaning)),
-      h('div', { className: 'st-rt-field st-rt-limit' }, h('span', null, localized('它不表示什么', 'What it does not claim')), h('p', null, data.limit)),
-      node?.collapsed ? h('div', { className: 'st-rt-field' },
-        h('span', null, '折叠节点'),
-        h('p', null, localized(
-          `它代表 ${node.memberCount} 个节点${data.memberIds.length < node.memberCount ? `，此处列出其中 ${data.memberIds.length} 个` : ''}：${data.memberIds.slice(0, 4).map((id) => id.replace(/^invocation:/, '').slice(-8)).join('、')}${data.memberIds.length > 4 ? ' …' : ''}`,
-          `Stands for ${node.memberCount} node(s)${data.memberIds.length < node.memberCount ? `, ${data.memberIds.length} named here` : ''}`))) : null,
-      h('div', { className: 'st-rt-field' },
-        h('span', null, localized(`支撑事件 ${evidence.length}${data.evidenceIds?.length > evidence.length ? ` / ${data.evidenceIds.length}` : ''}`, `Evidence ${evidence.length}`)),
-        evidence.length
-          ? h('ul', { className: 'st-rt-evidence' }, ...evidence.slice(0, 14).map((event) => h('li', { key: event.eventId },
-            h('span', null, event.type),
-            h('code', null, event.eventId.split(':re:')[1] ?? event.eventId.slice(-10)))))
-          : h('p', null, localized('没有可展示的事件', 'No events to show'))),
-      h('p', { className: 'st-rt-notes' }, data.evidenceBoundary?.note ?? ''))
+      h('section', { className: 'st-rt-section' },
+        h('h3', null, localized('运行摘要', 'Run summary')),
+        metaPairs.length ? h('div', { className: 'st-rt-meta' }, ...metaPairs) : h('p', { className: 'st-rt-field-note' }, localized('没有可摘要的字段', 'Nothing to summarise'))),
+      h('section', { className: 'st-rt-section' },
+        h('h3', null, localized('Runtime 关联', 'Runtime relations')),
+        h('div', { className: 'st-rt-field' },
+          evidence.length
+            ? h('ul', { className: 'st-rt-evidence' }, ...evidence.slice(0, 14).map((event) => h('li', { key: event.eventId },
+              h('span', null, event.type),
+              h('code', null, event.eventId.split(':re:')[1] ?? event.eventId.slice(-10)))))
+            : h('p', null, localized('没有可展示的事件', 'No events to show')))),
+      h('section', { className: 'st-rt-section' },
+        h('h3', null, localized('当前说明', 'Current note')),
+        h('p', { className: 'st-rt-why' }, data.meaning),
+        h('p', { className: 'st-rt-limit' }, data.limit),
+        h('p', { className: 'st-rt-notes' }, data.evidenceBoundary?.note ?? ''),
+        node?.collapsed ? h('p', { className: 'st-rt-notes' }, localized(
+          `折叠节点列出其中 ${data.memberIds.length} 个${data.memberIds.length < node.memberCount ? `（共 ${node.memberCount} 个）` : ''}：${data.memberIds.slice(0, 6).join('、')}`,
+          `Showing ${data.memberIds.length} of ${node.memberCount}: ${data.memberIds.slice(0, 6).join(', ')}`)) : null))
 
     const relationsPanel = relations.length
       ? h('div', null,
