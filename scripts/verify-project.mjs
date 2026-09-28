@@ -130,6 +130,14 @@ if (host.includes("'/skill-trace/assessment'")) throw new Error('assessment rout
 for (const requiredText of ["'user/message'", "'turn/start'", 'carriesSkillEvidence(event)', 'runtimeEventOverflow']) {
   if (!host.includes(requiredText)) throw new Error(`observation surface missing from host: ${requiredText}`)
 }
+// Skill evidence stays immediately durable; derived runtime evidence is written at
+// the turn boundary instead of on every tool event.
+if (!host.includes('skillEvidenceSignature') || !host.includes("event.type === 'turn/end' || skillEvidenceGained")) {
+  throw new Error('host must keep Skill evidence immediate and defer runtime evidence to the turn boundary')
+}
+if (host.includes("event.type === 'tool/call'\n          || event.type === 'tool/result'")) {
+  throw new Error('host must not rewrite the receipt on every tool event')
+}
 
 const reducer = await readFile(resolve(root, 'src/core/trace-reducer.mjs'), 'utf8')
 for (const requiredText of ['methodCount:', 'eventCount:', 'methods,', 'events,', 'turnDetails,', 'summary,', ": 'mixed'", 'learningCards', 'learningNotes', 'validationResults', 'setValidationResult', 'buildLearningCards']) {
@@ -142,8 +150,8 @@ for (const requiredText of ['methodCount:', 'eventCount:', 'methods,', 'events,'
 if (!reducer.includes("block?.type === 'tool-result'") || !reducer.includes('?? message')) {
   throw new Error('tool result reader must accept both the retired V3 tool-result wrapper and the first-class V4 tool message')
 }
-for (const requiredText of ['export function classifyCapability', 'export function carriesSkillEvidence', "'skill-invocation'", "'skill-catalog'", 'catalogPublished', 'runtimeEvents', 'invocationType', 'RUNTIME_EVENT_LIMIT']) {
-  if (!reducer.includes(requiredText)) throw new Error(`phase 0 observation contract missing: ${requiredText}`)
+for (const requiredText of ['export function carriesSkillEvidence', "'skill-invocation'", "'skill-catalog'", 'catalogPublished', 'runtimeEvents', 'invocationType', 'RUNTIME_EVENT_LIMIT', "export { classifyCapability }"]) {
+  if (!reducer.includes(requiredText)) throw new Error(`phase 0/1 observation contract missing: ${requiredText}`)
 }
 {
   // Runtime evidence is a metadata-only projection. Tool arguments and result
@@ -159,6 +167,26 @@ for (const requiredText of ['export function classifyCapability', 'export functi
     throw new Error('runtime event truncation must be counted, never silently dropped')
   }
 }
+
+// Phase 1 normalized model. The two properties that must survive any later edit:
+// a derived event is never written over a `dsh` one, and pairing is by
+// `invocationId` rather than by adjacency.
+const runtimeModel = await readFile(resolve(root, 'src/core/runtime-events.mjs'), 'utf8')
+for (const requiredText of [
+  'export function classifyCapability',
+  'export function aggregateInvocations',
+  'export function deriveRetryEvent',
+  'export const RETRY_RULE',
+  "export const RUNTIME_EVENT_SOURCES = ['dsh', 'derived']",
+  "'unresolved-request'",
+  "'orphan-result'",
+]) {
+  if (!runtimeModel.includes(requiredText)) throw new Error(`phase 1 runtime model contract missing: ${requiredText}`)
+}
+if (!runtimeModel.includes('byId.get(event.invocationId)')) throw new Error('invocations must be paired by invocationId')
+if (!runtimeModel.includes('candidate.turn !== turn')) throw new Error('the retry rule must stay bounded to one turn')
+if (runtimeModel.includes('getTime()') || runtimeModel.includes('Date.now() -')) throw new Error('runtime correlation must not use wall-clock adjacency')
+if (!reducer.includes("from './runtime-events.mjs'")) throw new Error('the reducer must consume the shared runtime model')
 
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
@@ -191,3 +219,4 @@ console.log('LOCAL_LEARNING_LOOP_OK')
 console.log('MY_SKILL_READ_ONLY_CATALOG_OK')
 console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')
 console.log('OBSERVATION_SURFACE_OK')
+console.log('RUNTIME_MODEL_OK')

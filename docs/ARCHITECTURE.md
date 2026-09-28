@@ -34,19 +34,32 @@ DSH event stream
 
 ## Runtime surface
 
-Beyond Skill loads, the receipt keeps a bounded record per observed tool invocation in `runtimeEvents` — one entry per `callId`, paired with its result when one arrives. This is the raw material the Runtime Flow graph is reconstructed from, not a second trace database.
+Beyond Skill loads, the receipt keeps a bounded **normalized event stream** in `runtimeEvents`. This is the Normalizer and Invocation Aggregator stage of the Runtime Flow pipeline, and the raw material the graph is reconstructed from — not a second trace database.
 
-Each entry records correlation and classification metadata only:
+Raw session events become `RuntimeEvent`s with a stable, citeable identity:
 
 ```text
-callId · capability (skill | tool | cli | mcp | subagent) · name · detail
-turn · step · callSeq · resultSeq · startedAt · endedAt · durationMs
-status (requested | success | failure) · errorCode
+eventId · seq · timestamp · type · source (dsh | derived) · status
+turn · step · invocationId · capabilityId (skill | tool | cli | mcp | subagent)
+capabilityName · detail · errorCode · rule
 ```
 
-Tool arguments and result content are never read, let alone stored. `scripts/verify-project.mjs` rejects a change that would start reading either field. Classification is deterministic: `mcp__<server>__<rawName>` identifies an MCP tool, `bash`/`pwsh` are CLI, `subagent` is a Subagent, and everything else is a Tool. Classification only labels an invocation; it never rewrites the recorded event.
+Two disciplines hold:
 
-The projection keeps the 1000 most recent invocations and reports how many were dropped as `runtimeEventOverflow`, so a bounded window is never presented as a complete run. An invocation with no observed result stays `requested`; it is never completed by guesswork, and a second result never overwrites settled evidence.
+1. **`source` separates host fact from plugin derivation.** `dsh` means the host reported it; `derived` means a named deterministic rule produced it. A derived event is only ever *appended* — it never rewrites or replaces the record it read, and a derivation that cannot cite a rule is not emitted. The one rule so far is `same-turn-repeat-after-failure` (`RETRY_RULE`), which marks an invocation repeated after the same capability identity failed earlier in the same turn. Log order decides; timestamps never do.
+2. **No half-invocation is ever invented.** Aggregation pairs strictly by `invocationId`. Time adjacency is never used, so a request whose result was never observed stays `unresolved-request` and a result with no observed request stays `orphan-result`, rather than being completed with whichever event happened to be nearby. `evidenceState` then separates a settled call from a followed one: `observed` requires a request *and* a successful result, `partial` means a failure, `requested` means half-observed. `success` still means only that the call settled.
+
+Each invocation carries the `evidenceEventIds` that support it, so a later graph edge can cite real evidence instead of asserting a relationship.
+
+The vocabulary is `invocation.request` / `invocation.result` / `skill.invocation` / `retry`, not the per-capability request/result types. That is deliberate: a DSH `tool/result` carries no tool name, so a result event cannot assert which capability it belongs to. Capability is a property of the *invocation*, resolved from the request that opened it and left unset when that request is not observable. Naming a result `cli.result` would be a claim the raw event does not support.
+
+Tool arguments and result content are never read, let alone stored; `scripts/verify-project.mjs` rejects a change that would start reading either field. Classification is deterministic: `mcp__<server>__<rawName>` identifies an MCP tool, `bash`/`pwsh` are CLI, `subagent` is a Subagent, and everything else is a Tool. Classification only labels an invocation; it never rewrites the recorded event, and an over-long identifier is refused rather than truncated into a different valid name.
+
+The stream keeps the 2000 most recent events and reports how many were dropped as `runtimeEventOverflow`, so a bounded window is never presented as a complete run. Truncation can cut a request from its result; the aggregator then reports `unresolved-request` or `orphan-result` instead of repairing the pair.
+
+### Write policy
+
+Skill evidence keeps immediate durability — a newly opened load, a settled load, or a published/replaced catalog is written the moment it is observed, gated by `skillEvidenceSignature`. The runtime event stream does not: it is derived evidence that a turn boundary or any later rebuild reproduces from the durable session log, so it is persisted at turn boundaries. A settled invocation costs two normalized events, so rewriting the whole receipt on every `tool/call` and `tool/result` would write the same growing file hundreds of times per session.
 
 `catalogPublished` holds the Declaration baseline: the entries DSH durably published into this session, i.e. what the model was actually offered. A replacement publication supersedes the previous baseline and increments `catalogPublicationCount`. This is deliberately not a live registry snapshot, which answers what is installed *now* and drifts once the session ends. `entriesDigest` hashes the published names so drift can be checked without comparing description wording.
 
@@ -56,6 +69,7 @@ The projection keeps the 1000 most recent invocations and reports how many were 
 | --- | --- |
 | `src/dsh/host/index.js` | DSH lifecycle bridge, event observation, privacy policy, local persistence wiring |
 | `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence |
+| `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations (Phase 1) |
 | `src/core/source-snapshot.mjs` | Creates safe source identity/snapshot metadata |
 | `src/core/catalog-view.mjs` | Projects receipt, note, pending-review, validation-result, local search, and review-priority data into the read-only My Skills workspace |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |

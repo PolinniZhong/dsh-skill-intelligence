@@ -1,12 +1,31 @@
 import { createHash } from 'node:crypto'
+import {
+  CAPABILITY_KINDS,
+  RUNTIME_EVENT_LIMIT,
+  aggregateInvocations,
+  classifyCapability,
+  cleanString,
+  deriveRetryEvent,
+  normalizeRequest,
+  normalizeResult,
+  normalizeSkillInvocation,
+  safeErrorCode,
+  safeToolName,
+  summarizeRuntime,
+  upgradeRuntimeEvents,
+} from './runtime-events.mjs'
 
-const SCHEMA_VERSION = 6
+// `classifyCapability` is re-exported so the classification contract keeps one
+// implementation and one import path for consumers already using the reducer.
+export { classifyCapability }
+
+const SCHEMA_VERSION = 7
 const DEPENDENCY_TYPES = ['network', 'model', 'mcp', 'script', 'permission']
 const CONTINUITY_STATUSES = ['unassessed', 'manual', 'partial', 'blocked']
 const LEARNING_FIELDS = ['understanding', 'improvementIntent', 'validationPlan']
 const VALIDATION_STATUSES = ['met', 'not-met', 'inconclusive']
 
-// Phase 0 observation surface.
+// Phase 0/1 observation surface.
 //
 // Only two Skill load paths are observable in DSH, and both are deterministic
 // loads: the model calls the `skill` tool, or the user names a skill with the
@@ -14,49 +33,18 @@ const VALIDATION_STATUSES = ['met', 'not-met', 'inconclusive']
 // There is no observable "implicit" path, so no such value is emitted — an
 // invented one would be a claim the runtime cannot support.
 const INVOCATION_TYPES = ['user-explicit', 'model-invoked']
-const CAPABILITY_KINDS = ['skill', 'tool', 'cli', 'mcp', 'subagent']
-// Bounded projection of the run. Overflow is counted, never silently dropped.
-const RUNTIME_EVENT_LIMIT = 1000
 const CATALOG_ENTRY_LIMIT = 500
 const CATALOG_DESCRIPTION_MAX = 300
 const SKILL_INSTRUCTIONS_OPEN = '<skill_instructions>\n'
 const SKILL_INSTRUCTIONS_CLOSE = '\n</skill_instructions>'
 
-function cleanString(value, maxLength = 160) {
-  if (typeof value !== 'string') return ''
-  return value.trim().slice(0, maxLength)
-}
-
 function safeSkillName(value) {
-  const name = cleanString(value, 128)
+  // Length is checked before trimming: truncating an over-long name would turn
+  // it into a different valid skill name and record a load that never happened.
+  if (typeof value !== 'string') return ''
+  const name = value.trim()
+  if (!name || name.length > 128) return ''
   return /^[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,127}$/.test(name) ? name : ''
-}
-
-// A registered tool name. MCP tools are the composed `mcp__<server>__<rawName>`
-// form, whose parts are restricted to `[A-Za-z0-9_-]`.
-function safeToolName(value) {
-  const name = cleanString(value, 128)
-  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(name) ? name : ''
-}
-
-/**
- * Deterministic capability classification for one registered tool name.
- *
- * Classification only labels an observed invocation; it never rewrites the
- * recorded event and never invents an invocation that did not happen.
- * @param toolName - the `tool/call` `name` field.
- * @returns the capability kind plus a bounded display name, or null when the
- * name is not a usable identifier.
- */
-export function classifyCapability(toolName) {
-  const name = safeToolName(toolName)
-  if (!name) return null
-  const mcp = /^mcp__([A-Za-z0-9_-]{1,32})__(.{1,64})$/.exec(name)
-  if (mcp) return { capability: 'mcp', capabilityName: mcp[1], detail: mcp[2] }
-  if (name === 'skill') return { capability: 'skill', capabilityName: 'skill', detail: null }
-  if (/^(bash|pwsh)([-_].*)?$/.test(name)) return { capability: 'cli', capabilityName: name, detail: null }
-  if (/^subagent([-_].*)?$/.test(name)) return { capability: 'subagent', capabilityName: name, detail: null }
-  return { capability: 'tool', capabilityName: name, detail: null }
 }
 
 function normalizeInvocationType(value, callId) {
@@ -190,11 +178,6 @@ function resultBlock(event) {
   const content = message.content
   if (!Array.isArray(content)) return null
   return content.find((block) => block?.type === 'tool-result') ?? message
-}
-
-function safeErrorCode(value) {
-  const code = cleanString(value, 64)
-  return /^[A-Z0-9_-]+$/.test(code) ? code : 'SKILL_LOAD_FAILED'
 }
 
 function sha256(value) {
@@ -394,30 +377,6 @@ export function emptyReceipt(sessionId, now = Date.now()) {
   }
 }
 
-function normalizeRuntimeEvent(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  const callId = cleanString(value.callId, 240)
-  const capability = CAPABILITY_KINDS.includes(value.capability) ? value.capability : ''
-  const name = safeToolName(value.name)
-  if (!callId || !capability || !name) return null
-  const status = ['requested', 'success', 'failure'].includes(value.status) ? value.status : 'requested'
-  return {
-    callId,
-    capability,
-    name,
-    detail: safeToolName(value.detail) || null,
-    turn: Number.isSafeInteger(value.turn) ? value.turn : null,
-    step: Number.isSafeInteger(value.step) ? value.step : null,
-    callSeq: Number.isSafeInteger(value.callSeq) ? value.callSeq : null,
-    resultSeq: Number.isSafeInteger(value.resultSeq) ? value.resultSeq : null,
-    startedAt: Number.isSafeInteger(value.startedAt) ? value.startedAt : null,
-    endedAt: Number.isSafeInteger(value.endedAt) ? value.endedAt : null,
-    durationMs: Number.isSafeInteger(value.durationMs) ? value.durationMs : null,
-    status,
-    errorCode: status === 'failure' ? safeErrorCode(value.errorCode) : null,
-  }
-}
-
 function normalizeCatalogPublished(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const entries = (Array.isArray(value.entries) ? value.entries : [])
@@ -460,9 +419,11 @@ export function migrateReceipt(value, sessionId) {
       runtimeIdentity: normalizeRuntimeIdentity(trace.runtimeIdentity),
     }
   }) : []
-  const runtimeEvents = Array.isArray(value.runtimeEvents)
-    ? value.runtimeEvents.map(normalizeRuntimeEvent).filter(Boolean).slice(-RUNTIME_EVENT_LIMIT)
-    : []
+  // Accepts both the normalized Phase 1 stream and the paired per-invocation rows
+  // written by Phase 0, upgrading the latter into request/result event pairs.
+  const upgradedRuntime = upgradeRuntimeEvents(value.runtimeEvents, RUNTIME_EVENT_LIMIT)
+  const runtimeEvents = upgradedRuntime.events
+  const storedRuntimeOverflow = Number.isSafeInteger(value.runtimeEventOverflow) ? Math.max(0, value.runtimeEventOverflow) : 0
   const loadedSkillNames = new Set(traceEvents.filter((trace) => trace.status === 'loaded').map((trace) => trace.skillName))
   const learningNotes = Array.isArray(value.learningNotes)
     ? value.learningNotes.map((note) => normalizeLearningNote(note)).filter((note) => note && loadedSkillNames.has(note.skillName))
@@ -484,7 +445,7 @@ export function migrateReceipt(value, sessionId) {
     },
     traceEvents,
     runtimeEvents,
-    runtimeEventOverflow: Number.isSafeInteger(value.runtimeEventOverflow) ? Math.max(0, value.runtimeEventOverflow) : 0,
+    runtimeEventOverflow: storedRuntimeOverflow + upgradedRuntime.dropped,
     catalogPublished: normalizeCatalogPublished(value.catalogPublished),
     catalogPublicationCount: Number.isSafeInteger(value.catalogPublicationCount) ? Math.max(0, value.catalogPublicationCount) : 0,
     sourceSnapshots: Array.isArray(value.sourceSnapshots) ? value.sourceSnapshots.map(normalizeSourceSnapshot).filter(Boolean) : [],
@@ -557,63 +518,51 @@ function unresolvedAtBoundary(receipt, event) {
   return changed ? { ...receipt, traceEvents, updatedAt: now } : receipt
 }
 
-function appendRuntimeEvent(receipt, entry) {
-  const events = [...receipt.runtimeEvents, entry]
+function appendRuntimeEvents(receipt, additions) {
+  if (!additions.length) return receipt
+  const events = [...receipt.runtimeEvents, ...additions]
   if (events.length <= RUNTIME_EVENT_LIMIT) {
     return { runtimeEvents: events, runtimeEventOverflow: receipt.runtimeEventOverflow }
   }
   // Bounded window: keep the most recent evidence and report what was dropped,
-  // so a truncated run is never presented as a complete one.
+  // so a truncated run is never presented as a complete one. Truncation can cut
+  // a request from its result; the aggregator then reports `unresolved-request`
+  // or `orphan-result` rather than repairing the pair.
   const dropped = events.length - RUNTIME_EVENT_LIMIT
   return { runtimeEvents: events.slice(dropped), runtimeEventOverflow: receipt.runtimeEventOverflow + dropped }
 }
 
-// One bounded record per observed tool invocation. Arguments and result content
-// are never read here, let alone stored: Phase 0 keeps only correlation and
-// classification metadata.
+// Phase 1 normalization. The raw event is turned into the normalized RuntimeEvent
+// model without reading tool arguments or result content, then a named
+// derivation may append a `retry` event next to it — never over it.
 function reduceRuntimeCall(receipt, event) {
-  const data = event?.data ?? {}
-  const callId = cleanString(data.callId, 240)
-  const kind = classifyCapability(data.name)
-  if (!callId || !kind) return receipt
-  if (receipt.runtimeEvents.some((item) => item.callId === callId)) return receipt
-  const entry = {
-    callId,
-    capability: kind.capability,
-    name: kind.capabilityName,
-    detail: kind.detail,
-    turn: observedTurn(receipt, data),
-    step: observedStep(receipt, data),
-    callSeq: Number.isSafeInteger(event.seq) ? event.seq : null,
-    resultSeq: null,
-    startedAt: Number.isSafeInteger(event.time) ? event.time : null,
-    endedAt: null,
-    durationMs: null,
-    status: 'requested',
-    errorCode: null,
-  }
-  return { ...receipt, ...appendRuntimeEvent(receipt, entry) }
+  const normalized = normalizeRequest(event, {
+    sessionId: receipt.sessionId,
+    turn: observedTurn(receipt, event?.data),
+    step: observedStep(receipt, event?.data),
+  })
+  if (!normalized) return receipt
+  if (receipt.runtimeEvents.some((item) => item.eventId === normalized.eventId)) return receipt
+  let next = { ...receipt, ...appendRuntimeEvents(receipt, [normalized]) }
+  const derived = deriveRetryEvent(next.runtimeEvents, normalized)
+  if (derived) next = { ...next, ...appendRuntimeEvents(next, [derived]) }
+  return next
 }
 
 function reduceRuntimeResult(receipt, event) {
-  const data = event?.data ?? {}
-  const block = resultBlock(event)
-  const callId = cleanString(data.message?.source?.callId || block?.toolCallId, 240)
-  if (!callId) return receipt
-  const index = receipt.runtimeEvents.findIndex((item) => item.callId === callId)
-  if (index < 0) return receipt
-  if (receipt.runtimeEvents[index].status !== 'requested') return receipt
-  const failed = block?.isError === true || Boolean(data.error)
-  const endedAt = Number.isSafeInteger(event.time) ? event.time : null
-  const runtimeEvents = receipt.runtimeEvents.map((item, itemIndex) => itemIndex === index ? {
-    ...item,
-    status: failed ? 'failure' : 'success',
-    errorCode: failed ? safeErrorCode(data.error?.code) : null,
-    resultSeq: Number.isSafeInteger(event.seq) ? event.seq : null,
-    endedAt,
-    durationMs: Number.isSafeInteger(item.startedAt) && Number.isSafeInteger(endedAt) ? endedAt - item.startedAt : null,
-  } : item)
-  return { ...receipt, runtimeEvents }
+  const normalized = normalizeResult(event, {
+    sessionId: receipt.sessionId,
+    turn: observedTurn(receipt, event?.data),
+    step: observedStep(receipt, event?.data),
+    capabilityOf: (callId) => {
+      const request = receipt.runtimeEvents.find((item) => item.type === 'invocation.request' && item.invocationId === callId)
+      if (!request?.capabilityId) return null
+      return { capability: request.capabilityId, capabilityName: request.capabilityName ?? null, detail: request.detail ?? null }
+    },
+  })
+  if (!normalized) return receipt
+  if (receipt.runtimeEvents.some((item) => item.eventId === normalized.eventId)) return receipt
+  return { ...receipt, ...appendRuntimeEvents(receipt, [normalized]) }
 }
 
 // The durable skill catalog DSH published into this session. This is the
@@ -686,6 +635,17 @@ function reduceSkillInvocation(receipt, event) {
     runtimeIdentity: null,
   }
   receipt = { ...receipt, traceEvents: [...receipt.traceEvents, trace] }
+  // The same load also enters the normalized runtime stream, so the runtime graph
+  // sees a Skill node for a user-explicit load exactly as it does for the tool path.
+  const normalized = normalizeSkillInvocation(event, {
+    sessionId: receipt.sessionId,
+    turn: trace.turn,
+    step: trace.step,
+    skillName,
+  })
+  if (normalized && !receipt.runtimeEvents.some((item) => item.eventId === normalized.eventId)) {
+    receipt = { ...receipt, ...appendRuntimeEvents(receipt, [normalized]) }
+  }
   return { ...receipt, continuity: automaticContinuity(receipt.traceEvents, receipt.continuity) }
 }
 
@@ -1065,16 +1025,13 @@ export function buildViewModels(receipt) {
     learningNotes: receipt.learningNotes ?? [],
     validationResults: receipt.validationResults ?? [],
     sourceSnapshots: receipt.sourceSnapshots ?? [],
-    // Phase 0 runtime surface, projected as counts. No argument and no result
-    // content is carried here, and `overflow` states truncation instead of
+    // Runtime surface. The aggregate is derived here rather than stored, so the
+    // normalized event stream stays the single source of truth. No argument and
+    // no result content is carried, and `overflow` states truncation instead of
     // presenting a bounded window as a complete run.
     runtime: {
-      eventCount: (receipt.runtimeEvents ?? []).length,
-      overflow: receipt.runtimeEventOverflow ?? 0,
-      byCapability: Object.fromEntries(CAPABILITY_KINDS.map((kind) => [
-        kind,
-        (receipt.runtimeEvents ?? []).filter((item) => item.capability === kind).length,
-      ])),
+      ...summarizeRuntime(receipt.runtimeEvents ?? [], receipt.runtimeEventOverflow ?? 0),
+      invocations: aggregateInvocations(receipt.runtimeEvents ?? []),
       invocationTypes: Object.fromEntries(INVOCATION_TYPES.map((type) => [
         type,
         events.filter((event) => event.invocationType === type).length,

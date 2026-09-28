@@ -130,6 +130,14 @@ function reduceAll(events) {
   return receipt
 }
 
+function runtimeOf(receipt) {
+  return buildViewModels(receipt).receipt.runtime
+}
+
+function invocationOf(receipt, index = 0) {
+  return runtimeOf(receipt).invocations[index]
+}
+
 test('user-explicit invocation is recorded as observed evidence', () => {
   const receipt = reduceAll([turnStart({ seq: 10, turn: 3 }), stepStart({ seq: 11, turn: 3, step: 2 }), skillInvocationMessage()])
   assert.equal(receipt.traceEvents.length, 1)
@@ -238,15 +246,19 @@ test('catalog entries are bounded and unusable names are dropped', () => {
 
 test('non-skill tool invocations are kept as bounded runtime evidence', () => {
   const receipt = reduceAll([toolCall({ seq: 40, name: 'bash' }), toolResultMessage({ seq: 41 })])
-  assert.equal(receipt.runtimeEvents.length, 1)
-  const entry = receipt.runtimeEvents[0]
-  assert.equal(entry.capability, 'cli')
-  assert.equal(entry.name, 'bash')
-  assert.equal(entry.callId, 'call-1')
-  assert.equal(entry.status, 'success')
-  assert.equal(entry.durationMs, 1)
-  assert.equal(entry.turn, 1)
-  assert.equal(entry.step, 1)
+  // One normalized request plus one normalized result, paired into one invocation.
+  assert.deepEqual(receipt.runtimeEvents.map((event) => event.type), ['invocation.request', 'invocation.result'])
+  assert.equal(receipt.runtimeEvents.every((event) => event.source === 'dsh'), true)
+  const invocation = invocationOf(receipt)
+  assert.equal(invocation.invocationId, 'call-1')
+  assert.equal(invocation.kind, 'cli')
+  assert.equal(invocation.name, 'bash')
+  assert.equal(invocation.status, 'success')
+  assert.equal(invocation.evidenceState, 'observed')
+  assert.equal(invocation.resolution, 'matched')
+  assert.equal(invocation.durationMs, 1)
+  assert.equal(invocation.turn, 1)
+  assert.equal(invocation.step, 1)
 })
 
 test('capability classification is deterministic and bounded', () => {
@@ -272,24 +284,29 @@ test('a failed tool result carries only a bounded error category', () => {
     toolCall({ seq: 40, callId: 'call-x', name: 'edit' }),
     toolResultMessage({ seq: 41, callId: 'call-x', isError: true, error: { name: 'Error', code: 'TOOL_FAILED', reason: 'private failure text' } }),
   ])
-  const entry = receipt.runtimeEvents[0]
-  assert.equal(entry.status, 'failure')
-  assert.equal(entry.errorCode, 'TOOL_FAILED')
+  const invocation = invocationOf(receipt)
+  assert.equal(invocation.status, 'failure')
+  assert.equal(invocation.evidenceState, 'partial')
+  assert.equal(invocation.errorCode, 'TOOL_FAILED')
   assert.equal(JSON.stringify(receipt).includes('private failure text'), false)
 })
 
 test('an unpaired call stays requested instead of being completed by guesswork', () => {
   const receipt = reduceAll([toolCall({ seq: 40, callId: 'call-orphan', name: 'bash' })])
-  assert.equal(receipt.runtimeEvents[0].status, 'requested')
-  assert.equal(receipt.runtimeEvents[0].endedAt, null)
-  assert.equal(receipt.runtimeEvents[0].durationMs, null)
+  const invocation = invocationOf(receipt)
+  assert.equal(invocation.status, 'requested')
+  assert.equal(invocation.evidenceState, 'requested')
+  assert.equal(invocation.resolution, 'unresolved-request')
+  assert.equal(invocation.endedAt, null)
+  assert.equal(invocation.durationMs, null)
 })
 
 test('a second result for the same call does not overwrite settled evidence', () => {
   let receipt = reduceAll([toolCall({ seq: 40, callId: 'call-1', name: 'bash' }), toolResultMessage({ seq: 41 })])
   receipt = reduceSessionEvent(receipt, toolResultMessage({ seq: 42, isError: true, error: { name: 'Error', code: 'TOOL_FAILED' } }))
-  assert.equal(receipt.runtimeEvents.length, 1)
-  assert.equal(receipt.runtimeEvents[0].status, 'success')
+  const invocation = invocationOf(receipt)
+  assert.equal(invocation.status, 'success')
+  assert.equal(invocation.resultEventId, `${sessionId}:re:41`)
 })
 
 test('runtime events never capture tool arguments or result content', () => {
@@ -309,16 +326,17 @@ test('runtime events never capture tool arguments or result content', () => {
 
 test('the runtime projection reports counts and truncation honestly', () => {
   const events = []
-  for (let index = 0; index < 1005; index += 1) {
+  for (let index = 0; index < 2005; index += 1) {
     events.push(toolCall({ seq: 100 + index, callId: `call-${index}`, name: 'bash' }))
   }
   const receipt = reduceAll(events)
-  assert.equal(receipt.runtimeEvents.length, 1000)
+  assert.equal(receipt.runtimeEvents.length, 2000)
   assert.equal(receipt.runtimeEventOverflow, 5)
-  const views = buildViewModels(receipt)
-  assert.equal(views.receipt.runtime.eventCount, 1000)
-  assert.equal(views.receipt.runtime.overflow, 5)
-  assert.equal(views.receipt.runtime.byCapability.cli, 1000)
+  const runtime = runtimeOf(receipt)
+  assert.equal(runtime.eventCount, 2000)
+  assert.equal(runtime.overflow, 5)
+  assert.equal(runtime.byCapability.cli, 2000)
+  assert.equal(runtime.byResolution['unresolved-request'], 2000)
 })
 
 test('skill invocations still count once in both surfaces', () => {
@@ -327,28 +345,34 @@ test('skill invocations still count once in both surfaces', () => {
     toolResultMessage({ seq: 41, callId: 'call-skill' }),
   ])
   assert.equal(receipt.traceEvents.length, 1)
-  assert.equal(receipt.runtimeEvents.length, 1)
-  assert.equal(receipt.runtimeEvents[0].capability, 'skill')
+  assert.equal(receipt.runtimeEvents.length, 2)
+  const invocation = invocationOf(receipt)
+  assert.equal(invocation.kind, 'skill')
+  assert.equal(invocation.invocationType, 'model-invoked')
   assert.equal(receipt.traceEvents[0].invocationType, 'model-invoked')
 })
 
-test('migration keeps the model path label and normalises the new collections', () => {
+test('migration keeps the model path label and upgrades legacy runtime rows', () => {
   const legacy = {
     ...emptyReceipt(sessionId, 1),
-    schemaVersion: 5,
+    schemaVersion: 6,
     traceEvents: [{ eventId: 'legacy:1', sessionId, skillName: 'legacy-skill', status: 'loaded', callId: 'call-legacy' }],
-    runtimeEvents: [{ callId: 'call-a', capability: 'cli', name: 'bash', status: 'success', turn: 2, step: 1 }],
+    // Phase 0 stored one paired row per invocation; Phase 1 stores request + result.
+    runtimeEvents: [{ callId: 'call-a', capability: 'cli', name: 'bash', status: 'success', turn: 2, step: 1, callSeq: 5, resultSeq: 6, startedAt: 100, endedAt: 140 }],
     runtimeEventOverflow: 3,
     catalogPublished: { entries: [{ name: 'legacy-skill', description: 'kept' }], entryCount: 1 },
     catalogPublicationCount: 2,
   }
   const receipt = migrateReceipt(legacy, sessionId)
-  assert.equal(receipt.schemaVersion, 6)
+  assert.equal(receipt.schemaVersion, 7)
   assert.equal(receipt.traceEvents[0].invocationType, 'model-invoked')
-  assert.equal(receipt.runtimeEvents.length, 1)
+  assert.deepEqual(receipt.runtimeEvents.map((event) => event.type), ['invocation.request', 'invocation.result'])
   assert.equal(receipt.runtimeEventOverflow, 3)
   assert.equal(receipt.catalogPublished.entries[0].name, 'legacy-skill')
   assert.equal(receipt.catalogPublicationCount, 2)
+  const invocation = invocationOf(receipt)
+  assert.equal(invocation.kind, 'cli')
+  assert.equal(invocation.durationMs, 40)
 })
 
 test('a rebuild reproduces the whole Phase 0 surface from the log', () => {
@@ -362,11 +386,23 @@ test('a rebuild reproduces the whole Phase 0 surface from the log', () => {
     stepEnd({ seq: 16, turn: 1, step: 1 }),
   ]
   const receipt = rebuildReceipt(sessionId, events, null)
-  assert.equal(receipt.runtimeEvents.length, 1)
+  assert.equal(receipt.runtimeEvents.length, 3)
   assert.equal(receipt.catalogPublished.entryCount, 2)
   assert.equal(receipt.traceEvents.length, 1)
   assert.equal(receipt.traceEvents[0].invocationType, 'user-explicit')
   assert.equal(receipt.traceEvents[0].turn, 1)
+  const runtime = runtimeOf(receipt)
+  assert.equal(runtime.invocationCount, 2)
+  assert.deepEqual(runtime.invocations.map((item) => item.kind).sort(), ['cli', 'skill'])
+  // Only a Skill load carries an invocationType; a CLI call has no such axis.
+  assert.deepEqual(
+    runtime.invocations.filter((item) => item.kind === 'skill').map((item) => item.invocationType),
+    ['user-explicit'],
+  )
+  assert.deepEqual(
+    runtime.invocations.filter((item) => item.kind !== 'skill').map((item) => item.invocationType),
+    [null],
+  )
   // A rebuild must be stable: the same log yields the same facts.
   const again = rebuildReceipt(sessionId, events, null)
   assert.deepEqual(again.runtimeEvents, receipt.runtimeEvents)

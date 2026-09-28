@@ -43,7 +43,7 @@ test('pairs a native skill call and successful result without storing body text'
   receipt = reduceSessionEvent(receipt, skillCall())
   receipt = reduceSessionEvent(receipt, skillResult())
   assert.equal(receipt.traceEvents.length, 1)
-  assert.equal(receipt.schemaVersion, 6)
+  assert.equal(receipt.schemaVersion, 7)
   assert.equal(receipt.traceEvents[0].status, 'loaded')
   assert.equal(receipt.traceEvents[0].consumer, 'skill-tool')
   assert.equal(receipt.traceEvents[0].consumerIdentity, 'unavailable')
@@ -125,7 +125,7 @@ test('migrates stored schema 1 coverage without inventing missing evidence', () 
     traceEvents: [{ eventId: 'old:1', sessionId, skillName: 'old-skill', status: 'loaded', consumer: 'dsh-tool-skill' }],
   }
   const receipt = migrateReceipt(old, sessionId)
-  assert.equal(receipt.schemaVersion, 6)
+  assert.equal(receipt.schemaVersion, 7)
   assert.equal(receipt.coverage.status, 'verified-standard-contract')
   assert.deepEqual(receipt.coverage.verifiedConsumers, ['@deepseek-ai/dsh-tool-skill@0.1.1-rc.2', 'dsh-skillflux@0.2.0#962264b'])
   assert.equal(receipt.traceEvents[0].consumer, 'skill-tool')

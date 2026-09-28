@@ -334,6 +334,27 @@ export function createSessionMutationQueue() {
   return { queues, enqueue, runMaintenance }
 }
 
+/**
+ * Cheap signature of the evidence that must reach disk as soon as it is seen.
+ *
+ * Skill evidence keeps its immediate durability: a newly opened load, a load
+ * that settled, or a published/replaced catalog all change this signature. The
+ * runtime event stream does not — it is derived evidence that a turn boundary or
+ * any later rebuild reproduces from the durable session log, so it is persisted
+ * at turn boundaries instead.
+ *
+ * That distinction matters: a settled invocation costs two normalized events, so
+ * rewriting the whole receipt on every `tool/call` and `tool/result` would write
+ * the same growing file hundreds of times per session.
+ * @param receipt - the in-memory receipt.
+ * @returns a stable string that changes exactly when Skill evidence changes.
+ */
+export function skillEvidenceSignature(receipt) {
+  const traces = receipt?.traceEvents ?? []
+  const settled = traces.filter((trace) => trace.status !== 'requested').length
+  return `${traces.length}|${settled}|${receipt?.catalogPublicationCount ?? 0}|${receipt?.catalogPublished?.seq ?? ''}`
+}
+
 export function apply(ctx, config = {}) {
   ctx.inject(['webServer', 'sessions', 'agents'], (webCtx) => {
     const dataRoot = typeof config.dataRoot === 'string' && config.dataRoot.trim() ? config.dataRoot.trim() : null
@@ -424,18 +445,18 @@ export function apply(ctx, config = {}) {
       const sessionId = String(session.id)
       return enqueue(sessionId, async () => {
         const current = await load(sessionId)
+        const previousSkillEvidence = skillEvidenceSignature(current)
         let receipt = reduceSessionEvent(current, event)
         if (event.type === 'tool/result') {
           const loaded = receipt.traceEvents.find((trace) => trace.resultSeq === event.seq && trace.status === 'loaded')
           if (loaded) receipt = await captureRuntimeIdentity(receipt, sessionId, [loaded])
         }
         cache.set(sessionId, receipt)
-        if (
-          event.type === 'tool/call'
-          || event.type === 'tool/result'
-          || event.type === 'turn/end'
-          || carriesSkillEvidence(event)
-        ) await syncReceipt(receipt)
+        // Skill evidence is written the moment it is observed. Everything else —
+        // including the runtime event stream — is written at the turn boundary.
+        const skillEvidenceGained = carriesSkillEvidence(event)
+          || skillEvidenceSignature(receipt) !== previousSkillEvidence
+        if (event.type === 'turn/end' || skillEvidenceGained) await syncReceipt(receipt)
       })
     })
 
