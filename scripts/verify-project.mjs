@@ -317,7 +317,7 @@ if (!inspectorModel.includes("limit: entry?.limit ??")) {
 for (const requiredText of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", 'computeRuntimeLayout(graph)', 'inspectRuntimeEdge', 'inspectRuntimeNode']) {
   if (!host.includes(requiredText)) throw new Error(`phase 4 route missing from host: ${requiredText}`)
 }
-for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'rtEdgePath', 'memberCount']) {
+for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'RuntimeFlowView', 'memberCount']) {
   if (!client.includes(requiredText)) throw new Error(`phase 4 canvas missing from client: ${requiredText}`)
 }
 // The client draws positions it was handed. If it ever computed them, the layout
@@ -549,6 +549,41 @@ if (!client.includes("h('details', { className: 'st-section'")) {
   throw new Error('receipt sections must be collapsible (§17.1)')
 }
 
+// Runtime Graph governance (§20/§21/§22).
+const canvasModule = await readFile(resolve(root, 'src/dsh/client/runtime-flow.js'), 'utf8')
+for (const requiredText of [
+  'function filterLayout',
+  'const FILTER_TYPES =',
+  'function filterTypeOf',
+  'hiddenNodes',
+  'hiddenEdges',
+]) {
+  if (!canvasModule.includes(requiredText)) throw new Error(`graph filter contract missing: ${requiredText}`)
+}
+// §32: a filter may only remove. If it could construct a node or an edge, the canvas
+// would become a place where relationships are invented.
+{
+  const fn = canvasModule.slice(canvasModule.indexOf('function filterLayout'))
+  for (const forbidden of ['nodes.push', 'edges.push', 'concat(', 'from: ', 'to: ']) {
+    if (fn.includes(forbidden)) throw new Error(`the filter must only remove: ${forbidden}`)
+  }
+}
+// §21: one renderer, two densities — not two similar flowcharts.
+// The old graph view drew its own SVG path builder and edge class; both must stay gone.
+if (client.includes('rtEdgePath') || client.includes("className: 'st-rt-edge'")) {
+  throw new Error('the graph view must not draw its own canvas (§21)')
+}
+if (!client.includes('h(RuntimeFlowView')) throw new Error('the graph view must reuse the one canvas renderer')
+for (const requiredText of ['仅显示主路径', '只看失败/重试', 'FILTER_TYPES.map', 'hideCandidate: true']) {
+  if (!client.includes(requiredText)) throw new Error(`§22 control missing: ${requiredText}`)
+}
+// §22's default is the main path, and what is hidden is always stated.
+if (!/已隐藏|Hiding/.test(client)) throw new Error('a filtered canvas must state what it hid')
+if (!client.includes("view === 'runtime' ? 'graph' : 'flow'")) {
+  throw new Error('the graph view must be allowed its own density (§21)')
+}
+if (!host.includes('GRAPH_NODE_LIMIT')) throw new Error('the Host must own the debug density budget')
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -591,3 +626,4 @@ console.log('ELK_LAYOUT_BOUNDED_OK')
 console.log('CONTEXTUAL_INSPECTOR_OK')
 console.log('REPLAY_READ_ONLY_OK')
 console.log('RECEIPT_SECTIONS_OK')
+console.log('GRAPH_FILTERS_OK')

@@ -9,7 +9,7 @@
 // Never point `exports['./client']` at this file: the shell reads the client entry
 // verbatim and does not bundle it.
   const React = require('react')
-const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-flow.js')
+const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayout } = require('./runtime-flow.js')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -344,23 +344,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
       @media(max-width:460px){.st-main,.st-aside{padding:12px}.st-receipt-head,.st-receipt-section{padding-inline:14px}.st-activity{grid-template-columns:1fr}.st-button,.st-input,.st-select,.st-textarea{min-height:44px;font-size:16px}.st-view-button,.st-filter{min-height:40px}.st-output-form,.st-learning-actions,.st-data-actions{grid-template-columns:1fr}.st-output-form .st-button,.st-learning-actions .st-button,.st-data-actions .st-button{width:100%}.st-dependencies{grid-template-columns:repeat(2,minmax(0,1fr))}.st-dependency:nth-child(3),.st-dependency:nth-child(5){border-left:0}.st-dependency:nth-child(n+3){border-top:1px solid var(--st-border-soft)}.st-summary-row{grid-template-columns:1fr;gap:3px}.st-toolbar-split{display:none}.st-catalog-detail{padding:14px}.st-definition-grid{grid-template-columns:1fr}.st-evidence-section{padding-left:42px}}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.st-trace-state-dot{animation:none!important}}
       .st-session-chip{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2,rgba(22,27,36,.14));border-radius:999px;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#626871);font-size:11px;white-space:nowrap}.st-session-chip svg{color:var(--dsw-alias-state-business-primary,var(--dsw-static-deepseek-500,#3567d6))}
-      .st-runtime{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
-      .st-runtime-canvas{min-width:0;overflow:auto;max-height:calc(100dvh - 190px);border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:10px}
-      .st-rt-edge{fill:none;stroke-linecap:round;cursor:pointer}
-      .st-rt-edge:hover{stroke-width:2.6}
-      .st-rt-edge[data-type="contains"]{stroke:var(--st-border);stroke-width:1.1}
-      .st-rt-edge[data-type="spawns"]{stroke:var(--st-warning);stroke-width:1.5}
-      .st-rt-edge[data-type="retries"]{stroke:var(--st-error);stroke-width:1.5}
-      .st-rt-edge[data-type="follows"]{stroke:var(--st-border-soft);stroke-width:1;stroke-dasharray:3 3}
-      .st-rt-edge[data-status="candidate"]{stroke-dasharray:5 3}
-      .st-rt-edge[data-selected="true"]{stroke:var(--st-brand);stroke-width:2.8}
-      .st-rt-node{cursor:pointer}
-      .st-rt-node rect{fill:var(--st-layer);stroke-width:1.2}
-      .st-rt-node[data-selected="true"] rect{stroke-width:2.4}
-      .st-rt-node text{font-size:11px;fill:var(--st-ink,currentColor);pointer-events:none}
-      .st-rt-node .st-rt-sub{font-size:9px;fill:var(--st-faint)}
-      .st-rt-node .st-rt-id{font-size:8.5px;fill:var(--st-faint);text-anchor:end}
-      .st-rt-bar{stroke-width:4}
       .st-rt-inspector{border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:13px 14px;position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-rt-inspector h3{margin:0 0 2px;font-size:12.5px}
       .st-rt-kicker{margin:0 0 10px;color:var(--st-faint);font-size:10px}
@@ -380,7 +363,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
       .st-rt-evidence code{font-size:9.5px;color:var(--st-faint)}
       .st-rt-notes{margin:10px 0 0;padding:9px 10px;border-radius:7px;background:var(--st-layer-2);color:var(--st-faint);font-size:10px;line-height:1.6}
       .st-rt-empty{display:grid;place-items:center;min-height:180px;color:var(--st-muted);font-size:12px}
-      .st-rt-legend{display:flex;flex-wrap:wrap;gap:10px;margin:9px 0 0;color:var(--st-faint);font-size:10px}
 
       .st-flow{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
       .st-flow-canvas{min-width:0;height:calc(100dvh - 210px);min-height:420px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);overflow:hidden}
@@ -424,10 +406,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
       .st-flow-node[data-replay="future"]{opacity:.22}
       .st-flow-node[data-replay="current"]{box-shadow:0 0 0 2px var(--st-brand),0 2px 8px rgba(15,23,42,.16)}
       .st-flow-node[data-replay="current"] .st-flow-node-title{font-weight:650}
+      .st-filters{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0 0 8px}
+      .st-filter{min-height:24px;padding:0 9px;border:1px solid var(--st-border);border-radius:999px;background:var(--st-layer);color:var(--st-muted);font-size:10.5px;cursor:pointer}
+      .st-filter[aria-pressed="true"]{border-color:var(--st-brand);color:var(--st-brand);font-weight:600}
+      .st-filter-split{width:1px;height:16px;margin:0 3px;background:var(--st-border)}
+      .st-flow-head .st-rt-notes{margin:6px 0 0}
       .react-flow__attribution{display:none}
       @media(max-width:1050px){.st-flow{grid-template-columns:minmax(0,1fr)}.st-flow-side{position:static;max-height:none}.st-flow-canvas{height:60dvh}}
-      .st-rt-legend span{display:inline-flex;align-items:center;gap:4px}
-      .st-rt-legend i{width:9px;height:9px;border-radius:2px}
       @media(max-width:1050px){.st-runtime{grid-template-columns:minmax(0,1fr)}.st-rt-inspector{position:static;max-height:none}}
     `
     if (previous) previous.replaceWith(style)
@@ -1511,10 +1496,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
   const RT_CAPABILITY_COLOR = { skill: '#7c3aed', cli: '#0369a1', tool: '#475569', mcp: '#047857', subagent: '#b45309', mixed: '#64748b', 'turn-range': '#334155', unknown: '#94a3b8' }
   const RT_STATUS_COLOR = { observed: '#047857', partial: '#b45309', candidate: '#b45309', insufficient: '#64748b', unknown: '#94a3b8', unlinked: '#b91c1c' }
 
-  function rtEdgePath(edge) {
-    const mid = (edge.x1 + edge.x2) / 2
-    return `M ${edge.x1} ${edge.y1} C ${mid} ${edge.y1}, ${mid} ${edge.y2}, ${edge.x2} ${edge.y2}`
-  }
   /** §15: the tabs offered depend on what is selected, not one shape for everything. */
   const INSPECTOR_TAB_LABELS = {
     evidence: '运行证据',
@@ -1670,88 +1651,80 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
           : evidencePanel,
       h('button', { className: 'st-button', type: 'button', onClick: onClose }, localized('返回概览', 'Back to overview')))
   }
-
+  /**
+   * 运行图谱 (§20–§22) — the debug view.
+   *
+   * One renderer, two densities (§21). What separates this from 运行流程 is not a
+   * second canvas implementation but what it shows and what it lets you change: the
+   * flow view is quiet and drops candidate relations, while this one defaults to the
+   * main path and hands you the filters to open it up.
+   *
+   * Filtering is presentation over a view model the Host already proved (§32). It
+   * hides; it never adds. What it hides is counted and stated, so a filtered canvas
+   * cannot be mistaken for a smaller run.
+   */
   function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, onSelect, onCloseInspect }) {
-    if (loading && !data) return h('div', { className: 'st-rt-empty' }, '正在重建运行图谱…')
+    const [types, setTypes] = React.useState([])
+    const [hideCandidate, setHideCandidate] = React.useState(true)
+    const [failuresOnly, setFailuresOnly] = React.useState(false)
+
+    if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建运行图谱…', 'Rebuilding the runtime graph…'))
     if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
-    if (!data) return h('div', { className: 'st-rt-empty' }, '当前对话暂未产生可重建的运行证据。')
+    if (!data) return h('div', { className: 'st-rt-empty' }, localized('当前对话暂无可重建的运行证据。', 'No reconstructable runtime evidence in this conversation.'))
 
-    const layout = data.layout
-    const stats = layout.stats
-    const hidden = layout.hidden
-    const selectedId = inspect?.edge?.id ?? inspect?.nodeId ?? null
+    const filtered = filterLayout(data.layout, { types, hideCandidate, failuresOnly })
+    const stats = data.layout.stats
+    const shown = filtered.filtered
+    const selectedId = inspect?.edge?.id
+      ? { edgeId: inspect.edge.id }
+      : (inspect?.nodeId ? { nodeId: inspect.nodeId } : null)
 
-    return h('div', { className: 'st-runtime' },
-      h('div', { className: 'st-runtime-canvas' },
-        h('svg', {
-          viewBox: `0 0 ${layout.width} ${layout.height}`,
-          width: Math.max(layout.width, 320),
-          height: Math.max(layout.height, 160),
-          role: 'img',
-          'aria-label': 'Agent 运行图谱',
-        },
-        h('g', null, ...layout.edges.map((edge) => h('path', {
-          key: edge.id,
-          className: 'st-rt-edge',
-          d: rtEdgePath(edge),
-          'data-type': edge.type,
-          'data-status': edge.status,
-          'data-selected': selectedId && (inspect?.edge?.id === edge.id) ? 'true' : undefined,
-          onClick: () => onSelect({ edgeId: edge.id }),
-        }, h('title', null, `${edge.type} · ${edge.derivation} · ${edge.status}${edge.rule ? ` · ${edge.rule}` : ''}`)))),
-        h('g', null, ...layout.nodes.map((node) => {
-          const color = node.kind === 'session' ? '#0f172a'
-            : node.kind === 'turn' ? '#334155'
-              : node.kind === 'child' ? RT_CAPABILITY_COLOR.subagent
-                : (RT_CAPABILITY_COLOR[node.capabilityId] ?? RT_CAPABILITY_COLOR.unknown)
-          const dashed = node.status === 'unlinked' || node.status === 'partial'
-          const sub = node.collapsed ? `折叠 ${node.memberCount} 项` : (node.sublabel || '')
-          return h('g', {
-            key: node.id,
-            className: 'st-rt-node',
-            'data-selected': selectedId === node.id ? 'true' : undefined,
-            onClick: () => onSelect({ nodeId: node.id }),
-          },
-          h('title', null, `${node.label}${sub ? ` — ${sub}` : ''} · ${node.status}`),
-          h('rect', { x: node.x, y: node.y, width: node.width, height: node.height, rx: 6, stroke: color, strokeDasharray: dashed ? '3 2' : undefined }),
-          h('rect', { className: 'st-rt-bar', x: node.x, y: node.y, width: 4, height: node.height, rx: 2, fill: color, stroke: 'none' }),
-          h('text', { x: node.x + 12, y: node.y + 13 }, node.label.length > 34 ? `${node.label.slice(0, 33)}…` : node.label),
-          sub ? h('text', { className: 'st-rt-sub', x: node.x + 12, y: node.y + 24 }, sub.length > 40 ? `${sub.slice(0, 39)}…` : sub) : null,
-          node.kind === 'invocation' ? h('text', { className: 'st-rt-id', x: node.x + node.width - 8, y: node.y + 13 }, String(node.graphNodeId ?? '').slice(-6)) : null)
-        }))),
-        h('title', null, '')),
+    const toggleType = (key) => setTypes((current) => current.includes(key)
+      ? current.filter((item) => item !== key)
+      : [...current, key])
+
+    return h('div', { className: 'st-flow' },
       h('div', null,
-        h('p', { className: 'st-rt-kicker' },
-          localized(
-            `${layout.mode === 'grouped' ? '分组' : '完整'}视图 · 渲染 ${stats.renderedNodeCount} 节点 / ${stats.renderedEdgeCount} 边 · 原图 ${stats.graphNodeCount} 节点`,
-            `${layout.mode === 'grouped' ? 'Grouped' : 'Full'} · ${stats.renderedNodeCount} nodes / ${stats.renderedEdgeCount} edges · graph has ${stats.graphNodeCount}`,
-          )),
-        hidden.nodeCount ? h('p', { className: 'st-rt-notes' },
-          localized(`有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；折叠节点里列出了它代表的节点，所以依据仍然可查。`,
-            `${hidden.nodeCount} nodes and ${hidden.edgeCount + hidden.collapsedInsideCount} relations are folded into groups; a folded node names what it stands for.`)) : null,
-        stats.unlinkedNodeCount || data.graph.unlinked.length ? h('p', { className: 'st-rt-notes' },
-          localized(`无法确定归属的调用 ${data.graph.unlinked.length} 个，已列入 unlinked，不会挂到最近的节点上。`,
-            `${data.graph.unlinked.length} call(s) could not be placed and are reported unlinked.`)) : null,
-        h('div', { className: 'st-rt-legend' },
-          ...Object.entries(RT_CAPABILITY_COLOR).filter(([key]) => ['skill', 'cli', 'tool', 'mcp', 'subagent'].includes(key)).map(([key, color]) => h('span', { key }, h('i', { style: { background: color } }), key))),
-        h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))),
-      h(RuntimeInspector, { data: inspect, loading: inspectLoading, error: inspectError, alignments, skillLoads, onSelectEdge: (edgeId) => onSelect({ edgeId }), onClose: onCloseInspect }))
+        h('div', { className: 'st-flow-head' },
+          h('strong', null, localized('运行图谱', 'Runtime graph')),
+          h('span', null, localized(
+            `显示 ${filtered.nodes.length} / ${stats.renderedNodeCount} 节点 · ${filtered.edges.length} / ${stats.renderedEdgeCount} 关系 · 原图 ${stats.graphNodeCount} 节点`,
+            `${filtered.nodes.length} / ${stats.renderedNodeCount} nodes · ${filtered.edges.length} / ${stats.renderedEdgeCount} relations · graph has ${stats.graphNodeCount}`))),
+        h('div', { className: 'st-filters', role: 'group', 'aria-label': '运行图谱筛选' },
+          h('button', { className: 'st-filter', type: 'button', 'aria-pressed': types.length === 0, onClick: () => setTypes([]) }, localized('全部', 'All')),
+          ...FILTER_TYPES.map((key) => h('button', {
+            key,
+            className: 'st-filter',
+            type: 'button',
+            'aria-pressed': types.includes(key),
+            onClick: () => toggleType(key),
+          }, raw(key))),
+          h('span', { className: 'st-filter-split', 'aria-hidden': 'true' }),
+          h('button', { className: 'st-filter', type: 'button', 'aria-pressed': hideCandidate, onClick: () => setHideCandidate((value) => !value) },
+            localized('仅显示主路径', 'Main path only')),
+          h('button', { className: 'st-filter', type: 'button', 'aria-pressed': failuresOnly, onClick: () => setFailuresOnly((value) => !value) },
+            localized('只看失败/重试', 'Failures and retries'))),
+        h('p', { className: 'st-rt-notes', role: 'status' }, localized(
+          `已隐藏 ${shown.hiddenNodes} 个节点与 ${shown.hiddenEdges} 条关系。${hideCandidate ? '「仅显示主路径」会隐藏候选关系（虚线）——那是证据最弱的一类。' : '当前包含候选关系（虚线），它们只是候选。'}`,
+          `Hiding ${shown.hiddenNodes} node(s) and ${shown.hiddenEdges} relation(s). ${hideCandidate ? '"Main path only" hides candidate relations — the weakest class of evidence.' : 'Candidate relations (dashed) are currently shown; they are candidates only.'}`)),
+        h('div', { className: 'st-flow-canvas' },
+          h(RuntimeFlowView, { layout: filtered, selectedId, onSelect, onBackground: onCloseInspect }))),
+      h('div', { className: 'st-flow-side' },
+        shown.hiddenNodes || data.layout.hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
+          `本次运行共 ${data.layout.hidden.nodeCount + stats.renderedNodeCount} 个节点；画布与筛选之外的部分已被折叠，折叠节点上标明它代表多少项。`,
+          `The run holds ${data.layout.hidden.nodeCount + stats.renderedNodeCount} nodes; anything outside the canvas and the filters is folded, and a folded node names how many it stands for.`)) : null,
+        h(RuntimeInspector, {
+          data: inspect,
+          loading: inspectLoading,
+          error: inspectError,
+          alignments,
+          skillLoads,
+          onSelectEdge: (edgeId) => onSelect({ edgeId }),
+          onClose: onCloseInspect,
+        }),
+        h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))))
   }
 
-  /**
-   * 运行流程 (§6–§13) — the Runtime Flow canvas.
-   *
-   * Read-only runtime replay, not a workflow editor (§2.2). It draws the layout the
-   * Host computed and, on click, asks the Host why that line exists. It never reads
-   * events and never derives a relationship (§32).
-   */
-  /**
-   * 回放 (§37).
-   *
-   * A step-through of the run in runtime-event order — Step 1, Step 2, Step 3 — not a
-   * video. It is pure view state: it reads the Host's timeline and never writes, so a
-   * replay cannot change what the receipt says happened.
-   */
   function ReplayControls({ timeline, index, playing, onIndex, onPlaying }) {
     if (!timeline?.steps?.length) return null
     const total = timeline.steps.length
@@ -1793,6 +1766,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
     }, [playing, total])
     React.useEffect(() => { setReplayIndex(-1); setPlaying(false) }, [data?.sessionId, total])
 
+    const flowLayout = React.useMemo(() => filterLayout(layout, { hideCandidate: true }), [layout])
+    const candidateCount = (layout?.edges?.length ?? 0) - (flowLayout?.edges?.length ?? 0)
+
     const replay = replayIndex >= 0 && timeline
       ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
       : null
@@ -1822,8 +1798,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
             layout.engine === 'elk' ? '布局：ELK（层内交叉最小化）' : '布局：确定性（ELK 已在超过节点预算时跳过）',
             layout.engine === 'elk' ? 'Layout: ELK (crossing-minimised)' : 'Layout: deterministic (ELK skipped past its node budget)'))),
         h(ReplayControls, { timeline, index: replayIndex, playing, onIndex: setReplayIndex, onPlaying: setPlaying }),
+        // §21: 运行流程 is the quiet, high-level view — it drops the weakest class of
+        // relation (candidates) and states the count, rather than drawing every line.
+        candidateCount ? h('p', { className: 'st-rt-notes' }, localized(
+          `已隐藏 ${candidateCount} 条候选关系（虚线）。它们只是候选，要看请切到「运行图谱」。`,
+          `Hiding ${candidateCount} candidate relation(s) — dashed lines are candidates only. Switch to 运行图谱 to see them.`)) : null,
         h('div', { className: 'st-flow-canvas' },
-          h(RuntimeFlowView, { layout, selectedId, onSelect, onBackground: onCloseInspect, replay }))),
+          h(RuntimeFlowView, { layout: flowLayout, selectedId, onSelect, onBackground: onCloseInspect, replay }))),
       h('div', { className: 'st-flow-side' },
         hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
           `另有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；折叠节点上标明了它代表多少项，点开可看它代表哪些节点。`,
@@ -1881,11 +1862,11 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
 
     // The runtime graph is fetched on demand: the receipt's own payload never
     // carries it, so opening a conversation stays as cheap as it was.
-    const loadRuntime = React.useCallback(async () => {
+    const loadRuntime = React.useCallback(async (detail = 'flow') => {
       if (!sessionId) return
       setRuntimeLoading(true); setRuntimeError('')
       try {
-        setRuntime(await api(`/runtime?sessionId=${encodeURIComponent(sessionId)}`))
+        setRuntime(await api(`/runtime?sessionId=${encodeURIComponent(sessionId)}&detail=${detail}`))
       } catch (reason) { setRuntimeError(reason.message) } finally { setRuntimeLoading(false) }
     }, [sessionId])
 
@@ -1909,7 +1890,14 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS } = require('./runtime-fl
     }, [load])
 
     // 运行流程 and 运行图谱 are two densities of the same runtime graph, so both need it.
-      React.useEffect(() => { if ((view === 'runtime' || view === 'map') && !runtime && !runtimeLoading) loadRuntime() }, [view, runtime, runtimeLoading, loadRuntime])
+      // §21: one renderer, two densities. 运行图谱 may be denser than 运行流程, so the detail
+      // level follows the view and is refetched when it changes.
+      const wantedDetail = view === 'runtime' ? 'graph' : 'flow'
+      React.useEffect(() => {
+        if (view !== 'runtime' && view !== 'map') return
+        if (runtimeLoading || runtime?.detail === wantedDetail) return
+        loadRuntime(wantedDetail)
+      }, [view, runtime, runtimeLoading, loadRuntime, wantedDetail])
 
     function chooseView(next) {
       setScreen('session'); setView(next); setError(''); setInspect(null)

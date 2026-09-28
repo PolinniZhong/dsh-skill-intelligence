@@ -176,6 +176,62 @@ function toFlowEdges(layout, selectedEdgeId, dim) {
   })
 }
 
+
+/** §22: the buckets a user filters by. */
+const FILTER_TYPES = ['session', 'turn', 'skill', 'tool', 'mcp', 'cli', 'subagent', 'other']
+
+/** Which §22 bucket a node belongs to. Presentation only. */
+function filterTypeOf(node) {
+  if (node.kind === 'session') return 'session'
+  if (node.kind === 'turn') return 'turn'
+  if (node.capabilityId === 'turn-range') return 'turn'
+  if (FILTER_TYPES.includes(node.capabilityId)) return node.capabilityId
+  if (node.kind === 'child') return 'subagent'
+  return 'other'
+}
+
+/**
+ * Apply §20/§22 filters to a laid-out graph.
+ *
+ * This is presentation over a view model the Host already proved — it shows and hides
+ * what exists, and never adds a node or a line that was not there. A filtered-out node
+ * is counted, so the canvas can say what it is not showing instead of quietly implying
+ * the run was smaller than it was.
+ *
+ * @param layout - the Host's layout.
+ * @param filter - `{ types, hideCandidate, failuresOnly }`. Absent means draw everything.
+ * @returns a layout-shaped object plus `filtered` counts.
+ */
+function filterLayout(layout, filter) {
+  if (!layout || !filter) return layout
+  const types = Array.isArray(filter.types) && filter.types.length > 0 ? new Set(filter.types) : null
+  const nodes = layout.nodes.filter((node) => {
+    if (types && !types.has(filterTypeOf(node))) return false
+    // §22's "显示失败/重试": a failed call, or one whose evidence could not be placed.
+    if (filter.failuresOnly && node.outcome !== 'failure' && node.status !== 'unlinked' && node.status !== 'partial') return false
+    return true
+  })
+  const keep = new Set(nodes.map((node) => node.id))
+  const edges = layout.edges.filter((edge) => {
+    if (!keep.has(edge.from) || !keep.has(edge.to)) return false
+    // §10.2/§21: a candidate relation is the weakest claim, so it is the first thing
+    // the quiet view drops — and dropping it is stated, not silent.
+    if (filter.hideCandidate && edge.status === 'candidate') return false
+    return true
+  })
+  return {
+    ...layout,
+    nodes,
+    edges,
+    filtered: {
+      hiddenNodes: layout.nodes.length - nodes.length,
+      hiddenEdges: layout.edges.length - edges.length,
+      totalNodes: layout.nodes.length,
+      totalEdges: layout.edges.length,
+    },
+  }
+}
+
 /** Neighbours of one node, from the layout alone — a view concern, not a claim. */
 function neighbourhoodOf(layout, nodeId) {
   const keep = new Set([nodeId])
@@ -232,4 +288,4 @@ function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniM
   showMiniMap ? React.createElement(MiniMap, { pannable: true, zoomable: true, position: 'bottom-right', nodeColor: (node) => node.data?.color ?? '#94a3b8' }) : null)
 }
 
-module.exports = { RuntimeFlowView, flowStylesheet, CAPABILITY_COLORS, STATUS_COLORS }
+module.exports = { RuntimeFlowView, flowStylesheet, CAPABILITY_COLORS, STATUS_COLORS, FILTER_TYPES, filterLayout, filterTypeOf }

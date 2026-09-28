@@ -61,6 +61,9 @@ export function sessionEventLog(session) {
   return []
 }
 
+/** §21: how dense the debug view may get, against the flow view's default budget. */
+const GRAPH_NODE_LIMIT = 400
+
 /** The canvas never reads member lists; the timeline already used them. */
 function stripMemberIds(layout) {
   return { ...layout, nodes: layout.nodes.map((node) => ({ ...node, memberIds: [] })) }
@@ -565,10 +568,17 @@ export function apply(ctx, config = {}) {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
             const graph = buildRuntimeGraph(receipt)
-            const layoutWithMembers = await computeRuntimeLayoutWithElk(graph, { includeHiddenIds: false })
+            // §21: one renderer, two densities. The flow view stays quiet; the graph
+            // view is allowed to be denser because its job is debugging.
+            const detail = url.searchParams.get('detail') === 'graph' ? 'graph' : 'flow'
+            const layoutWithMembers = await computeRuntimeLayoutWithElk(graph, {
+              includeHiddenIds: false,
+              ...(detail === 'graph' ? { nodeLimit: GRAPH_NODE_LIMIT } : {}),
+            })
             sendJson(res, 200, {
               ok: true,
               sessionId,
+              detail,
               graph: {
                 modelVersion: graph.modelVersion,
                 lineage: graph.lineage,
