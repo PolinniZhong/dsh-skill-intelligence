@@ -15,6 +15,7 @@ import {
 } from './runtime-events.mjs'
 import { buildRuntimeGraph } from './runtime-graph.mjs'
 import { DECLARATION_STEP_LIMIT, buildAlignment, extractDeclarationSteps } from './runtime-alignment.mjs'
+import { buildFingerprintReservation } from './runtime-fingerprint.mjs'
 
 // `classifyCapability` is re-exported so the classification contract keeps one
 // implementation and one import path for consumers already using the reducer.
@@ -965,6 +966,9 @@ function buildLearningCards(receipt, methods, events) {
 }
 
 export function buildViewModels(receipt) {
+  // The graph is derived once and read twice: its counts, and the §31 fingerprint slot
+  // reserved beside them. It is never persisted.
+  const runtimeGraph = buildRuntimeGraph(receipt)
   const events = receipt.traceEvents.map((trace) => ({
     id: trace.eventId,
     name: trace.skillName,
@@ -1087,7 +1091,10 @@ export function buildViewModels(receipt) {
       // Correlated graph counts. The node and edge arrays stay out of the client
       // payload until the canvas phase asks for them; the graph itself is derived
       // and never persisted.
-      graph: buildRuntimeGraph(receipt).stats,
+      graph: runtimeGraph.stats,
+      // §31: the reserved Runtime Fingerprint structure. Every pattern is explicitly
+      // "not yet derived" — an absent value is never presented as a negative finding.
+      fingerprint: buildFingerprintReservation(runtimeGraph),
       // Declaration ↔ Runtime alignment, one entry per loaded Skill. Counts of
       // evidence states only — never a compliance rate.
       alignments: [...new Set(events.filter((event) => event.status === 'loaded').map((event) => event.name))]

@@ -689,6 +689,46 @@ if (!flowModule.includes("if (node.kind === 'capability') return CAPABILITY_COLO
   throw new Error('a capability node must take the colour of the capability it groups')
 }
 
+// §31: the Runtime Fingerprint structure is reserved and nothing is derived from it.
+const fingerprintModule = await readFile(resolve(root, 'src/core/runtime-fingerprint.mjs'), 'utf8')
+for (const requiredText of [
+  'export const FINGERPRINT_PATTERNS',
+  "'runtime'",
+  "'tool'",
+  "'mcp'",
+  "'cli'",
+  "'failure'",
+  "'recovery'",
+  "status: 'not-yet-derived'",
+  'value: null',
+  'derived: false',
+]) {
+  if (!fingerprintModule.includes(requiredText)) throw new Error(`§31 fingerprint reservation missing: ${requiredText}`)
+}
+// §16/§31: a reserved fingerprint must not carry a score, and must not present "nobody
+// looked" as "looked and found nothing".
+{
+  // Comments are allowed to name what the code refuses to do; only real code is checked.
+  const code = fingerprintModule.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  for (const forbidden of ['score', 'rate:', 'ranking', 'percent']) {
+    if (code.includes(forbidden)) throw new Error(`§16: the fingerprint must not carry ${forbidden}`)
+  }
+}
+if (!client.includes('FingerprintSection') || !client.includes('尚未派生')) {
+  throw new Error('§31: the receipt must show the reserved structure and say it is not derived')
+}
+if (!client.includes('空不代表')) {
+  throw new Error('§31: the reserved surface must distinguish "not derived" from "none found"')
+}
+// §36: aggregation begins at the governed size, and §20.1's per-turn folding is its own
+// trigger rather than a consequence of the global one.
+for (const requiredText of ['export const AGGREGATE_NODE_THRESHOLD = 30', 'export const AGGREGATE_EDGE_THRESHOLD = 50']) {
+  if (!layoutModule.includes(requiredText)) throw new Error(`§36 threshold missing: ${requiredText}`)
+}
+if (!layoutModule.includes('members.length > collapseThreshold')) {
+  throw new Error('§20.1: a busy turn must fold on its own trigger')
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -735,3 +775,4 @@ console.log('GRAPH_FILTERS_OK')
 console.log('MY_SKILLS_SLIM_OK')
 console.log('VISUAL_TOKENS_OK')
 console.log('FIVE_LAYER_MODEL_OK')
+console.log('FINGERPRINT_RESERVED_OK')

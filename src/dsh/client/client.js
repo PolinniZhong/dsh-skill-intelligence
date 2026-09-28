@@ -404,6 +404,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-section-count{padding:0 6px;border-radius:999px;background:var(--st-layer-2);color:var(--st-muted);font-size:10.5px;font-variant-numeric:tabular-nums}
       .st-section-note{color:var(--st-faint);font-size:10.5px}
       .st-section-body{padding:0 0 14px}
+      .st-fingerprint-list{display:grid;gap:4px;margin:8px 0 0;padding:0;list-style:none}
+      .st-fingerprint-list li{display:flex;align-items:baseline;gap:9px;padding:5px 0;border-bottom:1px solid var(--st-border-soft);font-size:11.5px}
+      .st-fingerprint-list li:last-child{border-bottom:0}
+      .st-fingerprint-list strong{min-width:96px;color:var(--st-text);font-weight:600}
+      .st-fingerprint-state{color:var(--st-faint);font-size:10.5px}
+      .st-fingerprint-sources{margin-left:auto;color:var(--st-faint);font-size:10.5px}
       .st-flow-node[data-replay="future"]{opacity:.22}
       .st-flow-node[data-replay="current"]{box-shadow:0 0 0 2px var(--st-brand),0 2px 8px rgba(15,23,42,.16)}
       .st-flow-node[data-replay="current"] .st-flow-node-title{font-weight:650}
@@ -717,6 +723,8 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         h('div', { className: 'st-methods' }, methodNodes)),
       h(ReceiptSection, { title: '候选依赖', note: localized('可能涉及的运行能力；候选不等于必需或可用', 'Capabilities possibly involved; a candidate is not a requirement'), open: true },
         h('div', { className: 'st-dependencies' }, dependencyNodes)),
+      h(ReceiptSection, { title: '运行指纹（预留结构）', note: localized('§31：位置已定，尚未派生', '§31: reserved, not yet derived') },
+        h(FingerprintSection, { fingerprint: model.runtime?.fingerprint })),
       h(ReceiptSection, { title: 'Skill 声明', note: localized('Skill 自称要做什么；不代表已经执行', 'What the Skill says it does; not proof it ran') },
         h('div', { className: 'st-learning-cards' }, learningNodes)),
       h(ReceiptSection, { title: '学习与验证', note: localized('你的记录与本地产出引用', 'Your notes and local output references') },
@@ -724,6 +732,32 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           h('div', { className: 'st-continuity-head' }, h('strong', null, '继续使用指南'), statusBadge(model.continuity?.status || 'unknown')),
           h('div', { className: 'st-continuity-steps' }, nextStepNodes))),
       h('section', { className: 'st-receipt-section' }, h(SessionSummary, { model })))
+  }
+
+  /**
+   * §31 Runtime Fingerprint — the reserved structure.
+   *
+   * Every pattern renders as "not yet derived", in words. Six empty boxes without that
+   * sentence would read as "this run has no patterns", which is a different claim from
+   * "nobody has derived them" — and this project does not let those two look alike.
+   */
+  function FingerprintSection({ fingerprint }) {
+    if (!fingerprint) return null
+    const patterns = Object.values(fingerprint.patterns ?? {})
+    if (!patterns.length) return null
+    const counts = fingerprint.evidenceAvailable?.invocationCount ?? {}
+    const summary = Object.entries(counts).map(([key, value]) => `${key} × ${value}`).join(' · ')
+    return h('div', { className: 'st-fingerprint' },
+      h('p', { className: 'st-rt-notes' }, localized(
+        '这是 §31 要求预留的结构：六个 Pattern 的位置已经确定，但还没有派生任何值。空不代表「没有模式」，只代表还没做。这里不评分。',
+        'This is the structure §31 asks to reserve: the six patterns have places, but nothing is derived yet. Empty does not mean "no patterns", only "not done". Nothing here is scored.')),
+      h('ul', { className: 'st-fingerprint-list' }, patterns.map((pattern) => h('li', { key: pattern.key },
+        h('strong', null, localized(pattern.label.zh, pattern.label.en)),
+        h('span', { className: 'st-fingerprint-state' }, localized('尚未派生', 'Not yet derived')),
+        h('span', { className: 'st-fingerprint-sources' }, (pattern.sources ?? []).join(' / '))))),
+      summary ? h('p', { className: 'st-rt-notes' }, localized(
+        `可供派生的事件：${summary}。这是证据的数量，不是指纹本身。`,
+        `Evidence a later derivation would read: ${summary}. This is how much there is, not what it means.`)) : null)
   }
 
   function MapView({ model, selectedNode, onSelectNode }) {

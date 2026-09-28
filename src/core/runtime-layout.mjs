@@ -35,6 +35,12 @@ export const LAYOUT_NODE_LIMIT = 200
 /** A turn with more invocations than this collapses per capability. */
 export const TURN_COLLAPSE_THRESHOLD = 12
 
+/** §36: past these sizes the canvas enters aggregation mode rather than drawing
+ * every node in full. They are the governance's numbers, not a reading of what
+ * happens to fit. */
+export const AGGREGATE_NODE_THRESHOLD = 30
+export const AGGREGATE_EDGE_THRESHOLD = 50
+
 /** A layer taller than this wraps into sub-columns. */
 export const MAX_ROWS_PER_COLUMN = 26
 
@@ -168,7 +174,9 @@ export function computeRuntimeLayout(graph, options = {}) {
   const ownerOf = new Map()
   // Grouping is decided by the size of the whole graph, not by one busy turn: a
   // 60-node session draws in full, because every node there is worth reading.
-  const grouped = graphNodes.length > nodeLimit * 0.6
+  // §36: aggregation begins at a stated size — Node > 30 or Edge > 50 — rather than at
+  // whatever fraction of the hard bound the graph happens to reach.
+  const grouped = graphNodes.length > AGGREGATE_NODE_THRESHOLD || graphEdges.length > AGGREGATE_EDGE_THRESHOLD
   const view = new Map()
   if (sessionNode) view.set(sessionNode.id, { kind: 'session', source: sessionNode })
 
@@ -177,7 +185,11 @@ export function computeRuntimeLayout(graph, options = {}) {
   for (const turn of turnNodes) {
     view.set(turn.id, { kind: 'turn', source: turn })
     const members = invocationsByTurn.get(turn.turn ?? 'none') ?? []
-    if (grouped && members.length > collapseThreshold) {
+    // §20.1 folds repetitive calls inside one turn — `grep × 8`, `web_search × 11` —
+    // and that is about the turn, not about the size of the whole graph. §36's global
+    // thresholds decide the other kind of aggregation, so the two triggers stay
+    // separate: a single busy turn folds even in a small run.
+    if (members.length > collapseThreshold) {
       for (const group of collapseTurn(turn.turn, members)) {
         view.set(group.id, { kind: 'group', synthetic: group })
         for (const memberId of group.memberIds) ownerOf.set(memberId, group.id)
@@ -524,7 +536,10 @@ export function computeRuntimeLayout(graph, options = {}) {
 
   return {
     modelVersion: LAYOUT_MODEL_VERSION,
-    mode: grouped ? 'grouped' : 'expanded',
+    // `mode` describes what the layout did, not which trigger fired: a single busy turn
+    // folds even when the whole graph is small, and calling that 'expanded' would
+    // misdescribe the result.
+    mode: placed.some((node) => node.collapsed) ? 'grouped' : 'expanded',
     width: columnX - COLUMN_GAP + PADDING,
     height: Math.max(...placed.map((node) => node.y + node.height), 0) + PADDING,
     nodes: placed,

@@ -23,6 +23,7 @@ import { computeRuntimeLayoutWithElk } from '../../core/runtime-layout-elk.mjs'
 import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
 import { buildSkillLoadIndex } from '../../core/runtime-alignment.mjs'
 import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
+import { buildFingerprintReservation } from '../../core/runtime-fingerprint.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
@@ -595,6 +596,8 @@ export function apply(ctx, config = {}) {
               // payload, which is what `includeMemberIds: false` did before.
               layout: stripMemberIds(layoutWithMembers),
               timeline: buildReplayTimeline(graph, layoutWithMembers, receipt.runtimeEvents),
+              // §31: the reserved shape, not a derived fingerprint.
+              fingerprint: buildFingerprintReservation(graph),
               // Which call loaded which Skill. Derived here, on the Host, because the
               // Skill name never comes from tool arguments; the graph node only ever
               // says "skill". Only unambiguous joins are reported.
