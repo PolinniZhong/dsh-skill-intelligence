@@ -318,6 +318,8 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     style.id = STYLE_ID
     style.textContent = `
       [data-plugin="dsh-skill-trace"]{--st-brand:#2f6fed;--st-brand-soft:#eef4ff;--st-bg:#f6f7f9;--st-layer:#fff;--st-layer-2:#fbfcfd;--st-border:#e4e7ec;--st-border-soft:#edf0f3;--st-grid:#eef1f5;--st-text:#16181d;--st-muted:#7a818c;--st-faint:#9aa1aa;--st-success:#258b63;--st-warning:#b7791f;--st-error:#c9444f;--st-node-color:#dfe3e9;--st-node-width:190px;height:100%;max-height:100%;min-height:0;overflow:hidden;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
+  --st-edge: var(--dsw-alias-border-strong, #a9b1bd);
+  --st-subagent: var(--dsw-alias-warning, #c2410c);
       [data-plugin="dsh-skill-trace"].st-host{height:calc(100% - var(--st-host-composer-h,0px));max-height:calc(100% - var(--st-host-composer-h,0px))}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}
       .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px}

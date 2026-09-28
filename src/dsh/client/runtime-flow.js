@@ -65,12 +65,18 @@ const STATUS_COLORS = {
   failed: '#b91c1c',
 }
 
-/** §10 线型：实线=较强直接证据，虚线=候选或证据不足。 */
+/**
+ * §10 线型：实线＝较强直接证据，虚线＝候选或证据不足。
+ *
+ * 数值对齐 `preview.html`：默认 2px、失败 2.2px、聚焦 2.6px、虚线 6/6。
+ * 此前是 1–1.5px，比 preview 细一档，画布上连线读起来像发丝。
+ * 颜色用 §25.3 的语义变量而不是硬编码 hex——宿主 Token 在场时应当能覆盖。
+ */
 const EDGE_STYLE = {
-  contains: { stroke: '#cbd5e1', width: 1.2, dashed: false },
-  spawns: { stroke: '#c2410c', width: 1.5, dashed: false },
-  retries: { stroke: '#b91c1c', width: 1.5, dashed: false },
-  follows: { stroke: '#cbd5e1', width: 1, dashed: true },
+  contains: { stroke: 'var(--st-edge, #a9b1bd)', width: 2, dashed: false },
+  spawns: { stroke: 'var(--st-subagent, #c2410c)', width: 2.2, dashed: false },
+  retries: { stroke: 'var(--st-error, #c9444f)', width: 2.2, dashed: false },
+  follows: { stroke: 'var(--st-edge, #a9b1bd)', width: 2, dashed: true },
 }
 
 function capabilityColor(node) {
@@ -205,7 +211,7 @@ function toFlowEdges(layout, selectedEdgeId, dim) {
       style: {
         stroke: style.stroke,
         strokeWidth: selectedEdgeId === edge.id ? 2.6 : style.width,
-        strokeDasharray: style.dashed || candidate ? '5 3' : undefined,
+        strokeDasharray: style.dashed || candidate ? '6 6' : undefined,
       },
       data: { edgeType: edge.type, status: edge.status, evidenceCount: edge.evidenceCount },
       dimmed: dim ? !(dim.has(edge.from) && dim.has(edge.to)) : false,
