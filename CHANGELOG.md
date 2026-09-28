@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0-beta.16 — 2026-09-28
+
+UI 治理第一批（Design Refactor Governance §4/§5），并把客户端改为**构建产物**发布。
+
+- **§4 信息架构**：`流程地图` 更名为 `运行流程`，并成为当前会话的**默认阅读模式**。此前默认落在 `Skill 收据` 上，与 §43「第一次打开就知道 Agent 在干什么」相悖。内部存储键仍是 `map`，因此偏好协议与既有本地配置都不受影响（§3 不允许改动持久化协议）。
+- **§5 顶部导航**：`我的 Skill` 是跨会话入口，`当前会话` 只是上下文标签，三个会话视图同级——这三条在现有实现上已经成立，本批未改动，仅随 §4 一并核对。
+- **客户端改为构建产物发布。** DSH 的 Web 外壳对插件的 `./client` 是**逐字节读取**、不打包，而浏览器模块表只解析**平台种子词**（实测仅 9 个：`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`、`@deepseek-ai/cordis`、`dsh-client-store`、`dsh-client-ui-slots`、`dsh-client-ui-primitives`、`dsh-client-ui-dockkit`），其余一律抛 `build-time externals drift`。此前客户端是源码直发且只依赖 `react`，因此能工作；P1 要引入 React Flow 与 ELK，必须改为打包发布。
+- 新增 `scripts/build-client.mjs`：esbuild 打包为 CJS，仅把种子词留作 external，其余依赖内联，并包回 `window.__ModuleLoader__.load({ id, factory })` 注册形态。产物 **143 KB**（UTF-8 保持中文可读；转义写法会多 26 KB 且把文案藏起来）。
+- **两个构建期硬检查**，因为它们失败时只会在用户的浏览器里表现为插件空白：产物若 `require` 了种子表以外的模块，**构建直接失败**；产物内嵌客户端源码哈希，源码改了却忘记重建时 `verify` 会失败（两项均已实测触发）。
+- 测试改为对**已发布产物**做契约校验（`pretest` 强制先构建），新增 7 项：注册形态、在真实 loader 下装载为可用插件、产物内全部 require 均为种子词、构建戳新鲜度、源码映射引用、治理标签为可读 UTF-8。
+- 不改动证据语义、收据结构、隐私边界与用户验证语义（§3）；画布渲染仍只能消费既有 view model（§32）。
+
 ## 0.4.0-beta.15 — 2026-09-28
 
 - Makes a past conversation's runtime evidence recoverable. The Host observed only live sessions — `sessions.get(id)` is documented as "look up a live session" — so opening an older conversation produced an empty graph. Measured on a real session, the Runtime Graph answered **1 node / 0 edges** for a run whose log actually held **1095 nodes / 1161 edges**. It now reads the durable session log and rebuilds. (P0 prerequisite for the UI refactor: with Runtime Flow as the default view, an empty default view would have been the first thing a user saw.)

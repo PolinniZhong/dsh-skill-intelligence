@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import test from 'node:test'
 
-const clientSource = await readFile(new URL('../src/dsh/client/client.js', import.meta.url), 'utf8')
+// Load the artifact the shell actually loads, not the source it was built from:
+// the registration wrapper only exists in the bundle.
+const clientSource = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
 
 function createStyleDocument() {
   const elements = new Map()

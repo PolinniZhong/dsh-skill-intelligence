@@ -31,7 +31,7 @@ for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs'
 const client = await readFile(resolve(root, 'src/dsh/client/client.js'), 'utf8')
 for (const requiredText of [
   'Skill 收据',
-  '流程地图',
+  '运行流程',
   "localStorage.setItem(VIEW_KEY",
   "view === 'receipt'",
   '当前对话暂未加载可追踪的 Skill。',
@@ -363,6 +363,33 @@ if ((host.match(/receiptForRuntime\(sessionId\)/g) ?? []).length < 2) {
   throw new Error('both runtime routes must read the receipt refreshed from the durable log')
 }
 
+// The client ships as a built bundle, because the shell reads the client entry
+// verbatim and resolves only platform seed words at run time. Three things must
+// hold, and each of them fails silently in a browser otherwise.
+const builder = await import(new URL('./build-client.mjs', import.meta.url))
+for (const spec of ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client']) {
+  if (!builder.CLIENT_SEED_MODULES.includes(spec)) throw new Error(`the platform seed table must include ${spec}`)
+}
+const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
+if (manifest.exports?.['./client'] !== './dist/client.js') {
+  throw new Error('exports["./client"] must point at the built bundle; the shell does not bundle source')
+}
+if (!(manifest.files ?? []).includes('dist')) throw new Error('the built bundle must be published')
+if (!manifest.scripts?.build) throw new Error('the client bundle needs a build script')
+if (!manifest.scripts?.pretest) throw new Error('tests must run against a freshly built client bundle')
+if (!builder.shippedBundleIsFresh()) {
+  throw new Error('dist/client.js is stale or missing — run `npm run build:client` and commit the result')
+}
+{
+  const bundle = await readFile(resolve(root, builder.CLIENT_OUTPUT), 'utf8')
+  if (!bundle.includes('__ModuleLoader__.load({')) throw new Error('the bundle must register through the module loader')
+  if (!bundle.includes(`id: ${JSON.stringify(builder.CLIENT_ID)}`)) throw new Error('the bundle must register under this package id')
+  // A require outside the seed table throws "externals drift" at run time, in the
+  // browser, after a restart — so it must never reach the artifact.
+  const unresolved = builder.externalRequiresOf(bundle).filter((spec) => !builder.CLIENT_SEED_MODULES.includes(spec))
+  if (unresolved.length > 0) throw new Error(`the bundle requires modules the shell cannot resolve: ${unresolved.join(', ')}`)
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -399,3 +426,4 @@ console.log('CORRELATION_PROVENANCE_OK')
 console.log('ALIGNMENT_NO_SCORE_OK')
 console.log('CANVAS_BOUNDED_OK')
 console.log('SESSION_LOG_RECOVERY_OK')
+console.log('CLIENT_BUNDLE_CONTRACT_OK')
