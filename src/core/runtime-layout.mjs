@@ -238,8 +238,20 @@ export function computeRuntimeLayout(graph, options = {}) {
   const mergedTurns = new Set()
   // Only the invocation column is subject to the bound loop; turn ranges stand in
   // for the turn column and folding them further would erase the structure.
+  /**
+   * 边界循环可以把哪些节点当"受害者"并进 overflow 分组。
+   *
+   * **Skill 能力分组被排除在外。** 实测：边界循环会把 `group:11:skill` / `group:14:skill`
+   * 并进一个 `capabilityId: 'mixed'` 的 `overflow:none`——**类型标签随之丢失**，于是这个
+   * 「Skill 追踪」插件的阅读视图里看不到 Skill。更糟的是 published 的 memberIds 会截到
+   * 前 24 个，Skill 常常落在截断之外，UI 连"它在某个分组里"都无从得知。
+   *
+   * 排除它是安全的：能力分组的数量由 `Turn × 能力` 决定，不是无界的；而它是**唯一**
+   * 携带"这个能力跑过"这一信号的东西（§25.1：类型色只用于节点）。
+   */
+  const isProtected = (entry) => entry.kind === 'group' && entry.synthetic?.capabilityId === 'skill'
   const visibleForBound = () => [...view.entries()].filter(([, entry]) => (
-    entry.kind === 'invocation' || (entry.kind === 'group' && entry.synthetic?.layer !== 1)
+    !isProtected(entry) && (entry.kind === 'invocation' || (entry.kind === 'group' && entry.synthetic?.layer !== 1))
   ))
   const turnOf = (entry) => {
     if (entry.synthetic?.layer === 1) return entry.synthetic.id
