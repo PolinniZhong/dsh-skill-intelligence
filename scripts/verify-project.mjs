@@ -605,6 +605,41 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
   if (client.includes(forbidden)) throw new Error(`conclusive marketing copy is not allowed: ${forbidden}`)
 }
 
+// Visual tokens (§25/§26/§27). These are the rules that a stylesheet drifts away from
+// one page at a time, and that no functional test can see.
+{
+  const styleStart = client.indexOf('function installStyles')
+  const styleEnd = client.indexOf('\n  }', styleStart)
+  const css = client.slice(styleStart, styleEnd)
+  // §25.2 prohibited outright.
+  for (const [pattern, label] of [
+    [/backdrop-filter/, 'glassmorphism'],
+    [/text-shadow/, 'glow'],
+    [/border-radius:\s*(1[4-9]|[2-9][0-9])px/, 'large-radius cards'],
+    [/\[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\]/u, 'emoji as icons'],
+  ]) {
+    if (pattern.test(css)) throw new Error(`§25.2 forbids ${label}`)
+  }
+  // §26: every type size sits in a governed band, and nothing is smaller than the
+  // auxiliary floor or larger than a page title.
+  const sizes = [...new Set([...css.matchAll(/font-size:([\d.]+)px/g)].map((m) => Number(m[1])))]
+  for (const size of sizes) {
+    if (size > 18) throw new Error(`§26 caps a page title at 18px; found ${size}px`)
+    if (size < 10.5) throw new Error(`§26 floors auxiliary text at 10.5px; found ${size}px`)
+  }
+  // §26's structural sizes.
+  if (!/\.st-topbar\{[^}]*min-height:(58|59|60)px/.test(css)) throw new Error('§26: the top bar is 58-60px')
+  if (!/\.st-heading h1\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
+  if (!/\.st-section-name\{[^}]*font-size:(1[3-5])px/.test(css)) throw new Error('§26: a section title is 13-15px')
+  // §26: the inspector column is 300-340px.
+  if (!/grid-template-columns:minmax\(0,1fr\) (3[0-4][0-9])px/.test(css)) throw new Error('§26: the inspector column is 300-340px')
+  // §27: cards are the exception, not the default — most structure is a divider.
+  const radii = (css.match(/border-radius:/g) ?? []).length
+  const dividers = (css.match(/border-bottom:1px solid/g) ?? []).length
+  if (radii > 60) throw new Error(`§27: too many rounded cards (${radii})`)
+  if (dividers < 8) throw new Error(`§27: structure should lean on dividers (${dividers})`)
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -649,3 +684,4 @@ console.log('REPLAY_READ_ONLY_OK')
 console.log('RECEIPT_SECTIONS_OK')
 console.log('GRAPH_FILTERS_OK')
 console.log('MY_SKILLS_SLIM_OK')
+console.log('VISUAL_TOKENS_OK')
