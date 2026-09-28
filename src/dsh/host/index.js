@@ -16,6 +16,9 @@ import {
   setValidationResult,
 } from '../../core/trace-reducer.mjs'
 import { buildCatalogView } from '../../core/catalog-view.mjs'
+import { buildRuntimeGraph } from '../../core/runtime-graph.mjs'
+import { computeRuntimeLayout } from '../../core/runtime-layout.mjs'
+import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
@@ -522,6 +525,44 @@ export function apply(ctx, config = {}) {
               receipt: publicReceipt(receipt),
               views: buildViewModels(receipt),
             })
+            return
+          }
+
+          // Runtime graph canvas. The layout is bounded by construction, so this
+          // response cannot grow with the size of the run.
+          if (method === 'GET' && url.pathname === '/skill-trace/runtime') {
+            const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
+            const receipt = await enqueue(sessionId, () => load(sessionId))
+            const graph = buildRuntimeGraph(receipt)
+            sendJson(res, 200, {
+              ok: true,
+              sessionId,
+              graph: {
+                modelVersion: graph.modelVersion,
+                lineage: graph.lineage,
+                stats: graph.stats,
+                unlinked: graph.unlinked.slice(0, 20),
+                nodeCount: graph.nodes.length,
+                edgeCount: graph.edges.length,
+              },
+              layout: computeRuntimeLayout(graph, { includeMemberIds: false, includeHiddenIds: false }),
+            })
+            return
+          }
+
+          // Inspector: one node or one edge at a time, so answering "why does this
+          // line exist" never requires shipping the whole graph to the client.
+          if (method === 'GET' && url.pathname === '/skill-trace/inspect') {
+            const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
+            const nodeId = optionalEntryId(url.searchParams.get('nodeId'))
+            const edgeId = optionalEntryId(url.searchParams.get('edgeId'))
+            if (!nodeId && !edgeId) throw new Error('nodeId 或 edgeId 必填')
+            const receipt = await enqueue(sessionId, () => load(sessionId))
+            const graph = buildRuntimeGraph(receipt)
+            const payload = edgeId
+              ? inspectRuntimeEdge(graph, receipt.runtimeEvents, edgeId)
+              : inspectRuntimeNode(graph, receipt.runtimeEvents, nodeId, { layout: computeRuntimeLayout(graph) })
+            sendJson(res, 200, { ok: true, sessionId, ...payload })
             return
           }
 

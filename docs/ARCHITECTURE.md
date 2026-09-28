@@ -125,6 +125,46 @@ Every item carries `observedNodeIds`, `evidenceIds`, `matchedCapabilities`, and 
 
 The declaration baseline is the durable published catalog. `inPublishedCatalog` distinguishes a Skill that was offered to the model from one loaded anyway by a user-explicit `/name` gesture, and reports `null` — not `false` — when no catalog was published at all.
 
+## Canvas
+
+The plugin's third view draws the runtime graph. It is worth stating what the canvas is *not*: it is not a second source of truth. It receives positions, draws them, and asks the Host why a line exists when one is clicked.
+
+### Why grouping is in the model
+
+Measured across 56 real sessions before any layout code was written:
+
+| | median | p90 | max |
+| --- | --- | --- | --- |
+| graph nodes | 61 | 915 | 1095 |
+| graph edges | 85 | 966 | 1287 |
+
+A flat canvas covers the median and fails the tail, so three rules run in order:
+
+| Rule | Trigger | Effect |
+| --- | --- | --- |
+| Capability collapse | a turn with more than 12 invocations | one node per capability, naming what it stands for |
+| Turn ranges | more than 36 turns | consecutive turns fold into labelled ranges |
+| Layer wrapping | more than 26 nodes in a layer | the layer wraps into sub-columns |
+
+Together they hold the canvas at 200 nodes and roughly 1036 px tall whatever the graph size. Across all 56 sessions nothing exceeded the bound; layout cost is 0.3 ms at the median and 15 ms at the worst.
+
+Layout is a pure function of the graph. It stores no coordinate, keeps no viewport or zoom state, and never mutates the graph — the same receipt always draws the same picture, so a redraw can never look like new evidence.
+
+### What a folded node owes the reader
+
+A bound that cannot say what it dropped is not a bound. `hidden` reports the node, edge, and intra-group edge counts; a collapsed node carries `memberCount`; a merged edge carries `evidenceCount`. The canvas sends counts rather than id lists, because the client never reads the ids — the inspector re-derives them.
+
+### The inspector
+
+`/skill-trace/inspect` answers for one node or one edge:
+
+- the derivation, and the rule's own name when a rule produced the relationship;
+- the events the claim rests on, as a bounded sample with the true count;
+- `meaning` — what the relationship says;
+- `limit` — what it does not. A `follows` edge is log order, not causation. A rule-based `spawns` attribution is not a host fact. A `retries` edge does not mean the retry went better.
+
+Every answer carries `evidenceBoundary: { causal: false, compliance: false, correctness: false }`, asserted as booleans so absence of a claim is testable rather than merely written down.
+
 ## Main modules
 
 | Module | Responsibility |
@@ -134,6 +174,8 @@ The declaration baseline is the durable published catalog. `inPublishedCatalog` 
 | `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations (Phase 1) |
 | `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships (Phase 2) |
 | `src/core/runtime-alignment.mjs` | Aligns declared Skill steps with runtime evidence; never scores and never claims a step was skipped (Phase 3) |
+| `src/core/runtime-layout.mjs` | Deterministic layered layout with grouping; positions only, never facts (Phase 4) |
+| `src/core/runtime-inspector.mjs` | Answers "why does this line exist" for one node or edge, with an explicit limit (Phase 4) |
 | `src/core/source-snapshot.mjs` | Creates safe source identity/snapshot metadata |
 | `src/core/catalog-view.mjs` | Projects receipt, note, pending-review, validation-result, local search, and review-priority data into the read-only My Skills workspace |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |

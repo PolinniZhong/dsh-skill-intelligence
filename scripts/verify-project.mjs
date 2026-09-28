@@ -36,7 +36,7 @@ for (const requiredText of [
   "view === 'receipt'",
   '当前对话暂未加载可追踪的 Skill。',
   '暂时无法确认当前对话是否加载了 Skill。',
-  "'data-simple': !hasTrace",
+  "'data-simple': (!hasTrace && view !== 'runtime') || view === 'runtime'",
   'method.callCount',
   'model.events',
   "api('/preferences'",
@@ -112,7 +112,14 @@ for (const requiredText of [
 if (client.includes('Promise.all([buildReceipt') || client.includes('generateImage')) throw new Error('dual view must not generate duplicate analyses')
 if (client.includes('window.confirm(')) throw new Error('destructive actions must use inline confirmation')
 if (client.includes('if (document.getElementById(STYLE_ID)) return () => {}')) throw new Error('stylesheet lifecycle must not leave a newer client instance without ownership')
-if (/\.slice\(0,\s*4\)/.test(client)) throw new Error('trace views must not silently cap Skill events at four')
+// The receipt's own evidence lists must never be silently shortened: a capped list
+// reads as "this is all of it". Sample-style truncation elsewhere is fine as long as
+// it is labelled with the true count, which the runtime inspector does.
+for (const list of ['methods', 'events', 'learningCards', 'traceEvents', 'validationResults', 'outputs']) {
+  if (new RegExp(`\\.${list}\\.slice\\(0,\\s*\\d+\\)`).test(client)) {
+    throw new Error(`trace views must not silently cap ${list}`)
+  }
+}
 if (client.includes('人工反馈') || client.includes("api('/assessment'")) throw new Error('feedback UI must remain absent until a real receiving loop exists')
 for (const supersededText of ['Skill 方法追踪', '方法收据', '方法地图', '方法加载结果', '方法延续卡', '本次运行概要']) {
   if (client.includes(supersededText)) throw new Error(`superseded UI terminology remains: ${supersededText}`)
@@ -269,6 +276,56 @@ if (/invocations:\s*aggregateInvocations/.test(reducer)) {
   throw new Error('the client view model must not carry the unbounded invocation list')
 }
 
+// Phase 4 canvas. Layout is a view concern that must stay separate from the facts,
+// and the client must draw what it is given rather than decide anything itself.
+const layoutModel = await readFile(resolve(root, 'src/core/runtime-layout.mjs'), 'utf8')
+for (const requiredText of [
+  'export function computeRuntimeLayout',
+  'export const LAYOUT_NODE_LIMIT',
+  'export const MAX_ROWS_PER_COLUMN',
+  'export const MAX_TURN_NODES',
+  'export const TURN_COLLAPSE_THRESHOLD',
+  'collapsedInsideCount',
+  'memberIds',
+]) {
+  if (!layoutModel.includes(requiredText)) throw new Error(`phase 4 layout contract missing: ${requiredText}`)
+}
+{
+  const code = layoutModel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  if (/\bviewport\b|\bzoom\b/.test(code)) throw new Error('the layout must not model a viewport')
+  // A bound that cannot report what it dropped is not a bound.
+  if (!layoutModel.includes('hidden: {')) throw new Error('the layout must report what it left out')
+}
+
+const inspectorModel = await readFile(resolve(root, 'src/core/runtime-inspector.mjs'), 'utf8')
+for (const requiredText of [
+  'export function inspectRuntimeNode',
+  'export function inspectRuntimeEdge',
+  'causal: false',
+  'compliance: false',
+  'correctness: false',
+  'INSPECTOR_EVIDENCE_LIMIT',
+]) {
+  if (!inspectorModel.includes(requiredText)) throw new Error(`phase 4 inspector contract missing: ${requiredText}`)
+}
+// Every inspected relation must state its own limit, not only its meaning, and the
+// fallback must be a sentence rather than nothing.
+if (!inspectorModel.includes("limit: entry?.limit ??")) {
+  throw new Error('every relation must state what it does not claim')
+}
+
+for (const requiredText of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", 'computeRuntimeLayout(graph)', 'inspectRuntimeEdge', 'inspectRuntimeNode']) {
+  if (!host.includes(requiredText)) throw new Error(`phase 4 route missing from host: ${requiredText}`)
+}
+for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'rtEdgePath']) {
+  if (!client.includes(requiredText)) throw new Error(`phase 4 canvas missing from client: ${requiredText}`)
+}
+// The client draws positions it was handed. If it ever computed them, the layout
+// would stop being one reviewable, testable thing on the Host side.
+for (const forbidden of ['MAX_ROWS_PER_COLUMN', 'LAYOUT_NODE_LIMIT', 'computeRuntimeLayout']) {
+  if (client.includes(forbidden)) throw new Error(`the client must not compute layout: ${forbidden}`)
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -303,3 +360,4 @@ console.log('OBSERVATION_SURFACE_OK')
 console.log('RUNTIME_MODEL_OK')
 console.log('CORRELATION_PROVENANCE_OK')
 console.log('ALIGNMENT_NO_SCORE_OK')
+console.log('CANVAS_BOUNDED_OK')

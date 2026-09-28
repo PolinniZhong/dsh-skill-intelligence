@@ -284,6 +284,7 @@ window.__ModuleLoader__.load({
       const paths = {
         receipt: [h('path', { key: 1, d: 'M6 3h12v18l-3-2-3 2-3-2-3 2Z' }), h('path', { key: 2, d: 'M9 8h6M9 12h6M9 16h3' })],
         map: [h('circle', { key: 1, cx: 6, cy: 6, r: 2 }), h('circle', { key: 2, cx: 18, cy: 8, r: 2 }), h('circle', { key: 3, cx: 10, cy: 18, r: 2 }), h('path', { key: 4, d: 'm7.8 7 8.3.9M7 7.8l2.2 8.4M16.8 9.7l-5.5 6.7' })],
+        graph: [h('rect', { key: 1, x: 2.5, y: 9, width: 5, height: 6, rx: 1.2 }), h('rect', { key: 2, x: 9.5, y: 3, width: 5, height: 6, rx: 1.2 }), h('rect', { key: 3, x: 9.5, y: 15, width: 5, height: 6, rx: 1.2 }), h('rect', { key: 4, x: 16.5, y: 9, width: 5, height: 6, rx: 1.2 }), h('path', { key: 5, d: 'M7.5 11h2M14.5 9V6h2M14.5 15v3h2' })],
         skill: [h('path', { key: 1, d: 'M8 3h8v4a3 3 0 1 1 0 6v8H8v-4a3 3 0 1 0 0-6Z' })],
         check: [h('path', { key: 1, d: 'm5 12 4 4L19 6' })],
         alert: [h('path', { key: 1, d: 'M12 3 2.8 19h18.4L12 3Z' }), h('path', { key: 2, d: 'M12 9v4M12 17h.01' })],
@@ -335,6 +336,43 @@ window.__ModuleLoader__.load({
         @media(max-width:460px){.st-main,.st-aside{padding:12px}.st-receipt-head,.st-receipt-section{padding-inline:14px}.st-activity{grid-template-columns:1fr}.st-button,.st-input,.st-select,.st-textarea{min-height:44px;font-size:16px}.st-view-button,.st-filter{min-height:40px}.st-output-form,.st-learning-actions,.st-data-actions{grid-template-columns:1fr}.st-output-form .st-button,.st-learning-actions .st-button,.st-data-actions .st-button{width:100%}.st-dependencies{grid-template-columns:repeat(2,minmax(0,1fr))}.st-dependency:nth-child(3),.st-dependency:nth-child(5){border-left:0}.st-dependency:nth-child(n+3){border-top:1px solid var(--st-border-soft)}.st-summary-row{grid-template-columns:1fr;gap:3px}.st-toolbar-split{display:none}.st-catalog-detail{padding:14px}.st-definition-grid{grid-template-columns:1fr}.st-evidence-section{padding-left:42px}}
         @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.st-trace-state-dot{animation:none!important}}
         .st-session-chip{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2,rgba(22,27,36,.14));border-radius:999px;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-secondary,#626871);font-size:11px;white-space:nowrap}.st-session-chip svg{color:var(--dsw-alias-state-business-primary,var(--dsw-static-deepseek-500,#3567d6))}
+        .st-runtime{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
+        .st-runtime-canvas{min-width:0;overflow:auto;max-height:calc(100dvh - 190px);border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:10px}
+        .st-rt-edge{fill:none;stroke-linecap:round;cursor:pointer}
+        .st-rt-edge:hover{stroke-width:2.6}
+        .st-rt-edge[data-type="contains"]{stroke:var(--st-border);stroke-width:1.1}
+        .st-rt-edge[data-type="spawns"]{stroke:var(--st-warning);stroke-width:1.5}
+        .st-rt-edge[data-type="retries"]{stroke:var(--st-error);stroke-width:1.5}
+        .st-rt-edge[data-type="follows"]{stroke:var(--st-border-soft);stroke-width:1;stroke-dasharray:3 3}
+        .st-rt-edge[data-status="candidate"]{stroke-dasharray:5 3}
+        .st-rt-edge[data-selected="true"]{stroke:var(--st-brand);stroke-width:2.8}
+        .st-rt-node{cursor:pointer}
+        .st-rt-node rect{fill:var(--st-layer);stroke-width:1.2}
+        .st-rt-node[data-selected="true"] rect{stroke-width:2.4}
+        .st-rt-node text{font-size:11px;fill:var(--st-ink,currentColor);pointer-events:none}
+        .st-rt-node .st-rt-sub{font-size:9px;fill:var(--st-faint)}
+        .st-rt-node .st-rt-id{font-size:8.5px;fill:var(--st-faint);text-anchor:end}
+        .st-rt-bar{stroke-width:4}
+        .st-rt-inspector{border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:13px 14px;position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
+        .st-rt-inspector h3{margin:0 0 2px;font-size:12.5px}
+        .st-rt-kicker{margin:0 0 10px;color:var(--st-faint);font-size:10px}
+        .st-rt-field{margin:0 0 9px;padding:8px 9px;border-radius:7px;background:var(--st-layer-2)}
+        .st-rt-field span{display:block;color:var(--st-faint);font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
+        .st-rt-field p{margin:3px 0 0;font-size:11px;line-height:1.55}
+        .st-rt-field strong{display:block;margin-top:3px;font-size:11.5px}
+        .st-rt-why{border-left:2px solid var(--st-brand)}
+        .st-rt-limit{border-left:2px solid var(--st-warning);color:var(--st-muted)}
+        .st-rt-rel{display:grid;gap:5px;margin:0 0 9px;padding:8px 9px;border:1px solid var(--st-border-soft);border-radius:7px;cursor:pointer;background:transparent;text-align:left;width:100%}
+        .st-rt-rel:hover{border-color:var(--st-brand)}
+        .st-rt-rel-top{display:flex;align-items:center;gap:6px;font-size:11px}
+        .st-rt-rel-top em{font-style:normal;color:var(--st-faint);font-size:10px}
+        .st-rt-rel p{margin:0;color:var(--st-muted);font-size:10.5px;line-height:1.5}
+        .st-rt-evidence{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+        .st-rt-evidence li{display:flex;gap:6px;align-items:baseline;font-size:10.5px;color:var(--st-muted)}
+        .st-rt-evidence code{font-size:9.5px;color:var(--st-faint)}
+        .st-rt-notes{margin:10px 0 0;padding:9px 10px;border-radius:7px;background:var(--st-layer-2);color:var(--st-faint);font-size:10px;line-height:1.6}
+        .st-rt-empty{display:grid;place-items:center;min-height:180px;color:var(--st-muted);font-size:12px}
+        @media(max-width:1050px){.st-runtime{grid-template-columns:minmax(0,1fr)}.st-rt-inspector{position:static;max-height:none}}
       `
       if (previous) previous.replaceWith(style)
       else document.head.appendChild(style)
@@ -1371,19 +1409,162 @@ window.__ModuleLoader__.load({
       return h('span', { className: 'st-session-chip', title: '打开“Skill 追踪”标签查看同一份完整收据', 'aria-label': label }, h(Icon, { name: 'skill', size: 14 }), localized(`${summary.methodCount} 个 Skill · ${summary.loadedCount}/${summary.eventCount} 已加载`, `${summary.methodCount} Skill(s) · ${summary.loadedCount}/${summary.eventCount} loaded`))
     }
 
+    // Runtime graph canvas. The layout arrives already positioned and already
+    // bounded, so the client never clusters, never measures, and never decides
+    // what a relationship means — it draws what the Host proved and asks the Host
+    // why a line exists when the user clicks it.
+    const RT_CAPABILITY_COLOR = { skill: '#7c3aed', cli: '#0369a1', tool: '#475569', mcp: '#047857', subagent: '#b45309', mixed: '#64748b', 'turn-range': '#334155', unknown: '#94a3b8' }
+    const RT_STATUS_COLOR = { observed: '#047857', partial: '#b45309', candidate: '#b45309', insufficient: '#64748b', unknown: '#94a3b8', unlinked: '#b91c1c' }
+
+    function rtEdgePath(edge) {
+      const mid = (edge.x1 + edge.x2) / 2
+      return `M ${edge.x1} ${edge.y1} C ${mid} ${edge.y1}, ${mid} ${edge.y2}, ${edge.x2} ${edge.y2}`
+    }
+
+    function RuntimeInspector({ data, loading, error, onSelectEdge, onClose }) {
+      if (loading) return h('aside', { className: 'st-rt-inspector' }, h('p', { className: 'st-rt-kicker' }, '正在读取依据…'))
+      if (error) return h('aside', { className: 'st-rt-inspector' }, h('p', { className: 'st-rt-field' }, error))
+      if (!data) return h('aside', { className: 'st-rt-inspector' },
+        h('h3', null, '检查器'),
+        h('p', { className: 'st-rt-kicker' }, '点一个节点或一条线，看它的依据'),
+        h('p', { className: 'st-rt-notes' }, '每条关系都必须能说出：依据什么建立、依据哪条规则、有哪些事件支撑，以及它不表示什么。'))
+      if (!data.found) return h('aside', { className: 'st-rt-inspector' },
+        h('h3', null, '未找到'),
+        h('p', { className: 'st-rt-kicker' }, String(data.nodeId ?? data.edgeId ?? '')),
+        h('button', { className: 'st-button', type: 'button', onClick: onClose }, '返回'))
+
+      const isEdge = Boolean(data.edge)
+      const relations = Array.isArray(data.relations) ? data.relations : []
+      const evidence = Array.isArray(data.evidence) ? data.evidence : []
+      return h('aside', { className: 'st-rt-inspector' },
+        h('h3', null, isEdge ? `关系 · ${data.edge.type}` : (data.node.label || data.node.id)),
+        h('p', { className: 'st-rt-kicker' }, isEdge
+          ? localized(`${data.edge.derivation} · ${data.edge.status}`, `${data.edge.derivation} · ${data.edge.status}`)
+          : localized(`${data.node.kind}${data.node.outcome ? ` · ${data.node.outcome}` : ''} · 证据 ${data.node.status}`, `${data.node.kind}${data.node.outcome ? ` · ${data.node.outcome}` : ''} · evidence ${data.node.status}`)),
+
+        isEdge ? h('div', { className: 'st-rt-field' }, h('span', null, '两端'), h('strong', null, `${data.edge.from.label} → ${data.edge.to.label}`)) : null,
+        data.ruleName ? h('div', { className: 'st-rt-field' }, h('span', null, '具名规则'), h('strong', null, data.ruleName)) : null,
+        h('div', { className: 'st-rt-field st-rt-why' }, h('span', null, localized('这条线为什么存在', 'Why this exists')), h('p', null, data.meaning)),
+        h('div', { className: 'st-rt-field st-rt-limit' }, h('span', null, localized('它不表示什么', 'What it does not claim')), h('p', null, data.limit)),
+
+        data.node?.collapsed ? h('div', { className: 'st-rt-field' },
+          h('span', null, '折叠节点'),
+          h('p', null, localized(`它代表 ${data.memberIds.length} 个节点：${data.memberIds.slice(0, 4).map((id) => id.replace(/^invocation:/, '').slice(-8)).join('、')}${data.memberIds.length > 4 ? ' …' : ''}`, `Stands for ${data.memberIds.length} nodes`))) : null,
+
+        relations.length ? h('div', null,
+          h('p', { className: 'st-rt-kicker' }, localized(`关系 ${relations.length} 条`, `${relations.length} relation(s)`)),
+          ...relations.slice(0, 12).map((relation, index) => h('button', {
+            key: `${relation.edgeId}:${index}`,
+            className: 'st-rt-rel',
+            type: 'button',
+            onClick: () => onSelectEdge(relation.edgeId),
+          },
+          h('span', { className: 'st-rt-rel-top' },
+            h('strong', null, relation.type),
+            h('em', null, relation.direction === 'in' ? '←' : '→'),
+            h('span', null, relation.other.label),
+            h('em', null, relation.status)),
+          h('p', null, relation.meaning),
+          h('p', null, relation.limit)))) : null,
+
+        h('div', { className: 'st-rt-field' },
+          h('span', null, localized(`支撑事件 ${evidence.length}${data.evidenceIds?.length > evidence.length ? ` / ${data.evidenceIds.length}` : ''}`, `Evidence ${evidence.length}`)),
+          evidence.length
+            ? h('ul', { className: 'st-rt-evidence' }, ...evidence.slice(0, 14).map((event) => h('li', { key: event.eventId },
+              h('span', null, event.type),
+              h('code', null, event.eventId.split(':re:')[1] ?? event.eventId.slice(-10)))))
+            : h('p', null, localized('没有可展示的事件', 'No events to show'))),
+
+        h('p', { className: 'st-rt-notes' }, data.evidenceBoundary?.note ?? ''),
+        h('button', { className: 'st-button', type: 'button', onClick: onClose }, localized('返回概览', 'Back to overview')))
+    }
+
+    function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, onSelect, onCloseInspect }) {
+      if (loading && !data) return h('div', { className: 'st-rt-empty' }, '正在重建运行图谱…')
+      if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
+      if (!data) return h('div', { className: 'st-rt-empty' }, '当前对话暂未产生可重建的运行证据。')
+
+      const layout = data.layout
+      const stats = layout.stats
+      const hidden = layout.hidden
+      const selectedId = inspect?.edge?.id ?? inspect?.nodeId ?? null
+
+      return h('div', { className: 'st-runtime' },
+        h('div', { className: 'st-runtime-canvas' },
+          h('svg', {
+            viewBox: `0 0 ${layout.width} ${layout.height}`,
+            width: Math.max(layout.width, 320),
+            height: Math.max(layout.height, 160),
+            role: 'img',
+            'aria-label': 'Agent 运行图谱',
+          },
+          h('g', null, ...layout.edges.map((edge) => h('path', {
+            key: edge.id,
+            className: 'st-rt-edge',
+            d: rtEdgePath(edge),
+            'data-type': edge.type,
+            'data-status': edge.status,
+            'data-selected': selectedId && (inspect?.edge?.id === edge.id) ? 'true' : undefined,
+            onClick: () => onSelect({ edgeId: edge.id }),
+          }, h('title', null, `${edge.type} · ${edge.derivation} · ${edge.status}${edge.rule ? ` · ${edge.rule}` : ''}`)))),
+          h('g', null, ...layout.nodes.map((node) => {
+            const color = node.kind === 'session' ? '#0f172a'
+              : node.kind === 'turn' ? '#334155'
+                : node.kind === 'child' ? RT_CAPABILITY_COLOR.subagent
+                  : (RT_CAPABILITY_COLOR[node.capabilityId] ?? RT_CAPABILITY_COLOR.unknown)
+            const dashed = node.status === 'unlinked' || node.status === 'partial'
+            const sub = node.collapsed ? `折叠 ${node.memberCount} 项` : (node.sublabel || '')
+            return h('g', {
+              key: node.id,
+              className: 'st-rt-node',
+              'data-selected': selectedId === node.id ? 'true' : undefined,
+              onClick: () => onSelect({ nodeId: node.id }),
+            },
+            h('title', null, `${node.label}${sub ? ` — ${sub}` : ''} · ${node.status}`),
+            h('rect', { x: node.x, y: node.y, width: node.width, height: node.height, rx: 6, stroke: color, strokeDasharray: dashed ? '3 2' : undefined }),
+            h('rect', { className: 'st-rt-bar', x: node.x, y: node.y, width: 4, height: node.height, rx: 2, fill: color, stroke: 'none' }),
+            h('text', { x: node.x + 12, y: node.y + 13 }, node.label.length > 34 ? `${node.label.slice(0, 33)}…` : node.label),
+            sub ? h('text', { className: 'st-rt-sub', x: node.x + 12, y: node.y + 24 }, sub.length > 40 ? `${sub.slice(0, 39)}…` : sub) : null,
+            node.kind === 'invocation' ? h('text', { className: 'st-rt-id', x: node.x + node.width - 8, y: node.y + 13 }, String(node.graphNodeId ?? '').slice(-6)) : null)
+          }))),
+          h('title', null, '')),
+        h('div', null,
+          h('p', { className: 'st-rt-kicker' },
+            localized(
+              `${layout.mode === 'grouped' ? '分组' : '完整'}视图 · 渲染 ${stats.renderedNodeCount} 节点 / ${stats.renderedEdgeCount} 边 · 原图 ${stats.graphNodeCount} 节点`,
+              `${layout.mode === 'grouped' ? 'Grouped' : 'Full'} · ${stats.renderedNodeCount} nodes / ${stats.renderedEdgeCount} edges · graph has ${stats.graphNodeCount}`,
+            )),
+          hidden.nodeCount ? h('p', { className: 'st-rt-notes' },
+            localized(`有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；折叠节点里列出了它代表的节点，所以依据仍然可查。`,
+              `${hidden.nodeCount} nodes and ${hidden.edgeCount + hidden.collapsedInsideCount} relations are folded into groups; a folded node names what it stands for.`)) : null,
+          stats.unlinkedNodeCount || data.graph.unlinked.length ? h('p', { className: 'st-rt-notes' },
+            localized(`无法确定归属的调用 ${data.graph.unlinked.length} 个，已列入 unlinked，不会挂到最近的节点上。`,
+              `${data.graph.unlinked.length} call(s) could not be placed and are reported unlinked.`)) : null,
+          h('div', { className: 'st-rough-legend' },
+            ...Object.entries(RT_CAPABILITY_COLOR).filter(([key]) => ['skill', 'cli', 'tool', 'mcp', 'subagent'].includes(key)).map(([key, color]) => h('span', { key }, h('i', { style: { background: color } }), key))),
+          h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))),
+        h(RuntimeInspector, { data: inspect, loading: inspectLoading, error: inspectError, onSelectEdge: (edgeId) => onSelect({ edgeId }), onClose: onCloseInspect }))
+    }
+
     function Workbench(props) {
       React.useSyncExternalStore(
         (listener) => localeService.subscribe(listener),
         () => localeService.getSnapshot().revision,
       )
       const sessionId = props?.sessionId
-      const initialView = (() => { try { return localStorage.getItem(VIEW_KEY) === 'map' ? 'map' : 'receipt' } catch { return 'receipt' } })()
+      const initialView = (() => { try { const stored = localStorage.getItem(VIEW_KEY); return ['map', 'runtime'].includes(stored) ? stored : 'receipt' } catch { return 'receipt' } })()
       const [view, setView] = React.useState(initialView)
       const [screen, setScreen] = React.useState('session')
       const [data, setData] = React.useState(null)
       const [selectedNode, setSelectedNode] = React.useState(null)
       const [loading, setLoading] = React.useState(true)
       const [error, setError] = React.useState('')
+      const [runtime, setRuntime] = React.useState(null)
+      const [runtimeLoading, setRuntimeLoading] = React.useState(false)
+      const [runtimeError, setRuntimeError] = React.useState('')
+      const [inspect, setInspect] = React.useState(null)
+      const [inspectLoading, setInspectLoading] = React.useState(false)
+      const [inspectError, setInspectError] = React.useState('')
       const [catalogContext, setCatalogContext] = React.useState({ query: '', filter: 'all', sort: 'review', selectedName: '', selectedId: '' })
       const [catalogMeta, setCatalogMeta] = React.useState(null)
       const [catalogReload, setCatalogReload] = React.useState(0)
@@ -1402,11 +1583,43 @@ window.__ModuleLoader__.load({
         } catch (reason) { setError(reason.message) } finally { setLoading(false) }
       }, [sessionId])
 
-      React.useEffect(() => { setData(null); setSelectedNode(null); setCatalogContext({ query: '', filter: 'all', sort: 'review', selectedName: '', selectedId: '' }); setCatalogMeta(null); preferenceSession.current = null; load() }, [load])
+      // The runtime graph is fetched on demand: the receipt's own payload never
+      // carries it, so opening a conversation stays as cheap as it was.
+      const loadRuntime = React.useCallback(async () => {
+        if (!sessionId) return
+        setRuntimeLoading(true); setRuntimeError('')
+        try {
+          setRuntime(await api(`/runtime?sessionId=${encodeURIComponent(sessionId)}`))
+        } catch (reason) { setRuntimeError(reason.message) } finally { setRuntimeLoading(false) }
+      }, [sessionId])
+
+      // "Why does this line exist" is answered by the Host, one node or one edge at
+      // a time, so the client never has to hold the whole graph to explain it.
+      const selectRuntime = React.useCallback(async (target) => {
+        if (!sessionId || !target) return
+        setInspectLoading(true); setInspectError('')
+        try {
+          const query = target.edgeId
+            ? `edgeId=${encodeURIComponent(target.edgeId)}`
+            : `nodeId=${encodeURIComponent(target.nodeId)}`
+          setInspect(await api(`/inspect?sessionId=${encodeURIComponent(sessionId)}&${query}`))
+        } catch (reason) { setInspectError(reason.message) } finally { setInspectLoading(false) }
+      }, [sessionId])
+
+      React.useEffect(() => {
+        setData(null); setSelectedNode(null); setRuntime(null); setInspect(null)
+        setCatalogContext({ query: '', filter: 'all', sort: 'review', selectedName: '', selectedId: '' })
+        setCatalogMeta(null); preferenceSession.current = null; load()
+      }, [load])
+
+      React.useEffect(() => { if (view === 'runtime' && !runtime && !runtimeLoading) loadRuntime() }, [view, runtime, runtimeLoading, loadRuntime])
 
       function chooseView(next) {
-        setScreen('session'); setView(next); setError('')
+        setScreen('session'); setView(next); setError(''); setInspect(null)
         try { localStorage.setItem(VIEW_KEY, next) } catch (_) {}
+        // The stored default view stays receipt/map: the runtime canvas is a local
+        // viewing choice, not a change to the plugin's stored preferences.
+        if (next === 'runtime') return
         api('/preferences', { method: 'POST', body: JSON.stringify({ defaultView: next }) })
           .then((body) => { setError(''); setData((current) => current ? { ...current, preferences: body.preferences } : current) })
           .catch(() => setError('默认视图已切换，但暂时无法保存到下次启动。'))
@@ -1415,15 +1628,31 @@ window.__ModuleLoader__.load({
       const coverageState = data?.receipt?.coverage?.status === 'verified-standard-contract' ? 'active' : 'unknown'
       const activeModel = data?.views?.[view]
       const hasTrace = Boolean(data?.receipt?.traceEvents?.length)
+      // The graph covers every capability, not only Skill loads, so it can have
+      // something to show in a conversation that loaded no Skill at all.
+      const hasRuntimeEvidence = Boolean(data?.receipt?.runtimeEvents?.length)
       const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
         : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
-          : data && !hasTrace ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
-            : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel }) : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
-      const sessionSubtitle = !data ? '正在读取当前会话…' : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
+          : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, {
+            data: runtime,
+            loading: runtimeLoading,
+            error: runtimeError,
+            onRetry: loadRuntime,
+            inspect,
+            inspectLoading,
+            inspectError,
+            onSelect: selectRuntime,
+            onCloseInspect: () => setInspect(null),
+          })
+            : data && !hasTrace ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
+              : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel }) : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
+      const sessionSubtitle = !data ? '正在读取当前会话…'
+        : view === 'runtime' ? (runtime ? localized(`运行图谱 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 边 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime graph · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} edges · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行图谱…`, `${data.workspaceLabel} · rebuilding the runtime graph…`))
+          : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
       const catalogSubtitle = !catalogMeta ? '正在读取当前目录…' : catalogMeta.coverage.status === 'coverage-unknown' ? localized('当前目录无法确认 · 仅显示本地历史', 'Catalog cannot be confirmed · Showing local history only') : catalogMeta.coverage.status === 'incomplete' ? localized(`目录可能不完整 · 已发现 ${catalogMeta.observedCandidateCount ?? 0} 个候选`, `Catalog may be incomplete · ${catalogMeta.observedCandidateCount ?? 0} candidate(s) found`) : localized(`当前可发现 ${catalogMeta.currentDiscoverableCount ?? 0} 个 Skill · ${data?.workspaceLabel || '工作区未连接'}`, `${catalogMeta.currentDiscoverableCount ?? 0} Skill(s) currently discoverable · ${data?.workspaceLabel || t('工作区未连接')}`)
       const content = screen === 'catalog'
         ? h(CatalogPage, { sessionId, context: catalogContext, onContextChange: setCatalogContext, reloadSignal: catalogReload, onMeta: setCatalogMeta, onDataCleared: () => { setCatalogReload((value) => value + 1); load() } })
-        : h('div', { className: 'st-layout', 'data-simple': !hasTrace ? 'true' : undefined }, h('main', { className: 'st-main', 'aria-busy': loading }, error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null, sessionContent), data && hasTrace ? h('aside', { className: 'st-aside' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })) : null)
+        : h('div', { className: 'st-layout', 'data-simple': (!hasTrace && view !== 'runtime') || view === 'runtime' ? 'true' : undefined }, h('main', { className: 'st-main', 'aria-busy': loading }, error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null, sessionContent), data && hasTrace && view !== 'runtime' ? h('aside', { className: 'st-aside' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })) : null)
 
       return h('section', { 'data-plugin': 'dsh-skill-trace', 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
         h('header', { className: 'st-topbar' },
@@ -1431,7 +1660,10 @@ window.__ModuleLoader__.load({
           h('button', { className: 'st-button st-library-button', type: 'button', 'aria-pressed': screen === 'catalog', onClick: () => setScreen('catalog') }, h(Icon, { name: 'list', size: 15 }), '我的 Skill'),
           hasTrace ? h('span', { className: 'st-toolbar-split', 'aria-hidden': 'true' }) : null,
           hasTrace ? h('span', { className: 'st-toolbar-label' }, '当前会话') : null,
-          hasTrace ? h('div', { className: 'st-view-switch', role: 'group', 'aria-label': '当前会话呈现方式' }, h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'receipt', onClick: () => chooseView('receipt') }, h(Icon, { name: 'receipt', size: 15 }), 'Skill 收据'), h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'map', onClick: () => chooseView('map') }, h(Icon, { name: 'map', size: 15 }), '流程地图')) : null,
+          hasTrace || hasRuntimeEvidence ? h('div', { className: 'st-view-switch', role: 'group', 'aria-label': '当前会话呈现方式' },
+            hasTrace ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'receipt', onClick: () => chooseView('receipt') }, h(Icon, { name: 'receipt', size: 15 }), 'Skill 收据') : null,
+            hasTrace ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'map', onClick: () => chooseView('map') }, h(Icon, { name: 'map', size: 15 }), '流程地图') : null,
+            hasRuntimeEvidence ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'runtime', onClick: () => chooseView('runtime') }, h(Icon, { name: 'graph', size: 15 }), '运行图谱') : null) : null,
           h('button', { className: 'st-icon-button', type: 'button', onClick: screen === 'catalog' ? () => setCatalogReload((value) => value + 1) : load, disabled: screen === 'session' && loading, title: '刷新', 'aria-label': screen === 'catalog' ? '刷新我的 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 }))),
         content))
     }
