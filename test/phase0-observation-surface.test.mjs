@@ -9,6 +9,7 @@ import {
   rebuildReceipt,
   reduceSessionEvent,
 } from '../src/core/trace-reducer.mjs'
+import { aggregateInvocations } from '../src/core/runtime-events.mjs'
 
 // Phase 0 observation-surface contract.
 //
@@ -135,7 +136,7 @@ function runtimeOf(receipt) {
 }
 
 function invocationOf(receipt, index = 0) {
-  return runtimeOf(receipt).invocations[index]
+  return aggregateInvocations(receipt.runtimeEvents)[index]
 }
 
 test('user-explicit invocation is recorded as observed evidence', () => {
@@ -393,14 +394,16 @@ test('a rebuild reproduces the whole Phase 0 surface from the log', () => {
   assert.equal(receipt.traceEvents[0].turn, 1)
   const runtime = runtimeOf(receipt)
   assert.equal(runtime.invocationCount, 2)
-  assert.deepEqual(runtime.invocations.map((item) => item.kind).sort(), ['cli', 'skill'])
+  // The invocation list is not projected to the client; read it from the model.
+  const invocations = aggregateInvocations(receipt.runtimeEvents)
+  assert.deepEqual(invocations.map((item) => item.kind).sort(), ['cli', 'skill'])
   // Only a Skill load carries an invocationType; a CLI call has no such axis.
   assert.deepEqual(
-    runtime.invocations.filter((item) => item.kind === 'skill').map((item) => item.invocationType),
+    invocations.filter((item) => item.kind === 'skill').map((item) => item.invocationType),
     ['user-explicit'],
   )
   assert.deepEqual(
-    runtime.invocations.filter((item) => item.kind !== 'skill').map((item) => item.invocationType),
+    invocations.filter((item) => item.kind !== 'skill').map((item) => item.invocationType),
     [null],
   )
   // A rebuild must be stable: the same log yields the same facts.

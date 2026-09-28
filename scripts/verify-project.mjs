@@ -262,6 +262,12 @@ for (const requiredText of [
   }
 }
 if (!reducer.includes("from './runtime-alignment.mjs'")) throw new Error('the reducer must consume the alignment model')
+// The client payload must stay bounded. The invocation list is one object per tool
+// call, nothing renders it, and projecting it cost roughly 300 KB per large session
+// before being sent twice (the receipt and map projections share one block).
+if (/invocations:\s*aggregateInvocations/.test(reducer)) {
+  throw new Error('the client view model must not carry the unbounded invocation list')
+}
 
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {

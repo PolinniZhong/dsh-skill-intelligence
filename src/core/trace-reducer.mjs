@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
-  CAPABILITY_KINDS,
   RUNTIME_EVENT_LIMIT,
-  aggregateInvocations,
   classifyCapability,
   cleanString,
   deriveRetryEvent,
@@ -12,7 +10,6 @@ import {
   normalizeSubagentSpawn,
   safeErrorCode,
   safeIdentifier,
-  safeToolName,
   summarizeRuntime,
   upgradeRuntimeEvents,
 } from './runtime-events.mjs'
@@ -1082,7 +1079,11 @@ export function buildViewModels(receipt) {
     // presenting a bounded window as a complete run.
     runtime: {
       ...summarizeRuntime(receipt.runtimeEvents ?? [], receipt.runtimeEventOverflow ?? 0),
-      invocations: aggregateInvocations(receipt.runtimeEvents ?? []),
+      // The invocation list itself is deliberately NOT projected here. It is
+      // unbounded — one object per tool call — and nothing renders it yet, so
+      // carrying it cost roughly 300 KB per large session in the client payload.
+      // Callers that need it use `aggregateInvocations()` or `buildRuntimeGraph()`.
+      //
       // Correlated graph counts. The node and edge arrays stay out of the client
       // payload until the canvas phase asks for them; the graph itself is derived
       // and never persisted.

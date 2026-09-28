@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0-beta.12 — 2026-09-28
+
+- Stops projecting the invocation list into the client view model. It is one object per tool call, nothing renders it, and the receipt and map projections share one block — so a large session was sending it twice.
+- Measured on a real 667-invocation session, the payload the Host hands the WebView fell from **837 KB to 57 KB**. Nothing observable is lost: the list was never read, and `aggregateInvocations()` and `buildRuntimeGraph()` still return it to any caller that wants it.
+- Adds a verify guard so an unbounded list cannot be projected to the client again.
+- Changes no receipt content, stored data, Host route, backup format, UI, or privacy projection.
+
 ## 0.4.0-beta.11 — 2026-09-28
 
 - Adds Declaration ↔ Runtime Alignment in `src/core/runtime-alignment.mjs`: what a Skill said to do, next to what the run left evidence for. This is the step the product turns on, and it keeps three commitments.
