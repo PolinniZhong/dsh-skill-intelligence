@@ -16,6 +16,7 @@ import {
   setValidationResult,
 } from '../../core/trace-reducer.mjs'
 import { buildCatalogView } from '../../core/catalog-view.mjs'
+import { readSessionEvents } from '../../core/session-log.mjs'
 import { buildRuntimeGraph } from '../../core/runtime-graph.mjs'
 import { computeRuntimeLayout } from '../../core/runtime-layout.mjs'
 import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
@@ -429,12 +430,22 @@ export function apply(ctx, config = {}) {
       const previous = await load(sessionId)
       const session = webCtx.sessions.get(sessionId)
       if (!session) {
+        // Not live. Before falling back to the minimal stored receipt, read the
+        // durable session log: a past conversation's runtime evidence is fully
+        // recoverable from it, and without this the Runtime Graph answered
+        // "1 node / 0 edges" for a run that really contained 1095 nodes.
+        const { events, found } = readSessionEvents(sessionId)
+        if (found && events.length > 0) {
+          const rebuilt = withLineage(rebuildReceipt(sessionId, events, previous), sessionId)
+          cache.set(sessionId, rebuilt)
+          return rebuilt
+        }
         const receipt = previous.traceEvents.length > 0 ? previous : {
           ...previous,
           coverage: {
             ...previous.coverage,
             status: 'coverage-unknown',
-            note: '当前会话不在运行时内存中；只能展示已保存的最小收据。',
+            note: '当前会话不在运行时内存中，磁盘上也找不到它的会话日志；只能展示已保存的最小收据。',
           },
         }
         cache.set(sessionId, receipt)
@@ -449,6 +460,18 @@ export function apply(ctx, config = {}) {
       receipt = withLineage(receipt, sessionId)
       cache.set(sessionId, receipt)
       return receipt
+    }
+
+    /**
+     * The receipt a runtime query should read.
+     *
+     * A live session's receipt is authoritative; otherwise the store is refreshed
+     * from the durable log so historical conversations have a graph at all.
+     */
+    async function receiptForRuntime(sessionId) {
+      const session = webCtx.sessions.get(sessionId)
+      if (session) return load(sessionId)
+      return refreshFromLiveSession(sessionId)
     }
 
     async function syncReceipt(receipt) {
@@ -532,7 +555,7 @@ export function apply(ctx, config = {}) {
           // response cannot grow with the size of the run.
           if (method === 'GET' && url.pathname === '/skill-trace/runtime') {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
-            const receipt = await enqueue(sessionId, () => load(sessionId))
+            const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
             const graph = buildRuntimeGraph(receipt)
             sendJson(res, 200, {
               ok: true,
@@ -557,7 +580,7 @@ export function apply(ctx, config = {}) {
             const nodeId = optionalEntryId(url.searchParams.get('nodeId'))
             const edgeId = optionalEntryId(url.searchParams.get('edgeId'))
             if (!nodeId && !edgeId) throw new Error('nodeId 或 edgeId 必填')
-            const receipt = await enqueue(sessionId, () => load(sessionId))
+            const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
             const graph = buildRuntimeGraph(receipt)
             const payload = edgeId
               ? inspectRuntimeEdge(graph, receipt.runtimeEvents, edgeId)

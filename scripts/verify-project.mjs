@@ -331,6 +331,38 @@ if (/它代表 \$\{data\.memberIds\.length\}/.test(client)) {
   throw new Error('a folded node must report its true member count, not the sample length')
 }
 
+// P0: recovering a past conversation's evidence from its durable log.
+//
+// The defect this pins was measured: without it the Runtime Graph answered
+// "1 node / 0 edges" for a run whose log held 1095 nodes.
+const sessionLog = await readFile(resolve(root, 'src/core/session-log.mjs'), 'utf8')
+for (const requiredText of [
+  'export function readSessionEvents',
+  'export function findSessionLogFile',
+  'export function decompressZstdFrames',
+  'export function findZstdFrameStarts',
+  'SESSION_LOG_MAX_BYTES',
+  'ZSTD_MAGIC',
+]) {
+  if (!sessionLog.includes(requiredText)) throw new Error(`session log contract missing: ${requiredText}`)
+}
+// DSH appends one Zstandard frame per write batch and Node stops after the first,
+// so multi-frame handling is the load-bearing part of this module.
+if (!sessionLog.includes('const end = starts[index + 1] ?? buffer.length')) {
+  throw new Error('the session log reader must decode every Zstandard frame, not only the first')
+}
+// A session id becomes a path segment; it must never climb out of the root.
+if (!sessionLog.includes("sessionId.includes('/')")) {
+  throw new Error('a session id must be refused when it could traverse the filesystem')
+}
+if (!sessionLog.includes('SESSION_LOG_MAX_BYTES')) throw new Error('the session log reader needs a size gate')
+if (!host.includes('readSessionEvents(sessionId)')) {
+  throw new Error('the host must read a stored session log when the session is not live')
+}
+if ((host.match(/receiptForRuntime\(sessionId\)/g) ?? []).length < 2) {
+  throw new Error('both runtime routes must read the receipt refreshed from the durable log')
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -366,3 +398,4 @@ console.log('RUNTIME_MODEL_OK')
 console.log('CORRELATION_PROVENANCE_OK')
 console.log('ALIGNMENT_NO_SCORE_OK')
 console.log('CANVAS_BOUNDED_OK')
+console.log('SESSION_LOG_RECOVERY_OK')
