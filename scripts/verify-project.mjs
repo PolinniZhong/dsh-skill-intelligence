@@ -584,6 +584,27 @@ if (!client.includes("view === 'runtime' ? 'graph' : 'flow'")) {
 }
 if (!host.includes('GRAPH_NODE_LIMIT')) throw new Error('the Host must own the debug density budget')
 
+// My Skills slimming (§23/§24).
+//
+// §24 permits the unselected-state guide and forbids the promo treatment around it:
+// oversized headline, numbered step circles, benefit cards, "your Skill is getting
+// stronger" copy. The guide must also keep saying what it does not do.
+if (client.includes('st-guide-number')) {
+  throw new Error('My Skills must not use numbered step circles (§17.2/§24)')
+}
+if (/\.st-guide-header h2\{[^}]*font-size:2[0-9]px/.test(client)) {
+  throw new Error('My Skills must not use a promo-scale heading (§24/§26)')
+}
+if (!client.includes('把一次 Skill 使用')) {
+  throw new Error('the unselected-state guide must remain (§24 permits it)')
+}
+if (!client.includes('不判断是否有效，也不上传或翻译个人内容')) {
+  throw new Error('the guide must keep stating its evidence boundary')
+}
+for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开始']) {
+  if (client.includes(forbidden)) throw new Error(`conclusive marketing copy is not allowed: ${forbidden}`)
+}
+
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
 for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
   if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
@@ -627,3 +648,4 @@ console.log('CONTEXTUAL_INSPECTOR_OK')
 console.log('REPLAY_READ_ONLY_OK')
 console.log('RECEIPT_SECTIONS_OK')
 console.log('GRAPH_FILTERS_OK')
+console.log('MY_SKILLS_SLIM_OK')
