@@ -142,9 +142,11 @@ test('§37 the client steps rather than animating', () => {
 })
 
 test('§37 replay never writes back to the receipt', () => {
+  // 只取回放组件自身（到下一个组件定义为止）。此前用一个 6000 字符的窗口，
+  // 一旦相邻组件出现 onUpdate / setData 就会误报——那是窗口太宽，不是回放写数据。
   const start = client.indexOf('function ReplayControls')
-  const end = client.indexOf('function RuntimeView')
-  const block = client.slice(start, end > start ? end : start + 6000)
+  const end = client.indexOf('\n  function ', start + 10)
+  const block = client.slice(start, end > start ? end : start + 4000)
   for (const forbidden of ['api(', "method: 'POST'", 'onUpdate', 'setData(']) {
     assert.equal(block.includes(forbidden), false, `replay must not call the API: ${forbidden}`)
   }

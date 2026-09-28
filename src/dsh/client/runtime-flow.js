@@ -26,16 +26,16 @@ const flowStylesheet = require('@xyflow/react/dist/style.css')
 const CAPABILITY_COLORS = {
   session: '#0f172a',
   turn: '#334155',
-  skill: '#7c3aed',
-  tool: '#047857',
-  mcp: '#b45309',
-  cli: '#475569',
+  skill: '#7057df',
+  tool: '#258b63',
+  mcp: '#d67b2d',
+  cli: '#5b6573',
   subagent: '#c2410c',
   mixed: '#64748b',
   'turn-range': '#334155',
   // §35 layer 4: an outcome is not a capability, so it gets its own two colours.
   result: '#0f766e',
-  error: '#b91c1c',
+  error: '#c9444f',
   unknown: '#94a3b8',
 }
 

@@ -483,16 +483,30 @@ for (const requiredText of [
   }
   if (!/不评分|Scored: false/.test(panel)) throw new Error('the declaration panel must state that scoring is off')
 }
-// §14/§17.1: learning and validation are a section inside the receipt, not a rail.
+// §15/§38（冲突②选 A）：学习与验证只作 Skill Inspector 的一个 Tab，
+// 既不是固定侧栏，也不再在收据流里单列。
 if (client.includes("h('aside', { className: 'st-aside' }")) {
   throw new Error('the learning rail must not be pinned as a side column (§14)')
 }
-if (!client.includes("h('details', { className: 'st-section st-panels' }")) {
-  throw new Error('learning and validation must live inside the receipt flow (§17.1)')
+if (client.includes("className: 'st-section st-panels'")) {
+  throw new Error('the receipt must not carry its own learning section (§15/§38)')
 }
-// §38: it starts collapsed, so recording a note never pushes evidence down the page.
-if (/className: 'st-section st-panels'[^)]*open: true/.test(client)) {
-  throw new Error('the learning section must default to collapsed (§38)')
+if (!client.includes('function LearningPanel')) {
+  throw new Error('there must be a learning panel (§15/§38)')
+}
+if (!/active === 'learning' \? h\(LearningPanel/.test(client)) {
+  throw new Error('the inspector must render the learning panel on its learning tab')
+}
+// §15: Skill 的三个 Tab 是「运行证据 / 声明 ↔ 实际 / 学习验证」。
+if (!/\? \['evidence', 'declaration', 'learning'\]/.test(client)) {
+  throw new Error('a Skill must expose evidence, declaration and learning tabs (§15)')
+}
+// §38: 表单默认收起。
+if (!/h\('details', \{ className: 'st-section st-learning-panel' \}/.test(client)) {
+  throw new Error('the learning form must be collapsible (§38)')
+}
+if (/st-learning-panel'[^)]*open: true/.test(client)) {
+  throw new Error('the learning form must default to collapsed (§38)')
 }
 // §13: replay belongs to the canvas, so both densities have it.
 for (const name of ['FlowCanvas', 'RuntimeView']) {

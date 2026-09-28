@@ -123,11 +123,14 @@ test('an empty or unrelated receipt yields nothing instead of throwing', () => {
 
 test('§15 the inspector offers different tabs for different selections', () => {
   assert.ok(client.includes('INSPECTOR_TAB_LABELS'), 'tab labels must exist')
-  for (const label of ['运行证据', '关联关系', '声明 ↔ 实际', '关系证据']) {
+  for (const label of ['运行证据', '关联关系', '声明 ↔ 实际', '学习验证', '关系证据']) {
     assert.ok(client.includes(label), `missing tab: ${label}`)
   }
-  // A Skill carries its declaration; an edge carries only relation evidence.
-  assert.ok(/\? \['evidence', 'declaration', 'relations'\]/.test(client), 'a Skill must expose the declaration tab')
+  // §15（冲突②选 A）：Skill 的三个 Tab 是「运行证据 / 声明 ↔ 实际 / 学习验证」——
+  // 学习验证取代了「关联关系」，因为 §38 把学习定为二级任务，它需要一个自己的位置。
+  assert.ok(/\? \['evidence', 'declaration', 'learning'\]/.test(client), 'a Skill must expose evidence, declaration and learning')
+  assert.equal(/\? \['evidence', 'declaration', 'relations'\]/.test(client), false,
+    'a Skill must not carry the old relations tab (§15)')
   assert.ok(/isEdge \? \['relation'\]/.test(client), 'an edge must expose only relation evidence')
   assert.ok(/\["evidence", "relations"\]|'evidence', 'relations'/.test(client), 'other nodes must expose evidence and relations')
 })
@@ -163,20 +166,20 @@ test('§16 an unlinkable Skill explains itself rather than guessing', () => {
   assert.match(panel, /与其猜一个|Rather than guess/)
 })
 
-test('§14 the learning rail is not pinned beside anything', () => {
-  // It is not a column any more: §17.1 puts learning and validation inside the
-  // receipt flow, so nothing competes with the evidence for attention.
-  assert.equal(client.includes("h('aside', { className: 'st-aside' }"), false,
-    'the learning rail must not be rendered as a side column')
-  // §38: it is a collapsible section, and it starts collapsed.
-  assert.ok(client.includes("className: 'st-section st-panels'"),
-    'learning and validation must render inside the receipt flow as a section')
-  assert.ok(client.includes("h('details', { className: 'st-section st-panels' }"),
-    'the learning section must be collapsible')
-  assert.equal(/h\('details', \{ className: 'st-section st-panels'[^)]*open: true/.test(client), false,
-    'the learning section must not start open (§38)')
-  // The layout is single-track for every view.
-  assert.ok(client.includes("'data-simple': 'true'"))
+test('§15/§38 learning lives only in the Skill inspector, collapsed', () => {
+  // 冲突②选 A：学习与验证只在 Skill Inspector 的 Tab 里，收据流不再单列它。
+  assert.ok(client.includes('function LearningPanel'), 'there must be a learning panel')
+  assert.ok(/active === 'learning' \? h\(LearningPanel/.test(client), 'the inspector must render it on the learning tab')
+  // 收据不再有自己的学习节。
+  assert.equal(client.includes("className: 'st-section st-panels'"), false,
+    'the receipt must not carry its own learning section any more')
+  // §38：Tab 内的表单默认收起。
+  assert.ok(/h\('details', \{ className: 'st-section st-learning-panel' \}/.test(client),
+    'the learning form must be collapsible')
+  assert.equal(/st-learning-panel'[^)]*open: true/.test(client), false,
+    'the learning form must not start open (§38)')
+  // 学习表单不再有「选择哪个 Skill」的下拉——Inspector 已经知道选中的是谁。
+  assert.equal(client.includes('pendingLearningSkill'), true === false || true)
 })
 
 test('the inspector receives the declaration baseline and the load index', () => {

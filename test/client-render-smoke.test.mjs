@@ -248,6 +248,14 @@ test('the client registers and its entry component renders without throwing', as
       [{ data: null, loading: true, error: '', onSelectEdge() {}, onClose() {} }],
       [{ data: null, loading: false, error: '', onSelectEdge() {}, onClose() {} }],
     ],
+    // §15/§38：学习验证是 Skill Inspector 的一个 Tab，默认收起。它有卡片、无卡片、
+    // 以及没有选中 Skill 三种形态，三种都必须能渲染。
+    LearningPanel: [
+      [{ sessionId: 's', skillName: 'demo-skill', cards: [{ skillName: 'demo-skill', versionState: 'current', dependencies: [] }], notes: [{ skillName: 'demo-skill', understanding: 'x', improvementIntent: 'y', validationPlan: 'z', updatedAt: 1 }], onUpdate() {} }],
+      [{ sessionId: 's', skillName: 'demo-skill', cards: [{ skillName: 'demo-skill', versionState: 'changed', dependencies: [] }], notes: [], onUpdate() {} }],
+      [{ sessionId: 's', skillName: 'other-skill', cards: [], notes: [], onUpdate() {} }],
+      [{ sessionId: 's', skillName: '', cards: [], notes: [] }],
+    ],
     ReplayControls: [
       [{ timeline: payload.timeline, index: 0, playing: false, onIndex() {}, onPlaying() {} }],
       [{ timeline: payload.timeline, index: -1, playing: true, onIndex() {}, onPlaying() {} }],

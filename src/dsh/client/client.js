@@ -317,7 +317,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const style = document.createElement('style')
     style.id = STYLE_ID
     style.textContent = `
-      [data-plugin="dsh-skill-trace"]{--st-brand:var(--dsw-alias-state-business-primary,var(--dsw-static-deepseek-500,#3567d6));--st-bg:var(--dsw-alias-bg-base,#f7f8fa);--st-layer:var(--dsw-alias-bg-layer-1,#fff);--st-layer-2:var(--dsw-alias-bg-layer-2,#f3f5f7);--st-border:var(--dsw-alias-border-l2,rgba(22,27,36,.14));--st-border-soft:var(--dsw-alias-border-l3,rgba(22,27,36,.09));--st-grid:color-mix(in srgb,var(--st-border-soft) 50%,transparent);--st-text:var(--dsw-alias-label-primary,#17191d);--st-muted:var(--dsw-alias-label-secondary,#626871);--st-faint:var(--dsw-alias-label-tertiary,#8b9098);--st-success:var(--dsw-alias-state-success-primary,#16834b);--st-warning:var(--dsw-alias-state-warn-primary,#b36500);--st-error:var(--dsw-alias-state-error-primary,#c23c45);height:calc(100dvh - 76px);max-height:calc(100dvh - 76px);min-height:0;overflow:hidden;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
+      [data-plugin="dsh-skill-trace"]{--st-brand:var(--dsw-alias-state-business-primary,var(--dsw-static-deepseek-500,#2f6fed));--st-bg:var(--dsw-alias-bg-base,#f6f7f9);--st-layer:var(--dsw-alias-bg-layer-1,#fff);--st-layer-2:var(--dsw-alias-bg-layer-2,#fbfcfd);--st-border:var(--dsw-alias-border-l2,#e4e7ec);--st-border-soft:var(--dsw-alias-border-l3,#edf0f3);--st-grid:color-mix(in srgb,var(--st-border-soft) 50%,transparent);--st-text:var(--dsw-alias-label-primary,#16181d);--st-muted:var(--dsw-alias-label-secondary,#7a818c);--st-faint:var(--dsw-alias-label-tertiary,#9aa1aa);--st-success:var(--dsw-alias-state-success-primary,#16834b);--st-warning:var(--dsw-alias-state-warn-primary,#b36500);--st-error:var(--dsw-alias-state-error-primary,#c9444f);height:calc(100dvh - 76px);max-height:calc(100dvh - 76px);min-height:0;overflow:hidden;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}
       .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-topbar{min-height:58px;padding:9px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
       .st-heading{min-width:0;flex:1}.st-heading-line{display:flex;align-items:center;gap:9px}.st-heading h1{margin:0;font-size:16px;font-weight:650;letter-spacing:-.01em}.st-workspace{margin-top:2px;color:var(--st-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
@@ -1606,7 +1606,77 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
    * Skill carries its declaration, anything else carries its relations. Nothing is
    * fixed to the side of the page while the user is reading a run.
    */
-  function RuntimeInspector({ data, loading, error, onSelectEdge, onClose, alignments, skillLoads }) {
+  /**
+   * §15/§38 学习与验证：Skill Inspector 的一个 Tab，默认收起。
+   *
+   * 它不再出现在收据流里（冲突②选 A），也不再需要「选择哪个 Skill」的下拉——
+   * Inspector 本来就是针对当前选中的 Skill，这正是 Contextual 的意义。
+   */
+  function LearningPanel({ sessionId, skillName, cards, notes, onUpdate }) {
+    const [draft, setDraft] = React.useState({ understanding: '', improvementIntent: '', validationPlan: '' })
+    const [busy, setBusy] = React.useState('')
+    const [error, setError] = React.useState('')
+    const [saved, setSaved] = React.useState('')
+
+    const card = (cards || []).find((item) => item.skillName === skillName) || null
+    const note = (notes || []).find((item) => item.skillName === skillName) || null
+
+    // 切换 Skill 时重新装载该 Skill 已保存的内容，不把上一个 Skill 的草稿带过来。
+    React.useEffect(() => {
+      setDraft({
+        understanding: note?.understanding || '',
+        improvementIntent: note?.improvementIntent || '',
+        validationPlan: note?.validationPlan || '',
+      })
+      setSaved(''); setError('')
+    }, [skillName, note?.updatedAt])
+
+    if (!skillName) return h('p', { className: 'st-flow-empty' }, localized('先选择一个 Skill 再来记录。', 'Select a Skill first.'))
+    if (!card) return h('p', { className: 'st-flow-empty' }, localized('这个 Skill 不在本地学习目录中，因此不能记录个人理解。', 'This Skill is not in the local learning catalog, so no note can be recorded.'))
+
+    const field = (key, label, placeholder) => h('label', { className: 'st-field-label' }, label,
+      h('textarea', {
+        className: 'st-textarea', maxLength: 500, value: draft[key],
+        onChange: (event) => setDraft((current) => ({ ...current, [key]: event.target.value })),
+        placeholder,
+      }),
+      h('span', { className: 'st-field-count' }, `${draft[key].length}/500`))
+
+    const submit = async (event) => {
+      event.preventDefault(); setBusy('learning'); setError(''); setSaved('')
+      try {
+        const body = await api('/learning-note', {
+          method: 'POST',
+          body: JSON.stringify({ sessionId, skillName, ...draft }),
+        })
+        onUpdate?.(body)
+        const stored = body.receipt?.learningNotes?.find((item) => item.skillName === skillName)
+        setSaved(localized(`已保存到本地 · ${formatLocalTime(stored?.updatedAt)}`, `Saved locally · ${formatLocalTime(stored?.updatedAt)}`))
+      } catch (reason) { setError(reason.message) } finally { setBusy('') }
+    }
+
+    return h('details', { className: 'st-section st-learning-panel' },
+      h('summary', { className: 'st-section-head' },
+        h('span', { className: 'st-section-name' }, localized('学习与验证', 'Learning and validation')),
+        h('span', { className: 'st-section-note' }, localized('你的记录；默认收起，不上传', 'Your note; collapsed by default, never uploaded'))),
+      h('div', { className: 'st-section-body' },
+        card.versionState === 'changed'
+          ? h('div', { className: 'st-version-warning' }, localized('当前版本与本次观察版本不同，请先核对版本再迭代。', 'The current version differs from the observed one; check it before iterating.'))
+          : null,
+        h('form', { className: 'st-learning-form', onSubmit: submit },
+          field('understanding', localized('我的理解', 'My understanding'), localized('例如：它先确认输入，再按步骤执行，最后复核结果。', 'e.g. it confirms input, then executes steps, then checks the result.')),
+          field('improvementIntent', localized('我想改进', 'What I want to improve'), localized('例如：让复核步骤产生可观察证据。', 'e.g. make the review step produce observable evidence.')),
+          field('validationPlan', localized('下次如何验证', 'How I will validate next time'), localized('例如：换一个边界任务，看声明步骤与运行证据是否仍一致。', 'e.g. try a boundary task and see whether the declared steps still line up.')),
+          h('div', { className: 'st-validation-actions' },
+            h('button', { className: 'st-button st-button-primary', type: 'submit', disabled: busy === 'learning' },
+              busy === 'learning' ? localized('保存中…', 'Saving…') : localized('保存到本地', 'Save locally'))),
+          saved ? h('p', { className: 'st-form-state', role: 'status' }, saved) : null,
+          error ? h('p', { className: 'st-form-state st-form-state-error', role: 'alert' }, error) : null,
+          h('p', { className: 'st-panel-note' }, localized('保存后写入当前会话的本地收据；不会上传，也不会写回或发布 Skill。', 'Saved into this session\'s local receipt. Nothing is uploaded, and no Skill is modified or published.')))))
+  }
+
+
+  function RuntimeInspector({ data, loading, error, onSelectEdge, onClose, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdate }) {
     const selectionKey = data?.edge?.id ?? data?.nodeId ?? ''
     const [tab, setTab] = React.useState('')
     React.useEffect(() => { setTab('') }, [selectionKey])
@@ -1630,7 +1700,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const load = isSkill ? (skillLoads ?? []).find((entry) => entry.nodeId === node.id) ?? null : null
     const alignment = load ? (alignments ?? []).find((entry) => entry.skillName === load.skillName) ?? null : null
 
-    const tabs = isEdge ? ['relation'] : (isSkill ? ['evidence', 'declaration', 'relations'] : ['evidence', 'relations'])
+    // §15: Skill 的三个 Tab 是「运行证据 / 声明 ↔ 实际 / 学习验证」——学习验证取代了
+    // 此前的「关联关系」，因为 §38 把学习定为二级任务，它需要一个自己的位置。
+    const tabs = isEdge ? ['relation'] : (isSkill ? ['evidence', 'declaration', 'learning'] : ['evidence', 'relations'])
     const active = tabs.includes(tab) ? tab : tabs[0]
 
     const evidencePanel = h('div', null,
@@ -1683,9 +1755,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         'aria-selected': active === key,
         onClick: () => setTab(key),
       }, raw(INSPECTOR_TAB_LABELS[key])))),
-      active === 'declaration' ? h(DeclarationPanel, { alignment, load })
-        : active === 'relations' ? relationsPanel
-          : evidencePanel,
+      active === 'learning' ? h(LearningPanel, { sessionId: learningSessionId, skillName: load ? load.skillName : '', cards: learningCards, notes: learningNotes, onUpdate })
+        : active === 'declaration' ? h(DeclarationPanel, { alignment, load })
+          : active === 'relations' ? relationsPanel
+            : evidencePanel,
       h('button', { className: 'st-button', type: 'button', onClick: onClose }, localized('返回概览', 'Back to overview')))
   }
   /**
@@ -1700,7 +1773,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
    * hides; it never adds. What it hides is counted and stated, so a filtered canvas
    * cannot be mistaken for a smaller run.
    */
-  function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, onSelect, onCloseInspect }) {
+  function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect }) {
     const [types, setTypes] = React.useState([])
     const [hideCandidate, setHideCandidate] = React.useState(true)
     const [failuresOnly, setFailuresOnly] = React.useState(false)
@@ -1790,6 +1863,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           error: inspectError,
           alignments,
           skillLoads,
+          learningSessionId,
+          learningCards,
+          learningNotes,
+          onUpdate: onUpdateLearning,
           onSelectEdge: (edgeId) => onSelect({ edgeId }),
           onClose: onCloseInspect,
         }),
@@ -1818,7 +1895,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         `Replay highlights nodes in event order; it never changes the receipt.${timeline.truncated ? ' Truncated past the step limit.' : ''}`)))
   }
 
-  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, onSelect, onCloseInspect }) {
+  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect }) {
     const timeline = data?.timeline ?? null
     const [replayIndex, setReplayIndex] = React.useState(-1)
     const [playing, setPlaying] = React.useState(false)
@@ -1894,6 +1971,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           onSelectEdge: (edgeId) => onSelect({ edgeId }),
           alignments,
           skillLoads,
+          learningSessionId,
+          learningCards,
+          learningNotes,
+          onUpdate: onUpdateLearning,
           onClose: onCloseInspect,
         }),
         h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))))
@@ -1999,6 +2080,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, {
             alignments: data.views.receipt.runtime.alignments,
             skillLoads: runtime?.skillLoads,
+            // §15/§38（冲突②选 A）：学习与验证是 Skill Inspector 的一个 Tab，
+            // 所以它的数据要一路到达 Inspector。
+            learningSessionId: data.receipt?.sessionId,
+            learningCards: data.views.receipt.learningCards,
+            learningNotes: data.receipt?.learningNotes,
+            onUpdateLearning: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })),
           data: runtime,
           loading: runtimeLoading,
           error: runtimeError,
@@ -2014,6 +2101,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, {
             alignments: data.views.receipt.runtime.alignments,
             skillLoads: runtime?.skillLoads,
+            // §15/§38（冲突②选 A）：学习与验证是 Skill Inspector 的一个 Tab，
+            // 所以它的数据要一路到达 Inspector。
+            learningSessionId: data.receipt?.sessionId,
+            learningCards: data.views.receipt.learningCards,
+            learningNotes: data.receipt?.learningNotes,
+            onUpdateLearning: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })),
             data: runtime,
             loading: runtimeLoading,
             error: runtimeError,
@@ -2038,14 +2131,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         h('main', { className: 'st-main', 'aria-busy': loading },
           error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null,
           sessionContent,
+          // 冲突②选 A：学习与验证只在 Skill Inspector 里，收据流不再单列它。
+          // §17.1 的「Validation / Learning」由 Inspector 的学习 Tab 承担。
           data && hasTrace && view === 'receipt'
-            ? // §38: collapsed by default. Recording a note is a second-order task; it must not
-            // push the evidence down the page just because the page was opened.
-            h('details', { className: 'st-section st-panels' },
-              h('summary', { className: 'st-section-head' },
-                h('span', { className: 'st-section-name' }, localized('学习与验证', 'Learning and validation')),
-                h('span', { className: 'st-section-note' }, localized('你的记录与本地产出引用；默认收起', 'Your notes and local output references; collapsed by default'))),
-              h('div', { className: 'st-section-body' }, h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })))
+            ? h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })
             : null))
 
     return h('section', { 'data-plugin': 'dsh-skill-trace', 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
@@ -2079,4 +2168,4 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   // render smoke test execute each one against a real payload. Source assertions cannot
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
-  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside }
+  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel }
