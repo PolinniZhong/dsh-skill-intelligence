@@ -1,10 +1,26 @@
 import { createHash } from 'node:crypto'
 
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 const DEPENDENCY_TYPES = ['network', 'model', 'mcp', 'script', 'permission']
 const CONTINUITY_STATUSES = ['unassessed', 'manual', 'partial', 'blocked']
 const LEARNING_FIELDS = ['understanding', 'improvementIntent', 'validationPlan']
 const VALIDATION_STATUSES = ['met', 'not-met', 'inconclusive']
+
+// Phase 0 observation surface.
+//
+// Only two Skill load paths are observable in DSH, and both are deterministic
+// loads: the model calls the `skill` tool, or the user names a skill with the
+// `/name` gesture and the host injects it (source.kind `skill-invocation`).
+// There is no observable "implicit" path, so no such value is emitted — an
+// invented one would be a claim the runtime cannot support.
+const INVOCATION_TYPES = ['user-explicit', 'model-invoked']
+const CAPABILITY_KINDS = ['skill', 'tool', 'cli', 'mcp', 'subagent']
+// Bounded projection of the run. Overflow is counted, never silently dropped.
+const RUNTIME_EVENT_LIMIT = 1000
+const CATALOG_ENTRY_LIMIT = 500
+const CATALOG_DESCRIPTION_MAX = 300
+const SKILL_INSTRUCTIONS_OPEN = '<skill_instructions>\n'
+const SKILL_INSTRUCTIONS_CLOSE = '\n</skill_instructions>'
 
 function cleanString(value, maxLength = 160) {
   if (typeof value !== 'string') return ''
@@ -14,6 +30,41 @@ function cleanString(value, maxLength = 160) {
 function safeSkillName(value) {
   const name = cleanString(value, 128)
   return /^[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,127}$/.test(name) ? name : ''
+}
+
+// A registered tool name. MCP tools are the composed `mcp__<server>__<rawName>`
+// form, whose parts are restricted to `[A-Za-z0-9_-]`.
+function safeToolName(value) {
+  const name = cleanString(value, 128)
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(name) ? name : ''
+}
+
+/**
+ * Deterministic capability classification for one registered tool name.
+ *
+ * Classification only labels an observed invocation; it never rewrites the
+ * recorded event and never invents an invocation that did not happen.
+ * @param toolName - the `tool/call` `name` field.
+ * @returns the capability kind plus a bounded display name, or null when the
+ * name is not a usable identifier.
+ */
+export function classifyCapability(toolName) {
+  const name = safeToolName(toolName)
+  if (!name) return null
+  const mcp = /^mcp__([A-Za-z0-9_-]{1,32})__(.{1,64})$/.exec(name)
+  if (mcp) return { capability: 'mcp', capabilityName: mcp[1], detail: mcp[2] }
+  if (name === 'skill') return { capability: 'skill', capabilityName: 'skill', detail: null }
+  if (/^(bash|pwsh)([-_].*)?$/.test(name)) return { capability: 'cli', capabilityName: name, detail: null }
+  if (/^subagent([-_].*)?$/.test(name)) return { capability: 'subagent', capabilityName: name, detail: null }
+  return { capability: 'tool', capabilityName: name, detail: null }
+}
+
+function normalizeInvocationType(value, callId) {
+  if (INVOCATION_TYPES.includes(value)) return value
+  // Receipts written before the observation surface widened could only be
+  // produced by the `skill` tool call, so a legacy record carrying a callId is
+  // model-invoked as a matter of record, not inference.
+  return typeof callId === 'string' && callId ? 'model-invoked' : null
 }
 
 function safeHash(value) {
@@ -150,24 +201,39 @@ function sha256(value) {
   return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`
 }
 
-function toolResultText(block) {
-  if (typeof block?.content === 'string') return block.content
-  if (!Array.isArray(block?.content)) return ''
-  return block.content
+/**
+ * Model-facing text of a message or result carrier. Serves both session
+ * formats: V4 puts a result's own blocks on the message, V3 wrapped them in a
+ * single `tool-result` block. Both expose a `content` block array.
+ */
+function contentText(value) {
+  if (typeof value?.content === 'string') return value.content
+  if (!Array.isArray(value?.content)) return ''
+  return value.content
     .filter((item) => item?.type === 'text' && typeof item.text === 'string')
     .map((item) => item.text)
     .join('\n')
 }
 
-function skillInstructionsFromResult(block) {
-  const text = toolResultText(block)
+function toolResultText(block) {
+  return contentText(block)
+}
+
+/**
+ * The `<skill_instructions>` body DSH renders inside `<skill_content>`. The
+ * model sees one canonical rendering on both load paths, so this extraction
+ * serves the `skill` tool result and the user-explicit injection alike.
+ */
+function instructionsFromText(text) {
   if (!text || text.length > 2 * 1024 * 1024) return ''
-  const open = '<skill_instructions>\n'
-  const close = '\n</skill_instructions>'
-  const start = text.indexOf(open)
+  const start = text.indexOf(SKILL_INSTRUCTIONS_OPEN)
   if (start < 0) return ''
-  const end = text.indexOf(close, start + open.length)
-  return end < 0 ? '' : text.slice(start + open.length, end)
+  const end = text.indexOf(SKILL_INSTRUCTIONS_CLOSE, start + SKILL_INSTRUCTIONS_OPEN.length)
+  return end < 0 ? '' : text.slice(start + SKILL_INSTRUCTIONS_OPEN.length, end)
+}
+
+function skillInstructionsFromResult(block) {
+  return instructionsFromText(toolResultText(block))
 }
 
 function safeStepText(value) {
@@ -282,8 +348,22 @@ export function emptyReceipt(sessionId, now = Date.now()) {
       turns: [],
       steps: [],
       lastObservedSeq: null,
+      // Log-order cursors. `user/message` carries no turn/step, so attribution
+      // comes from the most recent `turn/start` / `step/start` in the same log.
+      // That is deterministic — never inferred from timestamps.
+      currentTurn: null,
+      currentStep: null,
     },
     traceEvents: [],
+    // Phase 0 runtime surface: one bounded record per observed tool invocation,
+    // metadata only — no arguments and no result content.
+    runtimeEvents: [],
+    runtimeEventOverflow: 0,
+    // The durable skill catalog DSH published into this session: what the model
+    // was actually offered. This is the Declaration baseline. A live registry
+    // snapshot answers a different question and drifts once the session ends.
+    catalogPublished: null,
+    catalogPublicationCount: 0,
     sourceSnapshots: [],
     humanAssessment: {
       value: 'pending',
@@ -314,18 +394,75 @@ export function emptyReceipt(sessionId, now = Date.now()) {
   }
 }
 
+function normalizeRuntimeEvent(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const callId = cleanString(value.callId, 240)
+  const capability = CAPABILITY_KINDS.includes(value.capability) ? value.capability : ''
+  const name = safeToolName(value.name)
+  if (!callId || !capability || !name) return null
+  const status = ['requested', 'success', 'failure'].includes(value.status) ? value.status : 'requested'
+  return {
+    callId,
+    capability,
+    name,
+    detail: safeToolName(value.detail) || null,
+    turn: Number.isSafeInteger(value.turn) ? value.turn : null,
+    step: Number.isSafeInteger(value.step) ? value.step : null,
+    callSeq: Number.isSafeInteger(value.callSeq) ? value.callSeq : null,
+    resultSeq: Number.isSafeInteger(value.resultSeq) ? value.resultSeq : null,
+    startedAt: Number.isSafeInteger(value.startedAt) ? value.startedAt : null,
+    endedAt: Number.isSafeInteger(value.endedAt) ? value.endedAt : null,
+    durationMs: Number.isSafeInteger(value.durationMs) ? value.durationMs : null,
+    status,
+    errorCode: status === 'failure' ? safeErrorCode(value.errorCode) : null,
+  }
+}
+
+function normalizeCatalogPublished(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const entries = (Array.isArray(value.entries) ? value.entries : [])
+    .map((entry) => {
+      const name = safeSkillName(entry?.name)
+      if (!name) return null
+      return { name, description: cleanString(entry?.description, CATALOG_DESCRIPTION_MAX) }
+    })
+    .filter(Boolean)
+    .slice(0, CATALOG_ENTRY_LIMIT)
+  if (!entries.length) return null
+  return {
+    observedAt: Number.isSafeInteger(value.observedAt) ? value.observedAt : null,
+    seq: Number.isSafeInteger(value.seq) ? value.seq : null,
+    turn: Number.isSafeInteger(value.turn) ? value.turn : null,
+    step: Number.isSafeInteger(value.step) ? value.step : null,
+    update: value.update === true,
+    entryCount: entries.length,
+    entriesDigest: safeHash(value.entriesDigest),
+    entries,
+  }
+}
+
 export function migrateReceipt(value, sessionId) {
   if (!value || typeof value !== 'object') return emptyReceipt(sessionId)
   const createdAt = Number.isSafeInteger(value.createdAt) ? value.createdAt : Date.now()
   const base = emptyReceipt(sessionId, createdAt)
-  const traceEvents = Array.isArray(value.traceEvents) ? value.traceEvents.map((trace) => ({
-    ...trace,
-    sessionId: base.sessionId,
-    consumer: 'skill-tool',
-    consumerIdentity: 'unavailable',
-    coverage: 'observed-tool-contract',
-    runtimeIdentity: normalizeRuntimeIdentity(trace.runtimeIdentity),
-  })) : []
+  const traceEvents = Array.isArray(value.traceEvents) ? value.traceEvents.map((trace) => {
+    const invocationType = normalizeInvocationType(trace?.invocationType, trace?.callId)
+    // The user-explicit path has no tool call, so its consumer and coverage
+    // must not be overwritten with the model-invoked tool contract.
+    const userExplicit = invocationType === 'user-explicit'
+    return {
+      ...trace,
+      sessionId: base.sessionId,
+      invocationType,
+      consumer: userExplicit ? 'skill-invocation' : 'skill-tool',
+      consumerIdentity: 'unavailable',
+      coverage: userExplicit ? 'observed-injection-source' : 'observed-tool-contract',
+      runtimeIdentity: normalizeRuntimeIdentity(trace.runtimeIdentity),
+    }
+  }) : []
+  const runtimeEvents = Array.isArray(value.runtimeEvents)
+    ? value.runtimeEvents.map(normalizeRuntimeEvent).filter(Boolean).slice(-RUNTIME_EVENT_LIMIT)
+    : []
   const loadedSkillNames = new Set(traceEvents.filter((trace) => trace.status === 'loaded').map((trace) => trace.skillName))
   const learningNotes = Array.isArray(value.learningNotes)
     ? value.learningNotes.map((note) => normalizeLearningNote(note)).filter((note) => note && loadedSkillNames.has(note.skillName))
@@ -333,11 +470,23 @@ export function migrateReceipt(value, sessionId) {
   const validationResults = Array.isArray(value.validationResults)
     ? value.validationResults.map((result) => normalizeValidationResult(result)).filter((result) => result && loadedSkillNames.has(result.skillName))
     : []
+  const storedActivity = value.activity && typeof value.activity === 'object' ? value.activity : {}
   return {
     ...base,
     updatedAt: Number.isSafeInteger(value.updatedAt) ? value.updatedAt : createdAt,
-    activity: value.activity && typeof value.activity === 'object' ? value.activity : base.activity,
+    activity: {
+      ...base.activity,
+      turns: Array.isArray(storedActivity.turns) ? storedActivity.turns.filter(Number.isSafeInteger) : [],
+      steps: Array.isArray(storedActivity.steps) ? storedActivity.steps : [],
+      lastObservedSeq: Number.isSafeInteger(storedActivity.lastObservedSeq) ? storedActivity.lastObservedSeq : null,
+      currentTurn: Number.isSafeInteger(storedActivity.currentTurn) ? storedActivity.currentTurn : null,
+      currentStep: Number.isSafeInteger(storedActivity.currentStep) ? storedActivity.currentStep : null,
+    },
     traceEvents,
+    runtimeEvents,
+    runtimeEventOverflow: Number.isSafeInteger(value.runtimeEventOverflow) ? Math.max(0, value.runtimeEventOverflow) : 0,
+    catalogPublished: normalizeCatalogPublished(value.catalogPublished),
+    catalogPublicationCount: Number.isSafeInteger(value.catalogPublicationCount) ? Math.max(0, value.catalogPublicationCount) : 0,
     sourceSnapshots: Array.isArray(value.sourceSnapshots) ? value.sourceSnapshots.map(normalizeSourceSnapshot).filter(Boolean) : [],
     humanAssessment: value.humanAssessment && typeof value.humanAssessment === 'object' ? value.humanAssessment : base.humanAssessment,
     outputReferences: Array.isArray(value.outputReferences) ? value.outputReferences : [],
@@ -352,17 +501,43 @@ function addUniqueNumber(items, value) {
   return [...items, value].sort((a, b) => a - b)
 }
 
+// Attribution helpers. An event that carries its own turn/step is authoritative;
+// otherwise the log-order cursor from the most recent `turn/start` / `step/start`
+// applies. Never derived from timestamps.
+function observedTurn(receipt, data) {
+  if (Number.isSafeInteger(data?.turn)) return data.turn
+  return Number.isSafeInteger(receipt.activity?.currentTurn) ? receipt.activity.currentTurn : null
+}
+
+function observedStep(receipt, data) {
+  if (Number.isSafeInteger(data?.step)) return data.step
+  return Number.isSafeInteger(receipt.activity?.currentStep) ? receipt.activity.currentStep : null
+}
+
 function withObservedActivity(receipt, event) {
   const data = event?.data ?? {}
+  const type = event?.type
+  const currentTurn = type === 'turn/end'
+    ? null
+    : type === 'turn/start' || type === 'step/start'
+      ? (Number.isSafeInteger(data.turn) ? data.turn : receipt.activity.currentTurn)
+      : receipt.activity.currentTurn
+  const currentStep = type === 'step/start'
+    ? (Number.isSafeInteger(data.step) ? data.step : receipt.activity.currentStep)
+    : type === 'turn/start' || type === 'step/end' || type === 'turn/end'
+      ? null
+      : receipt.activity.currentStep
   return {
     ...receipt,
     updatedAt: Number.isSafeInteger(event?.time) ? event.time : Date.now(),
     activity: {
       turns: addUniqueNumber(receipt.activity.turns, data.turn),
-      steps: event?.type === 'step/start'
+      steps: type === 'step/start'
         ? [...receipt.activity.steps, { turn: data.turn, step: data.step }].filter((item, index, all) => all.findIndex((other) => other.turn === item.turn && other.step === item.step) === index)
         : receipt.activity.steps,
       lastObservedSeq: Number.isSafeInteger(event?.seq) ? event.seq : receipt.activity.lastObservedSeq,
+      currentTurn,
+      currentStep,
     },
   }
 }
@@ -382,9 +557,169 @@ function unresolvedAtBoundary(receipt, event) {
   return changed ? { ...receipt, traceEvents, updatedAt: now } : receipt
 }
 
+function appendRuntimeEvent(receipt, entry) {
+  const events = [...receipt.runtimeEvents, entry]
+  if (events.length <= RUNTIME_EVENT_LIMIT) {
+    return { runtimeEvents: events, runtimeEventOverflow: receipt.runtimeEventOverflow }
+  }
+  // Bounded window: keep the most recent evidence and report what was dropped,
+  // so a truncated run is never presented as a complete one.
+  const dropped = events.length - RUNTIME_EVENT_LIMIT
+  return { runtimeEvents: events.slice(dropped), runtimeEventOverflow: receipt.runtimeEventOverflow + dropped }
+}
+
+// One bounded record per observed tool invocation. Arguments and result content
+// are never read here, let alone stored: Phase 0 keeps only correlation and
+// classification metadata.
+function reduceRuntimeCall(receipt, event) {
+  const data = event?.data ?? {}
+  const callId = cleanString(data.callId, 240)
+  const kind = classifyCapability(data.name)
+  if (!callId || !kind) return receipt
+  if (receipt.runtimeEvents.some((item) => item.callId === callId)) return receipt
+  const entry = {
+    callId,
+    capability: kind.capability,
+    name: kind.capabilityName,
+    detail: kind.detail,
+    turn: observedTurn(receipt, data),
+    step: observedStep(receipt, data),
+    callSeq: Number.isSafeInteger(event.seq) ? event.seq : null,
+    resultSeq: null,
+    startedAt: Number.isSafeInteger(event.time) ? event.time : null,
+    endedAt: null,
+    durationMs: null,
+    status: 'requested',
+    errorCode: null,
+  }
+  return { ...receipt, ...appendRuntimeEvent(receipt, entry) }
+}
+
+function reduceRuntimeResult(receipt, event) {
+  const data = event?.data ?? {}
+  const block = resultBlock(event)
+  const callId = cleanString(data.message?.source?.callId || block?.toolCallId, 240)
+  if (!callId) return receipt
+  const index = receipt.runtimeEvents.findIndex((item) => item.callId === callId)
+  if (index < 0) return receipt
+  if (receipt.runtimeEvents[index].status !== 'requested') return receipt
+  const failed = block?.isError === true || Boolean(data.error)
+  const endedAt = Number.isSafeInteger(event.time) ? event.time : null
+  const runtimeEvents = receipt.runtimeEvents.map((item, itemIndex) => itemIndex === index ? {
+    ...item,
+    status: failed ? 'failure' : 'success',
+    errorCode: failed ? safeErrorCode(data.error?.code) : null,
+    resultSeq: Number.isSafeInteger(event.seq) ? event.seq : null,
+    endedAt,
+    durationMs: Number.isSafeInteger(item.startedAt) && Number.isSafeInteger(endedAt) ? endedAt - item.startedAt : null,
+  } : item)
+  return { ...receipt, runtimeEvents }
+}
+
+// The durable skill catalog DSH published into this session. This is the
+// Declaration baseline: what the model was actually offered.
+function reduceSkillCatalog(receipt, event) {
+  const source = event?.data?.source ?? {}
+  const entries = (Array.isArray(source.entries) ? source.entries : [])
+    .map((entry) => {
+      const name = safeSkillName(entry?.name)
+      if (!name) return null
+      return { name, description: cleanString(entry?.description, CATALOG_DESCRIPTION_MAX) }
+    })
+    .filter(Boolean)
+    .slice(0, CATALOG_ENTRY_LIMIT)
+  if (!entries.length) return receipt
+  const observedAt = Number.isSafeInteger(event.time) ? event.time : Date.now()
+  return {
+    ...receipt,
+    catalogPublished: {
+      observedAt,
+      seq: Number.isSafeInteger(event.seq) ? event.seq : null,
+      turn: observedTurn(receipt, event?.data),
+      step: observedStep(receipt, event?.data),
+      update: source.update === true,
+      entryCount: entries.length,
+      // Digest over the published names: a cheap, stable drift check that does
+      // not depend on description wording.
+      entriesDigest: sha256(entries.map((item) => item.name).sort().join('\n')),
+      entries,
+    },
+    catalogPublicationCount: receipt.catalogPublicationCount + 1,
+  }
+}
+
+// A user-explicit `/name` load. DSH injects the same canonical `<skill_content>`
+// rendering the `skill` tool returns, so the instruction fingerprint and the
+// candidate steps come from the same extraction rule as the model path.
+function reduceSkillInvocation(receipt, event) {
+  const data = event?.data ?? {}
+  const skillName = safeSkillName(data?.source?.name)
+  if (!skillName) return receipt
+  const seq = Number.isSafeInteger(event.seq) ? event.seq : null
+  const eventId = `${receipt.sessionId}:invocation:${seq ?? receipt.traceEvents.length}`
+  if (receipt.traceEvents.some((trace) => trace.eventId === eventId)) return receipt
+  const injectedAt = Number.isSafeInteger(event.time) ? event.time : Date.now()
+  const text = contentText(data)
+  const instructions = instructionsFromText(text)
+  const evidenceFingerprint = instructions
+    ? { algorithm: 'sha256', scope: 'skill-instructions', value: sha256(instructions) }
+    : text ? { algorithm: 'sha256', scope: 'rendered-skill-injection', value: sha256(text) } : null
+  const trace = {
+    eventId,
+    sessionId: receipt.sessionId,
+    turn: observedTurn(receipt, data),
+    step: observedStep(receipt, data),
+    skillName,
+    status: 'loaded',
+    invocationType: 'user-explicit',
+    callId: null,
+    callSeq: seq,
+    resultSeq: seq,
+    requestedAt: injectedAt,
+    resolvedAt: injectedAt,
+    consumer: 'skill-invocation',
+    consumerIdentity: 'unavailable',
+    coverage: 'observed-injection-source',
+    errorCode: null,
+    evidenceFingerprint,
+    continuityCandidate: instructions ? extractContinuityCandidate(skillName, instructions) : null,
+    runtimeIdentity: null,
+  }
+  receipt = { ...receipt, traceEvents: [...receipt.traceEvents, trace] }
+  return { ...receipt, continuity: automaticContinuity(receipt.traceEvents, receipt.continuity) }
+}
+
+function reduceUserMessage(receipt, event) {
+  const kind = event?.data?.source?.kind
+  if (kind === 'skill-invocation') return reduceSkillInvocation(receipt, event)
+  if (kind === 'skill-catalog') return reduceSkillCatalog(receipt, event)
+  return receipt
+}
+
+/**
+ * Whether one session event can carry Skill evidence that no tool call exposes:
+ * a user-explicit `/name` load, or the published skill catalog. The host uses
+ * this to decide when a `user/message` is worth persisting.
+ * @param event - one DSH session event.
+ * @returns true when the event's source kind is Skill evidence.
+ */
+export function carriesSkillEvidence(event) {
+  if (event?.type !== 'user/message') return false
+  const kind = event?.data?.source?.kind
+  return kind === 'skill-invocation' || kind === 'skill-catalog'
+}
+
 export function reduceSessionEvent(source, event) {
   let receipt = withObservedActivity(source, event)
   const data = event?.data ?? {}
+
+  if (event?.type === 'user/message') return reduceUserMessage(receipt, event)
+
+  // Phase 0: every tool invocation is recorded, not only `skill`. Tool, CLI and
+  // MCP invocations already arrive on this stream — discarding them here is what
+  // left the runtime graph without raw material.
+  if (event?.type === 'tool/call') receipt = reduceRuntimeCall(receipt, event)
+  if (event?.type === 'tool/result') receipt = reduceRuntimeResult(receipt, event)
 
   if (event?.type === 'tool/call' && data.name === 'skill') {
     const args = parseArguments(data.arguments)
@@ -398,10 +733,11 @@ export function reduceSessionEvent(source, event) {
       traceEvents: [...receipt.traceEvents, {
         eventId: `${receipt.sessionId}:${callId}`,
         sessionId: receipt.sessionId,
-        turn: Number.isSafeInteger(data.turn) ? data.turn : null,
-        step: Number.isSafeInteger(data.step) ? data.step : null,
+        turn: observedTurn(receipt, data),
+        step: observedStep(receipt, data),
         skillName,
         status: 'requested',
+        invocationType: 'model-invoked',
         callId,
         callSeq: Number.isSafeInteger(event.seq) ? event.seq : null,
         resultSeq: null,
@@ -632,6 +968,7 @@ export function buildViewModels(receipt) {
     consumer: trace.consumer,
     consumerIdentity: trace.consumerIdentity,
     coverage: trace.coverage,
+    invocationType: trace.invocationType ?? null,
     errorCode: trace.errorCode,
     evidenceFingerprint: trace.evidenceFingerprint,
     continuityCandidate: trace.continuityCandidate,
@@ -728,6 +1065,28 @@ export function buildViewModels(receipt) {
     learningNotes: receipt.learningNotes ?? [],
     validationResults: receipt.validationResults ?? [],
     sourceSnapshots: receipt.sourceSnapshots ?? [],
+    // Phase 0 runtime surface, projected as counts. No argument and no result
+    // content is carried here, and `overflow` states truncation instead of
+    // presenting a bounded window as a complete run.
+    runtime: {
+      eventCount: (receipt.runtimeEvents ?? []).length,
+      overflow: receipt.runtimeEventOverflow ?? 0,
+      byCapability: Object.fromEntries(CAPABILITY_KINDS.map((kind) => [
+        kind,
+        (receipt.runtimeEvents ?? []).filter((item) => item.capability === kind).length,
+      ])),
+      invocationTypes: Object.fromEntries(INVOCATION_TYPES.map((type) => [
+        type,
+        events.filter((event) => event.invocationType === type).length,
+      ])),
+      catalog: receipt.catalogPublished ? {
+        observedAt: receipt.catalogPublished.observedAt,
+        update: receipt.catalogPublished.update,
+        entryCount: receipt.catalogPublished.entryCount,
+        entriesDigest: receipt.catalogPublished.entriesDigest,
+        publicationCount: receipt.catalogPublicationCount ?? 0,
+      } : null,
+    },
   }
   return {
     receipt: shared,

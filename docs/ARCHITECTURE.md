@@ -6,7 +6,11 @@ DSH Skill Trace observes event evidence produced by DeepSeek Harness and present
 
 ```text
 DSH event stream
-  └─ tool/call + tool/result for skill(name)
+  ├─ tool/call + tool/result        → every capability invocation (metadata only)
+  ├─ user/message source.kind
+  │    ├─ skill-invocation          → user-explicit `/name` load
+  │    └─ skill-catalog             → published Declaration baseline
+  └─ turn/start · step/start        → log-order attribution cursor
        └─ trace reducer
             ├─ local session receipt
             ├─ receipt / flow-map views
@@ -21,10 +25,30 @@ DSH event stream
 
 1. A matching `tool/call` and successful `tool/result` is recorded as a requested, successful load.
 2. The result payload is read from either session format the runtime can produce. V3 wrapped a tool result in exactly one `tool-result` block inside a `user` message; V4 lifts it into a first-class `tool` message and retires that wrapper, so the content, `toolCallId`, and `isError` live on the message itself. Reading only the V3 spelling made every V4 result look empty while the record still claimed `loaded`, which silently dropped the instruction fingerprint, the candidate steps, and version-drift detection.
-3. The reducer can associate repeated loads and multiple Skills in the same session.
-4. A load record is not upgraded into proof of compliance, causal contribution, correctness, or usefulness.
-5. The user may separately write an understanding, an improvement intent, and a next validation plan. Those fields are personal notes, not model judgments.
-6. The user may later record whether that plan met expectations, what they observed, and what to do next. This is a human-authored validation result attached to the original session receipt, not a quality score or causal proof.
+3. A Skill can be loaded on two paths, and both are recorded: the model calls the `skill` tool (`invocationType: model-invoked`), or the user names a Skill with the `/name` gesture, which DSH injects as a `user/message` carrying `source.kind = 'skill-invocation'` and which never produces a `skill` tool call (`invocationType: user-explicit`). DSH renders one canonical `<skill_content>` shape on both paths, so the instruction fingerprint and candidate steps come from the same extraction rule. No `implicit` value is emitted: there is no observable third path, and inventing one would be a claim the runtime cannot support.
+4. `user/message` records no turn or step of its own. It is attributed by the `turn/start` / `step/start` cursor most recently seen in the same log — log order, never timestamps.
+5. The reducer can associate repeated loads and multiple Skills in the same session.
+6. A load record is not upgraded into proof of compliance, causal contribution, correctness, or usefulness.
+7. The user may separately write an understanding, an improvement intent, and a next validation plan. Those fields are personal notes, not model judgments.
+8. The user may later record whether that plan met expectations, what they observed, and what to do next. This is a human-authored validation result attached to the original session receipt, not a quality score or causal proof.
+
+## Runtime surface
+
+Beyond Skill loads, the receipt keeps a bounded record per observed tool invocation in `runtimeEvents` — one entry per `callId`, paired with its result when one arrives. This is the raw material the Runtime Flow graph is reconstructed from, not a second trace database.
+
+Each entry records correlation and classification metadata only:
+
+```text
+callId · capability (skill | tool | cli | mcp | subagent) · name · detail
+turn · step · callSeq · resultSeq · startedAt · endedAt · durationMs
+status (requested | success | failure) · errorCode
+```
+
+Tool arguments and result content are never read, let alone stored. `scripts/verify-project.mjs` rejects a change that would start reading either field. Classification is deterministic: `mcp__<server>__<rawName>` identifies an MCP tool, `bash`/`pwsh` are CLI, `subagent` is a Subagent, and everything else is a Tool. Classification only labels an invocation; it never rewrites the recorded event.
+
+The projection keeps the 1000 most recent invocations and reports how many were dropped as `runtimeEventOverflow`, so a bounded window is never presented as a complete run. An invocation with no observed result stays `requested`; it is never completed by guesswork, and a second result never overwrites settled evidence.
+
+`catalogPublished` holds the Declaration baseline: the entries DSH durably published into this session, i.e. what the model was actually offered. A replacement publication supersedes the previous baseline and increments `catalogPublicationCount`. This is deliberately not a live registry snapshot, which answers what is installed *now* and drifts once the session ends. `entriesDigest` hashes the published names so drift can be checked without comparing description wording.
 
 ## Main modules
 

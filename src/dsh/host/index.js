@@ -2,6 +2,7 @@ import { basename, join } from 'node:path'
 import {
   addOutputReference,
   buildViewModels,
+  carriesSkillEvidence,
   emptyReceipt,
   migrateReceipt,
   rebuildReceipt,
@@ -22,7 +23,22 @@ import { createPreferenceStore } from '../../storage/preference-store.mjs'
 export const name = 'dsh-skill-trace'
 
 // Catalog projection keeps original receipt chronology; later local edits only change updatedAt.
-const OBSERVED_EVENT_TYPES = new Set(['step/start', 'step/end', 'turn/end', 'tool/call', 'tool/result'])
+//
+// `turn/start` advances the log-order cursor that attributes a `user/message`,
+// which carries no turn/step of its own. `user/message` carries the two Skill
+// facts no tool call exposes: a user-explicit `/name` load (`source.kind`
+// `skill-invocation`) and the published skill catalog (`source.kind`
+// `skill-catalog`). Every `tool/call` is kept as bounded runtime evidence, so
+// Tool, CLI and MCP invocations are no longer discarded at the door.
+const OBSERVED_EVENT_TYPES = new Set([
+  'turn/start',
+  'step/start',
+  'step/end',
+  'turn/end',
+  'tool/call',
+  'tool/result',
+  'user/message',
+])
 
 // DSH exposes a live session's durable log through `session.snapshotEvents()`.
 // The older `session.events` field it replaced is gone by runtime 0.1.2-rc.1, and
@@ -104,6 +120,7 @@ function publicReceipt(receipt) {
       step: trace.step,
       skillName: trace.skillName,
       status: trace.status,
+      invocationType: trace.invocationType ?? null,
       callId: trace.callId,
       callSeq: trace.callSeq,
       resultSeq: trace.resultSeq,
@@ -118,6 +135,10 @@ function publicReceipt(receipt) {
       runtimeIdentity: trace.runtimeIdentity ?? null,
     })),
     sourceSnapshots: receipt.sourceSnapshots,
+    runtimeEvents: receipt.runtimeEvents ?? [],
+    runtimeEventOverflow: receipt.runtimeEventOverflow ?? 0,
+    catalogPublished: receipt.catalogPublished ?? null,
+    catalogPublicationCount: receipt.catalogPublicationCount ?? 0,
     outputReferences: receipt.outputReferences,
     learningNotes: receipt.learningNotes,
     validationResults: receipt.validationResults,
@@ -153,6 +174,7 @@ function validateRestorableReceipt(value) {
   const sessionId = requiredSessionId(value?.sessionId)
   const receipt = migrateReceipt(value, sessionId)
   if (!Array.isArray(value.traceEvents) || value.traceEvents.length > 5000) throw new Error('备份收据事件无效')
+  if (Array.isArray(value.runtimeEvents) && value.runtimeEvents.length > 5000) throw new Error('备份运行事件无效')
   if ((value.learningNotes?.length ?? 0) !== receipt.learningNotes.length) throw new Error('备份学习笔记无效')
   if ((value.validationResults?.length ?? 0) !== receipt.validationResults.length) throw new Error('备份验证结果无效')
   const outputIds = new Set()
@@ -408,7 +430,12 @@ export function apply(ctx, config = {}) {
           if (loaded) receipt = await captureRuntimeIdentity(receipt, sessionId, [loaded])
         }
         cache.set(sessionId, receipt)
-        if (event.type === 'tool/call' || event.type === 'tool/result' || event.type === 'turn/end') await syncReceipt(receipt)
+        if (
+          event.type === 'tool/call'
+          || event.type === 'tool/result'
+          || event.type === 'turn/end'
+          || carriesSkillEvidence(event)
+        ) await syncReceipt(receipt)
       })
     })
 

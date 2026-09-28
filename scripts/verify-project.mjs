@@ -124,6 +124,12 @@ for (const requiredText of ['preferenceStore.read()', "'/skill-trace/preferences
 }
 if (host.includes('rebuildReceipt(sessionId, session.events')) throw new Error('host must rebuild from the live session log, not the removed session.events field')
 if (host.includes("'/skill-trace/assessment'")) throw new Error('assessment route must remain absent until a real receiving loop exists')
+// Phase 0 observation surface. `user/message` carries the user-explicit `/name`
+// load and the published catalog; `turn/start` advances the log-order cursor that
+// attributes it, because a `user/message` records no turn/step of its own.
+for (const requiredText of ["'user/message'", "'turn/start'", 'carriesSkillEvidence(event)', 'runtimeEventOverflow']) {
+  if (!host.includes(requiredText)) throw new Error(`observation surface missing from host: ${requiredText}`)
+}
 
 const reducer = await readFile(resolve(root, 'src/core/trace-reducer.mjs'), 'utf8')
 for (const requiredText of ['methodCount:', 'eventCount:', 'methods,', 'events,', 'turnDetails,', 'summary,', ": 'mixed'", 'learningCards', 'learningNotes', 'validationResults', 'setValidationResult', 'buildLearningCards']) {
@@ -135,6 +141,23 @@ for (const requiredText of ['methodCount:', 'eventCount:', 'methods,', 'events,'
 // fingerprint, the candidate steps, and version-drift detection.
 if (!reducer.includes("block?.type === 'tool-result'") || !reducer.includes('?? message')) {
   throw new Error('tool result reader must accept both the retired V3 tool-result wrapper and the first-class V4 tool message')
+}
+for (const requiredText of ['export function classifyCapability', 'export function carriesSkillEvidence', "'skill-invocation'", "'skill-catalog'", 'catalogPublished', 'runtimeEvents', 'invocationType', 'RUNTIME_EVENT_LIMIT']) {
+  if (!reducer.includes(requiredText)) throw new Error(`phase 0 observation contract missing: ${requiredText}`)
+}
+{
+  // Runtime evidence is a metadata-only projection. Tool arguments and result
+  // content must never reach it, so the call reducer may not read either field.
+  const start = reducer.indexOf('function reduceRuntimeCall')
+  const end = reducer.indexOf('function reduceRuntimeResult')
+  if (start < 0 || end <= start) throw new Error('runtime event reducer missing')
+  const callBody = reducer.slice(start, end)
+  for (const forbidden of ['arguments', 'content']) {
+    if (callBody.includes(forbidden)) throw new Error(`runtime events must not read tool ${forbidden}`)
+  }
+  if (!reducer.includes('runtimeEventOverflow: receipt.runtimeEventOverflow + dropped')) {
+    throw new Error('runtime event truncation must be counted, never silently dropped')
+  }
 }
 
 const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
@@ -167,3 +190,4 @@ console.log('SOURCE_PRIVACY_FIELDS_OK')
 console.log('LOCAL_LEARNING_LOOP_OK')
 console.log('MY_SKILL_READ_ONLY_CATALOG_OK')
 console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')
+console.log('OBSERVATION_SURFACE_OK')
