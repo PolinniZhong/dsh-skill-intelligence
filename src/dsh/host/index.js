@@ -73,13 +73,28 @@ const GRAPH_NODE_LIMIT = 400
  * 铺开成一面线条墙；而 §20.1/§21 要的是「Session → Turn → Capability → 主要 Runtime
  * Event」。所以运行流程的节点预算按阅读密度定，而不是按硬上限定。
  */
-const FLOW_NODE_LIMIT = 40
+const FLOW_NODE_LIMIT = 16
 
 /**
  * 运行流程还要折叠 Turn 列。一个 39 Turns 的真实会话若逐个画出 Turn，就是一根 34 行
  * 的竖条——仍然不可读。§36 的区间折叠按阅读密度触发，而不是按硬上限。
  */
-const FLOW_TURN_LIMIT = 12
+const FLOW_TURN_LIMIT = 5
+
+/**
+ * 每列最多几行。实测（39 Turns / 644 Steps 的真实会话，视口约 1130×700）：
+ *
+ *   nodes=40 turn=12 rows= 7 → 40 节点 1650× 921px，fitView ≈ 0.68  文字乘 0.68 读不了
+ *   nodes=20 turn= 6 rows= 6 → 21 节点 1182× 796px，fitView ≈ 0.88  临界
+ *   nodes=16 turn= 5 rows= 5 → 20 节点 1182× 671px，fitView ≈ 0.96  ✓ 约 100%
+ *
+ * **`fitView` 同时适配宽和高**，所以把布局变高反而缩得更小——这是实测纠正的判断错误。
+ * 结论：40 个 115px 高的节点不可能既全部可见又 100% 缩放。
+ *
+ * preview 能做到，是因为它只有 **11 个节点**（930×760 舞台）。**preview 的本质不是
+ * 「一屏看全」，而是「节点在 100% 下可读」**——所以这里按后者定预算，而不是按"画布多大"。
+ */
+const FLOW_ROWS_PER_COLUMN = 5
 
 /** The canvas never reads member lists; the timeline already used them. */
 function stripMemberIds(layout) {
@@ -592,6 +607,7 @@ export function apply(ctx, config = {}) {
               includeHiddenIds: false,
               nodeLimit: detail === 'graph' ? GRAPH_NODE_LIMIT : FLOW_NODE_LIMIT,
               turnNodeLimit: detail === 'graph' ? undefined : FLOW_TURN_LIMIT,
+              maxRowsPerColumn: detail === 'graph' ? undefined : FLOW_ROWS_PER_COLUMN,
               compact: detail === 'graph',
             })
             sendJson(res, 200, {

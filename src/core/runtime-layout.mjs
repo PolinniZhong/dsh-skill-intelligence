@@ -438,7 +438,7 @@ export function computeRuntimeLayout(graph, options = {}) {
   const bandOf = new Map()
   for (const layer of sortedLayerIds) {
     const items = layers.get(layer)
-    const rows = Math.min(items.length, MAX_ROWS_PER_COLUMN) || 1
+    const rows = Math.min(items.length, Number.isSafeInteger(options.maxRowsPerColumn) ? options.maxRowsPerColumn : MAX_ROWS_PER_COLUMN) || 1
     const columns = Math.ceil(items.length / rows) || 1
     const widest = Math.max(...items.map((item) => kindSizes[item.kind].width), 0)
     const bandWidth = columns * widest + (columns - 1) * 18

@@ -351,6 +351,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-rt-inspector{border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);padding:13px 14px;position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-rt-inspector h3{margin:0 0 2px;font-size:12.5px}
       .st-rt-kicker{margin:0 0 10px;color:var(--st-faint);font-size:10.5px}
+      .st-rt-evidence-list{list-style:none;margin:0;padding:0}
+      .st-rt-evidence-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--st-border-soft);font-size:11px}
+      .st-rt-evidence-row:last-child{border-bottom:0}
+      .st-rt-evidence-name{color:var(--st-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .st-rt-eyebrow{margin:0 0 3px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--st-faint)}
       .st-rt-section{margin:0 0 14px}
       .st-rt-section h3{margin:0 0 7px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--st-faint)}
@@ -1790,9 +1794,16 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         h('h3', null, localized('Runtime 关联', 'Runtime relations')),
         h('div', { className: 'st-rt-field' },
           evidence.length
-            ? h('ul', { className: 'st-rt-evidence' }, ...evidence.slice(0, 14).map((event) => h('li', { key: event.eventId },
-              h('span', null, event.type),
-              h('code', null, event.eventId.split(':re:')[1] ?? event.eventId.slice(-10)))))
+            // preview 的每一行是「能力名 + 状态标签」，而不是事件类型 + 事件 id。
+            // 状态标签才是用户要读的东西：它区分「观测到的」与「只是候选」。
+            ? h('ul', { className: 'st-rt-evidence-list' }, ...evidence.slice(0, 14).map((event) => {
+              const tone = event.status === 'success' ? 'ok' : event.status === 'failed' ? 'danger' : 'warn'
+              const label = event.status === 'success' ? localized('观测到', 'Observed')
+                : event.status === 'failed' ? localized('失败', 'Failed') : localized('候选', 'Candidate')
+              return h('li', { className: 'st-rt-evidence-row', key: event.eventId },
+                h('span', { className: 'st-rt-evidence-name' }, event.capabilityName || event.type),
+                h('span', { className: 'st-tag', 'data-tone': tone }, label))
+            }))
             : h('p', null, localized('没有可展示的事件', 'No events to show')))),
       h('section', { className: 'st-rt-section' },
         h('h3', null, localized('当前说明', 'Current note')),
