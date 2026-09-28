@@ -183,7 +183,7 @@ test('§15/§38 learning lives only in the Skill inspector, collapsed', () => {
 })
 
 test('the inspector receives the declaration baseline and the load index', () => {
-  assert.ok(client.includes('alignments: data.views.receipt.runtime.alignments'))
+  assert.ok(/alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client), 'alignments must be wired to the runtime view model')
   assert.ok(client.includes('skillLoads: runtime?.skillLoads'))
   assert.ok(client.includes('function DeclarationPanel({ alignment, load })'))
 })

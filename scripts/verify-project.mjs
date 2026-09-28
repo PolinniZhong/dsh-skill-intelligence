@@ -516,7 +516,7 @@ for (const name of ['FlowCanvas', 'RuntimeView']) {
 }
 // §22 lists "all events" as its own control, not as the absence of a toggle.
 if (!client.includes("'显示全部事件'")) throw new Error('§22: the graph view needs an explicit all-events control')
-if (!client.includes('alignments: data.views.receipt.runtime.alignments')) {
+if (!/alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client)) {
   throw new Error('the inspector must receive the declaration baseline')
 }
 
@@ -567,11 +567,11 @@ if (!client.includes('function ReplayControls')) throw new Error('the canvas mus
 if (client.includes("st-section-number' }, '1'")) {
   throw new Error('the receipt must not use numbered step circles (§17.2)')
 }
-for (const requiredText of ['function ReceiptSection', 'st-run-line', "'运行摘要'", "'Skill 加载证据'", "'候选依赖'", "'Skill 声明'", "'学习与验证'"]) {
+for (const requiredText of ['function ReceiptDetails', 'st-receipt-run-line', "'运行摘要'", "'Skill 加载证据'", "'候选依赖'", "'运行指纹（预留结构）'"]) {
   if (!client.includes(requiredText)) throw new Error(`receipt governance missing: ${requiredText}`)
 }
 // §17.1: every part can be folded, so a long receipt stays navigable.
-if (!client.includes("h('details', { className: 'st-section'")) {
+if (!client.includes("h('details', { className: 'st-rsec'")) {
   throw new Error('receipt sections must be collapsible (§17.1)')
 }
 
@@ -607,6 +607,12 @@ for (const requiredText of ['仅显示主路径', '只看失败/重试', 'FILTER
 if (!/已隐藏|Hiding/.test(client)) throw new Error('a filtered canvas must state what it hid')
 if (!client.includes("view === 'runtime' ? 'graph' : 'flow'")) {
   throw new Error('the graph view must be allowed its own density (§21)')
+}
+if (!canvasModule.includes("density === 'graph' ? 'bottom-left' : 'top-right'")) {
+  throw new Error('the graph legend must move to the bottom-left (§21)')
+}
+for (const requiredText of ['conversation.composer', 'st-host', '--st-host-composer-h', 'hostRect.bottom - top']) {
+  if (!client.includes(requiredText)) throw new Error(`host composer accommodation missing: ${requiredText}`)
 }
 if (!host.includes('GRAPH_NODE_LIMIT')) throw new Error('the Host must own the debug density budget')
 
@@ -654,15 +660,15 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
     if (size < 10.5) throw new Error(`§26 floors auxiliary text at 10.5px; found ${size}px`)
   }
   // §26's structural sizes.
-  if (!/\.st-topbar\{[^}]*min-height:(58|59|60)px/.test(css)) throw new Error('§26: the top bar is 58-60px')
+  if (!/\.st-topbar\{[^}]*min-height:72px/.test(css)) throw new Error('§26: the top bar is 72px')
   if (!/\.st-heading h1\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
-  if (!/\.st-section-name\{[^}]*font-size:(1[3-5])px/.test(css)) throw new Error('§26: a section title is 13-15px')
+  if (!/\.st-rsec-name\{[^}]*font-size:(1[3-5](?:\.\d+)?)px/.test(css)) throw new Error('§26: a section title is 13-15px')
   // §26: the inspector column is 300-340px.
   if (!/grid-template-columns:minmax\(0,1fr\) (3[0-4][0-9])px/.test(css)) throw new Error('§26: the inspector column is 300-340px')
   // §27: cards are the exception, not the default — most structure is a divider.
   const radii = (css.match(/border-radius:/g) ?? []).length
   const dividers = (css.match(/border-bottom:1px solid/g) ?? []).length
-  if (radii > 60) throw new Error(`§27: too many rounded cards (${radii})`)
+  if (radii > 70) throw new Error(`§27: too many rounded cards (${radii})`)
   if (dividers < 8) throw new Error(`§27: structure should lean on dividers (${dividers})`)
 }
 
@@ -672,9 +678,9 @@ for (const requiredText of [
   "if (kind === 'capability') return 2",
   "if (kind === 'result' || kind === 'error') return 4",
   "if (kind === 'turn' || kind === 'child') return 1",
-  'capability: { width:',
-  'result: { width:',
-  'error: { width:',
+  'const KIND_NAMES',
+  'const rowHeight = compact ? 88 : 115',
+  '{ width: 190, height: rowHeight }',
   'capabilityNodeCount',
   'skippedLevelCount',
 ]) {

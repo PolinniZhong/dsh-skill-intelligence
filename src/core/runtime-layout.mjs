@@ -61,21 +61,8 @@ export const LAYOUT_MEMBER_LIMIT = 24
 const PADDING = 28
 const COLUMN_GAP = 70
 const ROW_GAP = 10
-// 节点高度对齐 preview 后是 115，行距必须跟着走，否则节点会互相重叠。
-const ROW_HEIGHT = 115
-
-const KIND_SIZES = {
-    // 对齐 preview.html：节点统一 190 宽，高度＝色条 3 + 头 45 + 体 38 + 脚 29。
-    // 不再因为类型不同而宽窄不一——preview 的一致模块感来自这里。
-    session: { width: 190, height: 115 },
-    turn: { width: 190, height: 115 },
-    invocation: { width: 190, height: 115 },
-    group: { width: 190, height: 115 },
-    child: { width: 190, height: 115 },
-    capability: { width: 190, height: 115 },
-    result: { width: 190, height: 115 },
-    error: { width: 190, height: 115 },
-  }
+// 对齐 preview.html：节点统一 190 宽；运行流程为 115 高，运行图谱使用 88 高紧凑卡片。
+const KIND_NAMES = ['session', 'turn', 'invocation', 'group', 'child', 'capability', 'result', 'error']
 
 function kindOf(node) {
   if (node.type === 'session') return 'session'
@@ -154,6 +141,10 @@ export function computeRuntimeLayout(graph, options = {}) {
   // canvas never reads them; the count is always reported.
   const includeHiddenIds = options.includeHiddenIds !== false
   const collapseThreshold = Number.isSafeInteger(options.collapseThreshold) ? options.collapseThreshold : TURN_COLLAPSE_THRESHOLD
+  const compact = options.compact === true
+  const rowHeight = compact ? 88 : 115
+  const kindSizes = Object.fromEntries(KIND_NAMES.map((kind) => [kind, { width: 190, height: rowHeight }]))
+
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : []
   const graphEdges = Array.isArray(graph?.edges) ? graph.edges : []
 
@@ -449,7 +440,7 @@ export function computeRuntimeLayout(graph, options = {}) {
     const items = layers.get(layer)
     const rows = Math.min(items.length, MAX_ROWS_PER_COLUMN) || 1
     const columns = Math.ceil(items.length / rows) || 1
-    const widest = Math.max(...items.map((item) => KIND_SIZES[item.kind].width), 0)
+    const widest = Math.max(...items.map((item) => kindSizes[item.kind].width), 0)
     const bandWidth = columns * widest + (columns - 1) * 18
     layerWidths.push(bandWidth)
     bandOf.set(layer, { items, rows, columns, widest, x: columnX })
@@ -457,10 +448,10 @@ export function computeRuntimeLayout(graph, options = {}) {
     items.forEach((item, index) => {
       const column = Math.floor(index / rows)
       const row = index % rows
-      const size = KIND_SIZES[item.kind]
+      const size = kindSizes[item.kind]
       const source = item.entry.source ?? item.entry.synthetic
       const x = columnX + column * (widest + 18)
-      const y = PADDING + row * (ROW_HEIGHT + ROW_GAP)
+      const y = PADDING + row * (rowHeight + ROW_GAP)
       const node = {
         id: item.id,
         kind: item.kind,

@@ -12,13 +12,16 @@
 const React = require('react')
 const {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
+  Panel,
   Handle,
   Position,
   useNodesState,
   useEdgesState,
+  useReactFlow,
 } = require('@xyflow/react')
 const flowStylesheet = require('@xyflow/react/dist/style.css')
 
@@ -281,9 +284,10 @@ function neighbourhoodOf(layout, nodeId) {
  *
  * `onSelect` receives `{ nodeId }` or `{ edgeId }`; the Host answers what it means.
  */
-function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniMap = false, replay = null }) {
+function RuntimeFlowCanvas({ layout, selectedId, onSelect, onBackground, showMiniMap = false, replay = null, fitSignal = 0, showErrorInLegend = false, density = 'flow' }) {
+  const { fitView } = useReactFlow()
   const focus = selectedId?.nodeId
-  const dim = focus ? neighbourhoodOf(layout, focus) : null
+  const dim = React.useMemo(() => (focus ? neighbourhoodOf(layout, focus) : null), [layout, focus])
 
   const nodes = React.useMemo(() => toFlowNodes(layout, selectedId?.nodeId, dim, replay), [layout, selectedId?.nodeId, dim, replay])
   const edges = React.useMemo(() => toFlowEdges(layout, selectedId?.edgeId, dim), [layout, selectedId?.edgeId, dim])
@@ -293,7 +297,11 @@ function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniM
 
   React.useEffect(() => { setFlowNodes(nodes) }, [nodes, setFlowNodes])
   React.useEffect(() => { setFlowEdges(edges) }, [edges, setFlowEdges])
+  React.useEffect(() => {
+    if (fitSignal > 0) fitView({ padding: 0.15, maxZoom: 1, duration: 180 })
+  }, [fitSignal, fitView])
 
+  const legendTones = showErrorInLegend ? ['skill', 'tool', 'mcp', 'cli', 'error'] : ['skill', 'tool', 'mcp', 'cli']
   return React.createElement(ReactFlow, {
     nodes: flowNodes,
     edges: flowEdges,
@@ -309,7 +317,7 @@ function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniM
     zoomOnScroll: true,
     zoomOnPinch: true,
     fitView: true,
-    fitViewOptions: { padding: 0.15, maxZoom: 1.2 },
+    fitViewOptions: { padding: 0.15, maxZoom: 1 },
     minZoom: 0.15,
     maxZoom: 2.5,
     proOptions: { hideAttribution: true },
@@ -320,13 +328,17 @@ function RuntimeFlowView({ layout, selectedId, onSelect, onBackground, showMiniM
   // 点阵底纹：功能网格，低对比（§25.2 豁免「复杂背景纹理」，但要求低对比）
   React.createElement(Background, { color: '#dfe4ea', gap: 20, size: 1 }),
   React.createElement(Controls, { showInteractive: false, position: 'top-left' }),
-  // 图例：preview 的左下角图例，颜色与节点类型色同源
-  React.createElement('div', { className: 'st-flow-legend', 'aria-hidden': 'true' },
-    ['skill', 'tool', 'mcp', 'cli'].map((tone) => React.createElement('span', { key: tone },
+  React.createElement(Panel, { position: density === 'graph' ? 'bottom-left' : 'top-right', className: 'st-flow-legend', 'aria-hidden': 'true' },
+    legendTones.map((tone) => React.createElement('span', { key: tone },
       React.createElement('i', { style: { background: CAPABILITY_COLORS[tone] } }),
-      React.createElement('span', null, LEGEND_LABELS[tone])))),
+      React.createElement('span', null, LEGEND_LABELS[tone] ?? (tone === 'error' ? 'Error' : tone))))),
   // preview 没有 MiniMap，所以默认不画；需要时仍可通过 showMiniMap 打开。
   showMiniMap ? React.createElement(MiniMap, { pannable: true, zoomable: true, position: 'bottom-right', nodeColor: (node) => node.data?.color ?? '#94a3b8' }) : null)
+}
+
+function RuntimeFlowView(props) {
+  return React.createElement(ReactFlowProvider, null,
+    React.createElement(RuntimeFlowCanvas, props))
 }
 
 module.exports = { RuntimeFlowView, flowStylesheet, CAPABILITY_COLORS, STATUS_COLORS, FILTER_TYPES, filterLayout, filterTypeOf }

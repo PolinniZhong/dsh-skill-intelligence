@@ -317,9 +317,11 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const style = document.createElement('style')
     style.id = STYLE_ID
     style.textContent = `
-      [data-plugin="dsh-skill-trace"]{--st-brand:var(--dsw-alias-state-business-primary,var(--dsw-static-deepseek-500,#2f6fed));--st-bg:var(--dsw-alias-bg-base,#f6f7f9);--st-layer:var(--dsw-alias-bg-layer-1,#fff);--st-layer-2:var(--dsw-alias-bg-layer-2,#fbfcfd);--st-border:var(--dsw-alias-border-l2,#e4e7ec);--st-border-soft:var(--dsw-alias-border-l3,#edf0f3);--st-grid:color-mix(in srgb,var(--st-border-soft) 50%,transparent);--st-text:var(--dsw-alias-label-primary,#16181d);--st-muted:var(--dsw-alias-label-secondary,#7a818c);--st-faint:var(--dsw-alias-label-tertiary,#9aa1aa);--st-success:var(--dsw-alias-state-success-primary,#16834b);--st-warning:var(--dsw-alias-state-warn-primary,#b36500);--st-error:var(--dsw-alias-state-error-primary,#c9444f);height:calc(100dvh - 76px);max-height:calc(100dvh - 76px);min-height:0;overflow:hidden;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
+      [data-plugin="dsh-skill-trace"]{--st-brand:#2f6fed;--st-brand-soft:#eef4ff;--st-bg:#f6f7f9;--st-layer:#fff;--st-layer-2:#fbfcfd;--st-border:#e4e7ec;--st-border-soft:#edf0f3;--st-grid:#eef1f5;--st-text:#16181d;--st-muted:#7a818c;--st-faint:#9aa1aa;--st-success:#258b63;--st-warning:#b7791f;--st-error:#c9444f;--st-node-color:#dfe3e9;--st-node-width:190px;height:100%;max-height:100%;min-height:0;overflow:hidden;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
+      [data-plugin="dsh-skill-trace"].st-host{height:calc(100% - var(--st-host-composer-h,0px));max-height:calc(100% - var(--st-host-composer-h,0px))}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}
-      .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-topbar{min-height:58px;padding:9px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
+      .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+      .st-topbar{min-height:58px;padding:9px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
       .st-heading{min-width:0;flex:1}.st-heading-line{display:flex;align-items:center;gap:9px}.st-heading h1{margin:0;font-size:16px;font-weight:650;letter-spacing:-.01em}.st-workspace{margin-top:2px;color:var(--st-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
       .st-view-switch{display:inline-flex;padding:3px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer-2)}.st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}.st-view-button[aria-pressed="true"]{background:var(--st-layer);color:var(--st-brand);box-shadow:0 1px 2px rgba(20,24,32,.08)}
       .st-icon-button,.st-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--st-border);background:var(--st-layer);color:var(--st-text);cursor:pointer}.st-icon-button{width:32px;height:32px;border-radius:7px;overflow:visible}.st-icon-button svg{display:block;overflow:visible}.st-button{min-height:34px;padding:0 12px;border-radius:7px}.st-button:hover,.st-icon-button:hover{background:var(--st-layer-2)}.st-button:focus-visible,.st-icon-button:focus-visible,.st-view-button:focus-visible,.st-node:focus-visible,.st-activity-step:focus-visible,.st-filter:focus-visible,.st-catalog-item:focus-visible,.st-history-action:focus-visible,.st-review-metric:focus-visible,.st-guide-link:focus-visible,.st-input:focus-visible,.st-select:focus-visible,.st-textarea:focus-visible,summary:focus-visible{outline:2px solid var(--st-brand);outline-offset:2px}.st-button-primary{border-color:var(--st-brand);background:var(--st-brand);color:white}.st-button-primary:hover{filter:brightness(.96);background:var(--st-brand)}.st-button-danger{border-color:color-mix(in srgb,var(--st-error) 45%,var(--st-border));color:var(--st-error)}.st-button:disabled{opacity:.5;cursor:default}
@@ -369,7 +371,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-side{position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-flow-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 9px;color:var(--st-muted);font-size:11px}
       .st-flow-head strong{color:var(--st-text);font-size:12px}
-      .st-flow-legend{position:absolute;left:14px;bottom:14px;z-index:6;display:flex;gap:14px;padding:7px 11px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 94%,transparent);color:var(--st-muted);font-size:10.5px}
+      .st-flow-legend{position:absolute;left:14px;bottom:14px;z-index:6;display:flex;gap:12px;padding:7px 10px;border:1px solid var(--st-border);border-radius:9px;background:color-mix(in srgb,var(--st-layer) 95%,transparent);color:var(--st-muted);font-size:10.5px;box-shadow:0 4px 12px rgba(23,33,48,.08)}
       .st-flow-legend span{display:inline-flex;align-items:center;gap:5px}
       .st-flow-legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
       .st-flow-node{position:relative;display:flex;flex-direction:column;width:var(--st-node-width,190px);border:1px solid var(--st-border);border-radius:11px;background:var(--st-layer);box-shadow:0 4px 12px rgba(23,33,48,.045);overflow:hidden;cursor:pointer}
@@ -428,6 +430,66 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-filter-split{width:1px;height:16px;margin:0 3px;background:var(--st-border)}
       .st-flow-head .st-rt-notes{margin:6px 0 0}
       .react-flow__attribution{display:none}
+      /* S2 visual alignment: full-height canvas + right inspector */
+      .st-layout{flex:1;min-height:0}
+      .st-main{min-height:0}
+      .st-layout[data-canvas="true"] .st-main{padding:0;overflow:hidden;display:flex;flex-direction:column}
+      .st-flow{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,1fr);gap:0;align-items:stretch}
+      .st-flow[data-density="graph"]{grid-template-rows:auto auto minmax(0,1fr)}
+      .st-flow-canvas-wrap{min-width:0;min-height:0;display:flex;flex-direction:column}
+      .st-flow-canvas{flex:1;height:auto;min-height:0;border:0;border-radius:0}
+      .st-flow-side{height:100%;max-height:none;position:static;top:auto;background:var(--st-layer);border-left:1px solid var(--st-border);overflow:auto}
+      .st-rt-inspector{height:100%;max-height:none;position:static;top:auto;border:0;border-radius:0;background:transparent;padding:17px}
+      .st-replay{flex:none;width:100%;margin:0;padding:9px 18px;border:0;border-bottom:1px solid var(--st-border-soft);border-radius:0;background:var(--st-layer);gap:12px}
+      .st-flow-filters{grid-column:1/-1;background:var(--st-bg);padding:11px 18px 0}
+      .st-flow-note{grid-column:1/-1;margin:9px 18px 0}
+      .st-flow[data-density="graph"] .st-flow-legend{right:auto;left:14px;top:auto;bottom:14px}
+      .st-flow[data-density="graph"] .st-flow-node-icon{width:22px;height:22px;font-size:10.5px}
+      .st-flow[data-density="graph"] .st-flow-node-head{padding:8px 10px 6px;gap:7px}
+      .st-flow[data-density="graph"] .st-flow-node-body{padding:0 10px 7px;min-height:0}
+      .st-flow[data-density="graph"] .st-flow-node-foot{padding:6px 10px}
+      .st-flow-legend i{margin-right:0}
+      .st-flow-side .st-rt-notes{margin:0 0 12px}
+      /* Receipt visual alignment: Page > Section > Row */
+      .st-receipt-page{background:var(--st-layer);min-height:100%}
+      .st-receipt-inner{max-width:980px;margin:0 auto;padding:22px 26px 64px}
+      .st-receipt-run-line{margin:0;color:var(--st-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+      .st-rsec{border-bottom:1px solid var(--st-border-soft)}
+      .st-rsec:last-of-type{border-bottom:0}
+      .st-rsec>summary{display:flex;align-items:baseline;gap:9px;padding:12px 0;cursor:pointer;list-style:none}
+      .st-rsec>summary::-webkit-details-marker{display:none}
+      .st-rsec>summary::before{content:"\\203A";color:var(--st-faint);font-size:13px}
+      .st-rsec[open]>summary::before{transform:rotate(90deg)}
+      .st-rsec-name{font-size:13.5px;font-weight:650;color:var(--st-text)}
+      .st-rsec-count{padding:0 6px;border-radius:999px;background:var(--st-border-soft);color:var(--st-muted);font-size:10.5px;font-variant-numeric:tabular-nums}
+      .st-rsec-note{color:var(--st-faint);font-size:10.5px}
+      .st-rsec-body{padding:0 0 16px 20px}
+      .st-rrow{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:6px 12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--st-border-soft);font-size:11.5px}
+      .st-rrow:last-child{border-bottom:0}
+      .st-rk{color:var(--st-muted)}
+      .st-rv{color:var(--st-text);overflow-wrap:anywhere}
+      .st-rv code{font-size:10.5px;color:var(--st-muted)}
+      .st-tag{font-size:10.5px;border-radius:999px;padding:3px 7px;white-space:nowrap}
+      .st-tag[data-tone="ok"]{color:#176c45;background:var(--st-brand-soft,#edf4ff)}
+      .st-tag[data-tone="ok"]{color:#176c45;background:#edf8f3}
+      .st-tag[data-tone="warn"]{color:#9a6712;background:#fff6df}
+      .st-tag[data-tone="gray"]{color:#687385;background:#f1f3f6}
+      .st-tag[data-tone="error"]{color:#a8343d;background:#fff0f2}
+      .st-receipt-hint{margin:16px 0 0;color:var(--st-faint);font-size:11px}
+      .st-header-btn{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 11px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer);color:#596476;font-size:12px;cursor:pointer}
+      .st-header-btn:hover{background:var(--st-layer-2)}
+      .st-header-btn.primary{background:var(--st-brand);border-color:var(--st-brand);color:#fff}
+      .st-header-btn.primary:hover{background:var(--st-brand)}
+      .st-topbar{min-height:72px;padding:0 18px;gap:18px;flex:none}
+      .st-heading h1{font-size:17px}
+      .st-view-switch{border-radius:9px}
+      .st-view-button{height:32px;padding:0 11px}
+      .st-rp-actions{display:flex;gap:6px}
+      .st-replay-note{margin-left:auto;flex-basis:auto;color:var(--st-faint);font-size:10.5px}
+
+
+
+
       @media(max-width:1050px){.st-flow{grid-template-columns:minmax(0,1fr)}.st-flow-side{position:static;max-height:none}.st-flow-canvas{height:60dvh}}
       @media(max-width:1050px){.st-runtime{grid-template-columns:minmax(0,1fr)}.st-rt-inspector{position:static;max-height:none}}
     `
@@ -628,121 +690,99 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     return [model.coverage?.note || localized('当前观测范围不可用。', 'Current observation coverage is unavailable.'), localized('收据由确定性规则生成，没有调用模型总结，也没有保存 Prompt、Skill 正文或工具输出。', 'The receipt is generated by deterministic rules. It does not call a model summary or store prompts, Skill bodies, or tool output.')]
   }
 
-  /**
-   * §17.1/§17.2: a receipt section.
-   *
-   * The numbered circles are gone. They made the receipt read as a wizard and gave
-   * one step of it more visual weight than the evidence inside. A section is a
-   * heading that happens to collapse.
-   */
-  function ReceiptSection({ title, note, count, open, children }) {
-    return h('details', { className: 'st-section', open: open ? true : undefined },
-      h('summary', { className: 'st-section-head' },
-        h('span', { className: 'st-section-name' }, title),
-        typeof count === 'number' ? h('span', { className: 'st-section-count' }, count) : null,
-        note ? h('span', { className: 'st-section-note' }, note) : null),
-      h('div', { className: 'st-section-body' }, children))
+  function ReceiptRow({ k, v, tag }) {
+    return h('div', { className: 'st-rrow' },
+      h('span', { className: 'st-rk' }, k),
+      h('div', { className: 'st-rv' }, v),
+      tag ?? null)
+  }
+
+  function ReceiptDetails({ name, note, count, open, children }) {
+    return h('details', { className: 'st-rsec', open: open ? true : undefined },
+      h('summary', null,
+        h('span', { className: 'st-rsec-name' }, name),
+        typeof count === 'number' ? h('span', { className: 'st-rsec-count' }, count) : null,
+        note ? h('span', { className: 'st-rsec-note' }, note) : null),
+      h('div', { className: 'st-rsec-body' }, children))
   }
 
   function ReceiptView({ model, workspaceLabel }) {
-    const [activeStage, setActiveStage] = React.useState(null)
     const summary = model.summary || {}
-    const activity = [
-      ['开始处理', localized(`${summary.turnCount || 0} 个 Turn`, `${summary.turnCount || 0} turn(s)`), 'arrow'],
-      ['执行步骤', localized(`${summary.stepCount || 0} 个 Step`, `${summary.stepCount || 0} step(s)`), 'arrow'],
-      ['请求加载', localized(`${summary.methodCount || 0} 个 Skill · ${summary.loadedCount || 0}/${summary.eventCount || 0} 次成功`, `${summary.methodCount || 0} Skill(s) · ${summary.loadedCount || 0}/${summary.eventCount || 0} succeeded`), 'skill'],
-      ['形成收据', model.coverage?.status === 'verified-standard-contract' ? '标准事件已验证' : '覆盖待确认', 'receipt'],
-    ]
-    const candidateSteps = model.continuity?.steps || []
-    const nextSteps = candidateSteps.length
-      ? candidateSteps.map((item) => [item.title, localized(`候选步骤来自 ${item.skillName} 本次返回指令的有序列表；尚未证明 Agent 已执行。`, `This candidate step is from the ordered list returned by ${item.skillName}; it does not prove the Agent executed it.`)])
-      : [
-          ['展开加载记录', '先核对在哪一轮、哪一步请求了哪个 Skill，以及加载结果。'],
-          ['核对依赖条件', '当前没有可安全提取的有序步骤，请按 Skill 说明核对网络、模型、MCP、脚本和权限。'],
-          ['关联本次产出', '如需保存产出关系，请在右侧添加工作区内的相对引用。'],
-        ]
-    const activityNodes = activity.map(([title, note, icon], index) => h('button', { type: 'button', className: 'st-activity-step', key: title, 'aria-expanded': activeStage === index, onClick: () => setActiveStage(activeStage === index ? null : index) },
-      h('span', { className: 'st-activity-summary' },
-        h('span', { className: 'st-activity-icon' }, h(Icon, { name: icon, size: 15 })),
-        h('span', { className: 'st-activity-copy' }, h('strong', null, title), h('span', null, note)))))
+    const copy = summaryText(model)
+    const runLine = `${workspaceLabel} · ${summary.turnCount || 0} Turns · ${summary.stepCount || 0} Steps · ${summary.eventCount || 0} Events · ${summary.methodCount || 0} Skill`
+
     const methodNodes = (model.methods || []).map((method) => {
       const source = sourceFor(model, method.name)
       const observedHash = source?.observedInstructionSha256?.[0]
       const sourceSummary = source?.definitionAvailable
         ? `${source.provider || t('来源未标记')}${source.source ? ` · ${source.source}` : ''} · ${source.match === 'match' ? t('当前内容一致') : source.match === 'mismatch' ? t('当前内容已变化') : t('内容一致性未知')}`
-        : '当前来源不可用'
+        : t('当前来源不可用')
       return h('div', { className: 'st-method-card', key: method.id },
-      h('div', { className: 'st-method-row' },
-        h('div', { className: 'st-method-icon' }, h(Icon, { name: 'skill', size: 18 })),
-        h('div', { className: 'st-method-main' },
-          h('div', { className: 'st-method-name' }, raw(method.name)),
-          h('div', { className: 'st-method-meta' }, localized(`${method.callCount} 次调用 · ${method.loadedCount}/${method.callCount} 次成功 · Consumer 身份不可区分`, `${method.callCount} call(s) · ${method.loadedCount}/${method.callCount} succeeded · Consumer identity unavailable`))),
-        statusBadge(method.status, method.status === 'mixed' ? localized(`${method.loadedCount}/${method.callCount} 次成功`, `${method.loadedCount}/${method.callCount} succeeded`) : undefined)),
-      h('div', { className: 'st-evidence-row' }, h('span', null, sourceSummary), observedHash ? h('code', { title: '本次实际返回指令的 SHA-256；不保存正文' }, shortHash(observedHash)) : h('span', null, '未取得指令指纹')),
-      h('details', { className: 'st-method-events' },
-        h('summary', null, localized(`查看 ${method.callCount} 次加载记录`, `View ${method.callCount} load record(s)`)),
-        h('ol', { className: 'st-event-list' }, method.events.map((event) => h('li', { key: event.id },
-          h('div', { className: 'st-event-head' }, h('strong', null, eventTitle(event)), statusBadge(event.status)),
-          h('p', { className: 'st-event-copy' }, eventOutcome(event)),
-          event.evidenceFingerprint?.value ? h('p', { className: 'st-event-boundary' }, localized(`本次指令指纹：${shortHash(event.evidenceFingerprint.value)}；只用于比较内容是否相同。`, `This instruction fingerprint: ${shortHash(event.evidenceFingerprint.value)}; used only to compare content identity.`)) : null,
-          h('p', { className: 'st-event-boundary' }, '这只证明加载请求及结果，不证明后续采用或有效。'))))))
+        h('div', { className: 'st-method-row' },
+          h('div', { className: 'st-method-icon' }, h(Icon, { name: 'skill', size: 18 })),
+          h('div', { className: 'st-method-main' },
+            h('div', { className: 'st-method-name' }, raw(method.name)),
+            h('div', { className: 'st-method-meta' }, localized(`${method.callCount} 次调用 · ${method.loadedCount}/${method.callCount} 次成功 · Consumer 身份不可区分`, `${method.callCount} call(s) · ${method.loadedCount}/${method.callCount} succeeded · Consumer identity unavailable`))),
+          statusBadge(method.status, method.status === 'mixed' ? localized(`${method.loadedCount}/${method.callCount} 次成功`, `${method.loadedCount}/${method.callCount} succeeded`) : undefined)),
+        h('div', { className: 'st-evidence-row' },
+          h('span', null, sourceSummary),
+          observedHash ? h('code', { title: '本次实际返回指令的 SHA-256；不保存正文' }, shortHash(observedHash)) : h('span', null, '未取得指令指纹')),
+        h('details', { className: 'st-method-events' },
+          h('summary', null, localized(`查看 ${method.callCount} 次加载记录`, `View ${method.callCount} load record(s)`)),
+          h('ol', { className: 'st-event-list' }, method.events.map((event) => h('li', { key: event.id },
+            h('div', { className: 'st-event-head' }, h('strong', null, eventTitle(event)), statusBadge(event.status)),
+            h('p', { className: 'st-event-copy' }, eventOutcome(event)),
+            event.evidenceFingerprint?.value ? h('p', { className: 'st-event-boundary' }, localized(`本次指令指纹：${shortHash(event.evidenceFingerprint.value)}；只用于比较内容是否相同。`, `This instruction fingerprint: ${shortHash(event.evidenceFingerprint.value)}; used only to compare content identity.`)) : null,
+            h('p', { className: 'st-event-boundary' }, localized('这只证明加载请求及结果，不证明后续采用或有效。', 'This proves the load request and result only; it does not prove adoption or effectiveness.')))))))
     })
-    const dependencyNodes = (model.continuity?.dependencies || []).map((item) => h('div', { className: 'st-dependency', key: item.type },
-      h('strong', null, DEPENDENCIES[item.type] || item.type),
-      h('span', null, dependencyState(item))))
-    const learningNodes = (model.learningCards || []).map((card) => {
-      const version = versionStateCopy(card.versionState)
-      const activeDependencies = card.dependencies.filter((item) => item.required === 'candidate')
-      return h('section', { className: 'st-learning-card', key: card.skillName },
-        h('div', { className: 'st-learning-head' },
-          h('div', { className: 'st-learning-icon' }, h(Icon, { name: 'book', size: 17 })),
-          h('div', { className: 'st-learning-title' }, h('strong', null, raw(card.skillName)), h('span', null, localized(`${card.loadedCount} 次成功加载 · ${card.observedHashes.length ? `指纹 ${card.observedHashes.map(shortHash).join('、')}` : '未取得标准指令指纹'}`, `${card.loadedCount} successful load(s) · ${card.observedHashes.length ? `fingerprint ${card.observedHashes.map(shortHash).join(', ')}` : t('未取得标准指令指纹')}`))),
-          h('span', { className: 'st-status', 'data-tone': version.tone }, version.label)),
-        h('div', { className: 'st-learning-body' },
-          card.versionState === 'changed' ? h('div', { className: 'st-version-warning' }, '当前 Skill 内容与本次观察版本不同。先核对版本，再据此修改。') : null,
-          h('div', { className: 'st-learning-block' }, h('h4', null, '这个 Skill 声明的候选步骤'),
-            card.steps.length
-              ? h('ol', { className: 'st-learning-list' }, card.steps.map((step) => h('li', { key: step.title }, raw(step.title))))
-              : h('p', { className: 'st-learning-empty' }, '本次返回指令中没有安全可提取的有序步骤；请人工核对 Skill 说明。')),
-          h('div', { className: 'st-learning-block' }, h('h4', null, '依赖线索'),
-            h('div', { className: 'st-learning-deps' }, card.dependencies.map((item) => h('span', { className: 'st-learning-dep', 'data-active': item.required === 'candidate' ? 'true' : undefined, key: item.type }, `${t(DEPENDENCIES[item.type] || item.type)} · ${item.required === 'candidate' ? localized('待核对', 'Needs review') : t('未知')}`)))),
-          card.note ? h('div', { className: 'st-learning-note' }, card.note.improvementIntent ? '已保存个人理解和改进意图；可在右侧继续编辑或复制清单。' : '已保存个人理解；可在右侧继续编辑或复制清单。') : null,
-          h('div', { className: 'st-learning-boundary' }, localized(`证据边界：这些步骤来自 Skill 指令结构，不是本会话已执行步骤。${activeDependencies.length ? '依赖只是关键词线索，仍需人工核对。' : '当前未观察到明确线索，不等于完全无依赖。'}`, `Evidence boundary: these steps come from the Skill instruction structure, not steps executed in this session. ${activeDependencies.length ? 'Dependencies are keyword signals only and still need your review.' : 'No clear signal does not mean there are no dependencies.'}`))))
-    })
-    const nextStepNodes = nextSteps.map(([title, note], index) => h('div', { className: 'st-continuity-step', key: title },
-      h('div', { className: 'st-mini-number' }, index + 1),
-      h('strong', null, candidateSteps.length ? raw(title) : title),
-      h('p', null, note)))
-    return h('article', { className: 'st-receipt', 'aria-label': '本次 Skill 收据' },
-      h('header', { className: 'st-receipt-head' }, h('h2', null, '本次运行'),
-          h('div', { className: 'st-run-line' },
-            h('span', null, localized(`${summary.turnCount || 0} Turns`, `${summary.turnCount || 0} Turns`)),
-            h('span', null, localized(`${summary.stepCount || 0} Steps`, `${summary.stepCount || 0} Steps`)),
-            h('span', null, localized(`${summary.eventCount || 0} Events`, `${summary.eventCount || 0} Events`)),
-            h('span', null, localized(`${summary.methodCount || 0} Skill`, `${summary.methodCount || 0} Skill`)),
-            h('span', { className: 'st-run-workspace' }, workspaceLabel)),
-          h('div', { className: 'st-receipt-meta' }, localized(`${workspaceLabel} · 本地优先 · 已加载不等于有效`, `${workspaceLabel} · Local-first · Loaded does not mean effective`))),
-      h(ReceiptSection, { title: '运行摘要', note: localized('这次运行大致经历了什么', 'What this run went through'), open: true },
-        h('div', { className: 'st-activity' }, activityNodes),
-        activeStage === null ? null : h('div', { className: 'st-activity-expanded' },
-          h('strong', null, localized(`${activity[activeStage][0]} · 具体发生了什么`, `${t(activity[activeStage][0])} · ${t('具体发生了什么')}`)),
-          h('ul', { className: 'st-detail-list' }, activityDetails(model, activeStage).map((item) => h('li', { key: item }, item))),
-          activeStage < 3 ? h('p', { className: 'st-detail-boundary' }, '这里只说明观察到什么；无法从事件得知 Agent 为什么这样安排任务。') : null)),
-      h(ReceiptSection, { title: 'Skill 加载证据', note: localized('加载请求与结果', 'Load requests and results'), open: true },
-        h('div', { className: 'st-methods' }, methodNodes)),
-      h(ReceiptSection, { title: '候选依赖', note: localized('可能涉及的运行能力；候选不等于必需或可用', 'Capabilities possibly involved; a candidate is not a requirement'), open: true },
-        h('div', { className: 'st-dependencies' }, dependencyNodes)),
-      h(ReceiptSection, { title: '运行指纹（预留结构）', note: localized('§31：位置已定，尚未派生', '§31: reserved, not yet derived') },
-        h(FingerprintSection, { fingerprint: model.runtime?.fingerprint })),
-      h(ReceiptSection, { title: 'Skill 声明', note: localized('Skill 自称要做什么；不代表已经执行', 'What the Skill says it does; not proof it ran') },
-        h('div', { className: 'st-learning-cards' }, learningNodes)),
-      // 这一节渲染的是「继续使用指南」，此前标题写成「学习与验证」——名不符实。
-      // 冲突②选 A 之后学习只在 Skill Inspector，所以这里必须是它真正的内容名。
-      h(ReceiptSection, { title: '继续方式', note: localized('候选步骤与人工判断；不是对开发者的反馈', 'Candidate steps and your call; not feedback about you') },
-        h('div', { className: 'st-continuity' },
-          h('div', { className: 'st-continuity-head' }, h('strong', null, '继续使用指南'), statusBadge(model.continuity?.status || 'unknown')),
-          h('div', { className: 'st-continuity-steps' }, nextStepNodes))),
-      h('section', { className: 'st-receipt-section' }, h(SessionSummary, { model })))
+
+    const dependencyRows = (model.continuity?.dependencies || []).map((item) => h(ReceiptRow, {
+      key: item.type,
+      k: DEPENDENCIES[item.type] || item.type,
+      v: dependencyState(item),
+      tag: h('span', { className: 'st-tag', 'data-tone': item.required === 'candidate' ? 'warn' : 'gray' },
+        item.required === 'candidate' ? localized('候选', 'Candidate') : localized('未知', 'Unknown')),
+    }))
+
+    return h('article', { className: 'st-receipt-page', 'aria-label': '本次 Skill 收据' },
+      h('div', { className: 'st-receipt-inner' },
+        h('p', { className: 'st-receipt-run-line' }, runLine),
+        h(ReceiptDetails, {
+          name: '运行摘要',
+          note: localized('这次运行大致经历了什么', 'What this run went through'),
+          open: true,
+        },
+          h(ReceiptRow, { k: localized('Turn', 'Turn'), v: summary.turnCount || 0 }),
+          h(ReceiptRow, { k: localized('Step', 'Step'), v: summary.stepCount || 0 }),
+          h(ReceiptRow, { k: localized('Event', 'Event'), v: summary.eventCount || 0 }),
+          h(ReceiptRow, { k: localized('Skill', 'Skill'), v: summary.methodCount || 0 }),
+          h(ReceiptRow, {
+            k: localized('覆盖', 'Coverage'),
+            v: model.coverage?.note || localized('覆盖待确认', 'Coverage pending'),
+            tag: h('span', { className: 'st-tag', 'data-tone': model.coverage?.status === 'verified-standard-contract' ? 'ok' : 'warn' },
+              model.coverage?.status === 'verified-standard-contract' ? localized('已验证', 'Verified') : localized('待确认', 'Pending')),
+          }),
+          h(ReceiptRow, { k: localized('可见流程', 'Visible flow'), v: copy.flow }),
+          h(ReceiptRow, { k: localized('加载结果', 'Load result'), v: copy.result }),
+          h(ReceiptRow, { k: localized('本次产出', 'Output'), v: copy.output })),
+        h(ReceiptDetails, {
+          name: 'Skill 加载证据',
+          note: localized('加载请求与结果', 'Load requests and results'),
+          count: methodNodes.length,
+          open: true,
+        }, methodNodes),
+        h(ReceiptDetails, {
+          name: '候选依赖',
+          note: localized('可能涉及的运行能力；候选不等于必需或可用', 'Capabilities possibly involved; a candidate is not a requirement'),
+          count: dependencyRows.length,
+        },
+          dependencyRows,
+          h('p', { className: 'st-receipt-hint' }, localized('依赖只是关键词线索，仍需人工核对；未观察到明确线索不等于完全无依赖。', 'Dependencies are keyword signals only and still need review; no clear signal does not mean there are no dependencies.'))),
+        h(ReceiptDetails, {
+          name: '运行指纹（预留结构）',
+          note: localized('§31：位置已定，尚未派生', '§31: reserved, not yet derived'),
+        }, h(FingerprintSection, { fingerprint: model.runtime?.fingerprint })),
+        h('p', { className: 'st-receipt-hint' }, localized('证据边界：收据只说明 Skill 加载事件、人工关联产出和候选线索；无法回答 Agent 为什么选择该 Skill，也不能证明它促成了结果。', 'Evidence boundary: this receipt shows Skill load events, manually linked outputs, and candidate signals; it cannot say why the Agent chose the Skill or prove it caused the outcome.'))))
   }
 
   /**
@@ -1523,6 +1563,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   // why a line exists when the user clicks it.
   const RT_CAPABILITY_COLOR = { skill: '#7c3aed', cli: '#0369a1', tool: '#475569', mcp: '#047857', subagent: '#b45309', mixed: '#64748b', 'turn-range': '#334155', unknown: '#94a3b8' }
   const RT_STATUS_COLOR = { observed: '#047857', partial: '#b45309', candidate: '#b45309', insufficient: '#64748b', unknown: '#94a3b8', unlinked: '#b91c1c' }
+  function clock(value) {
+    if (typeof value !== 'number') return '—'
+    try { return new Date(value).toLocaleTimeString('zh-CN', { hour12: false }) } catch (_) { return '—' }
+  }
 
   /** §15: the tabs offered depend on what is selected, not one shape for everything. */
   const INSPECTOR_TAB_LABELS = {
@@ -1764,16 +1808,15 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
    * hides; it never adds. What it hides is counted and stated, so a filtered canvas
    * cannot be mistaken for a smaller run.
    */
-  function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect }) {
+  function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect, replayActive, onReplayActiveChange, fitSignal, showAllSignal = 0 }) {
     const [types, setTypes] = React.useState([])
     const [hideCandidate, setHideCandidate] = React.useState(true)
     const [failuresOnly, setFailuresOnly] = React.useState(false)
-    // §13 asks the canvas to support replay; both densities get it, sharing one
-    // implementation rather than one being able to walk a run and the other not.
     const [replayIndex, setReplayIndex] = React.useState(-1)
     const [playing, setPlaying] = React.useState(false)
     const timeline = data?.timeline ?? null
     const total = timeline?.steps?.length ?? 0
+
     React.useEffect(() => {
       if (!playing || total === 0) return undefined
       const timer = setInterval(() => {
@@ -1785,31 +1828,38 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       return () => clearInterval(timer)
     }, [playing, total])
     React.useEffect(() => { setReplayIndex(-1); setPlaying(false) }, [data?.sessionId, total])
+    React.useEffect(() => {
+      if (!replayActive) { setReplayIndex(-1); setPlaying(false) }
+    }, [replayActive])
+    React.useEffect(() => {
+      if (showAllSignal > 0) {
+        setTypes([]); setFailuresOnly(false); setHideCandidate(false)
+      }
+    }, [showAllSignal])
 
-    if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建运行图谱…', 'Rebuilding the runtime graph…'))
-    if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
-    if (!data) return h('div', { className: 'st-rt-empty' }, localized('当前对话暂无可重建的运行证据。', 'No reconstructable runtime evidence in this conversation.'))
+    if (loading && !data) return h(TraceState, { kind: 'loading', message: '正在重建运行图谱…' })
+    if (error && !data) return h(TraceState, { kind: 'error', message: error, onRetry: () => onRetry('graph') })
+    if (!data) return h(TraceState, { kind: 'empty', message: '当前对话暂无可重建的运行证据。' })
 
     const filtered = filterLayout(data.layout, { types, hideCandidate, failuresOnly })
     const stats = data.layout.stats
+    const hidden = data.layout.hidden
     const shown = filtered.filtered
     const selectedId = inspect?.edge?.id
       ? { edgeId: inspect.edge.id }
       : (inspect?.nodeId ? { nodeId: inspect.nodeId } : null)
+    const replay = React.useMemo(() => (replayIndex >= 0 && timeline
+      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
+      : null), [replayIndex, timeline])
 
     const toggleType = (key) => setTypes((current) => current.includes(key)
       ? current.filter((item) => item !== key)
       : [...current, key])
 
-    return h('div', { className: 'st-flow' },
-      h('div', null,
-        h('div', { className: 'st-flow-head' },
-          h('strong', null, localized('运行图谱', 'Runtime graph')),
-          h('span', null, localized(
-            `显示 ${filtered.nodes.length} / ${stats.renderedNodeCount} 节点 · ${filtered.edges.length} / ${stats.renderedEdgeCount} 关系 · 原图 ${stats.graphNodeCount} 节点`,
-            `${filtered.nodes.length} / ${stats.renderedNodeCount} nodes · ${filtered.edges.length} / ${stats.renderedEdgeCount} relations · graph has ${stats.graphNodeCount}`))),
+    return h('div', { className: 'st-flow', 'data-density': 'graph' },
+      h('div', { className: 'st-flow-filters' },
         h('div', { className: 'st-filters', role: 'group', 'aria-label': '运行图谱筛选' },
-          h('button', { className: 'st-filter', type: 'button', 'aria-pressed': types.length === 0, onClick: () => setTypes([]) }, localized('全部', 'All')),
+          h('button', { className: 'st-filter', type: 'button', 'aria-pressed': types.length === 0 && !hideCandidate && !failuresOnly, onClick: () => { setTypes([]); setFailuresOnly(false); setHideCandidate(false) } }, localized('全部', 'All')),
           ...FILTER_TYPES.map((key) => h('button', {
             key,
             className: 'st-filter',
@@ -1822,32 +1872,39 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
             localized('仅显示主路径', 'Main path only')),
           h('button', { className: 'st-filter', type: 'button', 'aria-pressed': failuresOnly, onClick: () => setFailuresOnly((value) => !value) },
             localized('只看失败/重试', 'Failures and retries')),
-          // §22 lists this as its own control rather than leaving it as the absence of
-          // the main-path toggle.
           h('button', {
             className: 'st-filter',
             type: 'button',
             'aria-pressed': !hideCandidate && types.length === 0 && !failuresOnly,
             onClick: () => { setTypes([]); setFailuresOnly(false); setHideCandidate(false) },
-          }, localized('显示全部事件', 'All events'))),
-        h('p', { className: 'st-rt-notes', role: 'status' }, localized(
-          `已隐藏 ${shown.hiddenNodes} 个节点与 ${shown.hiddenEdges} 条关系。${hideCandidate ? '「仅显示主路径」会隐藏候选关系（虚线）——那是证据最弱的一类。' : '当前包含候选关系（虚线），它们只是候选。'}`,
-          `Hiding ${shown.hiddenNodes} node(s) and ${shown.hiddenEdges} relation(s). ${hideCandidate ? '"Main path only" hides candidate relations — the weakest class of evidence.' : 'Candidate relations (dashed) are currently shown; they are candidates only.'}`)),
-        h(ReplayControls, { timeline, index: replayIndex, playing, onIndex: setReplayIndex, onPlaying: setPlaying }),
-        h('div', { className: 'st-flow-canvas' },
+          }, localized('显示全部事件', 'All events')))),
+      h('p', { className: 'st-flow-note st-rt-notes', role: 'status' }, localized(
+        `显示 ${filtered.nodes.length} / ${stats.renderedNodeCount} 节点 · ${filtered.edges.length} / ${stats.renderedEdgeCount} 关系；已隐藏 ${shown.hiddenNodes} 个节点与 ${shown.hiddenEdges} 条关系。${hideCandidate ? '「仅显示主路径」会隐藏候选关系（虚线）——那是证据最弱的一类。' : '当前包含候选关系（虚线），它们只是候选。'}`,
+        `Showing ${filtered.nodes.length} / ${stats.renderedNodeCount} nodes and ${filtered.edges.length} / ${stats.renderedEdgeCount} relations. Hiding ${shown.hiddenNodes} node(s) and ${shown.hiddenEdges} relation(s). ${hideCandidate ? 'Main path hides candidate relations — the weakest evidence.' : 'Candidate relations (dashed) are currently shown; candidates only.'}`)),
+      h('div', { className: 'st-flow-canvas-wrap' },
+        replayActive ? h(ReplayControls, {
+          timeline,
+          index: replayIndex,
+          playing,
+          onIndex: setReplayIndex,
+          onPlaying: setPlaying,
+          onExit: () => onReplayActiveChange(false),
+        }) : null,
+        h('div', { className: 'st-flow-canvas', 'data-engine': filtered.engine },
           h(RuntimeFlowView, {
             layout: filtered,
             selectedId,
             onSelect,
             onBackground: onCloseInspect,
-            replay: replayIndex >= 0 && timeline
-              ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
-              : null,
+            replay,
+            fitSignal,
+            showErrorInLegend: true,
+            density: 'graph',
           }))),
       h('div', { className: 'st-flow-side' },
-        shown.hiddenNodes || data.layout.hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
-          `本次运行共 ${data.layout.hidden.nodeCount + stats.renderedNodeCount} 个节点；画布与筛选之外的部分已被折叠，折叠节点上标明它代表多少项。`,
-          `The run holds ${data.layout.hidden.nodeCount + stats.renderedNodeCount} nodes; anything outside the canvas and the filters is folded, and a folded node names how many it stands for.`)) : null,
+        h('p', { className: 'st-rt-notes' }, localized(
+          `本次运行共 ${hidden.nodeCount + stats.renderedNodeCount} 个节点；画布与筛选之外的部分已被折叠，折叠节点上标明它代表多少项。`,
+          `The run holds ${hidden.nodeCount + stats.renderedNodeCount} nodes; anything outside the canvas and filters is folded, and a folded node names how many it stands for.`)),
         h(RuntimeInspector, {
           data: inspect,
           loading: inspectLoading,
@@ -1860,39 +1917,47 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           onUpdate: onUpdateLearning,
           onSelectEdge: (edgeId) => onSelect({ edgeId }),
           onClose: onCloseInspect,
-        }),
-        h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))))
+        })))
   }
 
-  function ReplayControls({ timeline, index, playing, onIndex, onPlaying }) {
+  function ReplayControls({ timeline, index, playing, onIndex, onPlaying, onExit }) {
     if (!timeline?.steps?.length) return null
     const total = timeline.steps.length
-    const at = index < 0 ? 0 : index
-    const clock = (value) => {
-      if (typeof value !== 'number') return '—'
-      try { return new Date(value).toLocaleTimeString('zh-CN', { hour12: false }) } catch (_) { return '—' }
+    const startPlay = () => {
+      if (playing) { onPlaying(false); return }
+      const nextIndex = index < 0 ? 0 : Math.min(index, total - 1)
+      onIndex(nextIndex)
+      onPlaying(true)
+    }
+    const stepNext = () => {
+      onPlaying(false)
+      onIndex(index < 0 ? 0 : Math.min(total - 1, index + 1))
+    }
+    const stepPrev = () => {
+      onPlaying(false)
+      onIndex(Math.max(0, index - 1))
     }
     return h('div', { className: 'st-replay', role: 'group', 'aria-label': '运行回放' },
       h('span', { className: 'st-replay-range' }, `${clock(timeline.startedAt)} — ${clock(timeline.endedAt)}`),
       h('span', { className: 'st-replay-count', role: 'status' },
-        localized(`当前：${index < 0 ? '—' : at + 1} / ${total} 步`, `Step ${index < 0 ? '—' : at + 1} / ${total}`)),
-      h('button', { className: 'st-button', type: 'button', 'aria-pressed': playing, disabled: index < 0 && total === 0, onClick: () => onPlaying(!playing) },
-        h(Icon, { name: playing ? 'pause' : 'arrow', size: 13 }), playing ? localized('暂停', 'Pause') : localized('回放', 'Replay')),
-      h('button', { className: 'st-button', type: 'button', disabled: at <= 0, onClick: () => { onPlaying(false); onIndex(at - 1) } }, localized('上一步', 'Previous')),
-      h('button', { className: 'st-button', type: 'button', disabled: at >= total - 1, onClick: () => { onPlaying(false); onIndex(at + 1) } }, localized('下一步', 'Next')),
-      h('button', { className: 'st-button', type: 'button', disabled: index < 0, onClick: () => { onPlaying(false); onIndex(-1) } }, localized('退出回放', 'Exit replay')),
+        localized(`当前：${index < 0 ? '—' : index + 1} / ${total} 步`, `Step ${index < 0 ? '—' : index + 1} / ${total}`)),
+      h('div', { className: 'st-rp-actions' },
+        h('button', { className: 'st-header-btn', type: 'button', 'aria-pressed': playing, onClick: startPlay },
+          playing ? localized('暂停', 'Pause') : localized('播放', 'Play')),
+        h('button', { className: 'st-header-btn', type: 'button', disabled: index <= 0, onClick: stepPrev }, localized('上一步', 'Previous')),
+        h('button', { className: 'st-header-btn', type: 'button', disabled: index >= total - 1, onClick: stepNext }, localized('下一步', 'Next')),
+        h('button', { className: 'st-header-btn', type: 'button', onClick: onExit }, localized('退出回放', 'Exit replay'))),
       h('span', { className: 'st-replay-note' }, localized(
-        `回放只按运行事件顺序逐节点高亮；它不改变收据内容。${timeline.truncated ? `（超过 ${timeline.steps.length} 步后已截断）` : ''}`,
-        `Replay highlights nodes in event order; it never changes the receipt.${timeline.truncated ? ' Truncated past the step limit.' : ''}`)))
+        `回放只按运行事件顺序逐节点高亮；它不改变收据内容。${timeline.truncated ? `（超过 ${total} 步后已截断）` : ''}`,
+        `Replay highlights nodes in event order; it never changes the receipt.${timeline.truncated ? ` Truncated past ${total} steps.` : ''}`)))
   }
 
-  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect }) {
+  function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect, replayActive, onReplayActiveChange, fitSignal }) {
     const timeline = data?.timeline ?? null
     const [replayIndex, setReplayIndex] = React.useState(-1)
     const [playing, setPlaying] = React.useState(false)
     const total = timeline?.steps?.length ?? 0
 
-    // Advancing is a step, not an animation: one node per tick, pausable at any point.
     React.useEffect(() => {
       if (!playing || total === 0) return undefined
       const timer = setInterval(() => {
@@ -1904,10 +1969,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       return () => clearInterval(timer)
     }, [playing, total])
     React.useEffect(() => { setReplayIndex(-1); setPlaying(false) }, [data?.sessionId, total])
+    React.useEffect(() => {
+      if (!replayActive) { setReplayIndex(-1); setPlaying(false) }
+    }, [replayActive])
 
-    // Hooks run before the guards below, so they may only touch `data` — referring to
-    // the `layout` binding here would read it in its temporal dead zone and throw on
-    // every render, which is a blank panel rather than a visible error.
     const sourceLayout = data?.layout ?? null
     const flowLayout = React.useMemo(
       () => (sourceLayout ? filterLayout(sourceLayout, { hideCandidate: true }) : null),
@@ -1915,13 +1980,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     )
     const candidateCount = (sourceLayout?.edges?.length ?? 0) - (flowLayout?.edges?.length ?? 0)
 
-    const replay = replayIndex >= 0 && timeline
-      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
-      : null
-
-    if (loading && !data) return h('div', { className: 'st-rt-empty' }, localized('正在重建本次运行流程…', 'Rebuilding the runtime flow…'))
-    if (error && !data) return h('div', { className: 'st-rt-empty' }, error)
-    if (!data) return h('div', { className: 'st-rt-empty' }, localized('当前对话暂无可重建的运行流程。', 'No reconstructable runtime flow in this conversation.'))
+    if (loading && !data) return h(TraceState, { kind: 'loading', message: '正在重建本次运行流程…' })
+    if (error && !data) return h(TraceState, { kind: 'error', message: error, onRetry: () => onRetry('flow') })
+    if (!data || !flowLayout) return h(TraceState, { kind: 'empty', message: '当前对话暂无可重建的运行流程。' })
 
     const layout = data.layout
     const stats = layout.stats
@@ -1929,46 +1990,46 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const selectedId = inspect?.edge?.id
       ? { edgeId: inspect.edge.id }
       : (inspect?.nodeId ? { nodeId: inspect.nodeId } : null)
+    const replay = React.useMemo(() => (replayIndex >= 0 && timeline
+      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
+      : null), [replayIndex, timeline])
 
     return h('div', { className: 'st-flow' },
-      h('div', null,
-        h('div', { className: 'st-flow-head' },
-          h('strong', null, localized('本次运行流程', 'Runtime flow for this session')),
-          h('span', null, localized(
-            `${stats.renderedNodeCount} 个节点 · ${stats.renderedEdgeCount} 条关系 · 原图 ${stats.graphNodeCount} 个节点`,
-            `${stats.renderedNodeCount} nodes · ${stats.renderedEdgeCount} relations · graph has ${stats.graphNodeCount}`)),
-          h('span', null, localized('拖动平移 · 滚轮缩放 · 右上角适配', 'Drag to pan · scroll to zoom · fit at top right')),
-          // Which engine laid this out is reported rather than silently swapped:
-          // one minimises crossings, the other is the only one affordable at scale.
-          h('span', { 'data-engine': layout.engine ?? 'unknown' }, localized(
-            layout.engine === 'elk' ? '布局：ELK（层内交叉最小化）' : '布局：确定性（ELK 已在超过节点预算时跳过）',
-            layout.engine === 'elk' ? 'Layout: ELK (crossing-minimised)' : 'Layout: deterministic (ELK skipped past its node budget)'))),
-        h(ReplayControls, { timeline, index: replayIndex, playing, onIndex: setReplayIndex, onPlaying: setPlaying }),
-        // §21: 运行流程 is the quiet, high-level view — it drops the weakest class of
-        // relation (candidates) and states the count, rather than drawing every line.
-        candidateCount ? h('p', { className: 'st-rt-notes' }, localized(
-          `已隐藏 ${candidateCount} 条候选关系（虚线）。它们只是候选，要看请切到「运行图谱」。`,
-          `Hiding ${candidateCount} candidate relation(s) — dashed lines are candidates only. Switch to 运行图谱 to see them.`)) : null,
-        h('div', { className: 'st-flow-canvas' },
-          h(RuntimeFlowView, { layout: flowLayout, selectedId, onSelect, onBackground: onCloseInspect, replay }))),
+      h('div', { className: 'st-flow-canvas-wrap' },
+        replayActive ? h(ReplayControls, {
+          timeline,
+          index: replayIndex,
+          playing,
+          onIndex: setReplayIndex,
+          onPlaying: setPlaying,
+          onExit: () => onReplayActiveChange(false),
+        }) : null,
+        h('div', { className: 'st-flow-canvas', 'data-engine': flowLayout.engine },
+          h(RuntimeFlowView, {
+            layout: flowLayout,
+            selectedId,
+            onSelect,
+            onBackground: onCloseInspect,
+            replay,
+            fitSignal,
+          }))),
       h('div', { className: 'st-flow-side' },
         hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
-          `另有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；折叠节点上标明了它代表多少项，点开可看它代表哪些节点。`,
-          `${hidden.nodeCount} nodes and ${hidden.edgeCount + hidden.collapsedInsideCount} relations are folded; a folded node names how many it stands for.`)) : null,
+          `另有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；已隐藏 ${candidateCount} 条候选关系。候选关系可在「运行图谱」中查看；折叠节点上标明了它代表多少项。`,
+          `${hidden.nodeCount} nodes and ${hidden.edgeCount + hidden.collapsedInsideCount} relations are folded, and ${candidateCount} candidate relation(s) are hidden. Candidate relations are available in the Runtime Graph; a folded node names how many it stands for.`)) : null,
         h(RuntimeInspector, {
           data: inspect,
           loading: inspectLoading,
           error: inspectError,
-          onSelectEdge: (edgeId) => onSelect({ edgeId }),
           alignments,
           skillLoads,
           learningSessionId,
           learningCards,
           learningNotes,
           onUpdate: onUpdateLearning,
+          onSelectEdge: (edgeId) => onSelect({ edgeId }),
           onClose: onCloseInspect,
-        }),
-        h('button', { className: 'st-button', type: 'button', onClick: onRetry }, h(Icon, { name: 'refresh', size: 14 }), localized('重新读取', 'Reload'))))
+        })))
   }
 
   function Workbench(props) {
@@ -1977,9 +2038,18 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       () => localeService.getSnapshot().revision,
     )
     const sessionId = props?.sessionId
-    // §4: the current session opens on 运行流程. The stored key stays 'map' so the
-      // preference protocol and every existing local profile keep working.
-      const initialView = (() => { try { const stored = localStorage.getItem(VIEW_KEY); return ['map', 'receipt', 'runtime'].includes(stored) ? stored : 'map' } catch { return 'map' } })()
+    let queryView = null
+    try {
+      const value = new URLSearchParams(window.location.search).get('view')
+      if (['map', 'receipt', 'runtime'].includes(value)) queryView = value
+    } catch (_) {}
+    const initialView = (() => {
+      if (queryView) return queryView
+      try {
+        const stored = localStorage.getItem(VIEW_KEY)
+        return ['map', 'receipt', 'runtime'].includes(stored) ? stored : 'map'
+      } catch { return 'map' }
+    })()
     const [view, setView] = React.useState(initialView)
     const [screen, setScreen] = React.useState('session')
     const [data, setData] = React.useState(null)
@@ -1995,7 +2065,53 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const [catalogContext, setCatalogContext] = React.useState({ query: '', filter: 'all', sort: 'review', selectedName: '', selectedId: '' })
     const [catalogMeta, setCatalogMeta] = React.useState(null)
     const [catalogReload, setCatalogReload] = React.useState(0)
+    const [replayActive, setReplayActive] = React.useState(false)
+    const [fitTick, setFitTick] = React.useState(0)
+    const [showAllTick, setShowAllTick] = React.useState(0)
     const preferenceSession = React.useRef(null)
+    const rootRef = React.useRef(null)
+    const [hostComposerHeight, setHostComposerHeight] = React.useState(0)
+
+    React.useLayoutEffect(() => {
+      const node = rootRef.current
+      if (!node || !node.closest('[data-slot="conversation.view"]')) {
+        setHostComposerHeight(0)
+        return
+      }
+      const measure = () => {
+        const slot = document.querySelector('[data-slot="conversation.composer"]')
+        let top = Infinity
+        let bottom = -Infinity
+        const elements = [slot, ...(slot?.querySelectorAll('*') || [])]
+        for (const child of elements) {
+          const rect = child.getBoundingClientRect()
+          if (rect.height <= 0 || rect.width <= 0) continue
+          top = Math.min(top, rect.top)
+          bottom = Math.max(bottom, rect.bottom)
+        }
+        if (!Number.isFinite(top) || bottom <= top) return
+        let hostNode = node.parentElement
+        let hostRect = hostNode?.getBoundingClientRect()
+        while (hostNode && (!hostRect || hostRect.height <= 0)) {
+          hostNode = hostNode.parentElement
+          hostRect = hostNode.getBoundingClientRect()
+        }
+        const overlay = hostRect?.height
+          ? Math.ceil(hostRect.bottom - top)
+          : Math.ceil(bottom - top)
+        setHostComposerHeight(Math.max(0, Math.min(240, overlay)))
+      }
+      measure()
+      const slot = document.querySelector('[data-slot="conversation.composer"]')
+      const observer = new ResizeObserver(measure)
+      const observed = [slot, ...(slot?.querySelectorAll('*') || [])]
+      for (const child of observed) observer.observe(child)
+      window.addEventListener('resize', measure)
+      return () => {
+        observer.disconnect()
+        window.removeEventListener('resize', measure)
+      }
+    }, [screen, view])
 
     const load = React.useCallback(async () => {
       if (!sessionId) { setError('当前视图没有可用的会话 ID'); setLoading(false); return }
@@ -2003,15 +2119,16 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       try {
         const next = await api(`/context?sessionId=${encodeURIComponent(sessionId)}`)
         if (preferenceSession.current !== sessionId) {
-          const preferred = ['receipt', 'map'].includes(next.preferences?.defaultView) ? next.preferences.defaultView : initialView
-          setView(preferred); preferenceSession.current = sessionId
+          if (!queryView) {
+            const preferred = ['receipt', 'map'].includes(next.preferences?.defaultView) ? next.preferences.defaultView : initialView
+            setView(preferred)
+          }
+          preferenceSession.current = sessionId
         }
         setData(next)
       } catch (reason) { setError(reason.message) } finally { setLoading(false) }
     }, [sessionId])
 
-    // The runtime graph is fetched on demand: the receipt's own payload never
-    // carries it, so opening a conversation stays as cheap as it was.
     const loadRuntime = React.useCallback(async (detail = 'flow') => {
       if (!sessionId) return
       setRuntimeLoading(true); setRuntimeError('')
@@ -2020,8 +2137,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       } catch (reason) { setRuntimeError(reason.message) } finally { setRuntimeLoading(false) }
     }, [sessionId])
 
-    // "Why does this line exist" is answered by the Host, one node or one edge at
-    // a time, so the client never has to hold the whole graph to explain it.
     const selectRuntime = React.useCallback(async (target) => {
       if (!sessionId || !target) return
       setInspectLoading(true); setInspectError('')
@@ -2035,25 +2150,21 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
 
     React.useEffect(() => {
       setData(null); setSelectedNode(null); setRuntime(null); setInspect(null)
+      setReplayActive(false); setFitTick(0); setShowAllTick(0)
       setCatalogContext({ query: '', filter: 'all', sort: 'review', selectedName: '', selectedId: '' })
       setCatalogMeta(null); preferenceSession.current = null; load()
     }, [load])
 
-    // 运行流程 and 运行图谱 are two densities of the same runtime graph, so both need it.
-      // §21: one renderer, two densities. 运行图谱 may be denser than 运行流程, so the detail
-      // level follows the view and is refetched when it changes.
-      const wantedDetail = view === 'runtime' ? 'graph' : 'flow'
-      React.useEffect(() => {
-        if (view !== 'runtime' && view !== 'map') return
-        if (runtimeLoading || runtime?.detail === wantedDetail) return
-        loadRuntime(wantedDetail)
-      }, [view, runtime, runtimeLoading, loadRuntime, wantedDetail])
+    const wantedDetail = view === 'runtime' ? 'graph' : 'flow'
+    React.useEffect(() => {
+      if (view !== 'runtime' && view !== 'map') return
+      if (runtimeLoading || runtime?.detail === wantedDetail) return
+      loadRuntime(wantedDetail)
+    }, [view, runtime, runtimeLoading, loadRuntime, wantedDetail])
 
     function chooseView(next) {
-      setScreen('session'); setView(next); setError(''); setInspect(null)
+      setScreen('session'); setView(next); setError(''); setInspect(null); setReplayActive(false)
       try { localStorage.setItem(VIEW_KEY, next) } catch (_) {}
-      // The stored default view stays receipt/map: the runtime canvas is a local
-      // viewing choice, not a change to the plugin's stored preferences.
       if (next === 'runtime') return
       api('/preferences', { method: 'POST', body: JSON.stringify({ defaultView: next }) })
         .then((body) => { setError(''); setData((current) => current ? { ...current, preferences: body.preferences } : current) })
@@ -2063,82 +2174,75 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const coverageState = data?.receipt?.coverage?.status === 'verified-standard-contract' ? 'active' : 'unknown'
     const activeModel = data?.views?.[view]
     const hasTrace = Boolean(data?.receipt?.traceEvents?.length)
-    // The graph covers every capability, not only Skill loads, so it can have
-    // something to show in a conversation that loaded no Skill at all.
     const hasRuntimeEvidence = Boolean(data?.receipt?.runtimeEvents?.length)
+    const canvasView = screen === 'session' && (view === 'map' || view === 'runtime') && hasRuntimeEvidence
+
+    const runtimeProps = {
+      alignments: data?.views?.receipt?.runtime?.alignments,
+      skillLoads: runtime?.skillLoads,
+      learningSessionId: data?.receipt?.sessionId,
+      learningCards: data?.views?.receipt?.learningCards,
+      learningNotes: data?.receipt?.learningNotes,
+      onUpdateLearning: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })),
+      data: runtime,
+      loading: runtimeLoading,
+      error: runtimeError,
+      onRetry: loadRuntime,
+      inspect,
+      inspectLoading,
+      inspectError,
+      onSelect: selectRuntime,
+      onCloseInspect: () => setInspect(null),
+      replayActive,
+      onReplayActiveChange: setReplayActive,
+      fitSignal: fitTick,
+      showAllSignal: showAllTick,
+    }
+
     const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
       : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
-        : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, {
-            alignments: data.views.receipt.runtime.alignments,
-            skillLoads: runtime?.skillLoads,
-            // §15/§38（冲突②选 A）：学习与验证是 Skill Inspector 的一个 Tab，
-            // 所以它的数据要一路到达 Inspector。
-            learningSessionId: data.receipt?.sessionId,
-            learningCards: data.views.receipt.learningCards,
-            learningNotes: data.receipt?.learningNotes,
-            onUpdateLearning: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })),
-          data: runtime,
-          loading: runtimeLoading,
-          error: runtimeError,
-          onRetry: loadRuntime,
-          inspect,
-          inspectLoading,
-          inspectError,
-          onSelect: selectRuntime,
-          onCloseInspect: () => setInspect(null),
-        })
-          // §4/§21: 运行流程 is the same graph at reading density; 运行图谱 stays the
-          // dense view. Both are read-only and both answer through the same inspector.
-          : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, {
-            alignments: data.views.receipt.runtime.alignments,
-            skillLoads: runtime?.skillLoads,
-            // §15/§38（冲突②选 A）：学习与验证是 Skill Inspector 的一个 Tab，
-            // 所以它的数据要一路到达 Inspector。
-            learningSessionId: data.receipt?.sessionId,
-            learningCards: data.views.receipt.learningCards,
-            learningNotes: data.receipt?.learningNotes,
-            onUpdateLearning: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })),
-            data: runtime,
-            loading: runtimeLoading,
-            error: runtimeError,
-            onRetry: loadRuntime,
-            inspect,
-            inspectLoading,
-            inspectError,
-            onSelect: selectRuntime,
-            onCloseInspect: () => setInspect(null),
-          })
-            : data && !hasTrace ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
-            : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel }) : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
+        : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, runtimeProps)
+          : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, runtimeProps)
+            : data && !hasTrace && !hasRuntimeEvidence ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
+              : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel })
+                : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
+
     const sessionSubtitle = !data ? '正在读取当前会话…'
       : view === 'runtime' ? (runtime ? localized(`运行图谱 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 边 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime graph · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} edges · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行图谱…`, `${data.workspaceLabel} · rebuilding the runtime graph…`))
-        : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
-    const catalogSubtitle = !catalogMeta ? '正在读取当前目录…' : catalogMeta.coverage.status === 'coverage-unknown' ? localized('当前目录无法确认 · 仅显示本地历史', 'Catalog cannot be confirmed · Showing local history only') : catalogMeta.coverage.status === 'incomplete' ? localized(`目录可能不完整 · 已发现 ${catalogMeta.observedCandidateCount ?? 0} 个候选`, `Catalog may be incomplete · ${catalogMeta.observedCandidateCount ?? 0} candidate(s) found`) : localized(`当前可发现 ${catalogMeta.currentDiscoverableCount ?? 0} 个 Skill · ${data?.workspaceLabel || '工作区未连接'}`, `${catalogMeta.currentDiscoverableCount ?? 0} Skill(s) currently discoverable · ${data?.workspaceLabel || t('工作区未连接')}`)
+        : view === 'map' && hasRuntimeEvidence ? (runtime ? localized(`运行流程 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 关系 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime flow · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} relations · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行流程…`, `${data.workspaceLabel} · rebuilding the runtime flow…`))
+          : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
+    const catalogSubtitle = !catalogMeta ? '正在读取当前目录…' : catalogMeta.coverage.status === 'coverage-unknown' ? localized('当前目录无法确认 · 仅显示本地历史', 'Catalog cannot be confirmed · Showing local history only') : catalogMeta.coverage.status === 'incomplete' ? localized(`目录可能不完整 · 已发现 ${catalogMeta.observedCandidateCount ?? 0} 个候选`, `Catalog may be incomplete · ${catalogMeta.observedCandidateCount ?? 0} candidate(s) found`) : localized(`当前可发现 ${catalogMeta.currentDiscoverableCount ?? 0} 个 Skill · ${data?.workspaceLabel || '工作区未连接'}`, `${catalogMeta.currentDiscoverableCount ?? 0} Skill(s) currently discoverable · ${data?.workspaceLabel || 'Workspace not connected'}`)
+
+    const showAll = () => {
+      setShowAllTick((value) => value + 1)
+      setInspect(null)
+    }
     const content = screen === 'catalog'
       ? h(CatalogPage, { sessionId, context: catalogContext, onContextChange: setCatalogContext, reloadSignal: catalogReload, onMeta: setCatalogMeta, onDataCleared: () => { setCatalogReload((value) => value + 1); load() } })
-            // §14/§17.1/§38: learning and validation live inside the receipt flow as a
-      // section the reader reaches — never as a rail competing with the evidence.
-      : h('div', { className: 'st-layout', 'data-simple': 'true' },
-        h('main', { className: 'st-main', 'aria-busy': loading },
+      : h('div', { className: 'st-layout', 'data-simple': 'true', 'data-canvas': canvasView ? 'true' : 'false' },
+        h('main', { className: 'st-main', 'aria-busy': loading, 'data-view': view },
           error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null,
           sessionContent,
-          // 冲突②选 A：学习与验证只在 Skill Inspector 里，收据流不再单列它。
-          // §17.1 的「Validation / Learning」由 Inspector 的学习 Tab 承担。
-          data && hasTrace && view === 'receipt'
-            ? h(Aside, { data: { ...data, activeView: view }, selectedNode, onRefresh: load, onUpdate: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })), onDeleted: load })
-            : null))
+null))
 
-    return h('section', { 'data-plugin': 'dsh-skill-trace', 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
+    return h('section', { ref: rootRef, 'data-plugin': 'dsh-skill-trace', 'data-conversation-composer-overlay': '', className: hostComposerHeight ? 'st-host' : undefined, style: hostComposerHeight ? { '--st-host-composer-h': `${hostComposerHeight}px` } : undefined, 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
-        h('div', { className: 'st-heading' }, h('div', { className: 'st-heading-line' }, h('span', { className: 'st-live', 'data-state': screen === 'catalog' && catalogMeta?.coverage?.status !== 'complete' ? 'unknown' : coverageState }), h('h1', null, screen === 'catalog' ? '我的 Skill' : '本次 Skill 使用记录')), h('div', { className: 'st-workspace' }, screen === 'catalog' ? catalogSubtitle : sessionSubtitle)),
-        h('button', { className: 'st-button st-library-button', type: 'button', 'aria-pressed': screen === 'catalog', onClick: () => setScreen('catalog') }, h(Icon, { name: 'list', size: 15 }), '我的 Skill'),
-        hasTrace ? h('span', { className: 'st-toolbar-split', 'aria-hidden': 'true' }) : null,
-        hasTrace ? h('span', { className: 'st-toolbar-label' }, '当前会话') : null,
+        h('div', { className: 'st-heading' },
+          h('div', { className: 'st-heading-line' },
+            h('span', { className: 'st-live', 'data-state': screen === 'catalog' && catalogMeta?.coverage?.status !== 'complete' ? 'unknown' : coverageState }),
+            h('h1', null, screen === 'catalog' ? '我的 Skill' : '本次运行')),
+          h('div', { className: 'st-workspace' }, screen === 'catalog' ? catalogSubtitle : sessionSubtitle)),
+        hasTrace || hasRuntimeEvidence ? h('span', { className: 'st-toolbar-split', 'aria-hidden': 'true' }) : null,
         hasTrace || hasRuntimeEvidence ? h('div', { className: 'st-view-switch', role: 'group', 'aria-label': '当前会话呈现方式' },
           hasTrace ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'receipt', onClick: () => chooseView('receipt') }, h(Icon, { name: 'receipt', size: 15 }), 'Skill 收据') : null,
-          hasTrace ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'map', onClick: () => chooseView('map') }, h(Icon, { name: 'map', size: 15 }), '运行流程') : null,
+          hasRuntimeEvidence ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'map', onClick: () => chooseView('map') }, h(Icon, { name: 'map', size: 15 }), '运行流程') : null,
           hasRuntimeEvidence ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'runtime', onClick: () => chooseView('runtime') }, h(Icon, { name: 'graph', size: 15 }), '运行图谱') : null) : null,
-        h('button', { className: 'st-icon-button', type: 'button', onClick: screen === 'catalog' ? () => setCatalogReload((value) => value + 1) : load, disabled: screen === 'session' && loading, title: '刷新', 'aria-label': screen === 'catalog' ? '刷新我的 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 }))),
+        h('div', { className: 'st-header-actions' },
+          canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: showAll }, localized('显示全部', 'Show all')) : null,
+          canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: () => setFitTick((value) => value + 1) }, localized('适配画布', 'Fit')) : null,
+          canvasView && runtime ? h('button', { className: replayActive ? 'st-header-btn' : 'st-header-btn primary', type: 'button', onClick: () => setReplayActive((value) => !value) }, replayActive ? localized('退出回放', 'Exit replay') : localized('回放', 'Replay')) : null,
+          h('button', { className: 'st-button st-library-button', type: 'button', 'aria-pressed': screen === 'catalog', onClick: () => { setScreen('catalog'); setReplayActive(false) } }, h(Icon, { name: 'list', size: 15 }), localized('我的 Skill', 'My Skills')),
+          h('button', { className: 'st-icon-button', type: 'button', onClick: screen === 'catalog' ? () => setCatalogReload((value) => value + 1) : load, disabled: screen === 'session' && loading, title: '刷新', 'aria-label': screen === 'catalog' ? '刷新我的 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
       content))
   }
 

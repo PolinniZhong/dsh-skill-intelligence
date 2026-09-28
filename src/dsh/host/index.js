@@ -592,6 +592,7 @@ export function apply(ctx, config = {}) {
               includeHiddenIds: false,
               nodeLimit: detail === 'graph' ? GRAPH_NODE_LIMIT : FLOW_NODE_LIMIT,
               turnNodeLimit: detail === 'graph' ? undefined : FLOW_TURN_LIMIT,
+              compact: detail === 'graph',
             })
             sendJson(res, 200, {
               ok: true,
