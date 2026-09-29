@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.4.0-beta.55 — 2026-09-29 · V0.5：Skill Runtime Scope
+
+**核心能力，不是视觉改动。** 详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的 V0.5 章节。
+
+### 修掉的缺陷
+
+`buildAlignment` 此前是：
+
+```js
+const invocations = aggregateInvocations(receipt?.runtimeEvents ?? [])
+```
+
+**整个 Session**。于是「Turn 1 read / Turn 2 加载 Skill A / Turn 3 test」会让 Skill A 的
+「Inspect → Test」同时匹配 Turn 1 与 Turn 3。**事件是真的，归属是编的。**
+
+现在对齐只读 **Skill Runtime Scope** 内的事件。Scope 建不起来时范围内为空，
+所有声明步骤落进 `insufficient`——**"Runtime 说不出来"不等于"没有做"。**
+
+### 新增 `src/core/skill-runtime-scope.mjs`
+
+| 状态 | 含义 |
+|---|---|
+| `observed` | 这次加载自身（Scope 锚点） |
+| `correlated` | 与加载同一 Turn。**Runtime 声明了包含，没有声明 Skill 导致了调用。** |
+| `candidate` | 一条具名、很窄、可测的规则 |
+| `unlinked` | Runtime 放不进去——**事件保留，不归属** |
+
+**边界用 Turn，不用时间相邻。** 实测 `turn` 在真实会话 **1343/1343** 个事件上存在，
+`Session → Turn → Invocation` 是 Runtime 自己声明的包含。明确拒绝「相邻事件」「最近事件」
+「Skill 之后的所有事件」——它们产出证据不支持、却读起来像关系的归属。
+
+**实测收敛**：1343 个事件 → 68 个（5.1%），构成与 Turn 完全吻合。
+
+### 七个情况全部覆盖
+
+A 单 Skill 单 Turn / B 两 Skill 不相交 / C 同 Turn 多调用 / D 用户 `/skill` /
+E Scope 为空 / F 无法唯一匹配 / **G 同 Turn 两 Skill → 两者都 `unlinked`（分不开就不分）**
+
+### 测试：19 项，且验证过「能抓到缺陷」
+
+`test/phase9-skill-runtime-scope.test.mjs`。**回退 alignment 到 Session 级匹配 → 2 项失败；
+恢复 → 19/19 通过。**
+
+**过程中抓到我自己两个会把测试变成空转的错误**：
+
+1. **fixture 把声明放错字段**。声明来自 `trace.continuityCandidate.steps`，而我放在
+   `skillInstructions`——**没有任何代码读它**。于是 `items` 为空，
+   `assert.notEqual(undefined, 'observed')` **永远通过**。测试对着"缺陷原封不动"的代码全绿。
+   已加反空转断言（先断言步骤确实被提取）。
+2. **工具名不在分类器词表里**。`edit_file` 会归类为 `other`，于是匹配不上、测试因错误的原因通过。
+
+### 限制（如实记录）
+
+- **Subagent 谱系不可用**：`childId` 在 1343 个事件里出现 **0** 次，且 `subagent.spawn` 不指名
+  是哪个 Invocation 创建的 → **Subagent 派生无法进入可靠边界**
+- **跨 Turn 的 Skill 工作不在 Scope 内**——刻意如此
+- **工具词表固定**：`read_image`/`job_output` 等真实工具名不在其中，归为 `other`（不强行归类）
+
+### 未做（按你的要求）
+
+不改 Runtime Flow / Graph 架构、不换 React Flow、不做工作流编排、不加因果连线、
+不碰 Learning / Catalog / Backup / Locale。Inspector 只新增了 **运行范围** 的显示。
+
 ## 0.4.0-beta.54 — 2026-09-29 · 批次 W：面向读者的文档全量核对
 
 上一轮修的是版本号。这一轮按"**所有会被读者照着做或照着信的陈述**"逐条核对。

@@ -356,6 +356,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-rt-evidence-row:last-child{border-bottom:0}
       .st-rt-evidence-name{color:var(--st-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .st-rt-eyebrow{margin:0 0 3px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--st-faint)}
+      .st-rt-scope{margin:0 0 10px;padding:8px 9px;border:1px solid var(--st-border-soft);border-radius:7px;background:var(--st-layer-2)}
+      .st-rt-scope-head{margin:0 0 5px;font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--st-faint)}
+      .st-rt-scope-list{list-style:none;margin:0 0 5px;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px}
+      .st-rt-scope-list li{display:inline-flex;align-items:center;gap:5px;color:var(--st-muted)}
+      .st-rt-scope-count{font-weight:650;color:var(--st-text);font-variant-numeric:tabular-nums}
+      .st-rt-scope-limit{margin:0;font-size:10.5px;line-height:1.5;color:var(--st-faint)}
       .st-rt-section{margin:0 0 14px}
       .st-rt-section h3{margin:0 0 7px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--st-faint)}
       .st-rt-meta{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:baseline;font-size:11px}
@@ -1644,6 +1650,23 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       declaration.inPublishedCatalog === false
         ? h('p', { className: 'st-rt-notes' }, localized('这次加载不在已发布目录中——用户显式加载了一个未发布给模型的 Skill。', 'This load is not in the published catalog: a user-explicit load of a Skill not offered to the model.'))
         : null,
+
+      // V0.5 Skill Runtime Scope. Alignment reads only the events inside this range, so the
+      // reader has to be able to see the boundary rather than trust it. The limitation line
+      // travels with the counts: a scope listing calls does not mean the Skill caused them.
+      alignment.scope ? h('div', { className: 'st-rt-scope' },
+        h('p', { className: 'st-rt-scope-head' },
+          localized('运行范围', 'Runtime scope'),
+          ' · ',
+          alignment.scope.established && alignment.scope.turnRange
+            ? `Turn ${alignment.scope.turnRange.from}${alignment.scope.turnRange.to !== alignment.scope.turnRange.from ? `–${alignment.scope.turnRange.to}` : ''}`
+            : localized('未建立', 'not established')),
+        alignment.scope.established
+          ? h('ul', { className: 'st-rt-scope-list' }, ...Object.entries(alignment.scope.observedByClass).map(([cls, value]) => h('li', { key: cls },
+            h('span', null, CLASS_LABELS[cls] ?? cls),
+            h('span', { className: 'st-rt-scope-count' }, String(value.total)))))
+          : h('p', { className: 'st-rt-notes' }, alignment.scope.reason ?? ''),
+        h('p', { className: 'st-rt-scope-limit' }, alignment.scope.limitations?.[0] ?? '')) : null,
       alignment.items.length
         ? h('ul', { className: 'st-rt-align' }, ...alignment.items.map((item) => h('li', { key: item.declarationStepId },
           h('div', { className: 'st-rt-align-head' },

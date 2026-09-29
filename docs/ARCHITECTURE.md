@@ -242,3 +242,83 @@ The grid viewport can expand beyond the map's fixed coordinate system. A 1000px 
 The preview was exercised against a specific DSH Desktop/runtime baseline. DSH event schemas and consumer integrations may evolve. Any upgrade must re-check the `skill(name)` call/result pairing, session persistence, restart recovery, empty state, and host non-interference before it is claimed compatible.
 
 One such change already landed. The DSH session format V3 → V4 migration retired the `tool-result` wrapper block and lifted a tool result into a first-class `tool` message. Because the observer had matched only the V3 wrapper, sessions migrated to V4 recorded loads with no readable result: the instruction fingerprint, candidate steps, and version-drift detection were empty while the receipt still reported `loaded`. `test/session-format-v4-contract.test.mjs` now pins both spellings and is built from a captured V4 event, and `scripts/verify-project.mjs` rejects a return to V3-only matching. Prefer a captured real event over a hand-written fixture when pinning any event shape: the earlier fixtures encoded the V3 wrapper, which is why a green suite did not catch the break.
+
+---
+
+## V0.5 — Skill Runtime Scope
+
+### 它解决什么
+
+Declaration ↔ Runtime Alignment 此前是：
+
+```
+Skill 声明  ↕  整个 Session 的 Runtime Event
+```
+
+`buildAlignment` 的实现就是 `aggregateInvocations(receipt.runtimeEvents)`——**整个会话**。
+于是「Turn 1 的 read、Turn 2 加载 Skill A、Turn 3 的 test」会让 Skill A 的声明步骤
+「Inspect → Test」同时匹配到 Turn 1 与 Turn 3。**事件是真的，归属是编的。**
+
+V0.5 改为：
+
+```
+Skill Declaration  ↕  Skill Runtime Scope  ↕  Observed Runtime Events
+```
+
+Alignment **只读取 Scope 内的事件**。Scope 无法建立时，范围内事件为空，所有声明步骤落进
+`insufficient`——**诚实的读法是"Runtime 说不出来"，不是"没有做"。**
+
+### Scope 的边界是怎么定的
+
+**用 Turn，不用时间相邻。** 实测真实会话中 `turn` 字段在 **1343/1343** 个事件上存在，
+而 `Session → Turn → Invocation` 是 **Runtime 自己声明的包含关系**。所以 Turn 是**结构边界**，
+不是推断出来的。
+
+明确**不采用**：「相邻事件」「最近事件」「时间距离最短」「最后一个 Tool」「Skill 之后的所有事件」——
+这些都会产出证据不支持、却读起来像关系的归属。
+
+实测一个真实会话：Turn 11 = `skill:1` + `cli:30` + `tool:8`，Turn 14 = `skill:1` + `tool:10` + `cli:18`。
+**Scope 把 1343 个事件收敛到 68 个（5.1%）**，且构成与该 Turn 完全吻合。
+
+### 范围状态
+
+| 状态 | 含义 |
+|---|---|
+| `observed` | 这次加载自身（Scope 的锚点） |
+| `correlated` | 与加载同一 Turn。**Runtime 声明了包含，但没有声明 Skill 导致了这次调用。** |
+| `candidate` | 一条具名、可测、很窄的规则放进来的 |
+| `unlinked` | Runtime 放不进去。**事件保留，不归属。** |
+
+### 七个必须处理的情况
+
+| | 情况 | 结果 |
+|---|---|---|
+| A | Skill 在某 Turn 加载，随后同 Turn 多个调用 | Scope = 该 Turn |
+| B | 同一 Session 加载两个 Skill | 两个互不相交的 Scope |
+| C | 同一 Turn 内多个 Invocation | 全部在该 Turn 的 Scope 内 |
+| D | 用户 `/name` 显式加载 | 处理方式相同——它同样带 turn/step |
+| E | 加载后该 Turn 没有别的事件 | Scope 只含加载自身 |
+| F | 加载无法唯一匹配 | `unlinked`，不建 Scope |
+| G | **同一 Turn 内两个 Skill** | **两者都 `unlinked`**——Turn 分不开，就不分 |
+
+### Scope 不是什么
+
+- **不是工作流。** 它不把事件排成 Agent 走过的步骤。
+- **不是 Agent 思维链。** 不读提示词、不读工具参数、不读项目内容。
+- **不是因果图。** 没有任何事件被说成由 Skill 引起。
+- **不是遵循度。** Scope 里有事件，不代表 Skill 被遵循。
+
+它只陈述一件事：**在当前 Runtime Evidence 下，这些事件可以可靠归属于这次 Skill 运行的证据范围。**
+
+### 隐私
+
+Scope 只存标识符与分类。不含提示词正文、不含工具参数、不含项目内容。
+每个成员事件都必须能回指真实 runtime event id——**这正是 Scope 可审计的原因**。
+
+### 仍然受限的地方
+
+- **Subagent 谱系不可用**：实测 `childId` 在 1343 个事件里出现 **0** 次，且 `subagent.spawn`
+  不指名是哪个 Invocation 创建的。因此 Subagent 派生**无法进入 Scope 的可靠边界**。
+- **跨 Turn 的 Skill 工作不在 Scope 内。** 这是刻意的：宁可少算，不算错。
+- **工具词表是固定的**：`classifyInvocationStep` 认识 `read`/`edit`/`bash` 等，
+  实测会话里的 `read_image`/`job_output` 不在其中，会归类为 `other`（不强行归入某个步骤）。

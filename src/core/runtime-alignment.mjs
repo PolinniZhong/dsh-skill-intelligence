@@ -21,6 +21,7 @@
  */
 
 import { aggregateInvocations } from './runtime-events.mjs'
+import { buildSkillRuntimeScopes, scopesForSkillName, scopedRuntimeEvents } from './skill-runtime-scope.mjs'
 
 export const ALIGNMENT_MODEL_VERSION = 1
 
@@ -344,10 +345,84 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
  * @returns the alignment model. Counts of evidence states are reported; no score,
  * rate, or ranking is produced.
  */
+/**
+ * Declaration ↔ Runtime Alignment, now scoped.
+ *
+ * The change V0.5 makes: this used to align a declaration against **every runtime event in
+ * the session**:
+ *
+ *     const invocations = aggregateInvocations(receipt?.runtimeEvents ?? [])
+ *
+ * A session that ran `read` in turn 1, loaded a Skill in turn 2 and ran `test` in turn 3
+ * would let that Skill's declared "Inspect → Test" match both — real events, invented
+ * attribution.
+ *
+ * Now the events come from the Skill's Runtime Scope. When no Scope can be established the
+ * scoped list is empty on purpose, and every declared step lands in `insufficient`: the
+ * honest reading is that the runtime cannot say, not that the work did not happen.
+ *
+ * The three commitments are unchanged — no score, absence of evidence is not evidence of
+ * absence, direct evidence is not generic evidence.
+ *
+ * @param receipt - the receipt holding both the declaration and the runtime evidence.
+ * @param skillName - the Skill to align.
+ * @returns the alignment model, including the scope it read from.
+ */
+/**
+ * What the alignment read from, so a reader can see the boundary rather than trust it.
+ *
+ * Reports the Scope's extent and a sample of what it holds; the full event list lives in the
+ * Scope itself and in the inspector, not duplicated here.
+ */
+function scopeSummary(scopeIndex, skillName) {
+  const { scopes, unlinked } = scopesForSkillName(scopeIndex, skillName)
+  if (scopes.length === 0) {
+    const record = unlinked[0] ?? null
+    return {
+      established: false,
+      relationStatus: 'unlinked',
+      derivation: record?.derivation ?? 'no-load-evidence',
+      reason: record?.reason ?? '收据里没有这次 Skill 加载的运行时证据，因此没有可用的 Scope。',
+      scopeCount: 0,
+      eventCount: 0,
+      observedByClass: {},
+      turnRange: null,
+      timeRange: null,
+      limitations: record?.limitation ?? [],
+    }
+  }
+  const observedByClass = {}
+  for (const scope of scopes) {
+    for (const [key, value] of Object.entries(scope.observedByClass ?? {})) {
+      if (!observedByClass[key]) observedByClass[key] = { total: 0, byName: {} }
+      observedByClass[key].total += value.total
+      for (const [name, count] of Object.entries(value.byName ?? {})) {
+        observedByClass[key].byName[name] = (observedByClass[key].byName[name] ?? 0) + count
+      }
+    }
+  }
+  const turns = scopes.map((scope) => scope.turnRange).filter(Boolean)
+  const times = scopes.map((scope) => scope.timeRange).filter(Boolean)
+  return {
+    established: true,
+    relationStatus: 'correlated',
+    derivation: 'same-turn-containment',
+    reason: null,
+    scopeCount: scopes.length,
+    eventCount: scopes.reduce((sum, scope) => sum + scope.eventIds.length, 0),
+    observedByClass,
+    turnRange: turns.length ? { from: Math.min(...turns.map((t) => t.from)), to: Math.max(...turns.map((t) => t.to)) } : null,
+    timeRange: times.length ? { from: Math.min(...times.map((t) => t.from)), to: Math.max(...times.map((t) => t.to)) } : null,
+    limitations: scopes[0]?.limitation ?? [],
+  }
+}
+
 export function buildAlignment(receipt, skillName) {
   const declared = declaredStepsFor(receipt, skillName)
   const steps = declared.steps
-  const invocations = aggregateInvocations(receipt?.runtimeEvents ?? [])
+  const scopeIndex = buildSkillRuntimeScopes(receipt)
+  const scoped = scopedRuntimeEvents(scopeIndex, skillName)
+  const invocations = aggregateInvocations(scoped)
   const annotated = invocations.map((invocation) => ({
     invocation,
     step: classifyInvocationStep(invocation.name, invocation.kind),
@@ -381,6 +456,7 @@ export function buildAlignment(receipt, skillName) {
     },
     items,
     stats,
+    scope: scopeSummary(scopeIndex, skillName),
     note: '对齐只报告证据状态，不给出遵循率或评分；未观察到证据不等于该步骤没有执行。',
   }
 }
