@@ -1,5 +1,94 @@
 # Changelog
 
+## 0.4.0-beta.63 — 2026-09-29 · Layout Contract 根因修复（已实测验证）
+
+**根因是一个被删掉的花括号。**
+
+### 真正的根因
+
+插件根规则（承载 `font-size` / `line-height` / `height` / `overflow` / `color` / `background`）
+**被嵌套在 `@media(max-width:1050px)` 内部**——所以在任何桌面宽度下都不生效。
+
+原因是一处**括号删除**：
+
+```css
+.st-dependency:nth-child(5){border-top:1px solid var(--st-border-soft)}}
+                                                                       ↑ 第二个 } 关闭 @media(max-width:1050px)
+```
+
+上一轮我误以为这个 `}}` 里有一个多余的 `}`，删掉了第二个 ——
+**媒体查询从此不再闭合，把根规则及其后所有内容全部吞了进去。**
+
+### 为什么 333 项测试都没发现
+
+**没有任何测试把样式表当 CSS 解析。** 于是以下变化全部静默通过：
+
+| 属性 | 缺陷下的实际值 | 应为 |
+|---|---|---|
+| `font-size` | **16px**（继承 DSH 宿主） | 13px |
+| `line-height` | `normal` | 18.85px |
+| `overflow` | `visible` | `hidden` |
+| `background` | `rgba(0,0,0,0)`（漏底） | `rgb(246,247,249)` |
+| `height` | 内容高度（410px，不随窗口变化） | 宿主高度 |
+
+**`font-size` 回退到宿主的 16px —— 这就是"整个 UI 看起来大了一号"的确切原因**
+（Tab / Filter / Button / My Skill 列表全部一起变大）。
+**`height` 塌成内容高度 —— 这就是 Runtime Graph 只占顶部一小块的原因。**
+
+两个截图症状，同一个根因。
+
+### 定位方式
+
+不是读源码，而是**读浏览器真实 CSSOM**：
+
+```
+root#0                          [data-plugin=…]   fs='-' of='-' h='-'        ← 仅 token
+root>(max-width: 1050px)@290#4  [data-plugin=…]   fs=13px of=hidden h=var(…)  ← 被困在这里
+```
+
+`element.matches('[data-plugin="dsh-skill-trace"]')` 返回 **true** ——
+**选择器是匹配的，是规则的作用域错了。**
+
+### 修复
+
+恢复那个闭合花括号。**仅此一处。**
+
+### 实测验证（渲染台）
+
+| 属性 | 修复前 | 修复后 |
+|---|---|---|
+| `font-size` | 16px | **13px** |
+| `line-height` | normal | **18.85px** |
+| `overflow` | visible | **hidden** |
+| `background` | 透明 | **rgb(246,247,249)** |
+
+**高度链（修复后，root 精确等于窗口高）：**
+
+| 窗口 | root | layout | main | flow | 画布 |
+|---|---|---|---|---|---|
+| 1600×1000 | **1000** | 928 | 928 | 928 | **841** |
+| 1600×1400 | **1400** | 1328 | 1328 | 1328 | **1241** |
+| 1200×760 | **760** | 688 | 688 | 688 | **601** |
+| 900×1000 | **1000** | 898 | 898 | 898 | **812** |
+
+**画布跟随宿主高度自适应，不再固定。**
+
+### 新增 Layout Contract Guard（+4，333 → 337）
+
+`test/phase11-layout-contract.test.mjs`：
+
+1. **根规则不得位于任何块内**（brace depth 必须为 0）← **守卫的正是这个缺陷**
+2. 根规则必须携带 `font-size:13px` / `line-height:1.45` / `overflow:hidden` / `height:var(--st-host-h,100%)`
+3. 高度链上不得使用视口单位（`vh` / `dvh` / `svh` / `lvh`）
+4. 样式表花括号必须配平（**顶层不得出现多余的 `}`**）
+
+**已验证守卫有效**：重新引入缺陷 → 2/4 失败；恢复 → 4/4 通过。
+
+### 未验证
+
+- **真实 DSH Desktop 未运行** —— 验证全部在渲染台完成
+- Dark Mode、Typography 的完整层级、Scope Highlight 不在本轮范围
+
 ## 0.4.0-beta.62 — 2026-09-29 · 插件高度改为**测量宿主**（机制已实现，未验证）
 
 **beta.61 的问题**：它移除了视口高度，却没有给链提供**确定高度**。
