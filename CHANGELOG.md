@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.4.0-beta.64 — 2026-09-29 · 知识管理同步 + 根目录收敛（无代码改动）
+
+**代码零改动。** 337 项测试 / 24 项契约检查不变。
+
+### 归档（移动，未删除）
+
+根目录从 9 个条目收敛到 6 个。全部移入 `99_归档/`：
+
+| 项 | 归档原因 |
+|---|---|
+| `07-adversarial-review.md` | 引用 `.audit/` 下的截图，而 `.audit/` 不公开——**保留它只会留下死链**；结论已沉淀进 PRD 与 `design.md` |
+| `00_原型与迭代方案/` | 本轮迭代的最初任务文档，已被根 `04-product-requirements.md` 与 `README.md` 取代 |
+| `specs/` | 最后修改 **2026-08-27**；内容为 `competitive-hardening` 与 `skill-learning-loop`，两条线均已交付或被后续方案取代 |
+
+三者**本就被 `.gitignore` 忽略**，所以 git 视角零改动，测试与 verify 未受影响。
+
+**明确保留**：`01_重构方案/`（**正在使用**——`render-harness/` 是当前的视觉验证工具）、
+`02-product-thesis.md` / `04-product-requirements.md` / `05-technical-design.md`（公开资产）。
+
+### 知识管理滞后项（已修）
+
+| 文档 | 滞后内容 |
+|---|---|
+| **`README.md`** | 版本历史**停在 beta.52**，完全没有 beta.53–beta.63（V0.5 Runtime Scope、Dark Mode、Layout Contract）。已补齐，并新增「Layout Contract：为什么嵌入插件不能按视口高度布局」一节 |
+| **`README.md`** | 测试数写「300+」，实际 **337** |
+| **`design.md`** | **没有 Layout Contract**——而它是 UI 权威文档。已在 §6 页面骨架下新增 §6.1 |
+| **`docs/ARCHITECTURE.md`** | 没有高度链与 `--st-host-h` 测量机制的说明。已新增 `## Layout contract` 章节，含完整链条与 `min-height:0` 的必要性 |
+| **`99_归档/README.md`** | 归档索引未含本轮三项 |
+
+### 明确不改（附理由）
+
+`docs/ARCHITECTURE.md` 与 `docs/PRIVACY.md` 中的 `0.4.0-beta.2` / `beta.3` 引用
+**是历史演进的记录**（「beta.2 用 GET export，beta.3 改为 Host 侧备份存储」），
+**不是过期声明**——改掉它们会丢失 API 演进的原因。
+
+### 一处值得写进文档的教训
+
+`design.md` §6.1 明确写入：**「测试通过」与「UI 正确」之间没有必然关系。**
+
+beta.63 修掉的那个缺陷（根规则被困在媒体查询内）**当时 337 项测试全部通过**，
+因为没有一条测试把样式表当 CSS 解析。布局契约必须由**解析样式表结构**的守卫来守，
+不能只靠组件测试。
+
 ## 0.4.0-beta.63 — 2026-09-29 · Layout Contract 根因修复（已实测验证）
 
 **根因是一个被删掉的花括号。**

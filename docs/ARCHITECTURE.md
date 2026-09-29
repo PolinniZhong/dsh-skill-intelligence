@@ -125,6 +125,55 @@ Every item carries `observedNodeIds`, `evidenceIds`, `matchedCapabilities`, and 
 
 The declaration baseline is the durable published catalog. `inPublishedCatalog` distinguishes a Skill that was offered to the model from one loaded anyway by a user-explicit `/name` gesture, and reports `null` — not `false` — when no catalog was published at all.
 
+## Layout contract
+
+The plugin is **embedded** in DSH, so the browser viewport is not the layout basis:
+
+```
+Browser viewport ≠ DSH content area ≠ plugin content area
+```
+
+A `100vh` / `100dvh` / `calc(100dvh - Npx)` makes the plugin size itself against the window
+rather than the space the host actually gave it, which is why none of them appear on the height
+chain. Instead the available height is **measured**: walk up to the nearest ancestor the host has
+given a definite height, take the distance from this root's top to that ancestor's bottom, and
+publish it as `--st-host-h`. The root rule then reads `height:var(--st-host-h,100%)`, so an absent
+measurement degrades to `100%` rather than to a wrong number.
+
+The chain that must stay intact:
+
+```
+[data-plugin="dsh-skill-trace"]  height: var(--st-host-h, 100%)
+  .st-shell                      height:100%; min-height:0; display:flex; column
+    .st-layout                   flex:1; min-height:0; display:grid
+      .st-main                   min-height:0; overflow:hidden
+        .st-flow                 flex:1; min-height:0
+          .st-flow-canvas-wrap   min-height:0; display:flex; column
+            .st-flow-canvas      flex:1; min-height:0
+```
+
+Every layer needs either `height:100%` or `flex:1` **together with `min-height:0`**; without
+`min-height:0` a flex item refuses to shrink below its content and the chain silently reverts to
+content height.
+
+### The failure this guards
+
+The root rule — `font-size`, `line-height`, `height`, `overflow`, `color`, `background` — once sat
+**nested inside `@media(max-width:1050px)`**, because a closing brace that terminated the media
+query had been read as stray and deleted. At every desktop width the rule therefore did not apply
+at all: `font-size` fell back to the host's 16px, so the whole UI rendered a size larger, and
+`height` resolved to content height, so the Runtime Graph occupied a strip at the top.
+
+**All 337 tests passed while that was true**, because no test parsed the stylesheet as CSS. It was
+found by reading the browser's CSSOM, where the rule appeared at
+`root > (max-width: 1050px) @290 #4` while the top-level rule at `root#0` held only custom
+properties. `element.matches('[data-plugin="dsh-skill-trace"]')` returned `true` throughout — the
+selector was correct and the *scope* was wrong.
+
+`test/phase11-layout-contract.test.mjs` now holds the line: the root rule must sit at brace depth
+0, must carry the typography and layout base, the height chain must use no viewport units, and the
+stylesheet's braces must balance.
+
 ## Canvas
 
 The plugin's third view draws the runtime graph. It is worth stating what the canvas is *not*: it is not a second source of truth. It receives positions, draws them, and asks the Host why a line exists when one is clicked.

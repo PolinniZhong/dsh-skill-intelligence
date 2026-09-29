@@ -163,6 +163,40 @@ Skill 追踪
 
 只有以下对象可以拥有独立卡片：Skill、Runtime 节点、重要证据、错误、用户可编辑对象。其余区块使用 `border-bottom`、分隔线或底色变化。
 
+## 6.1 Layout Contract（嵌入宿主，不按视口布局）
+
+Skill Trace 运行在 DeepSeek Harness **内部**，因此：
+
+```
+Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
+```
+
+**禁止**用 `100vh` / `100dvh` / `calc(100dvh - Npx)` 决定插件高度——那会让插件按浏览器窗口
+而不是宿主给它的实际空间来定尺寸。
+
+**做法：测量宿主。** 向上找**最近一个有确定高度的祖先**，取其底部到本插件顶部的距离，
+发布为 `--st-host-h`；根规则读 `height:var(--st-host-h,100%)`，
+**测量缺失时退化为 `100%`，而不是退化为一个错误数字**。
+
+高度链每一层都必须同时具备 `height:100%`（或 `flex:1`）**与 `min-height:0`**——
+少了 `min-height:0`，flex 子项不会收缩到内容以下，整条链会静默退回内容高度。
+
+### 这一条为什么写进设计文档
+
+插件根规则（`font-size` / `line-height` / `height` / `overflow` / `color` / `background`）
+**曾经被嵌套在 `@media(max-width:1050px)` 内部**，起因是**一个本该闭合媒体查询的花括号被当作多余的删掉了**。
+
+后果：桌面宽度下该规则**完全不生效**——
+
+- `font-size` 回退到宿主 16px → **整个 UI 大一号**
+- `height` 塌成内容高度 → **Runtime Graph 只占顶部一小块**
+
+**当时 337 项测试全部通过**，因为没有一条测试把样式表当 CSS 解析。
+这表明：**"测试通过"与"UI 正确"之间没有必然关系**，布局契约必须由**解析样式表结构**的
+守卫来守（`test/phase11-layout-contract.test.mjs`），而不能只靠组件测试。
+
+**结论：布局契约是设计约束，不是实现细节。**
+
 ## 6. 页面骨架
 
 ### 6.1 顶部栏
