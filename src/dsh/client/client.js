@@ -1740,6 +1740,23 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   }
 
 
+  /**
+   * 找出这个节点对应的 Skill 加载记录。
+   *
+   * 折叠分组是**布局层合成**的，它的 id（`group:11:skill`）不会出现在 `skillLoads` 里——
+   * 那里记的是**调用节点**的 id。只比 `node.id` 会让「选中 Skill 节点」变成「面板认为你
+   * 没选 Skill」（截图发现）。分组要能解析到自己的成员。
+   *
+   * 抽成纯函数是为了**能测**：写在组件内联处时，测试只能复刻这段逻辑，于是测的是测试
+   * 自己——回退产品代码它照样通过。
+   */
+  function resolveSkillLoad(node, memberIds, skillLoads) {
+    const id = node?.id
+    if (!id || !Array.isArray(skillLoads)) return null
+    const members = Array.isArray(memberIds) ? memberIds : []
+    return skillLoads.find((entry) => entry.nodeId === id || members.includes(entry.nodeId)) ?? null
+  }
+
   /** Inspector 显示用的节点类型名。runtime-flow.js 的 KIND_LABELS 没有导出。 */
   const INSPECT_KIND_LABELS = {
     session: '会话', turn: 'Turn', invocation: '调用', capability: '能力',
@@ -1767,13 +1784,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const relations = Array.isArray(data.relations) ? data.relations : []
     const evidence = Array.isArray(data.evidence) ? data.evidence : []
     const isSkill = !isEdge && node?.capabilityId === 'skill'
-    // 折叠分组是布局层合成的，它的 id（`group:11:skill`）不会出现在 `skillLoads` 里——
-    // 那里记的是**调用节点**的 id。所以只比 `node.id` 会让「选中 Skill 节点」变成
-    // 「面板认为你没选 Skill」（截图发现）。分组要能解析到自己的成员。
-    const load = isSkill
-      ? (skillLoads ?? []).find((entry) => entry.nodeId === node.id
-        || (Array.isArray(data.memberIds) && data.memberIds.includes(entry.nodeId))) ?? null
-      : null
+    const load = isSkill ? resolveSkillLoad(node, data.memberIds, skillLoads) : null
     const alignment = load ? (alignments ?? []).find((entry) => entry.skillName === load.skillName) ?? null : null
 
     // §15: Skill 的三个 Tab 是「运行证据 / 声明 ↔ 实际 / 学习验证」——学习验证取代了
@@ -2334,4 +2345,5 @@ null))
   // render smoke test execute each one against a real payload. Source assertions cannot
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
+  module.exports.__pure = { resolveSkillLoad }
   module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel }
