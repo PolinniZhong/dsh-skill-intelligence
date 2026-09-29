@@ -1,5 +1,8 @@
 # DSH Skill Trace
 
+[![npm version](https://img.shields.io/npm/v/dsh-skill-trace.svg)](https://www.npmjs.com/package/dsh-skill-trace)
+[![npm license](https://img.shields.io/npm/l/dsh-skill-trace.svg)](LICENSE)
+
 > **看清 Agent 在这次会话实际加载了什么 Skill，把运行过程变成可复看、可学习的本地收据。**
 
 DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追踪**
@@ -66,7 +69,15 @@ flowchart LR
 
 ## 三步开始
 
-### 1. 通过 GitHub 试用版安装
+### 1. 安装
+
+从 npm 安装（推荐）：
+
+```bash
+dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.64
+```
+
+或从 GitHub 试用版安装（同一版本，不经 npm）：
 
 ```bash
 dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.64&path:/"
@@ -74,7 +85,7 @@ dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.64
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。
 
-> 当前功能已通过本地链接安装的 Desktop 验证。GitHub 源安装命令采用 DSH 的 `github:` 插件源格式；如未来 DSH 更新导致源安装行为变化，可使用下方的克隆安装作为回退方式。
+> 当前功能已通过本地链接安装的 Desktop 验证。`dsh plugin add` 会把包名参数转交 pnpm 解析，所以 npm 包名与 `github:` 源两种写法都可用；如未来 DSH 更新导致源安装行为变化，可使用下方的克隆安装作为回退方式。
 
 ### 2. 跑一次真实任务
 
@@ -127,7 +138,7 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开预发布版为 `0.4.0-beta.64`。上一候选的 Desktop Blob 下载被实测为假成功，现已停用；本版本改为由 Host 原子创建并回读验证备份，提供备份历史、打开所在文件夹、预览后恢复缺失数据，并在清空/单删前自动创建安全备份。若清空后活动会话先重建了加载证据，恢复会保留当前证据，只补回备份中缺失的个人理解、人工结果、输出引用和继续方式；当前已存在的同类用户记录不会被覆盖。个人理解、人工验证与输出引用的未保存草稿会在当前 Desktop 运行期间本地暂存，切换页面后返回可恢复；只有明确保存后才进入收据与备份。
+当前公开预发布版为 `0.4.0-beta.64`，同时发布在 npm（包名 `dsh-skill-trace`，`beta` 与 `latest` 两个标签都指向该版本）。上一候选的 Desktop Blob 下载被实测为假成功，现已停用；本版本改为由 Host 原子创建并回读验证备份，提供备份历史、打开所在文件夹、预览后恢复缺失数据，并在清空/单删前自动创建安全备份。若清空后活动会话先重建了加载证据，恢复会保留当前证据，只补回备份中缺失的个人理解、人工结果、输出引用和继续方式；当前已存在的同类用户记录不会被覆盖。个人理解、人工验证与输出引用的未保存草稿会在当前 Desktop 运行期间本地暂存，切换页面后返回可恢复；只有明确保存后才进入收据与备份。
 
 上述实现已通过静态合同和本地 store 自动化测试，包括活动会话重建后的个人记录补回、并发原子写，以及清空期间阻塞新写入的维护屏障；技术边界见 [架构说明](docs/ARCHITECTURE.md)。真实 Desktop 已验证备份创建、回读、历史展示与打开所在文件夹；为避免破坏个人记录，发布前未对维护者的真实收据执行“清空 → 恢复”往返，该破坏性路径以隔离自动化覆盖并作为预发布限制公开保留。
 
