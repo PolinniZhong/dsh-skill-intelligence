@@ -1599,6 +1599,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     relations: '关联关系',
     declaration: '声明 ↔ 实际',
     relation: '关系证据',
+    // §15/§38：学习与验证是 Skill Inspector 的第三个 Tab。**此前这个键不存在**，
+    // 于是 `raw(INSPECTOR_TAB_LABELS['learning'])` 得到 undefined——那个 Tab
+    // 渲染成空标签：面板有内容，用户却看不到入口叫什么。
+    learning: '学习验证',
   }
 
   /** §16: what a declaration note means, in the only vocabulary allowed here. */
@@ -2265,7 +2269,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
               : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel })
                 : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
 
-    const sessionSubtitle = !data ? '正在读取当前会话…'
+    // 页头必须和正文说同一件事。此前 `!data` 一律显示"正在读取"，于是 Error 态下
+    // 页头写"正在读取"、正文写"暂时无法读取"——**同一屏上两句话互相矛盾**（截图发现）。
+    const sessionSubtitle = !data
+      ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
       : view === 'runtime' ? (runtime ? localized(`运行图谱 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 边 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime graph · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} edges · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行图谱…`, `${data.workspaceLabel} · rebuilding the runtime graph…`))
         : view === 'map' && hasRuntimeEvidence ? (runtime ? localized(`运行流程 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 关系 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime flow · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} relations · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行流程…`, `${data.workspaceLabel} · rebuilding the runtime flow…`))
           : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
