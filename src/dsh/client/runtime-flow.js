@@ -182,7 +182,7 @@ const STATUS_LABELS = {
 }
 
 /** Convert the Host's layout into React Flow's model. Presentation only. */
-function toFlowNodes(layout, selectedId, dim, replay) {
+function toFlowNodes(layout, selectedId, dim, replay, scopeSet = null) {
   return layout.nodes.map((node) => ({
     id: node.id,
     type: 'dsht',
@@ -208,6 +208,10 @@ function toFlowNodes(layout, selectedId, dim, replay) {
         : (KIND_LABELS[node.kind] ?? node.kind),
       statusLabel: STATUS_LABELS[node.status] ?? node.status,
       dimmed: dim ? !dim.has(node.id) : false,
+      // §十二：Scope 是**画布视图状态**，不是 Runtime Evidence。
+      // 数据链是 Runtime Event → Runtime Scope → View Model → 这里；
+      // Canvas **不重新推断** Skill Scope，只渲染宿主投影过来的 inScopeNodeIds。
+      inScope: scopeSet ? scopeSet.has(node.id) : undefined,
       // §37: replay walks the run in event order. Nodes not yet reached recede; the
       // step being read is the only one at full weight.
       replay: replay ? (replay.currentId === node.id ? 'current' : (replay.seenIds.has(node.id) ? 'past' : 'future')) : null,
@@ -327,12 +331,26 @@ function CanvasToolbar() {
     button('⌂', '适配画布', () => flow.fitView({ padding: 0.12 })))
 }
 
-function RuntimeFlowCanvas({ layout, selectedId, onSelect, onBackground, showMiniMap = false, replay = null, fitSignal = 0, showErrorInLegend = false, density = 'flow' }) {
+function RuntimeFlowCanvas({ layout, selectedId, onSelect, onBackground, showMiniMap = false, replay = null, fitSignal = 0, scopeNodeIds = null, showErrorInLegend = false, density = 'flow' }) {
   const { fitView } = useReactFlow()
   const focus = selectedId?.nodeId
-  const dim = React.useMemo(() => (focus ? neighbourhoodOf(layout, focus) : null), [layout, focus])
+  // §三/§四 两套 Focus 语义，按选中对象分派：
+  //   · 选中 Skill 且有**可靠 Scope** → Scope Focus（范围成员保持原样，范围外降权）
+  //   · 其他节点 → Neighbourhood Focus（沿用既有邻接语义，不合并两者）
+  //   · Skill 没有可靠 Scope → 回退邻接，**不强行构造** Focus 范围
+  const scopeSet = React.useMemo(() => {
+    if (!scopeNodeIds || !scopeNodeIds.length) return null
+    return new Set(scopeNodeIds)
+  }, [scopeNodeIds])
+  const effectiveFocusSet = scopeSet ?? (focus ? neighbourhoodOf(layout, focus) : null)
+  const dim = React.useMemo(() => {
+    if (!focus) return null
+    const keep = effectiveFocusSet ?? new Set([focus])
+    // 只降权、**不删除**：节点与边始终保留，画布仍是完整 Runtime Graph。
+    return keep
+  }, [focus, effectiveFocusSet])
 
-  const nodes = React.useMemo(() => toFlowNodes(layout, selectedId?.nodeId, dim, replay), [layout, selectedId?.nodeId, dim, replay])
+  const nodes = React.useMemo(() => toFlowNodes(layout, selectedId?.nodeId, dim, replay, scopeSet), [layout, selectedId?.nodeId, dim, replay, scopeSet])
   const edges = React.useMemo(() => toFlowEdges(layout, selectedId?.edgeId, dim), [layout, selectedId?.edgeId, dim])
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes)

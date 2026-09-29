@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.4.0-beta.58 — 2026-09-29 · P0：Contextual Inspector + Graph 空间释放 + Scope 画布表达
+
+基线 `0.4.0-beta.57`，**321 项测试 / 24 项契约检查全过**。
+
+### Inspector 改为 Contextual（P0-1/2/3）
+
+`.st-flow` 的列宽此前是**写死的 `340px`**。改为由 `data-inspector` 驱动：
+
+| 视图 | 默认 | 画布宽 | Inspector 宽 |
+|---|---|---|---|
+| Runtime Flow | `expanded` | 1560px | 340px |
+| **Runtime Graph** | **`collapsed`** | **1874px** | **26px（窄 Rail）** |
+
+**画布释放 +314px**（1900px 窗口实测）。折叠时 **Inspector 保持挂载**，只改列宽——
+避免重复取数，也确保**不改变任何 Graph 数据**。
+
+选中 Node/Skill 时自动展开；收起用显式按钮（不做「再次点击同一节点收起」，
+那会与"重新读取该节点"冲突）。
+
+**顺带满足 §27**：收起按钮原设计成圆角药丸，verify 的 `§27: too many rounded cards (71)` 拦住——
+守卫是对的，改为无边框文字按钮，既过守卫也更符合「quiet」。
+
+### Scope 的画布表达（P0-5）
+
+`/runtime` 此前**不含 scope**。host 新增 `projectScopes()`：
+
+```
+Runtime Event → Runtime Scope → Runtime View Model → Canvas Highlight
+```
+
+它**只做投影**：把 `skill-runtime-scope.mjs` 已经建好的 Scope 的 `invocationId`
+翻译成布局节点 id（沿用布局已有的成员归属）。**客户端不重新推断 Scope。**
+
+画布用 `data-in-scope` 表达，样式是**淡边框 + 极淡底纹**：
+**不画包围盒、不画连线**——否则读起来就是 BPMN 的「Skill 工作流框」。
+只有 observed / correlated 会被投影进来，candidate / unlinked 不参与。
+
+### Focus 两套语义（P0-4）
+
+按选中对象分派，**不合并**：
+
+- 选中 **Skill 且有可靠 Scope** → Scope Focus（范围外降权，**节点全部保留**）
+- 选中**其他节点** → 沿用既有 Neighbourhood Focus
+- **Skill 没有可靠 Scope → 回退邻接，不强行构造**
+
+### Handle 弱化（P1-6）
+
+`.st-flow-handle` 的 `opacity` 置 0、`pointer-events` 置 none。
+**Handle 保留在 DOM 中**——删掉它 React Flow 就画不出边。纯 CSS，零行为风险。
+
+### 又抓到一次 TDZ
+
+我把 `scopeNodeIds` 的 useMemo 插在了它引用的 `selectedIdOfInspect` **声明之前**，
+报 `Cannot access 'selectedIdOfInspect' before initialization`——
+**与 beta.31 白屏事故同一类**。渲染冒烟测试当场抓到（那层测试正是 beta.31 之后加的）。
+
+另有一次 `runtime is not defined`：视图拿的是 `data` 不是 `runtime`。**同样被冒烟测试抓到。**
+
+### 未完成（如实记录）
+
+| 项 | 状态 |
+|---|---|
+| **Case M E2E**（observedEvents ↔ data-in-scope 一一对应） | ❌ **未做** |
+| Case D/E/F 补充测试 | ❌ 未做 |
+| `design.md` 第 81/179/182/405 行同步 | ❌ **未做**（仍写着「单列、无固定 Inspector」） |
+| Native Correlation ID 文档记录 | ❌ 未做 |
+
+**测试仍是 321 项（未新增）。** 本轮只做到"能跑通、门禁绿"，**没有补上新测试**——
+这是本轮最大的缺口，因为它意味着这些改动**没有回归守卫**。
+
 ## 0.4.0-beta.57 — 2026-09-29 · 批次 Y：把产品与设计文档纳入公开仓库
 
 **代码无改动。** 公开范围的一次调整。

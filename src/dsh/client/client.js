@@ -409,6 +409,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
          若瞬变会读成"画面闪了一下"；160ms 足以让它读成一次状态变化。 */
       .st-flow-node{transition:box-shadow .16s ease,opacity .16s ease,border-color .16s ease}
       .st-flow-node[data-dimmed="true"]{transition:opacity .16s ease}
+      /* §十二：Scope 是**证据边界**，不是容器。用节点淡边框 + 极淡底纹表达，
+         **不画包围盒、不画连线**——否则读起来就是 BPMN 的「Skill 工作流框」。
+         只有 observed / correlated 会被宿主投影进来；candidate / unlinked 不参与，
+         因此不会被同等强度误读为已确认关系。 */
+      .st-flow-node[data-in-scope="true"]{border-color:color-mix(in srgb,var(--st-brand) 38%,var(--st-border));box-shadow:0 0 0 2px color-mix(in srgb,var(--st-brand) 10%,transparent)}
+      .st-flow[data-density="graph"] .st-flow-node[data-in-scope="true"]{background:color-mix(in srgb,var(--st-brand) 3%,var(--st-layer))}
       .react-flow__edge-path{transition:stroke-width .16s ease,opacity .16s ease}
       .st-flow-node[data-replay="current"]{transition:box-shadow .16s ease}
       .st-flow-node-bar{height:3px;background:var(--st-node-color);flex:none}
@@ -422,7 +428,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-node-status{display:inline-flex;align-items:center;gap:5px;font-weight:650}
       .st-flow-node-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
       .st-flow-node-right{color:var(--st-faint);font-variant-numeric:tabular-nums}
-      .st-flow-handle{width:5px;height:5px;border:0;background:var(--st-node-color);opacity:.55}
+      /* §十：React Flow 作为引擎保留，但**产品体验不是 Workflow Editor**。
+   可见的 source/target handle 会读成「可以拖线连接」——把它隐掉。
+   Handle 本身必须保留：删掉它 React Flow 就画不出边。 */
+      .st-flow-handle{width:5px;height:5px;border:0;background:var(--st-node-color);opacity:0;pointer-events:none}
       .st-rt-tabs{display:flex;gap:2px;margin:0 0 10px;padding:2px;border:1px solid var(--st-border);border-radius:7px;background:var(--st-layer-2)}
       .st-rt-tab{flex:1;min-height:26px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);font-size:10.5px;cursor:pointer}
       .st-rt-tab[aria-selected="true"]{background:var(--st-layer);color:var(--st-brand);font-weight:600}
@@ -474,6 +483,18 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-canvas-wrap{min-width:0;min-height:0;display:flex;flex-direction:column}
       .st-flow-canvas{flex:1;height:auto;min-height:0;border:0;border-radius:0}
       .st-flow-side{height:100%;max-height:none;position:static;top:auto;background:var(--st-layer);border-left:1px solid var(--st-border);overflow:auto}
+      /* §三 Inspector 是上下文工具，不永久压缩画布。
+         折叠只改列宽，**不动任何 Graph 数据**；Inspector 保持挂载以免重新取数。
+         窄屏媒体查询在其后，仍会覆盖为单列——折叠不改变响应式行为。 */
+      .st-flow[data-inspector="collapsed"]{grid-template-columns:minmax(0,1fr) 26px}
+      .st-flow[data-inspector="collapsed"] .st-flow-side{border-left:1px solid var(--st-border);overflow:hidden}
+      .st-flow[data-inspector="collapsed"] .st-flow-side > *:not(.st-inspector-rail){display:none}
+      .st-flow[data-inspector="expanded"] .st-inspector-rail{display:none}
+      .st-inspector-rail{width:26px;height:100%;min-height:120px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;border:0;background:transparent;color:var(--st-muted);cursor:pointer;font-size:10.5px;letter-spacing:.04em;writing-mode:vertical-rl}
+      .st-inspector-rail:hover{background:var(--st-layer-2);color:var(--st-text)}
+      /* §27 圆角是例外不是默认：收起是次要操作，用无边框文字按钮，不新增一张"卡片"。 */
+      .st-inspector-collapse{align-self:flex-end;margin:0 12px 8px;padding:2px 0;border:0;background:transparent;color:var(--st-faint);font-size:10.5px;cursor:pointer}
+      .st-inspector-collapse:hover{color:var(--st-text);text-decoration:underline}
       .st-rt-inspector{height:100%;max-height:none;position:static;top:auto;border:0;border-radius:0;background:transparent;padding:17px}
       .st-replay{flex:none;width:100%;margin:0;padding:9px 18px;border:0;border-bottom:1px solid var(--st-border-soft);border-radius:0;background:var(--st-layer);gap:12px}
       .st-flow-filters{grid-column:1/-1;background:var(--st-bg);padding:11px 18px 0}
@@ -1915,6 +1936,26 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
    * cannot be mistaken for a smaller run.
    */
   function RuntimeView({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect, replayActive, onReplayActiveChange, fitSignal, showAllSignal = 0 }) {
+    // §三：Inspector 是上下文工具，不永久压缩画布。Graph 是低层证据视图，默认让位给画布。
+    // 折叠只改列宽，**不动任何 Graph 数据**。
+    const [inspectorOpen, setInspectorOpen] = React.useState(false)
+    const selectedIdOfInspect = () => inspect?.node?.id ?? inspect?.nodeId ?? null
+    // §十二/§五：把宿主投影好的 Scope 节点集交给画布。**画布不重新推断 Scope**——
+    // 这里只做一件事：用已有的 resolveSkillLoad 把"选中的节点"对应到 skillName，
+    // 再取那条 Scope 的 inScopeNodeIds。没有 Scope 就是 null，不构造。
+    const scopeNodeIds = React.useMemo(() => {
+      const nodeId = selectedIdOfInspect()
+      if (!nodeId || !Array.isArray(data?.scopes?.scopes)) return null
+      const load = resolveSkillLoad({ id: nodeId }, inspect?.memberIds, skillLoads)
+      if (!load) return null
+      const scope = data.scopes.scopes.find((entry) => entry.skillName === load.skillName)
+      return scope && scope.inScopeNodeIds && scope.inScopeNodeIds.length ? scope.inScopeNodeIds : null
+    }, [inspect, skillLoads, data])
+
+    // 选中 Node/Skill 后展开 Inspector（§三）。**只打开，不自动关闭**：收起交给显式按钮，
+    // 否则"再次点击同一节点"会与"重新读取该节点"冲突。
+    React.useEffect(() => { if (inspect) setInspectorOpen(true) }, [inspect])
+
     const [types, setTypes] = React.useState([])
     const [hideCandidate, setHideCandidate] = React.useState(true)
     const [failuresOnly, setFailuresOnly] = React.useState(false)
@@ -1962,7 +2003,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       ? current.filter((item) => item !== key)
       : [...current, key])
 
-    return h('div', { className: 'st-flow', 'data-density': 'graph' },
+    return h('div', { className: 'st-flow', 'data-density': 'graph', 'data-inspector': inspectorOpen ? 'expanded' : 'collapsed' },
       h('div', { className: 'st-flow-filters' },
         h('div', { className: 'st-filters', role: 'group', 'aria-label': '运行图谱筛选' },
           h('button', { className: 'st-filter', type: 'button', 'aria-pressed': types.length === 0 && !hideCandidate && !failuresOnly, onClick: () => { setTypes([]); setFailuresOnly(false); setHideCandidate(false) } }, localized('全部', 'All')),
@@ -1999,6 +2040,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         h('div', { className: 'st-flow-canvas', 'data-engine': filtered.engine },
           h(RuntimeFlowView, {
             layout: filtered,
+            scopeNodeIds,
             selectedId,
             onSelect,
             onBackground: onCloseInspect,
@@ -2008,7 +2050,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
             density: 'graph',
           }))),
       h('div', { className: 'st-flow-side' },
-        h('p', { className: 'st-rt-notes' }, localized(
+        h('button', { className: 'st-inspector-rail', type: 'button', onClick: () => setInspectorOpen(true), 'aria-label': localized('展开检查器', 'Open inspector'), 'aria-expanded': inspectorOpen },
+          localized('检查器', 'Inspector')),
+        h('button', { className: 'st-inspector-collapse', type: 'button', onClick: () => setInspectorOpen(false), 'aria-label': localized('收起检查器', 'Collapse inspector') }, localized('收起', 'Collapse')),
+                h('p', { className: 'st-rt-notes' }, localized(
           `本次运行共 ${hidden.nodeCount + stats.renderedNodeCount} 个节点；画布与筛选之外的部分已被折叠，折叠节点上标明它代表多少项。`,
           `The run holds ${hidden.nodeCount + stats.renderedNodeCount} nodes; anything outside the canvas and filters is folded, and a folded node names how many it stands for.`)),
         h(RuntimeInspector, {
@@ -2059,6 +2104,25 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   }
 
   function FlowCanvas({ data, loading, error, onRetry, inspect, inspectLoading, inspectError, alignments, skillLoads, learningSessionId, learningCards, learningNotes, onUpdateLearning, onSelect, onCloseInspect, replayActive, onReplayActiveChange, fitSignal }) {
+    // Flow 是高层摘要，默认展开以便先读结论。
+    const [inspectorOpen, setInspectorOpen] = React.useState(true)
+    const selectedIdOfInspect = () => inspect?.node?.id ?? inspect?.nodeId ?? null
+    // §十二/§五：把宿主投影好的 Scope 节点集交给画布。**画布不重新推断 Scope**——
+    // 这里只做一件事：用已有的 resolveSkillLoad 把"选中的节点"对应到 skillName，
+    // 再取那条 Scope 的 inScopeNodeIds。没有 Scope 就是 null，不构造。
+    const scopeNodeIds = React.useMemo(() => {
+      const nodeId = selectedIdOfInspect()
+      if (!nodeId || !Array.isArray(data?.scopes?.scopes)) return null
+      const load = resolveSkillLoad({ id: nodeId }, inspect?.memberIds, skillLoads)
+      if (!load) return null
+      const scope = data.scopes.scopes.find((entry) => entry.skillName === load.skillName)
+      return scope && scope.inScopeNodeIds && scope.inScopeNodeIds.length ? scope.inScopeNodeIds : null
+    }, [inspect, skillLoads, data])
+
+    // 选中 Node/Skill 后展开 Inspector（§三）。**只打开，不自动关闭**：收起交给显式按钮，
+    // 否则"再次点击同一节点"会与"重新读取该节点"冲突。
+    React.useEffect(() => { if (inspect) setInspectorOpen(true) }, [inspect])
+
     const timeline = data?.timeline ?? null
     const [replayIndex, setReplayIndex] = React.useState(-1)
     const [playing, setPlaying] = React.useState(false)
@@ -2100,7 +2164,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
       : null), [replayIndex, timeline])
 
-    return h('div', { className: 'st-flow' },
+    return h('div', { className: 'st-flow', 'data-inspector': inspectorOpen ? 'expanded' : 'collapsed' },
       h('div', { className: 'st-flow-canvas-wrap' },
         replayActive ? h(ReplayControls, {
           timeline,
@@ -2113,6 +2177,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         h('div', { className: 'st-flow-canvas', 'data-engine': flowLayout.engine },
           h(RuntimeFlowView, {
             layout: flowLayout,
+              scopeNodeIds,
             selectedId,
             onSelect,
             onBackground: onCloseInspect,
@@ -2120,7 +2185,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
             fitSignal,
           }))),
       h('div', { className: 'st-flow-side' },
-        hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
+        h('button', { className: 'st-inspector-rail', type: 'button', onClick: () => setInspectorOpen(true), 'aria-label': localized('展开检查器', 'Open inspector'), 'aria-expanded': inspectorOpen },
+          localized('检查器', 'Inspector')),
+        h('button', { className: 'st-inspector-collapse', type: 'button', onClick: () => setInspectorOpen(false), 'aria-label': localized('收起检查器', 'Collapse inspector') }, localized('收起', 'Collapse')),
+                hidden.nodeCount ? h('p', { className: 'st-rt-notes' }, localized(
           `另有 ${hidden.nodeCount} 个节点与 ${hidden.edgeCount + hidden.collapsedInsideCount} 条关系被折叠或收进分组；已隐藏 ${candidateCount} 条候选关系。候选关系可在「运行图谱」中查看；折叠节点上标明了它代表多少项。`,
           `${hidden.nodeCount} nodes and ${hidden.edgeCount + hidden.collapsedInsideCount} relations are folded, and ${candidateCount} candidate relation(s) are hidden. Candidate relations are available in the Runtime Graph; a folded node names how many it stands for.`)) : null,
         h(RuntimeInspector, {
