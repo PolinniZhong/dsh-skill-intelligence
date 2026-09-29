@@ -114,8 +114,16 @@ function glyphOf(status) {
  */
 function RuntimeNode({ data }) {
   const color = data.color
-  // 图标用类型名首字符：与 preview 的 .n-icon 一致，不需要额外图标资源。
-  const initial = (data.kindLabel || '?').slice(0, 1)
+  /**
+   * 图标取自**能力**，不是取自"是不是折叠"。
+   *
+   * 此前一律用 `kindLabel` 的首字，于是折叠分组显示成「折」（来自"折叠分组"）——
+   * 一个 Skill 分组的图标是「折」而不是「S」。preview 的 `.n-icon` 正是按类型给的。
+   */
+  const capabilityInitial = { skill: 'S', tool: 'T', mcp: 'M', cli: 'C', 'turn-range': 'T' }[data.capabilityId]
+  const initial = capabilityInitial ?? (data.kindLabel || '?').slice(0, 1)
+  // 标题与类型相同时不重复渲染——会话节点此前读作「会 会话 / 会话」。
+  const typeLabel = data.kindLabel && data.kindLabel !== data.label ? data.kindLabel : ''
   const kindKey = data.capabilityId || data.kind
   return React.createElement('div', {
     className: 'st-flow-node',
@@ -134,7 +142,7 @@ function RuntimeNode({ data }) {
     React.createElement('span', { className: 'st-flow-node-icon', 'aria-hidden': 'true' }, initial),
     React.createElement('span', { className: 'st-flow-node-heading' },
       React.createElement('span', { className: 'st-flow-node-title' }, data.label),
-      React.createElement('span', { className: 'st-flow-node-type' }, data.kindLabel))),
+      typeLabel ? React.createElement('span', { className: 'st-flow-node-type' }, typeLabel) : null)),
   React.createElement('div', { className: 'st-flow-node-body' }, data.sublabel || ''),
   React.createElement('div', { className: 'st-flow-node-foot' },
     React.createElement('span', { className: 'st-flow-node-status', style: { color: statusColor(data.status) } },
@@ -149,6 +157,9 @@ const NODE_TYPES = { dsht: RuntimeNode }
 
 /** 图例只列四种类型色——与 §25.1「类型色仅用于节点」一致。 */
 const LEGEND_LABELS = { skill: 'Skill', tool: 'Tool', mcp: 'MCP', cli: 'CLI' }
+
+/** 折叠分组该显示的能力名；`mixed` 说不出是哪种能力，所以留空。 */
+const COLLAPSED_KIND_LABELS = { skill: 'Skill', tool: 'Tool', mcp: 'MCP', cli: 'CLI' }
 
 const KIND_LABELS = {
   session: '会话',
@@ -183,11 +194,17 @@ function toFlowNodes(layout, selectedId, dim, replay) {
       label: node.label,
       sublabel: node.sublabel,
       kind: node.kind,
+      // 图标按**能力**取首字。此前没传 capabilityId，节点只能退回去用 kindLabel，
+      // 于是折叠分组显示成「折」（来自"折叠分组"）——而我先写了图标逻辑却没检查字段
+      // 有没有传过来，那次修复是空的。
+      capabilityId: node.capabilityId ?? null,
       status: node.status,
       width: node.width,
       color: capabilityColor(node),
+      // 折叠分组的类型行此前写「折叠 · N」——那是**状态**，不是类型，而且 N 与标题里的
+      // `× N` 重复。改为显示它真正代表的**能力**；能力不明（mixed）时留空。
       kindLabel: node.collapsed
-        ? `${KIND_LABELS[node.kind] ?? node.kind} · ${node.memberCount}`
+        ? (COLLAPSED_KIND_LABELS[node.capabilityId] ?? '')
         : (KIND_LABELS[node.kind] ?? node.kind),
       statusLabel: STATUS_LABELS[node.status] ?? node.status,
       dimmed: dim ? !dim.has(node.id) : false,
