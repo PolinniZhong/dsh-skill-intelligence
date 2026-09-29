@@ -317,7 +317,37 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const style = document.createElement('style')
     style.id = STYLE_ID
     style.textContent = `
-      [data-plugin="dsh-skill-trace"]{--st-brand:#2f6fed;--st-brand-soft:#eef4ff;--st-bg:#f6f7f9;--st-layer:#fff;--st-layer-2:#fbfcfd;--st-border:#e4e7ec;--st-border-soft:#edf0f3;--st-grid:#eef1f5;--st-text:#16181d;--st-muted:#7a818c;--st-faint:#9aa1aa;--st-success:#258b63;--st-warning:#b7791f;--st-error:#c9444f;--st-node-color:#dfe3e9;--st-node-width:190px;height:100%;max-height:100%;min-height:0;overflow:hidden;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
+      [data-plugin="dsh-skill-trace"]{
+      /* DSH Theme → DSH Alias → --st-* → Skill Trace UI
+       *
+       * Every neutral, status and brand token resolves to a **DSH alias token** first; the
+       * literal is only the fallback for the abnormal case where the host token is absent.
+       * That is what makes Light/Dark work without a second stylesheet and without any
+       * isDark state: DSH redefines its aliases per theme and this follows automatically.
+       *
+       * Capability colours (skill/tool/mcp/cli) have no DSH alias equivalent — they are
+       * semantic *type* markers, not theme surfaces — so they keep their hue. Blending them
+       * against --st-layer happens at the usage site, which keeps them readable on either
+       * theme without changing what they mean.
+       */
+      color-scheme: light dark;
+      --st-brand:var(--dsw-alias-brand-primary,#2f6fed);
+      --st-brand-soft:var(--dsw-alias-interactive-bg-hover,#eef4ff);
+      --st-bg:var(--dsw-alias-bg-base,#f6f7f9);
+      --st-layer:var(--dsw-alias-bg-layer-1,#fff);
+      --st-layer-2:var(--dsw-alias-bg-layer-2,#fbfcfd);
+      --st-border:var(--dsw-alias-border-l2,#e4e7ec);
+      --st-border-soft:var(--dsw-alias-border-l1,#edf0f3);
+      --st-grid:var(--dsw-alias-border-l1,#eef1f5);
+      --st-text:var(--dsw-alias-label-primary,#16181d);
+      --st-muted:var(--dsw-alias-label-secondary,#7a818c);
+      --st-faint:var(--dsw-alias-label-tertiary,#9aa1aa);
+      --st-success:var(--dsw-alias-state-success-primary,#258b63);
+      --st-warning:var(--dsw-alias-state-warn-primary,#b7791f);
+      --st-error:var(--dsw-alias-state-error-primary,#c9444f);
+      --st-node-color:#dfe3e9;
+      --st-node-width:190px;
+    }
   --st-edge: var(--dsw-alias-border-strong, #a9b1bd);
   --st-subagent: var(--dsw-alias-warning, #c2410c);
       [data-plugin="dsh-skill-trace"].st-host{height:calc(100% - var(--st-host-composer-h,0px));max-height:calc(100% - var(--st-host-composer-h,0px))}
@@ -527,9 +557,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-tag{font-size:10.5px;border-radius:999px;padding:3px 7px;white-space:nowrap}
       .st-tag[data-tone="ok"]{color:#176c45;background:var(--st-brand-soft,#edf4ff)}
       .st-tag[data-tone="ok"]{color:#176c45;background:#edf8f3}
-      .st-tag[data-tone="warn"]{color:#9a6712;background:#fff6df}
+      .st-tag[data-tone="warn"]{color:var(--st-warning);background:color-mix(in srgb,var(--st-warning) 12%,var(--st-layer))}
       .st-tag[data-tone="gray"]{color:#687385;background:#f1f3f6}
-      .st-tag[data-tone="error"]{color:#a8343d;background:#fff0f2}
+      .st-tag[data-tone="error"]{color:var(--st-error);background:color-mix(in srgb,var(--st-error) 12%,var(--st-layer))}
       .st-receipt-hint{margin:16px 0 0;color:var(--st-faint);font-size:11px}
       .st-header-btn{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 11px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer);color:#596476;font-size:12px;cursor:pointer}
       .st-header-btn:hover{background:var(--st-layer-2)}

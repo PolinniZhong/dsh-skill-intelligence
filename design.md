@@ -431,6 +431,54 @@ Skill Trace 的视觉系统必须服从证据强度：
 - 用户输入与路径使用 `overflow-wrap:anywhere`。
 - 不得移除 outline 后不补焦点样式。
 
+## 12.1 Dark Mode
+
+### 架构
+
+```
+DSH Theme → DSH Alias / Semantic Token → --st-* → Skill Trace UI
+```
+
+- **优先复用 DSH semantic / alias token**（实测当前可用 **52 个 `--dsw-alias-*`**）
+- `--st-*` 是 Skill Trace **内部语义 token**，值形如 `var(--dsw-alias-…, <回退字面量>)`
+- **字面量只用于宿主 token 缺失的异常环境**；不得绑定某一主题的绝对颜色
+
+### 已映射的 14 个 token
+
+| `--st-*` | DSH alias |
+|---|---|
+| `--st-bg` | `--dsw-alias-bg-base` |
+| `--st-layer` / `--st-layer-2` | `--dsw-alias-bg-layer-1` / `-2` |
+| `--st-border` / `--st-border-soft` / `--st-grid` | `--dsw-alias-border-l2` / `-l1` |
+| `--st-text` / `--st-muted` / `--st-faint` | `--dsw-alias-label-primary` / `-secondary` / `-tertiary` |
+| `--st-brand` / `--st-brand-soft` | `--dsw-alias-brand-primary` / `--dsw-alias-interactive-bg-hover` |
+| `--st-success` / `--st-warning` / `--st-error` | `--dsw-alias-state-{success,warn,error}-primary` |
+
+另加 `color-scheme: light dark`，让表单控件与滚动条跟随主题。
+
+### 禁止
+
+- **不允许复制两套独立的 Light / Dark CSS**
+- **不允许组件维护 `isDark` / `theme === 'dark'`**
+- **不允许新增独立 Theme State**
+- 不允许在组件里大量写死 `#fff` / `#000` / 白色背景 / 黑色文字
+
+### Capability Color 与 Status Color
+
+两者**允许为 Dark Mode 调整明度或饱和度，但不得改变语义**：
+颜色表示 **Capability Type** 与 **Status**，**不表示**因果关系、成功程度或质量评分。
+
+`skill / tool / mcp / cli` **无 DSH alias 对应**——它们是语义类型标记而非主题表面，
+因此保留色相，在**使用处**与 `--st-layer` 混合，使两个主题下都可读且语义不变。
+
+Status 继续满足「**颜色不是唯一信息**」。
+
+### ⚠️ 验收状态
+
+机制已实现（14 个 token 映射 + `color-scheme`），
+**但尚未在真实 DSH Desktop 上验证 Light / Dark 的实际观感，也没有 Dark 截图。**
+**在该验证完成前，不得声称 Dark Mode「已适配」。**
+
 ## 12. 图标、语言与主题
 
 ### 图标

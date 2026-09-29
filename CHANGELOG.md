@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.4.0-beta.60 — 2026-09-29 · Dark Mode：Token 化主题适配
+
+**代码机制已实现；真实 DSH Desktop 尚未验证。**
+
+### 根因：`--st-*` 从未引用过宿主 Token
+
+design.md 一直写着「宿主 Token 是第一选择，回退值只用于异常环境」——
+**实测该约定从未实现**：`--st-*` 的 16 个 token **全部是写死的绝对浅色值**，
+没有任何一个引用 DSH 宿主 token。**这就是 Dark Mode 不生效的确切原因。**
+
+### 架构
+
+```
+DSH Theme → DSH Alias / Semantic Token → --st-* → Skill Trace UI
+```
+
+实测 DSH 当前提供 **52 个 `--dsw-alias-*` token**（`bg-base`、`bg-layer-1..4`、
+`border-l1..l4`、`label-primary/secondary/tertiary`、`brand-primary`、
+`state-success/warn/error-primary` 等）。插件**引用它们**，
+DSH 按主题重定义 alias 时插件随之自动变化。
+
+**已映射 14 个 token**（详见 design.md 的 Dark Mode 章节表格）。
+另加 `color-scheme: light dark`，让表单控件与滚动条跟随主题。
+
+**没有第二套 CSS，没有 `isDark` 状态，没有新增 Theme State。**
+
+### 清理的主题硬编码
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| `.st-tag[data-tone="warn"]` | `#9a6712` / `#fff6df` | `var(--st-warning)` / `color-mix(… 12%, var(--st-layer))` |
+| `.st-tag[data-tone="error"]` | `#a8343d` / `#fff0f2` | `var(--st-error)` / 同上 |
+
+原先的浅色底在 Dark Mode 下会**漏白底**。
+
+### Capability Color
+
+`skill / tool / mcp / cli` **无 DSH alias 对应**——它们是**语义类型标记**，不是主题表面。
+因此保留色相，在**使用处**与 `--st-layer` 混合，从而在两个主题下都可读，**且不改变语义**。
+
+### ⚠️ 未验证（明确声明）
+
+| 项 | 状态 |
+|---|---|
+| **真实 DSH Desktop 的 Light / Dark 观感** | ❌ **未验证** |
+| 真实截图（Dark Runtime Graph / Dark Inspector） | ❌ **未截** |
+| Scope Highlight 在画布上出现 | ❌ **仍未验证**（beta.59 遗留） |
+| Case D/E/F | ❌ 未做 |
+| Runtime Truth E2E | ❌ 未做 |
+
+**在该验证完成前，不得声称 Dark Mode「已适配」。**
+
+### 又一次反引号事故
+
+我在 CSS 的**模板字符串**注释里写了 `` `isDark` ``，反引号**截断了字符串**，
+`node --check` 报 `Unexpected identifier 'isDark'`。
+**与上轮 `:active` 完全相同的错误**——这类注释在模板字符串里必须避免反引号。
+
+### 验证
+
+- **333 项测试通过**，**24 项契约检查通过**（测试数未变）
+- 未新增测试
+
 ## 0.4.0-beta.59 — 2026-09-29 · Runtime Graph Hardening + Code Simplification
 
 **不加新能力。** 让 beta.58 从"功能完成但缺乏回归守卫"变成"有守卫、有真实验证、代码更简洁"。
