@@ -395,6 +395,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-flow-node:hover{box-shadow:0 7px 18px rgba(23,33,48,.08)}
       /* 键盘可达（§13）：preview 用 outline，实现沿用同一做法。 */
       .st-flow-node:focus-visible{outline:2px solid var(--st-brand);outline-offset:2px}
+      /* 按下态：preview 自己没有 :active，但 objective 明确要求 hover/active/focus。
+         按下时轻微下沉，读成"点到了"而不是"没反应"。 */
+      .st-flow-node:active{transform:translateY(1px);box-shadow:0 2px 6px rgba(23,33,48,.06)}
+      .st-button:active,.st-icon-button:active,.st-view-button:active,.st-flow-tool:active,.st-header-btn:active,.st-filter:active{transform:translateY(1px)}
       /* 过渡：objective 明确要求。preview 没有过渡，但状态切换（hover / 聚焦降权 / 回放）
          若瞬变会读成"画面闪了一下"；160ms 足以让它读成一次状态变化。 */
       .st-flow-node{transition:box-shadow .16s ease,opacity .16s ease,border-color .16s ease}
@@ -2322,7 +2326,7 @@ null))
         h('div', { className: 'st-header-actions' },
           canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: showAll }, localized('显示全部', 'Show all')) : null,
           canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: () => setFitTick((value) => value + 1) }, localized('适配画布', 'Fit')) : null,
-          canvasView && runtime ? h('button', { className: replayActive ? 'st-header-btn' : 'st-header-btn primary', type: 'button', onClick: () => setReplayActive((value) => !value) }, replayActive ? localized('退出回放', 'Exit replay') : localized('回放', 'Replay')) : null,
+          canvasView && runtime && !replayActive ? h('button', { className: 'st-header-btn primary', type: 'button', onClick: () => setReplayActive(true) }, replayActive ? localized('退出回放', 'Exit replay') : localized('回放', 'Replay')) : null,
           h('button', { className: 'st-button st-library-button', type: 'button', 'aria-pressed': screen === 'catalog', onClick: () => { setScreen('catalog'); setReplayActive(false) } }, h(Icon, { name: 'list', size: 15 }), localized('我的 Skill', 'My Skills')),
           h('button', { className: 'st-icon-button', type: 'button', onClick: screen === 'catalog' ? () => setCatalogReload((value) => value + 1) : load, disabled: screen === 'session' && loading, title: '刷新', 'aria-label': screen === 'catalog' ? '刷新我的 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
       content))
