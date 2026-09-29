@@ -704,7 +704,6 @@ svg.react-flow__connectionline {
       .st-rt-notes{margin:10px 0 0;padding:9px 10px;border-radius:7px;background:var(--st-layer-2);color:var(--st-faint);font-size:10.5px;line-height:1.6}
       .st-rt-empty{display:grid;place-items:center;min-height:180px;color:var(--st-muted);font-size:12px}
 
-      .st-flow{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
       .st-flow-canvas{min-width:0;height:calc(100dvh - 210px);min-height:420px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-layer);overflow:hidden}
       .st-flow-side{position:sticky;top:8px;max-height:calc(100dvh - 190px);overflow:auto}
       .st-flow-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 9px;color:var(--st-muted);font-size:11px}
@@ -885,7 +884,7 @@ svg.react-flow__connectionline {
      *)
 */
 
-// dsh-skill-trace:client-build 53189b252c767d8a
+// dsh-skill-trace:client-build 7526daf06daaf3f3
 
     })()
     return module.exports

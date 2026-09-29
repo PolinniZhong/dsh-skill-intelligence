@@ -54,8 +54,6 @@
  * @module skill-runtime-scope
  */
 
-import { aggregateInvocations } from './runtime-events.mjs'
-
 export const SKILL_SCOPE_MODEL_VERSION = 1
 
 /**
@@ -121,14 +119,15 @@ const isInteger = (value) => Number.isSafeInteger(value)
  */
 function indexByTurn(runtimeEvents) {
   const byTurn = new Map()
-  const unturned = []
   for (const event of runtimeEvents) {
     if (!event || !event.eventId) continue
-    if (!isInteger(event.turn)) { unturned.push(event); continue }
+    // An event without a turn is not collected: it cannot be placed in any turn-bounded scope,
+    // and a load in that position is reported as `no-turn-boundary` rather than guessed at.
+    if (!isInteger(event.turn)) continue
     if (!byTurn.has(event.turn)) byTurn.set(event.turn, [])
     byTurn.get(event.turn).push(event)
   }
-  return { byTurn, unturned }
+  return byTurn
 }
 
 /**
@@ -255,7 +254,7 @@ function makeUnlinked(load, derivation, reason) {
 export function buildSkillRuntimeScopes(receipt) {
   const traces = Array.isArray(receipt?.traceEvents) ? receipt.traceEvents : []
   const runtimeEvents = Array.isArray(receipt?.runtimeEvents) ? receipt.runtimeEvents : []
-  const { byTurn } = indexByTurn(runtimeEvents)
+  const byTurn = indexByTurn(runtimeEvents)
 
   const loads = traces
     .filter((trace) => trace && trace.skillName)
@@ -382,6 +381,49 @@ export function scopedRuntimeEvents(built, skillName) {
     step: entry.step,
     status: entry.status,
   }))
+}
+
+/**
+ * Project Skill Runtime Scopes onto the node ids a layout actually draws.
+ *
+ * This is the **View Model** step and nothing else:
+ *
+ *     Runtime Event → Runtime Scope → Runtime View Model → Canvas Highlight
+ *
+ * The Scopes are built by `buildSkillRuntimeScopes`; this does not re-derive them. It only
+ * translates their `invocationId`s into layout node ids, following the same member-containment
+ * the layout already applies when it folds nodes into groups. Whoever renders the canvas is
+ * then told which drawn nodes carry scope — it never infers a scope of its own.
+ *
+ * It lives here rather than in the Host because it is pure, it belongs to the Scope model, and
+ * keeping it out of the Host is what makes it testable without a running DSH.
+ *
+ * @param built - the result of `buildSkillRuntimeScopes`.
+ * @param layout - a layout including member ids.
+ * @returns `{ scopes, unlinked, stats }` with `inScopeNodeIds` per scope, ascending and unique.
+ */
+export function projectScopesOntoLayout(built, layout) {
+  // graphNodeId → the layout node standing for it (itself, or the group that absorbed it)
+  const ownerOf = new Map()
+  for (const node of layout?.nodes ?? []) {
+    ownerOf.set(node.id, node.id)
+    for (const member of node.memberIds ?? []) ownerOf.set(member, node.id)
+  }
+  const project = (scope) => {
+    const ids = new Set()
+    for (const entry of scope.observedEvents ?? []) {
+      if (!entry.invocationId) continue
+      const drawn = ownerOf.get(`invocation:${entry.invocationId}`)
+      if (drawn) ids.add(drawn)
+    }
+    return { ...scope, inScopeNodeIds: [...ids].sort() }
+  }
+  return {
+    scopes: (built?.scopes ?? []).map(project),
+    // An unlinked load has no scope, so it highlights nothing — reported, never guessed at.
+    unlinked: (built?.unlinked ?? []).map((record) => ({ ...record, inScopeNodeIds: [] })),
+    stats: built?.stats ?? null,
+  }
 }
 
 /** The load-events a Scope's members can be traced back to, for auditing. */

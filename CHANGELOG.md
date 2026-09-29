@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.4.0-beta.59 — 2026-09-29 · Runtime Graph Hardening + Code Simplification
+
+**不加新能力。** 让 beta.58 从"功能完成但缺乏回归守卫"变成"有守卫、有真实验证、代码更简洁"。
+
+baseline：`321` 项测试 / `24` 项契约检查。
+
+### 一、测试：+12（Case I / J / K / M / N）
+
+`test/phase10-runtime-graph-hardening.test.mjs`。**321 → 333。**
+
+- **Case M**：`observedEvents → inScopeNodeIds → data-in-scope` 一一对应；并单独验证
+  **adjacency / nearest / same-turn / time-proximity 都不能把范围外事件拉进 Scope**
+- **Case N**：同一 receipt 建两次，`graph / layout / scope / runtimeEvents` **逐字节相同**——
+  证明 **payload 不依赖 Inspector 状态**；并断言 Scope 结构里**不含任何 UI 字段**
+- **Case K**：投影**不携带 edges**、不改动传入的 layout、词汇表里无因果边类型
+- **Case J**：Scope 给出明确的成员集合；聚焦是**降权不是过滤**（节点总数 = 内 + 外）；
+  **无可靠 Scope 时不构造**
+- **Case I**：Inspector 默认值是**视图常量**，没有任何数据路径读它
+
+**过程中我写了一条同义反复的断言**（`assert.deepEqual(x, x)`）——正是本项目反复出现的
+"测试自己"。已删除并换成有区分力的断言。
+
+### 二、分层修正：投影从 Host 移入 Core
+
+`projectScopes` 原本写在 `src/dsh/host/index.js` 里，**无法测试**。
+移到 `src/core/skill-runtime-scope.mjs` 成为纯函数 `projectScopesOntoLayout(built, layout)`：
+
+- **Core 持有 Runtime Truth 与 Scope 模型**（纯函数、可测）
+- **Host 只做装配**（自身减少 45 行）
+- **Client 只做呈现**（不重新推断 Scope）
+
+这既是可测性的前提，也更符合分层要求。
+
+### 三、行为不变的清理（3 项，每项都确认过）
+
+| 项 | 确认依据 |
+|---|---|
+| `skill-runtime-scope.mjs` 未使用的 `aggregateInvocations` import | 只在注释里出现，**从不调用** |
+| `indexByTurn` 返回但从不被解构的 `unturned` | 调用点只取 `byTurn`；改为返回 Map |
+| `client.js` 中被**完全覆盖**的 `.st-flow{…330px…}` | 与生效规则同在 `installStyles()` 内，后者在后且同优先级 → **死规则** |
+
+**清理后 333 项测试全过**，证明行为不变。
+
+### 四、明确保留（附理由）
+
+| 代码 | 为什么保留 |
+|---|---|
+| `runtime-alignment.mjs` 的 4 个 import | **全部在用**（各出现 ≥2 次）——"未使用 import"的猜测**不成立** |
+| `.st-flow` 的另外 2 处定义 | 一处是**画布生效规则**，一处是**窄屏媒体查询**——都是活的 |
+| `skill-runtime-scope.mjs` 注释里那句 `aggregateInvocations(receipt?.runtimeEvents)` | 它**记录了被修掉的缺陷**，删掉注释等于删掉历史 |
+| `design.md` 里 2 处「单列」 | 指的是 **`<460px` 表单**与**窄窗行为**——**仍然成立**，不是过期表述 |
+
+### 五、真实数据验证
+
+用渲染台（真实客户端 + 真实会话数据）+ headless shell 实测：
+
+| 检查 | 结果 |
+|---|---|
+| Graph 默认 Inspector | **collapsed** ✓ |
+| Flow 默认 Inspector | **expanded** ✓ |
+| Inspector 宽度 | Graph **26px** / Flow **340px** ✓ |
+| Rail 存在 | 1 ✓ |
+| **Handle 可见数** | **0 / 382**（Graph）、**0 / 44**（Flow）✓ |
+| 选中 Skill 后自动展开 | ✓ |
+
+载荷已重算并带 `scopes`：flow `inScopeNodeIds [1,1]`、graph `[3,3]`。
+
+**⚠️ 未验证：Scope 高亮在画布上真实出现（`inScope` 仍为 0）。**
+我未能定位原因，因此**这一项不声称通过**。
+
+### 六、文档同步
+
+`design.md`：矛盾段改写为 **Contextual Inspector（Expanded / Collapsed / Rail）**，
+新增**视图职责**（Flow = Semantic Runtime Summary / Graph = Detailed Runtime Evidence）
+与 **Runtime Scope V1 = Same-turn Structural Scope** 的界定，并写明
+**Missing Evidence ≠ Evidence of Absence** 与**不支持跨 Turn 推断**。
+
+### 七、npm pack --dry-run
+
+**26 个文件 / 1.7 MB**，正常。
+
+### 八、剩余技术债
+
+1. **Scope 高亮未通过真实验证**（`inScope: 0`）——本轮最大遗留
+2. `data-in-scope` 的**点击/状态半**没有自动化测试（受限于冒烟测试不建 DOM）
+3. Case I 的**宽度半**同样只有渲染台实测，没有 `node:test`
+
 ## 0.4.0-beta.58 — 2026-09-29 · P0：Contextual Inspector + Graph 空间释放 + Scope 画布表达
 
 基线 `0.4.0-beta.57`，**321 项测试 / 24 项契约检查全过**。

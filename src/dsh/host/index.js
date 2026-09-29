@@ -22,7 +22,7 @@ import { computeRuntimeLayout } from '../../core/runtime-layout.mjs'
 import { computeRuntimeLayoutWithElk } from '../../core/runtime-layout-elk.mjs'
 import { inspectRuntimeEdge, inspectRuntimeNode } from '../../core/runtime-inspector.mjs'
 import { buildSkillLoadIndex } from '../../core/runtime-alignment.mjs'
-import { buildSkillRuntimeScopes } from '../../core/skill-runtime-scope.mjs'
+import { buildSkillRuntimeScopes, projectScopesOntoLayout } from '../../core/skill-runtime-scope.mjs'
 import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
 import { buildFingerprintReservation } from '../../core/runtime-fingerprint.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
@@ -64,48 +64,6 @@ export function sessionEventLog(session) {
 }
 
 /** §21: how dense the debug view may get, against the flow view's default budget. */
-/**
- * Project each Skill Runtime Scope onto the ids of the nodes the canvas actually draws.
- *
- * This is the **View Model** step and nothing more:
- *
- *     Runtime Event → Runtime Scope → Runtime View Model → Canvas Highlight
- *
- * The Scope itself is built by `skill-runtime-scope.mjs` and is not re-derived here. All this
- * does is translate its `invocationId`s into layout node ids, following the same
- * member-containment the layout already uses when it folds nodes into groups. The client is
- * then told which drawn nodes carry scope — it never infers a scope of its own.
- *
- * @param receipt - the receipt holding the load and runtime evidence.
- * @param layout - the layout including member ids.
- * @returns `{ scopes, unlinked, stats }` with `inScopeNodeIds` per scope.
- */
-function projectScopes(receipt, layout) {
-  const built = buildSkillRuntimeScopes(receipt)
-  // graphNodeId → the layout node that stands for it (itself, or the group that absorbed it)
-  const ownerOf = new Map()
-  for (const node of layout.nodes ?? []) {
-    ownerOf.set(node.id, node.id)
-    for (const member of node.memberIds ?? []) ownerOf.set(member, node.id)
-  }
-  const project = (scope) => {
-    const ids = new Set()
-    for (const entry of scope.observedEvents ?? []) {
-      if (!entry.invocationId) continue
-      const graphId = `invocation:${entry.invocationId}`
-      const drawn = ownerOf.get(graphId)
-      if (drawn) ids.add(drawn)
-    }
-    return { ...scope, inScopeNodeIds: [...ids] }
-  }
-  return {
-    scopes: built.scopes.map(project),
-    // An unlinked load has no scope, so it highlights nothing — it is reported, not guessed at.
-    unlinked: built.unlinked.map((record) => ({ ...record, inScopeNodeIds: [] })),
-    stats: built.stats,
-  }
-}
-
 const GRAPH_NODE_LIMIT = 400
 
 /**
@@ -680,7 +638,7 @@ export function apply(ctx, config = {}) {
               // says "skill". Only unambiguous joins are reported.
               skillLoads: buildSkillLoadIndex(receipt, graph),
               // §十二：Scope 的画布表达。只有 observed/correlated 的成员会进入 inScopeNodeIds。
-              scopes: projectScopes(receipt, layoutWithMembers),
+              scopes: projectScopesOntoLayout(buildSkillRuntimeScopes(receipt), layoutWithMembers),
             })
             return
           }

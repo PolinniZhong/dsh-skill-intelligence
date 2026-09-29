@@ -176,10 +176,13 @@ Skill 追踪
 ### 6.2 当前会话
 
 > **⚠️ 本节与实现不一致（2026-09-28 记录）。** 治理文档 §6.2/§14 规定的是
-> **画布 + 固定 340px Inspector**（未选择时显示「当前运行说明」）。当前实现是**单列、
-> 无固定 Inspector**。二者需统一，见 `01_重构方案/dsh-skill-trace-Design-Refactor-Governance.md` §47。以下先如实记录**当前实现**。
+> **Contextual Inspector：Expanded / Collapsed / Rail。** 实现已收敛到本模式：
+> Runtime Flow 默认 Expanded，Runtime Graph 默认 Collapsed（只保留 26px Rail）；
+> 选中 Node/Skill 自动展开，收起用显式控件。**Inspector 是上下文工具，不永久压缩画布**——
+> 1900px 窗口实测：Graph 折叠后画布从 1560px 增至 1874px。
+> **折叠只改列宽，不改变任何 Runtime 数据**（graph / layout / scope / timeline 全部一致，见 Case N）。录**当前实现**。
 
-- **单列布局**：主区独占整宽；不再有固定的右侧栏。
+- **Contextual Inspector**：画布 + Inspector（Expanded / Collapsed / Rail）。Inspector **不永久占据页面一侧**，折叠后仅留 26px Rail；收据页仍为单列主区。
 - 收据最大宽度 980px，并在主区水平居中。
 - **Contextual Inspector 随选择出现**：选中节点或连线时在画布旁给出解释；没有选择时不占位。
 - **学习与验证位于收据流内**（§6.4 之后的独立章节），默认收起。
@@ -402,7 +405,7 @@ Skill Trace 的视觉系统必须服从证据强度：
 
 | 宽度 | 行为 |
 |---:|---|
-| `>1050px` | 单列主区 + 随选择出现的 Inspector；列表 + 详情 |
+| `>1050px` | 画布 + Contextual Inspector（Graph 默认折叠为 Rail）；列表 + 详情 |
 | `1000–1050px` | Inspector 可缩至约 300px；密集栅格减列 |
 | `<1000px` | 画布从左侧进入并允许横向滚动；目录改为列表→详情 |
 | `<460px` | 控件最小 44px；编辑控件 16px；表单单列 |
@@ -535,7 +538,7 @@ Skill Trace 的视觉系统必须服从证据强度：
 
 | 项 | 实现 / 本文件现状 | 治理要求 | 状态 |
 |---|---|---|---|
-| 会话布局 | 单列，无固定 Inspector | 画布 + 固定 340px Inspector，未选择时显示运行说明（§6.2/§14） | 待确认 |
+| 会话布局 | ~~单列，无固定 Inspector~~ **已收敛** | 画布 + Contextual Inspector（Expanded / Collapsed / Rail）；未选择时显示运行说明（§6.2/§14） | 已解决：见本文档「Contextual Inspector」段 |
 | Skill 的 Inspector Tab | `[运行证据][声明 ↔ 实际][关联关系]` | `[运行证据][声明 ↔ 实际][学习验证]`（§15） | 待确认 |
 | 学习表单位置 | 收据流内，默认收起 | Skill Inspector 的 Tab，默认收起（§15/§38） | 待确认 |
 | 配色值 | `#7c3aed / #047857 / #b45309 / #475569 / #b91c1c` | `#7057df / #258b63 / #d67b2d / #5b6573 / #c9444f`（§25.3） | 待确认 |
