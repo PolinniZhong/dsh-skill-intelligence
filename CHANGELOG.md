@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.4.0-beta.56 — 2026-09-29 · 批次 X：PRD / SDD 同步 V0.5
+
+**代码无改动，只更新需求与技术设计文档。**
+
+核对后发现两份文档**都不是"被推翻"，而是"不完整"**——它们从未提到对齐的匹配范围。
+
+### PRD（`04-product-requirements.md`）
+
+- **§6.4 新增 V0.5 已确认范围**：Skill Runtime Scope。路线图此前停在 V0.4。
+- **§7.7 新增 12 条功能需求 `FR-SCOPE-001…012`**，其中把设计原则写成了可验收的条目：
+  - `FR-SCOPE-003`：**显式拒绝**「相邻事件」「最近事件」「时间距离最短」「最后一个 Tool」
+    「Skill 之后的所有事件」作为归属依据
+  - `FR-SCOPE-005`：无法归属时必须返回 `unlinked` **并保留事件**，不得为凑齐 Scope 而猜
+  - `FR-SCOPE-006`：**同一 Turn 内两次 Skill 加载，两者都必须判为 `unlinked`**
+  - `FR-SCOPE-010`：不得计算或呈现遵循率、百分比、评分、排名
+  - `FR-SCOPE-012`：**不得**在 Runtime Flow 中画 Skill → Tool 因果连线
+
+### SDD（`05-technical-design.md`）
+
+- **§2.1 模块职责**新增 `skill-runtime-scope.mjs` 行（含「明确不做」）
+- **§11.1 记录了一个从未登记在技术债里的缺陷**——见下
+- **§11.2 V0.5 之后仍存在的限制**（Subagent 谱系 / 跨 Turn / 工具词表 / candidate 未启用）
+- **§11.3 测试策略补充为三层**（Core Unit / Contract / Real Render），并要求每条守卫
+  都验证「回退被测代码时它会失败」
+
+### 一个值得单独说的发现
+
+SDD 的「已知技术债」有 6 条，**没有一条是 Session 级匹配**。
+
+**它不是"已知并接受"的限制，而是从未被登记。** 于是它既没被发现、也没被记录，
+而是一直在产生错误的归属。
+
+**教训是清单本身**：一条既不在范围文档、也不在技术债里的行为，等于无人负责。
+
+### 顺带修正重构 SDD 的接口
+
+`01_重构方案/02-SDD-Runtime-Flow-Reconstruction.md` §12 原写「V0.6 才实现」，
+实际 V0.5 已落地，且**原 `AlignmentItem` 接口没有表达匹配范围**——这正是实现里
+`aggregateInvocations(receipt.runtimeEvents)` 吃全量事件的原因之一。
+已补 `AlignmentScope` 接口定义与边界规则。
+
+**321 项测试通过**，**24 项契约检查通过**（代码未变）。
+
 ## 0.4.0-beta.55 — 2026-09-29 · V0.5：Skill Runtime Scope
 
 **核心能力，不是视觉改动。** 详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的 V0.5 章节。
