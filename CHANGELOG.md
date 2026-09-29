@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.4.0-beta.44 — 2026-09-28 · 批次 M：Skill 的三个 Tab 此前从未出现过
+
+### 发现
+
+为了截「声明 ↔ 实际」与「学习验证」两个 Tab 的对照图，我给渲染台加了「点 Skill 节点 → 切 Tab」。
+结果**找不到 Tab**。
+
+追下去发现：`inspectRuntimeNode` 为**折叠节点**手工构造的 `node` 只有
+`{id, kind, role, label, status, collapsed, memberCount}`——**没有 `capabilityId`**，
+而 `capabilityId` 在 `src/dsh/host/index.js` 里**一次都没出现**。
+
+客户端靠它决定 Tab：
+
+```js
+const isSkill = !isEdge && node?.capabilityId === 'skill'
+const tabs = isEdge ? ['relation'] : (isSkill ? ['evidence','declaration','learning'] : ['evidence','relations'])
+```
+
+**所以 §15 要求的「运行证据 / 声明 ↔ 实际 / 学习验证」三个 Tab，在真实产品里从来没有出现过。**
+
+### 为什么 296 项测试没发现
+
+我在 beta.31「实现」了这三个 Tab，并写了测试——**测试用的是自己构造的载荷**，里面当然有
+`capabilityId`。**测试验证的是组件的行为，不是产品能否到达那个行为。**
+
+这与 beta.31 的白屏事故是同一类：**组件对，但它不可达。**
+
+### 修复
+
+折叠节点的 `node` 带上 `capabilityId` / `kindLabel` / `outcome`。7 行，无行为改动。
+
+截图确认：选中 `skill × 1` 后，Inspector 出现 `[运行证据] [声明 ↔ 实际] [学习验证]`，且
+「声明 ↔ 实际」能正确显示它的空状态说明。
+
+### 顺带
+
+渲染台新增 `skill-node` / `decl-tab` / `learn-tab` 三个动作，并支持多步 `act=a,b`。
+
+**296 项测试通过**，**23 项契约检查通过**。
+
 ## 0.4.0-beta.43 — 2026-09-28 · 批次 L：修好「运行流程里看不到 Skill」
 
 beta.42 记下的那个未查明缺陷，本批次查明了。

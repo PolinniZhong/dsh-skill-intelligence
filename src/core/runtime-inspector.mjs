@@ -178,6 +178,13 @@ export function inspectRuntimeNode(graph, runtimeEvents, nodeId, options = {}) {
         status: layoutNode.status,
         collapsed: true,
         memberCount: layoutNode.memberCount,
+        // **`capabilityId` 必须带上。** 客户端靠它决定 Inspector 的 Tab：
+        // `isSkill = node?.capabilityId === 'skill'`。此前这个精简对象没有它，
+        // 于是 §15 要求的「运行证据 / 声明 ↔ 实际 / 学习验证」三个 Tab **在真实产品里
+        // 从来没有出现过**——测试用的是自己造的载荷，所以一直是绿的。
+        capabilityId: layoutNode.capabilityId ?? null,
+        kindLabel: layoutNode.kindLabel ?? null,
+        outcome: layoutNode.outcome ?? null,
       },
       memberIds,
       relations: [],
