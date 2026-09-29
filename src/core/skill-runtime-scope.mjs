@@ -65,12 +65,13 @@ export const SKILL_SCOPE_MODEL_VERSION = 1
  * `candidate`  — a narrow, named rule places it here. Every candidate states its rule.
  * `unlinked`   — the runtime cannot place it. The event is kept and not attributed.
  */
-export const SCOPE_RELATION_STATUSES = ['observed', 'correlated', 'candidate', 'unlinked']
+// `candidate` is deliberately absent: no rule in this module produces it. The `candidate`
+// values elsewhere in the codebase belong to `reviewState` and edge status, which are different
+// vocabularies — carrying the word here implied a Scope state that cannot occur.
+export const SCOPE_RELATION_STATUSES = ['observed', 'correlated', 'unlinked']
 
 /** Which rule put this Scope together, so the reasoning stays auditable. */
 export const SCOPE_DERIVATIONS = [
-  /** P0: the load's own runtime event. */
-  'load-event',
   /** P2: `Session → Turn → Invocation` containment the runtime states. */
   'same-turn-containment',
   /** P4: nothing in the runtime separates the candidates. */
@@ -103,9 +104,6 @@ const EVENT_TYPE_OF_CAPABILITY = {
   mcp: 'mcp',
   subagent: 'subagent',
 }
-
-/** The capability classes a Scope reports, mirroring §8's node vocabulary. */
-export const SCOPE_CAPABILITY_CLASSES = ['skill', 'tool', 'cli', 'mcp', 'subagent']
 
 const capabilityClassOf = (capabilityId) => EVENT_TYPE_OF_CAPABILITY[capabilityId] ?? 'other'
 
@@ -203,7 +201,10 @@ function makeScope(load, turnEvents, derivation) {
     observedEvents,
     /** What the Scope contains, by capability class. `skill` is the load itself and is excluded. */
     observedByClass: counts,
-    relationStatus: derivation === 'load-event' ? 'observed' : 'correlated',
+    // A Scope's members share the load's turn. That is containment the runtime states, not
+    // service it states, so the Scope as a whole is `correlated`; the load's own event is the
+    // only member marked `observed`. No derivation builds a Scope from the load alone.
+    relationStatus: 'correlated',
     derivation,
     limitation: [
       SCOPE_LIMITATIONS.notCausal,
@@ -336,17 +337,6 @@ export function scopesForSkillName(built, skillName) {
   return { scopes, unlinked }
 }
 
-/**
- * The single Scope for a Skill, when the session loaded it exactly once.
- *
- * @returns a Scope, an unlinked record, or null when the name is ambiguous or absent.
- */
-export function scopeForSkillName(built, skillName) {
-  const { scopes, unlinked } = scopesForSkillName(built, skillName)
-  if (scopes.length === 1) return scopes[0]
-  if (scopes.length === 0) return unlinked[0] ?? null
-  return null
-}
 
 /**
  * The runtime events a Scope permits Alignment to read.

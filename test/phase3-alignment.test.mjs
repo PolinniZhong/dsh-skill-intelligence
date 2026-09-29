@@ -189,7 +189,7 @@ function itemFor(alignment, titleFragment) {
   return alignment.items.find((item) => item.title.includes(titleFragment))
 }
 
-test('a declared step with direct runtime evidence is observed, and cites it', () => {
+test('a declared step matched by a named capability is partial, not observed', () => {
   const events = [
     turnStart({ seq: 1, turn: 1 }),
     stepStart({ seq: 2, turn: 1, step: 1 }),
@@ -202,7 +202,11 @@ test('a declared step with direct runtime evidence is observed, and cites it', (
   const alignment = alignmentOf(receipt)
   const item = itemFor(alignment, 'Read the source files')
   assert.equal(item.kind, 'inspect')
-  assert.equal(item.status, 'observed')
+  // A registered tool name proves the capability that ran, not what it was applied to. Tool
+  // arguments are never stored and no declared step carries a correlation id, so "Read the
+  // source files" cannot be proven — only that a read capability ran. This assertion used to
+  // read `observed`, which was the over-interpretation this round removed.
+  assert.equal(item.status, 'partial')
   assert.deepEqual(item.observedNodeIds, ['invocation:r1'])
   assert.equal(item.evidenceIds.includes(`${sessionId}:re:20`), true)
   assert.equal(item.evidenceIds.includes(`${sessionId}:re:21`), true)
@@ -262,7 +266,7 @@ test('missing evidence is reported as insufficient, never as not done', () => {
   assert.equal(ALIGNMENT_STATUSES.includes('skipped'), false)
 })
 
-test('planning is insufficient without a planning surface and observed with one', () => {
+test('planning is insufficient without a planning surface and partial with one', () => {
   const body = ['## 执行流程', '### 1. Plan the approach before coding'].join('\n')
   const withoutPlanSurface = [
     turnStart({ seq: 1, turn: 1 }),
@@ -284,7 +288,7 @@ test('planning is insufficient without a planning surface and observed with one'
   ]
   let planned = emptyReceipt(sessionId, 1)
   for (const event of withPlanSurface) planned = reduceSessionEvent(planned, event)
-  assert.equal(alignmentOf(planned).items[0].status, 'observed')
+  assert.equal(alignmentOf(planned).items[0].status, 'partial')
 })
 
 test('a step no rule can map is insufficient rather than guessed', () => {
@@ -334,7 +338,7 @@ test('alignment reports counts of evidence states and no score', () => {
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
   const alignment = alignmentOf(receipt)
   assert.equal(alignment.scored, false)
-  assert.deepEqual(alignment.stats, { observed: 2, partial: 1, insufficient: 0, unknown: 0 })
+  assert.deepEqual(alignment.stats, { observed: 0, partial: 3, insufficient: 0, unknown: 0 })
   for (const key of Object.keys(alignment.stats)) {
     assert.equal(ALIGNMENT_STATUSES.includes(key), true)
   }
@@ -423,7 +427,7 @@ test('a user-explicit load aligns exactly like a model-invoked one', () => {
   ]) receipt = reduceSessionEvent(receipt, event)
   const alignment = alignmentOf(receipt)
   assert.equal(alignment.items.length, 3)
-  assert.equal(itemFor(alignment, 'Read the source files').status, 'observed')
+  assert.equal(itemFor(alignment, 'Read the source files').status, 'partial')
 })
 
 test('alignment is deterministic and carries its extraction channels', () => {

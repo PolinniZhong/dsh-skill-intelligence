@@ -7,7 +7,6 @@ import {
   SCOPE_LIMITATIONS,
   SCOPE_RELATION_STATUSES,
   buildSkillRuntimeScopes,
-  scopeForSkillName,
   scopedRuntimeEvents,
   scopesForSkillName,
 } from '../src/core/skill-runtime-scope.mjs'
@@ -129,8 +128,8 @@ test('Case B: two Skills in one session keep disjoint scopes', () => {
     events,
     traces: [trace({ turn: 2, step: 1, skillName: 'skill-a' }), trace({ turn: 5, step: 1, skillName: 'skill-b' })],
   }))
-  const a = scopeForSkillName(built, 'skill-a')
-  const b = scopeForSkillName(built, 'skill-b')
+  const a = scopesForSkillName(built, 'skill-a').scopes[0]
+  const b = scopesForSkillName(built, 'skill-b').scopes[0]
   assert.ok(a && b)
   const aIds = new Set(a.eventIds)
   for (const id of b.eventIds) assert.ok(!aIds.has(id), `${id} appears in both scopes`)
@@ -315,7 +314,9 @@ test('§17 alignment reads only in-scope events', () => {
   // And the in-scope edit must be seen, so the assertion above is not passing because
   // alignment lost its runtime entirely.
   const edit = alignment.items.find((item) => item.kind === 'edit')
-  assert.equal(edit?.status, 'observed', 'the in-scope edit was not matched')
+  // In scope, but a capability name is all the Runtime model supports: `edit` proves an edit
+  // capability ran, not that it touched what the step named.
+  assert.equal(edit?.status, 'partial', 'the in-scope edit was not matched')
 })
 
 test('§17 an unlinked Skill yields insufficient, never "not done"', () => {

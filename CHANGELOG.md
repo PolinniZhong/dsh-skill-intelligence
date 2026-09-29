@@ -1,5 +1,107 @@
 # Changelog
 
+## 0.4.0-beta.65 — 2026-09-29 · Runtime Evidence Semantics：消除 correlated → observed 的静默提升
+
+**这是语义修复，不是新功能。** 测试 337 → 345。
+
+### 缺陷：`correlated` 被提升成 `observed`
+
+`alignStep` 的 `observed` 只有一条产生路径，条件链是：
+
+```
+hasRuntime
+  → step.kind !== 'other'
+  → matches   : annotatedInvocations.filter(step.kind === step.kind)      ← 只按 kind
+  → direct    : matches.filter(!generic)
+  → settled   : direct.filter(resolution === 'matched')
+  → observed
+```
+
+**`relationStatus` 在这条链里完全不出现。** 而 `scopedRuntimeEvents()` 也不按状态过滤，
+只取 Scope 成员的并集。于是：
+
+```
+correlated 事件（同 Turn，Runtime 只声明了"同一 Turn"，没声明"服务于 Skill"）
+  → 只按 kind 匹配 → resolution matched → 提升为 observed
+```
+
+**后果**：与 Skill 加载同 Turn 的一次 `bash`（哪怕服务于完全无关的目的），
+就能让声明步骤「Run the repository tests」读作 `observed`。
+
+**这违反产品第一原则**：绝不因为 same turn 提升证据等级。
+
+### 修复：区分 Evidence Strength 与 Evidence Specificity
+
+这是**两个正交的轴**，此前被混为一谈：
+
+| 轴 | 问题 | 当前能给出的答案 |
+|---|---|---|
+| **Strength** | 事件是否位于可靠 Runtime Scope 内 | `observed`（加载自身）/ `correlated`（同 Turn） |
+| **Specificity** | 它是否指名了声明步骤所指的**那个对象** | 只能是 `capability` |
+
+**工具名只能证明"运行了什么能力"，不能证明"施加在什么对象上"**——
+因为**工具参数不存储**（隐私设计，正确），且**声明步骤没有 correlation id**。
+`read_file` 支持「读了个文件」，**不支持**「检查了仓库的 auth 模块」。
+
+新增 `invocationSpecificity()`，`observed` 现在要求 `specificity === 'direct'`。
+
+### 当前模型的诚实结论
+
+**没有任何 Runtime 来源能产出 `direct` specificity，因此当前 `observed` 无法由工具调用产生。**
+
+这**不是回退**，而是如实读数：状态词表保留 `observed`，
+等 Runtime 有一天能指名对象时（correlation id 或记录参数）再用。
+**本轮不实现未来证据，只保留干净边界**（`invocationSpecificity()` 就是那个接缝）。
+
+### 保住了区分度（不是一刀切降级）
+
+修复**没有**把所有结果变成 insufficient：
+
+| 状态 | 含义 | 本轮可达 |
+|---|---|---|
+| `partial` | 存在**能力/类型层面**的对应 | ✅ 有对应能力时 |
+| `insufficient` | 没有足够对应 | ✅ 无对应能力时 |
+| `unknown` | **没有 Scope** 可对齐 | ✅ 无 Scope 时 |
+| `observed` | 有**直接具体**证据 | ⛔ 当前模型无法产生 |
+
+### 新增测试：+8（`test/phase12-evidence-promotion.test.mjs`）
+
+R1 同 Turn `bash` 不得使「Run tests」observed；**R2 `generic=false` 本身不足以换来 observed**；
+R3 跨 Turn 不参与（`insufficient`）；R4 同 Turn 两 Skill 都拿不到；
+R5 `relationStatus` 本身不能提升；**R6 当前无来源可产出 `direct`，故 `observed` 不可达**；
+外加「partial / insufficient / unknown 三者仍然可区分」与「limitation 随状态同行」。
+
+**已验证守卫有效**：回退 specificity 门槛 → **R2 / R5 / R6 失败**；恢复 → 8/8 通过。
+
+**同时改写了 5 个旧测试**——它们原先断言「工具调用 → observed」，
+其中一个的测试名就叫 *"a declared step with direct runtime evidence is observed"*，
+**把 capability 误当成 direct evidence**。已按真实语义改写并改名。
+
+### 清理已确认零消费者的 Scope 死代码
+
+| 项 | 依据 |
+|---|---|
+| `SCOPE_RELATION_STATUSES` 的 `'candidate'` | Scope 模块**从不产出**；其他文件的 `candidate` 属于 `reviewState` / edge status，是**不同词表** |
+| `SCOPE_DERIVATIONS` 的 `'load-event'` | `makeScope` **只以 `'same-turn-containment'` 调用**，该分支不可达 |
+| `scopeForSkillName()` | **仅测试消费者**，`src/` 零引用（测试已改用 `scopesForSkillName`） |
+| `SCOPE_CAPABILITY_CLASSES` | **全仓库零引用** |
+
+**保留的复杂度**：`SCOPE_RELATION_STATUSES` 与 `SCOPE_DERIVATIONS` 的**导出本身**保留——
+它们是**词汇表守卫**的载体（测试用它们断言"这个词表无法表达因果边"）。
+`ambiguous-turn` / `no-turn-boundary` 保留，因为它们**真的会产出**。
+`generic` 标记与 `partial` 保留——它们是唯一挡住「bash 不能证明跑了测试」的防线。
+
+### 本轮明确未做
+
+Skill Run / runId / 多 Run Alignment / Scope union 改造（**已记录为下一阶段问题**）；
+UI、CSS、Runtime Graph、Inspector、Focus、Scope Highlight、Dark Mode 一律未动；
+`scripts/verify-project.mjs` 未重构。
+
+### 已知的模型局限（下一阶段）
+
+**`Skill → multiple Scope → union`** 会把同一 Skill 的多次运行合并成不可区分的事件集合，
+Alignment 因此无法回答"是哪一次运行做的"。本轮**不修**，仅记录。
+
 ## 0.4.0-beta.64 — 2026-09-29 · 知识管理同步 + 根目录收敛（无代码改动）
 
 **代码零改动。** 337 项测试 / 24 项契约检查不变。

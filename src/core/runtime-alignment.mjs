@@ -114,6 +114,34 @@ function normalizeTitle(value) {
 }
 
 /**
+ * How *specifically* an invocation speaks to a declared step.
+ *
+ * This is a different axis from evidence strength, and conflating the two is what let a
+ * same-turn event be reported as `observed`. Strength answers "is this inside a reliable
+ * Runtime Scope"; specificity answers "does it name the thing the step names".
+ *
+ * A registered tool name proves only the **capability that ran**. It says nothing about what
+ * the capability was applied to, because tool arguments are never stored and no declaration
+ * step carries a correlation id. `read_file` therefore supports "a file was read" — not
+ * "the repository's auth module was inspected".
+ *
+ * The current Runtime model can produce nothing better than `capability`, so `observed` cannot
+ * arise from a tool invocation at all. That is the honest reading, not a regression: the status
+ * vocabulary keeps `observed` available for the day a Runtime source can name the step's object,
+ * and `INVOCATION_SPECIFICITIES` is where such a source would declare itself. Until then the
+ * seam stays empty on purpose.
+ *
+ * @param invocation - one aggregated invocation.
+ * @returns `capability` today; `direct` only once a Runtime source can identify the step's object.
+ */
+export function invocationSpecificity(invocation) {
+  // No Runtime source currently names the object a capability was applied to. A future
+  // declaration-step correlation id, or a recorded tool argument, would be checked here.
+  void invocation
+  return 'capability'
+}
+
+/**
  * Map one declared step title onto the shared step vocabulary.
  * @param title - the declared step text.
  * @returns a step kind, or `other` when no rule applies.
@@ -332,6 +360,15 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
     item.limitation = STEP_LIMITATIONS.partial
     return item
   }
+  // Strength is not specificity. A settled match inside the Scope proves a capability of the
+  // right kind ran *here*; it does not prove it ran *for this step*. Only evidence that names
+  // the step's object may reach `observed`, and no current Runtime source can.
+  const specific = settled.filter((entry) => entry.specificity === 'direct')
+  if (specific.length === 0) {
+    item.status = 'partial'
+    item.limitation = STEP_LIMITATIONS.partial
+    return item
+  }
   item.status = 'observed'
   item.limitation = STEP_LIMITATIONS.observed
   return item
@@ -425,6 +462,7 @@ export function buildAlignment(receipt, skillName) {
   const invocations = aggregateInvocations(scoped)
   const annotated = invocations.map((invocation) => ({
     invocation,
+    specificity: invocationSpecificity(invocation),
     step: classifyInvocationStep(invocation.name, invocation.kind),
   }))
   const hasRuntime = invocations.length > 0
