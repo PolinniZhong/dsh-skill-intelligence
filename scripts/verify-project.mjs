@@ -794,5 +794,32 @@ console.log('RECEIPT_SECTIONS_OK')
 console.log('GRAPH_FILTERS_OK')
 console.log('MY_SKILLS_SLIM_OK')
 console.log('VISUAL_TOKENS_OK')
+
+// --- 发布资产的版本一致性 ---------------------------------------------------
+// README 是**发布资产**，不是随手笔记：它的"当前版本"与安装示例会直接被人复制。
+// 实测漂移过一次——`package.json` 已到 0.4.0-beta.52，README 还写着"当前公开预发布版为
+// 0.4.0-beta.3"、安装示例是 v0.4.0-beta.4，**落后 49 个版本**。
+//
+// 这里只钉"会被人照抄的两处"：当前版本声明与安装示例。逐版历史由 CHANGELOG 负责，
+// 不要求 README 同步——否则每次发版都要改 README，规则会被绕过。
+{
+  const pkgVersion = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version
+  const readme = await readFile(resolve(root, 'README.md'), 'utf8')
+
+  const declared = /当前公开预发布版为\s*`([^`]+)`/.exec(readme)
+  if (!declared) throw new Error('README must state the current pre-release version')
+  if (declared[1] !== pkgVersion) {
+    throw new Error(`README says the current version is ${declared[1]} but package.json says ${pkgVersion} — README is a release asset`)
+  }
+
+  const install = /dsh plugin --profile [a-z0-9-]+ add "github:[^"#]+#v([^"&]+)/.exec(readme)
+  if (!install) throw new Error('README must show an install command pinned to a tag')
+  if (install[1] !== pkgVersion) {
+    throw new Error(`README's install example pins v${install[1]} but package.json says ${pkgVersion} — people copy this line`)
+  }
+
+  console.log('RELEASE_ASSETS_IN_SYNC_OK')
+}
+
 console.log('FIVE_LAYER_MODEL_OK')
 console.log('FINGERPRINT_RESERVED_OK')
