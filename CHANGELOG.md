@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.4.0-beta.61 — 2026-09-29 · Layout Regression：高度链修复（**部分修复，未完成**）
+
+**真实 Desktop 截图报告的 UI 漂移。本轮找到并修复了主因，但未完全收口。**
+
+### 根因
+
+`@media(max-width:1000px)` 里有：
+
+```css
+.st-shell{{height:auto;min-height:100dvh}}
+.st-layout{{display:block}}
+```
+
+这段是为**独立网页的窄窗口**写的。但 **DSH 里插件内容区本来就常常窄于 1000px**
+（宿主有侧栏，插件坐在一个内容列里），于是：
+
+1. `height:auto` → shell 变成**内容高度**
+2. `min-height:100dvh` → 又要求至少**一个浏览器视口高**
+3. `.st-layout{display:block}` → **整条 flex/grid 高度链断掉**
+4. `.st-flow-canvas{height:calc(100dvh - 210px)}` → 画布拿一个**与宿主无关的固定高度**
+
+**实测复现（窗口高 1000px，宽 900px）**：
+
+```
+修复前  root h=1188   ← 插件比视口高 188px → 滚动 + 下方大片空白
+        .st-layout display:block   ← 链断
+```
+
+### 修复（去除视口高度，让链自己决定）
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| `[data-plugin]`（窄屏） | `height:auto;min-height:100%` | **`height:100%;min-height:0`** |
+| `.st-shell`（窄屏） | `height:auto;min-height:100dvh` | **`height:100%;min-height:0`** |
+| `.st-layout`（窄屏） | `display:block` | **`grid-template-columns:minmax(0,1fr)`**（保持栅格，不断链） |
+| `.st-flow-canvas` 基础规则 | `height:calc(100dvh - 210px);min-height:420px` | **`flex:1;min-height:0`** |
+| `.st-flow-canvas`（窄屏） | `height:60dvh` | `min-height:240px` |
+| `.st-flow-side` | `max-height:calc(100dvh - 190px)` | `max-height:100%` |
+| `.st-main,.st-aside`（窄屏） | `overflow:visible` | `overflow:auto` |
+
+**移除的视口魔法值：`calc(100dvh - 210px)`、`min-height:100dvh`、`height:60dvh`。**
+
+### 验证结果（渲染台实测，窗口高 1000px）
+
+| 窗口宽 | root 高 | 画布高 | 结论 |
+|---|---|---|---|
+| **1000px** | **1000** | 812 | ✅ **精确等于窗口高** |
+| **820px** | **1000** | 783 | ✅ **精确等于窗口高** |
+| **1600px** | ~~1159~~ | 1000 | ❌ **仍溢出 159px** |
+
+### ⚠️ 未完成（明确声明）
+
+**宽于 1050px 时画布算出 1000px，shell 溢出 159px，本轮未闭合。**
+
+画布在失去定高后 `flex:1` 向上要高度，而 `.st-layout` 的栅格行未能约束它——
+`#root` 有定高（`height:100vh;overflow:hidden`），链内却仍在溢出。
+**我没有定位到确切的那一层，因此不声称"高度链已修复"。**
+
+### 其他未做
+
+| 项 | 状态 |
+|---|---|
+| **Typography / Density 恢复** | ❌ **未做**（字体偏大、节点稀疏未处理） |
+| **CSS override 合并** | ❌ 未做（`.st-flow-canvas` 仍有 3 处定义） |
+| **Layout Regression Guard** | ❌ **未做**（你要求的自动化守卫） |
+| 真实 Desktop 验证 | ❌ 未做 |
+| 窄屏空白是否在真实 DSH 中消失 | ❌ 未验证——**只验证了渲染台** |
+
+### 验证
+
+- **333 项测试通过**，**24 项契约检查通过**（测试数未变，**未新增守卫**）
+- `npm pack --dry-run`：26 文件 / 1.7 MB
+
 ## 0.4.0-beta.60 — 2026-09-29 · Dark Mode：Token 化主题适配
 
 **代码机制已实现；真实 DSH Desktop 尚未验证。**
