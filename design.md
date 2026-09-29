@@ -2,7 +2,7 @@
 artifact: design-system
 product: dsh-skill-trace
 version: "2.1"
-updated: 2026-09-28
+updated: 2026-09-29
 status: current-authority
 supersedes: "1.5"
 ---
