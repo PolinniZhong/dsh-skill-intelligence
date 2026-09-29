@@ -6,10 +6,19 @@ coverage/
 
 # Internal research, personal validation evidence, and generated design assets.
 # These stay local and are intentionally excluded from the public preview repo.
+#
+# The numbered top-level documents are exempted below. Product thesis, requirements and
+# technical design are **artifacts of the product**, not process notes: a reader cloning this
+# repo should be able to see what it is meant to do and how it is put together. 07-adversarial-
+# review.md stays local because it cites screenshots under /.audit/, which is not published —
+# shipping it would ship broken links.
 /.audit/
 /00_原型与迭代方案/
 /01_重构方案/
 /99_归档/
 /specs/
 /[0-9][0-9]-*.md
+!/02-product-thesis.md
+!/04-product-requirements.md
+!/05-technical-design.md
 /.dsh-illustration-family/
