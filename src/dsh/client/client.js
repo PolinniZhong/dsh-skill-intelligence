@@ -1628,7 +1628,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     }
     if (!alignment) {
       return h('div', null,
-        h('p', { className: 'st-rt-kicker' }, raw(load.skillName)),
+        h('p', { className: 'st-rt-kicker' }, renderLocalState(load.skillName)),
         h('p', { className: 'st-rt-notes' }, localized('这次加载没有留下可对齐的声明步骤。', 'This load left no declarable steps to align against.')))
     }
     const declaration = alignment.declaration
@@ -1767,7 +1767,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const relations = Array.isArray(data.relations) ? data.relations : []
     const evidence = Array.isArray(data.evidence) ? data.evidence : []
     const isSkill = !isEdge && node?.capabilityId === 'skill'
-    const load = isSkill ? (skillLoads ?? []).find((entry) => entry.nodeId === node.id) ?? null : null
+    // 折叠分组是布局层合成的，它的 id（`group:11:skill`）不会出现在 `skillLoads` 里——
+    // 那里记的是**调用节点**的 id。所以只比 `node.id` 会让「选中 Skill 节点」变成
+    // 「面板认为你没选 Skill」（截图发现）。分组要能解析到自己的成员。
+    const load = isSkill
+      ? (skillLoads ?? []).find((entry) => entry.nodeId === node.id
+        || (Array.isArray(data.memberIds) && data.memberIds.includes(entry.nodeId))) ?? null
+      : null
     const alignment = load ? (alignments ?? []).find((entry) => entry.skillName === load.skillName) ?? null : null
 
     // §15: Skill 的三个 Tab 是「运行证据 / 声明 ↔ 实际 / 学习验证」——学习验证取代了
@@ -1843,7 +1849,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       h('h3', null, isEdge ? `关系 · ${data.edge.type}` : (node.label || node.id)),
       h('p', { className: 'st-rt-kicker' }, isEdge
         ? localized(`${data.edge.derivation} · ${data.edge.status}`, `${data.edge.derivation} · ${data.edge.status}`)
-        : localized(`${node.kind}${node.outcome ? ` · ${node.outcome}` : ''} · 证据 ${node.status}${load ? ` · ${raw(load.skillName)}` : ''}`, `${node.kind}${node.outcome ? ` · ${node.outcome}` : ''} · evidence ${node.status}${load ? ` · ${raw(load.skillName)}` : ''}`)),
+        : localized(`${node.kind}${node.outcome ? ` · ${node.outcome}` : ''} · 证据 ${node.status}${load ? ` · ${renderLocalState(load.skillName)}` : ''}`, `${node.kind}${node.outcome ? ` · ${node.outcome}` : ''} · evidence ${node.status}${load ? ` · ${renderLocalState(load.skillName)}` : ''}`)),
       h('div', { className: 'st-rt-tabs', role: 'tablist' }, ...tabs.map((key) => h('button', {
         key,
         className: 'st-rt-tab',
