@@ -852,6 +852,74 @@ console.log('GRAPH_FILTERS_OK')
 console.log('MY_SKILLS_SLIM_OK')
 console.log('VISUAL_TOKENS_OK')
 
+// --- Rules of Hooks：hook 不得写在提前 return 之后 --------------------------------
+// 实测事故（0.4.0-beta.68）：`FlowCanvas` 与 `RuntimeView` 把 `const replay = React.useMemo(...)`
+// 写在了 `if (loading && !data) return ...` 之后。loading 首屏提前返回、少调一个 hook，数据到达后的
+// 第二次渲染多调一个 hook，React 抛 #310（Rendered more hooks than during the previous render），
+// `conversation.view` slot entry 崩溃并卸载 —— 用户在真实 DSH 里看到的是「Skill 追踪标签页整片空白」。
+// 渲染台与既有单元测试都只渲染"已经有数据"的那一帧，所以两层都没抓到。
+//
+// 这里只钉一条可机械判定的规则：同一组件内，第一个"提前 return"之后不允许再出现 React.use*。
+{
+  const source = await readFile(resolve(root, 'src/dsh/client/client.js'), 'utf8')
+  const lines = source.split('\n')
+  const indentOf = (line) => (line.match(/^ */) || [''])[0].length
+  let current = null
+  let firstReturn = 0
+  let lastHook = 0
+  const offenders = []
+  const flush = () => {
+    if (current && firstReturn && lastHook > firstReturn) {
+      offenders.push(`${current}（提前 return 在第 ${firstReturn} 行，hook 在第 ${lastHook} 行）`)
+    }
+  }
+  for (let index = 0; index < lines.length; index += 1) {
+    const text = lines[index]
+    const indent = indentOf(text)
+    const body = text.trim()
+    if (indent === 2 && (/^function [A-Z]/.test(body) || /^const [A-Z]/.test(body))) {
+      flush()
+      current = /^function/.test(body) ? body.slice(9).split('(')[0] : body.slice(6).split(' ')[0]
+      firstReturn = 0
+      lastHook = 0
+      continue
+    }
+    if (!current) continue
+    if (indent === 0 && body.length) { flush(); current = null; continue }
+    if (indent !== 4) continue
+    // 两种提前 return 写法：单行 `if (...) return ...`，以及 `if (...) {` 换行后 `return`。
+    const oneLine = /^return\b/.test(body) || /^if \(.*\)\s+return\b/.test(body)
+    const blockForm = /^if \(.*\)\s*\{?\s*$/.test(body)
+      && lines[index + 1]
+      && indentOf(lines[index + 1]) === 6
+      && /^return\b/.test(lines[index + 1].trim())
+    if (oneLine || blockForm) firstReturn = firstReturn || index + 1
+    if (/React\.use[A-Z]/.test(body)) lastHook = index + 1
+  }
+  flush()
+  if (offenders.length) {
+    throw new Error(`a hook must never follow an early return in the same component — React #310 unmounts the whole conversation.view slot: ${offenders.join('; ')}`)
+  }
+  console.log('HOOK_ORDER_OK')
+}
+
+// --- 偏好文件的 IA 版本号：宿主与客户端必须一致 ------------------------------
+// `src/storage/preference-store.mjs` 用它决定"读到的偏好算不算用户选择"，`src/dsh/client/client.js`
+// 用它决定"要不要采用宿主给的默认视图"。两处不一致会静默地让第一屏回到旧 IA（实测就是 `map` 那一屏），
+// 而且不会报错——所以钉成成对断言。
+{
+  const store = await readFile(resolve(root, 'src/storage/preference-store.mjs'), 'utf8')
+  const client = await readFile(resolve(root, 'src/dsh/client/client.js'), 'utf8')
+  const storeVersion = /const PREFERENCES_VERSION = (\d+)/.exec(store)?.[1]
+  const clientVersion = /const PREFERENCE_VERSION = (\d+)/.exec(client)?.[1]
+  if (!storeVersion) throw new Error('src/storage/preference-store.mjs must declare PREFERENCES_VERSION')
+  if (!clientVersion) throw new Error('src/dsh/client/client.js must declare PREFERENCE_VERSION')
+  if (storeVersion !== clientVersion) {
+    throw new Error(`the preference version must match across the store and the client: ${storeVersion} !== ${clientVersion}`)
+  }
+  console.log('PREFERENCE_VERSION_OK')
+}
+
 // --- 发布资产的版本一致性 ---------------------------------------------------
 // README 是**发布资产**，不是随手笔记：它的"当前版本"与安装示例会直接被人复制。
 // 实测漂移过一次——`package.json` 已到 0.4.0-beta.52，README 还写着"当前公开预发布版为

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.4.0-beta.68 — 2026-10-01 · 两个只在真实应用里出现的升级缺陷：白屏与旧缺省视图
+
+**beta.67 发布后在真实 DSH 里立刻遇到两件事，两件都不是测试能预先抓到的形状。** 测试 407 → 412，静态合同守卫 24 → 26。
+
+### 一、Skill 标签页整片空白：hooks 排在了提前 return 之后
+
+用户报告「对话有加载 skill，但进入 Skill 追踪插件后页面完全是空白，没有任何数据」。用 CDP 连上运行中的真实 DSH 复现：`Trajectory` 标签正常渲染，`Skill Trace` 标签整片空白，console 是 `Minified React error #310` 加上 `slot entry crashed in 'conversation.view'`。
+
+原因在 `src/dsh/client/client.js` 的 `FlowCanvas` 与 `RuntimeView`：`const replay = React.useMemo(...)` 被写在三个提前 return **之后**（`RuntimeView` 的 return 在 2818 行、hook 在 2829 行；`FlowCanvas` 在 2984 / 2994）。第一帧 `loading` 时提前返回、少调一个 hook，数据到达后的第二帧多调一个 hook —— React 抛 #310，slot entry 崩溃卸载，用户看到的就是空白页。
+
+现有两层测试都抓不到它，这也决定了修法：
+- `test/client-render-smoke.test.mjs` 的 `useState` 桩永远不会更新，因此只渲染"已经有数据"的那一帧，走不到第二次渲染；
+- 渲染台截图同样只截最终帧。
+
+所以除了把 `replay` 上移到提前 return 之前，还补了两道**源码文本层**的守卫——规则本身在文本里可判定，那就别指望运行时：
+- `test/client-hook-order.test.mjs` 导出 `scanHookOrder(source)`，两条测试：对真实客户端断言零违规，以及**给扫描本身写反例**（单行 `if (...) return ...` 与花括号换行两种形状都必须被判违规，合规形状必须判 0）；
+- `scripts/verify-project.mjs` 的 `HOOK_ORDER_OK` 是同一规则的发布闸门。把 `HEAD` 的客户端放回去，它精确报出 `RuntimeView（提前 return 在第 2818 行，hook 在第 2829 行）; FlowCanvas（提前 return 在第 2984 行，hook 在第 2994 行）`。
+
+修复后在同一台真实应用里复验：console 无 error，正文渲染出运行流程（17 节点 / 13 关系，图里另有 944 个折叠节点）。
+
+### 二、第一屏仍然是运行流程图：旧缺省被当成了用户选择
+
+同一台机器上，插件打开的第一屏是「运行流程」而不是「本次 Skill」。原因是 `~/.dsh/skill-trace/preferences.json` 里存着 `{"defaultView":"map"}` —— 那是 beta.66 的**缺省**第一屏，但写进文件后与"用户主动选择了运行地图"完全无法区分。beta.67 虽然把新装默认改成了 `skills`，却原样尊重了这个历史值，于是升级用户永远看不到新的第一屏（在没有运行证据的会话上，那甚至只是一句居中的灰字）。
+
+意图无法从一个从没记录它的文件里恢复，所以改为**记录**：
+
+- `src/storage/preference-store.mjs` 增加 `PREFERENCES_VERSION = 2`。**读**的时候只有带当前版本号的偏好才算"用户选择"，无版本号的一律归一到 `skills`；**写**的时候一定盖上新版本号，用户当下选的 `map` 照旧保留。`test/preference-store.test.mjs` 里「无版本号的 map 归一到 skills」与「有版本号的 map 是选择且幸存」是一对反例。
+- `src/dsh/client/client.js` 增加 `PREFERENCE_VERSION = 2`，只采用宿主给的同版本偏好。这样**旧宿主**（响应里还没有 `version` 字段）与**新宿主**都能得到正确结果，不必等宿主重启——宿主入口只在启动时 import 一次，这一点很关键。
+- `scripts/verify-project.mjs` 新增 `PREFERENCE_VERSION_OK`：两处常量必须相等。不一致不会抛错，只会静默地把第一屏换回旧 IA。
+- 还有一处更隐蔽的盲点：渲染台在没给 `?view=` 时会**自己往 localStorage 写一个 `map`**（`entry.js` 里的 `params.get('view') || 'map'`），于是历史截图全都自带一个本地选择，把"宿主给的旧偏好要不要被尊重"这条路径整个盖住了。现在不给 `?view=` 就什么都不写，并新增 `?prefVersion=2` 复现"用户在新版里主动选了运行地图"——两种偏好各截一张，行为必须不同。
+
+复验：真实应用 reload 后第一屏是「Skills in this run」三栏——左栏 `ui-craft` / `Run #9` / 仓库未解析，中栏 4 张步骤卡，右栏 SKILL.md 与 Evidence，console 无 error。
+
 ## 0.4.0-beta.67 — 2026-10-01 · Skill-first 信息架构：第一屏从运行流程图换成「本次 Skill」
 
 **这是结构性重构，不是加第四个视图。** 测试 382 → 407。

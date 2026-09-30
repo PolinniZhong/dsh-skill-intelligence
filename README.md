@@ -104,13 +104,13 @@ flowchart LR
 从 npm 安装（推荐）：
 
 ```bash
-dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.67
+dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.68
 ```
 
 或从 GitHub 试用版安装（同一版本，不经 npm）：
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.67&path:/"
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.68&path:/"
 ```
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。
@@ -168,13 +168,13 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开预发布版为 `0.4.0-beta.67`，同时发布在 npm（包名 `dsh-skill-trace`，`beta` 与 `latest` 两个标签都指向该版本）。**这一版把信息架构翻了过来**：第一屏不再是运行流程图，而是**本次对话加载过的 Skill**。导航收敛成两段——「本次 Skill」与「我的 Skill」——运行流程、运行图谱、Skill 收据一并收进「高级 ▾」：它们仍然可用，但不再是入口。点开一个 Skill 就是它的详情：左边是本次加载的 Skill、运行记录与仓库来源，中间是**只能来自定义正文**的声明流程（每一步挂运行时证据），右边是 SKILL.md 原文与逐步骤证据。
+当前公开预发布版为 `0.4.0-beta.68`，同时发布在 npm（包名 `dsh-skill-trace`，`beta` 与 `latest` 两个标签都指向该版本）。**这一版把信息架构翻了过来**：第一屏不再是运行流程图，而是**本次对话加载过的 Skill**。导航收敛成两段——「本次 Skill」与「我的 Skill」——运行流程、运行图谱、Skill 收据一并收进「高级 ▾」：它们仍然可用，但不再是入口。点开一个 Skill 就是它的详情：左边是本次加载的 Skill、运行记录与仓库来源，中间是**只能来自定义正文**的声明流程（每一步挂运行时证据），右边是 SKILL.md 原文与逐步骤证据。`0.4.0-beta.68` 修掉两个只在真实应用里出现的升级缺陷：Skill 标签页因为 hooks 排在提前 return 之后抛 React #310 而整片空白；旧偏好文件里的缺省 `map` 被当成用户选择，导致升级后第一屏仍是运行流程图。
 
 声明流程的来源方向不可逆：它由 `SKILL.md` 的标题层级与有序列表确定性抽取，**不经过任何模型、Embedding 或检索**；运行时证据只往步骤上挂标注，既不增删也不重排步骤。证据词表收敛为五个值，界面只做投影——`runtime-supported` →「运行时支持」，`intent-supported` / `partial` →「部分支持」，`insufficient` / `unknown` →「证据不足」。列表只认加载证据；Run 标识不伪造（`runId` 字段刻意不存在）；仓库来源只可能来自 frontmatter、git origin 或用户配置，猜不到就显示「仓库 · 未解析」，不造链接。
 
 `0.4.0-beta.66` 加入**定义视图**——三栏展示某个 Skill 的声明流程、SKILL.md 原文与目录、以及每一步当前拿到的证据等级，并把「这次运行实际收到的指令哈希」与「现在读到的定义哈希」并列比对，结论只有 `match` / `mismatch` / `unavailable` 三种（定义正文永不落盘，只在活会话上现读现返）。同一版修掉证据链路里**三处静默降级**——它们此前不会被任何测试抓到，因为每一处单看都「工作正常」：Scope 构造时丢弃了证据类别字段，导致 `npm test` 永远降级成裸能力；运行结果因为 `turn` 为 `null` 而进不了 Scope，导致 Scope 从来看不到 `success` / `failure`；声明步骤与运行时能力类别不匹配时直接判「证据不足」，导致「模型确实表达了这一步意图」这个事实根本没有机会被汇报。修复后，同一个 Turn 内的 Skill 加载与 `bash npm test` 已经能给出 `resolution=matched status=success category=test`。
 
-上述实现已通过 407 项自动化测试与静态合同守卫。Skill-first 两层导航、Advanced 收纳、`audit → skills` 归一化与默认偏好迁移都在其中；`/skill-trace/skills` 与 `/skill-trace/skill` 的信封形状也被一条**成对**断言钉住——那次是渲染台截图先发现的：宿主把列表套在 `list` 里返回，客户端却按顶层读，于是单元测试（走注入的 `suppliedList`）与接口测试（只看服务端）双双为绿，第一屏却在真实数据下空着。界面验收用渲染台的**真实客户端 bundle + 真实会话载荷**逐张核对（首屏、详情、证据面板、步骤锚定、高级下拉），返回的 JSON 中不含任何绝对路径。**仍未覆盖的一层是 DSH WebView 内的人眼确认**：宿主不会热加载 host 入口，新端点要等宿主重启后才存在，所以这一步留给发布会话。
+上述实现已通过 412 项自动化测试与静态合同守卫。Skill-first 两层导航、Advanced 收纳、`audit → skills` 归一化与默认偏好迁移都在其中；`/skill-trace/skills` 与 `/skill-trace/skill` 的信封形状也被一条**成对**断言钉住——那次是渲染台截图先发现的：宿主把列表套在 `list` 里返回，客户端却按顶层读，于是单元测试（走注入的 `suppliedList`）与接口测试（只看服务端）双双为绿，第一屏却在真实数据下空着。界面验收分两层：渲染台用**真实客户端 bundle + 真实会话载荷**逐张核对（首屏、详情、证据面板、步骤锚定、高级下拉），返回的 JSON 中不含任何绝对路径；两个升级缺陷则是在**运行中的真实 DSH** 里用 CDP 复现并复验的——白屏消失、第一屏回到「本次 Skill」。因此又补了两道只能写在源码文本层的守卫：`test/client-hook-order.test.mjs` 的 `scanHookOrder()` 与 `scripts/verify-project.mjs` 的 `HOOK_ORDER_OK`（hooks 不得排在提前 return 之后，单行与花括号换行两种形状都有反例），以及 `PREFERENCE_VERSION_OK`（宿主偏好存储与客户端的 IA 版本号必须相等）。**仍未覆盖的一层是人眼走查**：以上都是无头浏览器截图，最终在 DSH Desktop WebView 里由人确认断点与可读性，留给发布会话。
 
 `0.4.0-beta.7` 修复了 DSH 会话格式 V3 → V4 迁移带来的静默证据丢失：V4 把工具结果提升为一等 `tool` 消息并取消了 V3 的 `tool-result` 包裹块，而观察器只认包裹块，导致迁移后的会话仍报告“已加载”，却不再产生指令指纹、候选步骤与版本变化。现在两种格式都能读取，并新增了基于真实 V4 事件样本的契约测试。
 
@@ -191,7 +191,7 @@ dsh plugin --profile web remove dsh-skill-trace
 `0.4.0-beta.13` 加入**运行图谱画布**——插件里的第三个视图，也是 `beta.5` 以来第一次改动界面。按重构方案的硬约束**先量后决**：本机 56 个真实会话的图谱规模是**中位 61 节点、p90 915、最大 1095**，比扁平画布能承受的量大一个数量级，所以**分组是模型的一部分，不是事后优化**。三条规则依次生效：单个 Turn 超过 12 次调用→按能力折叠；会话超过 36 个 Turn→折成区间；单层超过 26 行→换列。它们把画布稳定压在 **200 节点以内、约 1036px 高**，56 个会话**无一超限**（布局耗时中位 0.3ms，最差 15ms）。
 
 布局是图的纯函数：不存坐标、不记视口与缩放、不改动图本身——同一份收据永远画出同一张图，所以重绘不会被误读成新证据。**检查器**逐节点/逐边回答"这条线为什么存在"，每条关系都同时给出**含义**与**它不表示什么**（`follows` 是日志顺序不是因果；规则派生的 `spawns` 归属不是宿主事实；`retries` 不代表重试更接近成功），并携带 `causal/compliance/correctness: false` 的证据边界。画布只发计数不发 id 列表，细节按需重新推导——最大会话的响应从 **481KB 降到 145KB**（中位 21KB）。
-上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.4.0-beta.67`）。
+上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.4.0-beta.68`）。
 以下是 `beta.14` 以来的主线：
 
 - **`beta.14`–`beta.30`**：`My Skills` 目录页、指纹预留结构、五层运行时模型（会话 → Turn → 能力 → 调用 → 结果）、
@@ -258,7 +258,7 @@ npm run verify
 npm pack --dry-run
 ```
 
-当前包含 407 组自动化测试，覆盖事件归并、来源快照、Schema 迁移、收据与偏好持久化、目录投影、学习笔记、人工验证结果、本地搜索、未保存草稿保护及暂存失败告警、备份落盘/读取、活动会话个人记录补回、并发原子写、清空维护屏障、清理安全、Host 隐私策略、DSH 会话格式 V3/V4 的 `tool/result` 契约、Phase 0 观测面、Phase 1 运行事件模型、Phase 2 关联与出处（SDD §17.4 假关系测试），以及 Phase 3 对齐（双通道声明抽取、证据状态语义、"证据不足≠没有执行"、泛化证据只记 partial、无评分守卫）、Phase 4 画布（布局确定性、不改图、有界折叠、隐藏项计数守恒、每条边可解释"为什么存在"、检查器必然声明它不表示什么）、Skill Runtime Scope（同 Turn 结构边界、同一 Turn 两次加载都判 unlinked、拒绝时间相邻）、定义视图（frontmatter 解析、ATX 标题目录与行号、步骤→目录锚点、仓库来源四种解析路径、凭据型 remote 整条拒绝、绝对路径不外泄、定义指纹三态比对）、**Skill 优先信息架构**（第一屏是本次 Skill 列表、列表只认加载证据、Run 标识不伪造、URL 与本地存储与宿主偏好三处共用同一个视图白名单、默认偏好从 `receipt` 迁移到 `skills`、声明流程与运行证据互不越权），以及 Layout Contract（根规则不得被困在媒体查询内、高度链禁用视口单位、括号配平）。以上命令不替代完整的 DSH Desktop 端到端回归；发布流程见 [发布清单](docs/RELEASE.md)。
+当前包含 412 组自动化测试，覆盖事件归并、来源快照、Schema 迁移、收据与偏好持久化、目录投影、学习笔记、人工验证结果、本地搜索、未保存草稿保护及暂存失败告警、备份落盘/读取、活动会话个人记录补回、并发原子写、清空维护屏障、清理安全、Host 隐私策略、DSH 会话格式 V3/V4 的 `tool/result` 契约、Phase 0 观测面、Phase 1 运行事件模型、Phase 2 关联与出处（SDD §17.4 假关系测试），以及 Phase 3 对齐（双通道声明抽取、证据状态语义、"证据不足≠没有执行"、泛化证据只记 partial、无评分守卫）、Phase 4 画布（布局确定性、不改图、有界折叠、隐藏项计数守恒、每条边可解释"为什么存在"、检查器必然声明它不表示什么）、Skill Runtime Scope（同 Turn 结构边界、同一 Turn 两次加载都判 unlinked、拒绝时间相邻）、定义视图（frontmatter 解析、ATX 标题目录与行号、步骤→目录锚点、仓库来源四种解析路径、凭据型 remote 整条拒绝、绝对路径不外泄、定义指纹三态比对）、**Skill 优先信息架构**（第一屏是本次 Skill 列表、列表只认加载证据、Run 标识不伪造、URL 与本地存储与宿主偏好三处共用同一个视图白名单、默认偏好从 `receipt` 迁移到 `skills`、声明流程与运行证据互不越权、**无版本号的旧偏好不算用户选择**），以及 Layout Contract（根规则不得被困在媒体查询内、高度链禁用视口单位、括号配平）与 Hooks 顺序（同一组件内 hook 不得排在提前 return 之后，含单行与花括号换行两种形状的反例）。以上命令不替代完整的 DSH Desktop 端到端回归；发布流程见 [发布清单](docs/RELEASE.md)。
 
 ## FAQ
 

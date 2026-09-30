@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-trace",
-  "version": "0.4.0-beta.67",
+  "version": "0.4.0-beta.68",
   "type": "module",
   "description": "Local-first Skill load evidence, learning cards, and iteration preparation for DeepSeek Harness",
   "license": "MIT",

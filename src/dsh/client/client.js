@@ -208,6 +208,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   const STYLE_ID = 'dsh-skill-trace-style'
   const API_ROOT = '/skill-trace'
   const VIEW_KEY = 'dsh-skill-trace.default-view'
+  // 宿主偏好文件里的 IA 版本号，与 `src/storage/preference-store.mjs` 的 `PREFERENCES_VERSION` 成对
+  // （`scripts/verify-project.mjs` 的 PREFERENCE_VERSION_OK 钉住两处一致）。
+  // 为什么要看版本：旧版第一屏是「运行流程」，而它把这个缺省值当成"用户选择"写进了文件，于是升级后
+  // 插件仍然开在运行地图上——正好是这次重构要换掉的那一屏。文件里没有字段能区分"选择"和"旧缺省"，
+  // 所以**没有版本号的偏好一律视为"从未表达过"**，回落到 query / localStorage / 新的第一屏。
+  // 这样旧宿主（还不带 version）与新宿主（带 version）都能得到正确结果，不必等宿主重启。
+  const PREFERENCE_VERSION = 2
   const FLOW_STYLE_ID = 'dsh-skill-trace-flow-style'
   const DRAFT_KEY = 'dsh-skill-trace.unsaved-drafts.v1'
   const DRAFT_LIMIT = 24
@@ -2815,6 +2822,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       }
     }, [showAllSignal])
 
+    // §Rules of Hooks：**所有 hook 必须写在任何提前 return 之前**（同 FlowCanvas）。
+    // 这个 useMemo 原先落在三个 return 后面，loading → data 的第二次渲染多调一个 hook，
+    // React 抛 #310，conversation.view slot 崩溃 → 插件页面整片空白。
+    const replay = React.useMemo(() => (replayIndex >= 0 && timeline
+      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
+      : null), [replayIndex, timeline])
+
     if (loading && !data) return h(TraceState, { kind: 'loading', message: '正在重建运行图谱…' })
     if (error && !data) return h(TraceState, { kind: 'error', message: error, onRetry: () => onRetry('graph') })
     if (!data) return h(TraceState, { kind: 'empty', message: '当前对话暂无可重建的运行证据。' })
@@ -2826,10 +2840,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const selectedId = inspect?.edge?.id
       ? { edgeId: inspect.edge.id }
       : (inspect?.nodeId ? { nodeId: inspect.nodeId } : null)
-    const replay = React.useMemo(() => (replayIndex >= 0 && timeline
-      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
-      : null), [replayIndex, timeline])
-
     const toggleType = (key) => setTypes((current) => current.includes(key)
       ? current.filter((item) => item !== key)
       : [...current, key])
@@ -2981,6 +2991,14 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     )
     const candidateCount = (sourceLayout?.edges?.length ?? 0) - (flowLayout?.edges?.length ?? 0)
 
+    // §Rules of Hooks：**所有 hook 必须写在任何提前 return 之前**。下面三个 return 是数据态分支，
+    // 一旦某个 hook 落在它们后面，loading → data 的第二次渲染就会比第一次多调用一个 hook，
+    // React 抛 #310（Rendered more hooks than during the previous render），整个 conversation.view
+    // slot 随之崩溃 → 用户看到的是「插件页面完全空白」。渲染台第一屏就带数据，所以它抓不到这一类。
+    const replay = React.useMemo(() => (replayIndex >= 0 && timeline
+      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
+      : null), [replayIndex, timeline])
+
     if (loading && !data) return h(TraceState, { kind: 'loading', message: '正在重建本次运行流程…' })
     if (error && !data) return h(TraceState, { kind: 'error', message: error, onRetry: () => onRetry('flow') })
     if (!data || !flowLayout) return h(TraceState, { kind: 'empty', message: '当前对话暂无可重建的运行流程。' })
@@ -2991,10 +3009,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const selectedId = inspect?.edge?.id
       ? { edgeId: inspect.edge.id }
       : (inspect?.nodeId ? { nodeId: inspect.nodeId } : null)
-    const replay = React.useMemo(() => (replayIndex >= 0 && timeline
-      ? { currentId: timeline.steps[replayIndex].nodeId, seenIds: new Set(timeline.steps.slice(0, replayIndex + 1).map((step) => step.nodeId)) }
-      : null), [replayIndex, timeline])
-
     return h('div', { className: 'st-flow', 'data-inspector': inspectorOpen ? 'expanded' : 'collapsed' },
       h('div', { className: 'st-flow-canvas-wrap' },
         replayActive ? h(ReplayControls, {
@@ -3171,8 +3185,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         const next = await api(`/context?sessionId=${encodeURIComponent(sessionId)}`)
         if (preferenceSession.current !== sessionId) {
           if (!queryView) {
-            const wanted = normalizeView(next.preferences?.defaultView)
-            const preferred = wanted === 'skills' || wanted === 'map' ? wanted : initialView
+            // 只认带当前版本号的偏好：没有版本号说明它来自旧 IA，那里的 `map` 是缺省而不是选择。
+            const stated = next.preferences?.version === PREFERENCE_VERSION ? normalizeView(next.preferences?.defaultView) : null
+            const preferred = stated === 'skills' || stated === 'map' ? stated : initialView
             setView(preferred)
           }
           preferenceSession.current = sessionId
