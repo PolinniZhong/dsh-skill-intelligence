@@ -110,6 +110,28 @@ function render(element, depth = 0) {
   return count
 }
 
+/**
+ * Same walk as render(), but returns the nodes instead of a count, so a test can assert on
+ * *what* was rendered rather than merely that something was. Node counts only prove that a
+ * branch executed; they say nothing about whether it executed correctly.
+ */
+function collect(element, out = [], depth = 0) {
+  if (element === null || element === undefined) return out
+  if (Array.isArray(element)) {
+    for (const child of element) collect(child, out, depth)
+    return out
+  }
+  if (typeof element !== 'object' || depth > 40) return out
+  const { type, props, children } = element
+  out.push({ type, props: props ?? {}, children })
+  if (typeof type === 'function') collect(type(props ?? {}), out, depth + 1)
+  for (const child of children ?? []) {
+    if (typeof child === 'string' || typeof child === 'number') out.push({ type: '#text', props: {}, text: String(child) })
+    else collect(child, out, depth)
+  }
+  return out
+}
+
 function contextPayload(itemCount = 2) {
   const runtimeEvents = []
   const traceEvents = []
@@ -214,7 +236,10 @@ test('the client registers and its entry component renders without throwing', as
     locale: {
       bind: () => (value) => value,
       register: () => () => {},
-      getSnapshot: () => ({ lang: 'zh' }),
+      // The contract is `active: LocaleId` (dsh-client-locale/lib/types/client/index.d.ts:51).
+      // 这里原本只写了 `lang: 'zh'`——一个不属于契约的字段。客户端读的是 `active`，读到
+      // undefined 就退回 'en'，于是这个桩一直在悄悄渲染英文，而它的写法看上去是在渲染中文。
+      getSnapshot: () => ({ active: 'zh', lang: 'zh' }),
       subscribe: () => () => {},
     },
     workspaces: { getSnapshot: () => ({ active: null }), subscribe: () => () => {} },
@@ -244,6 +269,63 @@ test('the client registers and its entry component renders without throwing', as
     meaning: '包含关系来自事件自带的 turn / step 字段。', limit: '包含只说明结构位置，不说明该调用达成了什么。',
     evidenceBoundary: { causal: false, compliance: false, correctness: false, note: '只报告观测到的关联。' },
   }
+  // §11 右栏的注入口。`definition` 平时由 `useEffect` 里的 fetch 填，而这个测试的 react
+  // stub 不执行 effect，所以不注入就等于「右栏一行都不跑」——Markdown 渲染器、Evidence
+  // 面板、目录候选清单全都在 `observation` 分支之下。这里给一份真形状的载荷，用一份
+  // 带围栏、标题、列表、行内标记与不安全协议的正文去压渲染器。
+  const definitionFixture = {
+    ok: true,
+    definition: {
+      schemaVersion: 1, skillName: 'code-review', available: true, reason: null,
+      summary: { description: '评审代码变更。', whenToUse: null, invocation: { modelInvocable: true, userInvocable: true }, source: 'project-agents', provider: 'filesystem' },
+      resourceBase: { kind: 'directory', path: null, pathOmitted: true, url: null, note: null },
+      content: {
+        sha256: 'sha256:abc', returnedSha256: 'sha256:abc', bytes: 420, lineCount: 14, truncated: false,
+        text: [
+          '---',
+          'name: code-review',
+          'metadata:',
+          '  repository: https://github.com/example/code-review-skill',
+          '---',
+          '# Purpose',
+          '',
+          'Review **changes** and `diff` output.',
+          '',
+          '## Workflow',
+          '',
+          '1. Read changes',
+          '2. Run tests',
+          '',
+          '```bash',
+          '# not a heading',
+          'npm test',
+          '```',
+          '',
+          '- [unsafe](javascript:alert(1))',
+        ].join('\n'),
+      },
+      outline: [
+        { id: 'purpose', level: 1, title: 'Purpose', line: 6 },
+        { id: 'workflow', level: 2, title: 'Workflow', line: 10 },
+      ],
+      frontmatter: { present: true, bodyStartLine: 6, keys: ['name', 'metadata'] },
+      renderedEnvelope: { available: false, reason: 'rendered-envelope-not-reproducible-outside-the-harness' },
+      limitations: ['resource-base-path-withheld'],
+      // 仓库来源住在 definition **里面**——Host 把 `definition` 与 `observation` 并列放在
+      // payload 顶层，`repository` 是 definition 视图的一部分。放错一层，右栏的「打开仓库 ↗」
+      // 就永远不渲染，而测试照样绿。
+      repository: { status: 'resolved', basis: 'frontmatter', key: 'repository', label: 'example/code-review-skill', relativePath: 'skills/code-review', cloneCommand: 'https://github.com/example/code-review-skill', limitations: [] },
+    },
+    observation: {
+      match: 'match', observedInstructionSha256: ['sha256:abc'], currentInstructionSha256: 'sha256:abc',
+      loadedDuringRun: true, inPublishedCatalog: true,
+      catalogPublication: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest' },
+    },
+  }
+  // 44 条候选：越过 `AUDIT_CATALOG_LIMIT`（40），逼出「另有 N 个未列出」那条分支。
+  const catalogEntries = Array.from({ length: 44 }, (unused, index) => ({ name: `skill-${index}`, description: `候选 ${index}` }))
+  const auditPayload = { ...payload, receipt: { ...payload.receipt, catalogPublished: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest', entries: catalogEntries } } }
+
   const cases = {
     FlowCanvas: [{ data: payload, loading: false, error: '', onRetry() {}, inspect: inspectNode, inspectLoading: false, inspectError: '', alignments: payload.views.receipt.runtime.alignments, skillLoads: payload.skillLoads, onSelect() {}, onCloseInspect() {} }],
     RuntimeView: [{ data: payload, loading: false, error: '', onRetry() {}, inspect: inspectNode, inspectLoading: false, inspectError: '', alignments: payload.views.receipt.runtime.alignments, skillLoads: payload.skillLoads, onSelect() {}, onCloseInspect() {} }],
@@ -282,6 +364,8 @@ test('the client registers and its entry component renders without throwing', as
         },
         loading: false, error: '', onRetry() {},
       }],
+      // 注入了定义之后，右栏的每一个分支都会真的执行一次。
+      [{ sessionId: 's', data: auditPayload, loading: false, error: '', onRetry() {}, definition: definitionFixture }],
     ],
   }
   for (const [name, variants] of Object.entries(cases)) {
@@ -291,6 +375,57 @@ test('the client registers and its entry component renders without throwing', as
       assert.doesNotThrow(() => render(View(props)), `${name} threw on variant ${index}`)
     })
   }
+  // 注入的定义必须**真的**渲染出来，而且要渲染成正确的形状。只比节点数是不行的：右栏从
+  // Tab 面板到 Markdown 渲染器到目录清单，每一层都有分支，节点数涨了不代表每个分支都对。
+  // 曾经那个断言（+200 个节点）既测不出 `javascript:` 链接漏成了 `<a>`，也测不出目录清单
+  // 截断条数写错——它只证明「多了不少东西」。
+  const nodes = collect(views.AuditView({ sessionId: 's', data: auditPayload, loading: false, error: '', onRetry() {}, definition: definitionFixture }))
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  const elements = (type) => nodes.filter((node) => node.type === type)
+
+  // 1. Markdown 渲染器认得出标题、行内代码、围栏块。
+  const headingText = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    .flatMap((tag) => elements(tag).map((node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')))
+  assert.ok(headingText.includes('Purpose') && headingText.includes('Workflow'), 'the outline headings become heading elements')
+  assert.ok(!headingText.some((heading) => heading.includes('not a heading')), 'a # inside a fenced code block must not become a heading')
+  assert.ok(text.includes('# not a heading'), 'the fenced block keeps its content verbatim, as code')
+  assert.ok(text.includes('diff'), 'inline code is rendered')
+  assert.ok(text.includes('changes') && !text.includes('**changes**'), 'bold is rendered as <strong>, not left as literal asterisks')
+
+  // 2. 第三方 SKILL.md 能写任何东西。只有 http(s) 允许变成链接，其余协议必须退化成纯文本，
+  //    否则一份 Skill 文档就能把 `javascript:` 带进界面。
+  const anchors = elements('a')
+  assert.ok(anchors.length > 0, 'the resolved repository must produce a link')
+  assert.ok(anchors.every((node) => /^https?:\/\//i.test(String(node.props.href))), 'only http(s) hrefs may become anchors')
+  assert.ok(text.includes('javascript:alert(1)'), 'a non-http link degrades to plain text instead of an anchor')
+  const external = anchors.filter((node) => node.props.target === '_blank')
+  assert.ok(external.length >= 2, 'a resolved repository is offered from both the source card and the definition pane')
+  assert.ok(external.every((node) => node.props.href === 'https://github.com/example/code-review-skill'), 'every external link points at the resolved clone command')
+  assert.ok(external.every((node) => /noopener/.test(String(node.props.rel))), 'external links carry rel="noreferrer noopener"')
+
+  // 2b. §11.9：仓库没解析出来时，界面上不能出现猜测出来的链接，也不能留一个禁用态的占位。
+  const unresolvedNodes = collect(views.AuditView({
+    sessionId: 's',
+    data: auditPayload,
+    loading: false, error: '', onRetry() {},
+    definition: {
+      ...definitionFixture,
+      definition: { ...definitionFixture.definition, repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] } },
+    },
+  }))
+  const unresolvedAnchors = unresolvedNodes.filter((node) => node.type === 'a' && node.props.target === '_blank')
+  assert.equal(unresolvedAnchors.length, 0, 'an unresolved repository must not invent a link')
+  assert.ok(unresolvedNodes.some((node) => node.type === '#text' && node.text.includes('仓库 · 未解析')), 'the surface states the repository is unresolved rather than staying blank')
+
+  // 3. 目录候选只列 AUDIT_CATALOG_LIMIT 条，并如实说明剩下的——一条都不能多渲染。
+  assert.ok(text.includes('skill-0') && text.includes('skill-39'), 'the catalogue list renders up to the limit')
+  assert.ok(!text.includes('skill-40'), 'the catalogue list must stop at the limit')
+  assert.ok(text.includes('另有 4 个候选未列出'), 'the truncation is stated, not silently dropped')
+
+  // 4. 两个 Tab 面板都留在 DOM 里（由 CSS 切显隐），所以切 Tab 不丢滚动位置——同时这也意味着
+  //    "没有定义" 的那个变体不该渲染出任何一个面板的正文。
+  assert.equal(nodes.filter((node) => node.props.className === 'st-audit-pane').length, 2, 'both tab panels stay mounted')
+  assert.equal(nodes.filter((node) => node.props['data-active'] === 'true' && node.props.className === 'st-audit-pane').length, 1, 'exactly one panel is active')
 })
 
 test('a rendered view survives every payload shape the Host can send', () => {

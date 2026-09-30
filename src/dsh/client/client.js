@@ -333,6 +333,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       color-scheme: light dark;
       --st-brand:var(--dsw-alias-brand-primary,#2f6fed);
       --st-brand-soft:var(--dsw-alias-interactive-bg-hover,#eef4ff);
+      /* §11.9: the "jump to this section" highlight must not be a literal colour. Mixing the
+       * warning hue into whatever the current layer is keeps it legible on either theme, so the
+       * audit view needs no body[data-ds-dark-theme] override of its own. */
+      --st-highlight:color-mix(in srgb,var(--st-warning) 22%,var(--st-layer));
       --st-bg:var(--dsw-alias-bg-base,#f6f7f9);
       --st-layer:var(--dsw-alias-bg-layer-1,#fff);
       --st-layer-2:var(--dsw-alias-bg-layer-2,#fbfcfd);
@@ -556,13 +560,12 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-rv{color:var(--st-text);overflow-wrap:anywhere}
       .st-rv code{font-size:10.5px;color:var(--st-muted)}
       .st-tag{font-size:10.5px;border-radius:999px;padding:3px 7px;white-space:nowrap}
-      .st-tag[data-tone="ok"]{color:#176c45;background:var(--st-brand-soft,#edf4ff)}
-      .st-tag[data-tone="ok"]{color:#176c45;background:#edf8f3}
+      .st-tag[data-tone="ok"]{color:var(--st-success);background:color-mix(in srgb,var(--st-success) 12%,var(--st-layer))}
       .st-tag[data-tone="warn"]{color:var(--st-warning);background:color-mix(in srgb,var(--st-warning) 12%,var(--st-layer))}
-      .st-tag[data-tone="gray"]{color:#687385;background:#f1f3f6}
+      .st-tag[data-tone="gray"]{color:var(--st-muted);background:var(--st-layer-2)}
       .st-tag[data-tone="error"]{color:var(--st-error);background:color-mix(in srgb,var(--st-error) 12%,var(--st-layer))}
       .st-receipt-hint{margin:16px 0 0;color:var(--st-faint);font-size:11px}
-      .st-header-btn{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 11px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer);color:#596476;font-size:12px;cursor:pointer}
+      .st-header-btn{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 11px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer);color:var(--st-muted);font-size:12px;cursor:pointer}
       .st-header-btn:hover{background:var(--st-layer-2)}
       .st-header-btn.primary{background:var(--st-brand);border-color:var(--st-brand);color:#fff}
       .st-header-btn.primary:hover{background:var(--st-brand)}
@@ -602,12 +605,11 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-audit-run-meta{color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
       .st-audit-empty{margin:0;color:var(--st-faint);font-size:11.5px;line-height:1.5}
       .st-audit-outline{list-style:none;margin:0;padding:0;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:1px}
-      .st-audit-outline-item{width:100%;text-align:left;border:0;background:transparent;color:var(--st-text);font-size:12px;padding:4px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-audit-outline-item{width:100%;text-align:left;border:0;border-left:2px solid transparent;background:transparent;color:var(--st-text);font-size:12px;padding:4px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .st-audit-outline li[data-level="2"] .st-audit-outline-item{padding-left:18px;color:var(--st-muted)}
       .st-audit-outline li[data-level="3"] .st-audit-outline-item{padding-left:30px;color:var(--st-muted);font-size:11.5px}
       .st-audit-outline-item:hover{background:var(--st-layer)}
-      .st-audit-outline-item[data-active="true"]{background:#fff8d8;color:var(--st-text)}
-      body[data-ds-dark-theme] .st-audit-outline-item[data-active="true"]{background:rgba(255,214,102,.18)}
+      .st-audit-outline-item[data-active="true"]{background:var(--st-brand-soft);color:var(--st-brand);border-left-color:var(--st-brand);font-weight:620}
       .st-audit-repo{display:flex;flex-direction:column;gap:6px}
       .st-audit-repo-head{display:flex;align-items:center;gap:8px}
       .st-audit-repo-label{min-width:0;flex:1;font-size:11.5px;font-weight:600;word-break:break-all}
@@ -661,7 +663,8 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-audit-tabs{display:flex;border-bottom:1px solid var(--st-border);background:var(--st-layer);flex:none}
       .st-audit-tab{flex:1;min-height:38px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--st-muted);font-size:12px;cursor:pointer}
       .st-audit-tab[data-active="true"]{color:var(--st-brand);border-bottom-color:var(--st-brand);font-weight:600}
-      .st-audit-pane{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+      .st-audit-pane{flex:1;min-height:0;overflow:auto;display:none;flex-direction:column}
+      .st-audit-pane[data-active="true"]{display:flex}
       .st-audit-pane-head{display:flex;align-items:center;gap:8px;padding:11px 14px 6px}
       .st-audit-pane-head h3{margin:0;font-size:13px;font-weight:650}
       .st-audit-pane-meta{margin-left:auto;color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
@@ -670,8 +673,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-audit-chip[data-tone="provider"]{color:var(--st-warning)}
       .st-audit-doc{padding:4px 16px 16px;font-size:12.5px;line-height:1.65;color:var(--st-text)}
       .st-audit-doc-heading{margin:16px 0 6px;font-weight:650;scroll-margin-top:12px;border-radius:6px;transition:background-color .18s ease}
-      .st-audit-doc-heading[data-flash="true"]{background:#fff8d8}
-      body[data-ds-dark-theme] .st-audit-doc-heading[data-flash="true"]{background:rgba(255,214,102,.18)}
+      .st-audit-doc-heading[data-flash="true"]{background:var(--st-highlight)}
       .st-audit-doc h2.st-audit-doc-heading{font-size:15px}
       .st-audit-doc h3.st-audit-doc-heading{font-size:13.5px}
       .st-audit-doc h4.st-audit-doc-heading,.st-audit-doc h5.st-audit-doc-heading,.st-audit-doc h6.st-audit-doc-heading{font-size:12.5px;color:var(--st-muted)}
@@ -684,6 +686,16 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-audit-link{color:var(--st-brand)}
       .st-audit-pane-foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--st-border);color:var(--st-faint);font-size:10.5px}
       .st-audit-evidence{display:flex;flex-direction:column;gap:9px;padding:4px 14px 16px}
+      .st-audit-catalog{padding-bottom:9px;border-bottom:1px solid var(--st-border-soft)}
+      .st-audit-catalog>summary{color:var(--st-muted);font-size:11px;cursor:pointer}
+      .st-audit-catalog-list{margin:7px 0 0;padding:0;list-style:none;max-height:210px;overflow:auto}
+      .st-audit-catalog-list li{padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+      .st-audit-catalog-list li+li{border-top:1px solid var(--st-border-soft)}
+      .st-audit-catalog-list li[data-active="true"]{border-left:2px solid var(--st-brand);padding-left:6px}
+      .st-audit-catalog-list strong{font-size:11px;overflow-wrap:anywhere}
+      .st-audit-catalog-list span{color:var(--st-muted);font-size:10.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .st-audit-catalog-more{margin:6px 0 0;color:var(--st-faint);font-size:10.5px}
+      .st-audit-catalog:last-child{border-bottom:0;padding-bottom:0}
       .st-audit-field{display:flex;flex-direction:column;gap:4px;padding-bottom:9px;border-bottom:1px solid var(--st-border-soft)}
       .st-audit-field:last-of-type{border-bottom:0}
       .st-audit-field>span{color:var(--st-faint);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
@@ -1551,6 +1563,8 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   // 徽章分组：图表只画三类，映射表在 §6.6，实现不得自创第四类。
   const AUDIT_BADGE_GROUP = { 'runtime-supported': 'supported', 'intent-supported': 'partial', partial: 'partial', insufficient: 'insufficient', unknown: 'insufficient' }
   const DOC_FLASH_MS = 700
+  // 「当时的目录候选」一次最多列这么多条。多的部分只报总数——这份清单是旁证，不是主视图。
+  const AUDIT_CATALOG_LIMIT = 40
 
   function auditBadgeLabel(relationship) {
     const meta = AUDIT_BADGES[relationship]
@@ -1687,7 +1701,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
    * 中栏画的是**声明流程**（`alignments[].items`），不是底层 Tool/MCP/CLI 拓扑——后者在
    * 「运行流程」「运行图谱」两个视图里。两者混在一张画布上正是这个产品要避免的事。
    */
-  function AuditView({ sessionId, data, loading, error, onRetry }) {
+  function AuditView({ sessionId, data, loading, error, onRetry, definition: suppliedDefinition }) {
     const alignments = data?.views?.receipt?.runtime?.alignments ?? []
     const traceEvents = data?.receipt?.traceEvents ?? []
     const loadedNames = React.useMemo(() => [...new Set(traceEvents.filter((trace) => trace?.status === 'loaded').map((trace) => trace.skillName))], [traceEvents])
@@ -1697,7 +1711,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const [tab, setTab] = React.useState('doc')
     const [stepId, setStepId] = React.useState('')
     const [flash, setFlash] = React.useState('')
-    const [definition, setDefinition] = React.useState(null)
+    const [fetchedDefinition, setDefinition] = React.useState(null)
     const [definitionLoading, setDefinitionLoading] = React.useState(false)
     const [definitionError, setDefinitionError] = React.useState('')
     const [copiedClone, setCopiedClone] = React.useState(false)
@@ -1738,10 +1752,23 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const alignment = React.useMemo(() => alignments.find((entry) => entry.skillName === activeName) ?? null, [alignments, activeName])
     const steps = alignment?.items ?? []
     const activeStep = React.useMemo(() => steps.find((item) => item.declarationStepId === stepId) ?? steps[0] ?? null, [steps, stepId])
+    // 定义正文只从宿主现读（不落盘）。`suppliedDefinition` 是渲染冒烟测试的注入口：
+    // 该测试的 react stub 不执行 `useEffect`，fetch 永远不会发生，于是右栏——包括整个
+    // Markdown 渲染器与 Evidence 面板——在没有这个口子的情况下**一行都执行不到**。
+    const definition = suppliedDefinition ?? fetchedDefinition
     const repository = definition?.definition?.repository ?? null
     const content = definition?.definition?.content ?? null
     const outline = definition?.definition?.outline ?? []
     const observation = definition?.observation ?? null
+    // §16 D「能读出当时的 Skill Catalog `entries`」：那次注入发生时目录里的候选清单。
+    // 数据层早已产出它（`trace-reducer.mjs` 的 `reduceSkillCatalog`），且 `publicReceipt`
+    // 把 `catalogPublished` 整块透传，所以这里只做投影，不再多打一次接口。
+    // 上限 `AUDIT_CATALOG_LIMIT` 条：这份清单是「当时还有哪些候选」的旁证，不是主视图。
+    const catalog = React.useMemo(() => {
+      const published = data?.receipt?.catalogPublished
+      const entries = Array.isArray(published?.entries) ? published.entries : []
+      return { entries, total: entries.length, digest: published?.entriesDigest ?? null, turn: published?.turn ?? null }
+    }, [data])
 
     React.useEffect(() => () => {
       if (flashTimer.current) clearTimeout(flashTimer.current)
@@ -1749,6 +1776,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     }, [])
 
     React.useEffect(() => {
+      if (suppliedDefinition) return undefined
       if (!activeName) { setDefinition(null); return undefined }
       let cancelled = false
       setDefinitionLoading(true)
@@ -1757,7 +1785,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         .then((body) => { if (!cancelled) { setDefinition(body); setDefinitionLoading(false) } })
         .catch((reason) => { if (!cancelled) { setDefinitionError(reason.message); setDefinitionLoading(false) } })
       return () => { cancelled = true }
-    }, [sessionId, activeName])
+    }, [sessionId, activeName, suppliedDefinition])
 
     React.useEffect(() => { setStepId('') }, [activeName])
 
@@ -1928,8 +1956,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           h('button', { type: 'button', role: 'tab', className: 'st-audit-tab', 'aria-selected': tab === 'doc', 'data-active': tab === 'doc' ? 'true' : undefined, onClick: () => setTab('doc') }, 'SKILL.md'),
           h('button', { type: 'button', role: 'tab', className: 'st-audit-tab', 'aria-selected': tab === 'evidence', 'data-active': tab === 'evidence' ? 'true' : undefined, onClick: () => setTab('evidence') }, localized('证据', 'Evidence'))),
 
-        tab === 'doc'
-          ? h('div', { className: 'st-audit-pane' },
+        h('div', { className: 'st-audit-pane', 'data-active': tab === 'doc' ? 'true' : undefined, 'aria-hidden': tab === 'doc' ? undefined : 'true' },
             h('header', { className: 'st-audit-pane-head' },
               h('h3', null, localized('Skill 定义', 'Skill Definition')),
               h('span', { className: 'st-audit-pane-meta' }, raw(content ? shortHash(content.sha256) : ''))),
@@ -1950,8 +1977,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
                 : h('div', { className: 'st-audit-doc', ref: docRef }, ...renderSkillMarkdown(content?.text, outline, flash)),
             h('footer', { className: 'st-audit-pane-foot' },
               h('span', null, content?.truncated ? localized('正文超长，已截断显示；哈希仍按整份文件计算。', 'The body is truncated for display; the hash still covers the whole file.') : localized('只读展示，不落盘。', 'Read-only, never persisted.')),
-              repository?.status === 'resolved' && repository.cloneCommand ? h('a', { className: 'st-audit-open', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开仓库 ↗', 'Open repository ↗')) : null))
-          : h('div', { className: 'st-audit-pane' },
+              repository?.status === 'resolved' && repository.cloneCommand ? h('a', { className: 'st-audit-open', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开仓库 ↗', 'Open repository ↗')) : null)),
+        // 两个面板都留在 DOM 里，只由 CSS 切显隐——与 demo 的 `.panel{display:none}.panel.active{display:block}`
+        // 一致。这样切 Tab 不会丢失文档滚动位置，渲染冒烟测试也才能两个面板都跑到。
+        h('div', { className: 'st-audit-pane', 'data-active': tab === 'evidence' ? 'true' : undefined, 'aria-hidden': tab === 'evidence' ? undefined : 'true' },
             h('header', { className: 'st-audit-pane-head' },
               h('h3', null, localized('步骤证据', 'Step Evidence')),
               h('span', { className: 'st-audit-pane-meta' }, activeStep ? auditBadgeLabel(activeStep.relationship) : '')),
@@ -1979,7 +2008,22 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
                 h('div', { className: 'st-audit-field' }, h('span', null, localized('目录发布', 'Published in catalog')),
                   h('strong', null, observation.inPublishedCatalog === null ? localized('无法确认', 'Unconfirmed') : observation.inPublishedCatalog ? localized('当时已在目录中', 'Present in the catalog then') : localized('当时不在目录中', 'Not in the catalog then'))),
                 h('div', { className: 'st-audit-field' }, h('span', null, localized('指令指纹比对', 'Instruction fingerprint')),
-                  h('strong', null, observation.match === 'match' ? localized('一致', 'Match') : observation.match === 'mismatch' ? localized('文件已改变', 'The file has changed') : localized('本次未记录哈希', 'No hash was recorded for this run'))))
+                  h('strong', null, observation.match === 'match' ? localized('一致', 'Match') : observation.match === 'mismatch' ? localized('文件已改变', 'The file has changed') : localized('本次未记录哈希', 'No hash was recorded for this run'))),
+                catalog.total
+                  ? h('details', { className: 'st-audit-catalog' },
+                    h('summary', null, localized(`当时目录中的候选（${catalog.total}）`, `Candidates in the catalog then (${catalog.total})`)),
+                    h('ul', { className: 'st-audit-catalog-list' },
+                      ...catalog.entries.slice(0, AUDIT_CATALOG_LIMIT).map((entry, position) => h('li', {
+                        key: `${entry?.name ?? 'entry'}:${position}`,
+                        'data-active': entry?.name === activeName ? 'true' : null,
+                      },
+                      h('strong', null, raw(entry?.name ?? '')),
+                      entry?.description ? h('span', null, raw(entry.description)) : null))),
+                    catalog.total > AUDIT_CATALOG_LIMIT
+                      ? h('p', { className: 'st-audit-catalog-more' }, localized(`另有 ${catalog.total - AUDIT_CATALOG_LIMIT} 个候选未列出。`, `${catalog.total - AUDIT_CATALOG_LIMIT} further candidates are not listed.`))
+                      : null,
+                    catalog.digest ? h('p', { className: 'st-audit-catalog-more' }, raw(`entriesDigest ${String(catalog.digest).slice(0, 19)}…`)) : null)
+                  : null)
               : null)),
 
       h('footer', { className: 'st-audit-foot' }, localized(

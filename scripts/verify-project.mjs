@@ -679,6 +679,42 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
   if (cardRatio > 5.5) {
     throw new Error(`§27: too many rounded cards relative to dividers (${radii} radii / ${dividers} dividers = ${cardRatio.toFixed(1)}, cap 5.5)`)
   }
+  // §11.9 / §16 E: every colour the UI paints comes from a token, so the same markup stays
+  // legible on either theme.
+  //
+  // 颜色字面量只允许出现在 `:root` 的 token 定义里——那是 token 该有字面值的地方，也是唯一
+  // 一处「字面值」与「主题」解耦的位置。其它任何地方写死一个颜色，就是一个**跟不动主题**的
+  // 值：§11 的文档高亮一开始照抄 demo 的 `#fff8d8`，于是不得不补一条
+  // `body[data-ds-dark-theme]` 覆盖来救它——那条覆盖本身就是这个 bug 的证据。改成
+  // `color-mix(…,var(--st-layer))` 之后，覆盖消失了，浅色/深色各自算各自的底色。
+  //
+  // `var(--token,#fallback)` 不算违规：fallback 只在宿主一个 token 都没给时才生效，而宿主
+  // 总会给。纯白豁免（`#fff` / `white`）：它只画在 brand 填充之上，而 brand 蓝在两种主题下
+  // 都是蓝的，白字两种主题下都对。
+  const withoutTokens = css.replace(/--st-[a-z0-9-]+\s*:[^;}]*/g, '')
+  let bare = ''
+  for (let i = 0; i < withoutTokens.length; i += 1) {
+    if (withoutTokens.startsWith('var(', i)) {
+      let depth = 0
+      let j = i + 3
+      for (; j < withoutTokens.length; j += 1) {
+        if (withoutTokens[j] === '(') depth += 1
+        else if (withoutTokens[j] === ')') {
+          depth -= 1
+          if (depth === 0) break
+        }
+      }
+      i = j
+      continue
+    }
+    bare += withoutTokens[i]
+  }
+  for (const [, value] of bare.matchAll(/(?:^|[{;])\s*(?:[a-z-]*color|background|fill|stroke)\s*:\s*([^;}]+)/g)) {
+    const literal = value.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/)
+    if (!literal) continue
+    if (/^#(?:fff|ffffff)$/i.test(literal[0])) continue
+    throw new Error(`§11.9: colour literal ${literal[0]} in "${value.trim()}" cannot follow the theme — use a --st-* token`)
+  }
 }
 
 // §8/§35: the five-layer model.
