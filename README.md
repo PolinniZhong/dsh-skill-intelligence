@@ -22,7 +22,7 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追�
 | 插件名称 | `dsh-skill-trace` |
 | 适配平台 | DeepSeek Harness `web` Profile / Desktop（当前运行基线：DSH Desktop `0.11.3` / runtime `0.1.5-rc.2`；此前基线验证于 Desktop `0.8.3` / runtime `0.1.1-rc.2`） |
 | 解决的问题 | Agent 加载了什么 Skill、何时加载、声明如何运行、我能否手动延续，都缺少用户可读的证据 |
-| 核心界面 | **Skill 收据**、**流程地图**、**我的 Skill** |
+| 核心界面 | **Skill 收据**、**流程地图**、**我的 Skill**、**定义视图** |
 | 证据范围 | 观测 `skill(name)` 的调用/结果；区分请求、成功、失败、未知与人工判断 |
 | 学习闭环 | 查看声明步骤 → 回看真实收据 → 写下个人理解与验证计划 → 人工记录验证结果 → 待回看工作台 → 手工延续 |
 | 隐私 | 本地优先；不保存完整 Prompt、完整 Skill 正文、Token、Cookie、绝对路径或项目内容 |
@@ -53,6 +53,16 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追�
 
 *我的 Skill：把当前可发现的 Skill、真实收据和本地会话理解放在可搜索的目录中。*
 
+### 4. 定义视图：Skill 自己声明了什么
+
+前三个界面回答的都是“运行时发生了什么”。定义视图回答另一半问题：**这个 Skill 到底声明了什么，以及这一次运行看到的版本是不是现在这个版本。**
+
+三栏。左栏是当前 Skill、该 Skill 的运行记录、SKILL.md 的标题目录和仓库来源；中栏把定义里的流程步骤画成纵向序列，每一步标出它当前拿到的证据等级；右栏可切换 `SKILL.md` 原文与证据面板，点中栏任一步骤会同时选中它、切到证据面板、并在原文里定位加亮。
+
+它同时展示**定义指纹比对**：把「这次运行实际收到的指令哈希」与「现在读到的定义哈希」并列，结论只有 `match` / `mismatch` / `unavailable` 三种——只有一侧存在哈希时是 `unavailable`，不会温和地写成 `mismatch`。目录候选也一并列出，用来回答“当时这个 Skill 在不在目录里”。
+
+边界同样是产品的一部分：定义正文**永不落盘、永不进收据**，只在当前会话上现读现返；资源基的绝对路径只暴露类别不暴露路径；凭据型仓库地址（`https://user:token@…`）整条拒绝，不剥离也不半显；找不到 `.git` 时判定为「未解析」，**不用目录名猜一个链接出来**。`<skill_content>` 外壳无法在插件内复现（插件里没有任何 DSH 运行时导入），因此该层显式报告为「不可在宿主之外复现」，而不是自己拼一个看起来像的。
+
 ## 工作方式
 
 ```mermaid
@@ -74,13 +84,13 @@ flowchart LR
 从 npm 安装（推荐）：
 
 ```bash
-dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.65
+dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.66
 ```
 
 或从 GitHub 试用版安装（同一版本，不经 npm）：
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.65&path:/"
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.66&path:/"
 ```
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。
@@ -138,9 +148,11 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开预发布版为 `0.4.0-beta.65`，同时发布在 npm（包名 `dsh-skill-trace`，`beta` 与 `latest` 两个标签都指向该版本）。上一候选的 Desktop Blob 下载被实测为假成功，现已停用；本版本改为由 Host 原子创建并回读验证备份，提供备份历史、打开所在文件夹、预览后恢复缺失数据，并在清空/单删前自动创建安全备份。若清空后活动会话先重建了加载证据，恢复会保留当前证据，只补回备份中缺失的个人理解、人工结果、输出引用和继续方式；当前已存在的同类用户记录不会被覆盖。个人理解、人工验证与输出引用的未保存草稿会在当前 Desktop 运行期间本地暂存，切换页面后返回可恢复；只有明确保存后才进入收据与备份。
+当前公开预发布版为 `0.4.0-beta.66`，同时发布在 npm（包名 `dsh-skill-trace`，`beta` 与 `latest` 两个标签都指向该版本）。本版新增第四个视图**定义视图**：三栏展示某个 Skill 的声明流程、SKILL.md 原文与目录、以及每一步当前拿到的证据等级，并把「这次运行实际收到的指令哈希」与「现在读到的定义哈希」并列比对，结论只有 `match` / `mismatch` / `unavailable` 三种。定义正文永不落盘，只在活会话上现读现返。
 
-上述实现已通过静态合同和本地 store 自动化测试，包括活动会话重建后的个人记录补回、并发原子写，以及清空期间阻塞新写入的维护屏障；技术边界见 [架构说明](docs/ARCHITECTURE.md)。真实 Desktop 已验证备份创建、回读、历史展示与打开所在文件夹；为避免破坏个人记录，发布前未对维护者的真实收据执行“清空 → 恢复”往返，该破坏性路径以隔离自动化覆盖并作为预发布限制公开保留。
+本版同时修掉证据链路里**三处静默降级**——它们此前不会被任何测试抓到，因为每一处单看都「工作正常」：Scope 构造时丢弃了证据类别字段，导致 `npm test` 永远降级成裸能力；运行结果因为 `turn` 为 `null` 而进不了 Scope，导致 Scope 从来看不到 `success` / `failure`；声明步骤与运行时能力类别不匹配时直接判「证据不足」，导致「模型确实表达了这一步意图」这个事实根本没有机会被汇报。修复后，同一个 Turn 内的 Skill 加载与 `bash npm test` 已经能给出 `resolution=matched status=success category=test`。
+
+上述实现已通过 382 项自动化测试与静态合同守卫。新增的 `/skill-trace/definition` 端点已在**运行中的宿主**上对真实 Skill 实测通过（`agentic-eval`：5359 字节 / 177 行 / 12 条目录），返回的 JSON 中不含任何绝对路径。界面验收按设计 demo 的十二条一致性清单逐条核对，其中「未解析仓库不造链接」与「暗色主题下无硬编码颜色」两条已转为自动化断言（渲染冒烟测试与 `verify-project` 的颜色字面量扫描）。**仍未覆盖的一层是人眼看渲染结果**：三栏在 DSH WebView 里是否真的可读、布局是否重叠，只有人看过才算数。
 
 `0.4.0-beta.7` 修复了 DSH 会话格式 V3 → V4 迁移带来的静默证据丢失：V4 把工具结果提升为一等 `tool` 消息并取消了 V3 的 `tool-result` 包裹块，而观察器只认包裹块，导致迁移后的会话仍报告“已加载”，却不再产生指令指纹、候选步骤与版本变化。现在两种格式都能读取，并新增了基于真实 V4 事件样本的契约测试。
 
@@ -157,7 +169,7 @@ dsh plugin --profile web remove dsh-skill-trace
 `0.4.0-beta.13` 加入**运行图谱画布**——插件里的第三个视图，也是 `beta.5` 以来第一次改动界面。按重构方案的硬约束**先量后决**：本机 56 个真实会话的图谱规模是**中位 61 节点、p90 915、最大 1095**，比扁平画布能承受的量大一个数量级，所以**分组是模型的一部分，不是事后优化**。三条规则依次生效：单个 Turn 超过 12 次调用→按能力折叠；会话超过 36 个 Turn→折成区间；单层超过 26 行→换列。它们把画布稳定压在 **200 节点以内、约 1036px 高**，56 个会话**无一超限**（布局耗时中位 0.3ms，最差 15ms）。
 
 布局是图的纯函数：不存坐标、不记视口与缩放、不改动图本身——同一份收据永远画出同一张图，所以重绘不会被误读成新证据。**检查器**逐节点/逐边回答"这条线为什么存在"，每条关系都同时给出**含义**与**它不表示什么**（`follows` 是日志顺序不是因果；规则派生的 `spawns` 归属不是宿主事实；`retries` 不代表重试更接近成功），并携带 `causal/compliance/correctness: false` 的证据边界。画布只发计数不发 id 列表，细节按需重新推导——最大会话的响应从 **481KB 降到 145KB**（中位 21KB）。
-上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.4.0-beta.65`）。
+上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.4.0-beta.66`）。
 以下是 `beta.14` 以来的主线：
 
 - **`beta.14`–`beta.30`**：`My Skills` 目录页、指纹预留结构、五层运行时模型（会话 → Turn → 能力 → 调用 → 结果）、
@@ -184,6 +196,11 @@ dsh plugin --profile web remove dsh-skill-trace
 - **`beta.60`**：**Dark Mode 改为 Token 化**。14 个 `--st-*` 指向 DSH 的 `--dsw-alias-*`，
   不再维护第二套 CSS 与 `isDark` 状态
 - **`beta.61`–`beta.63`**：**Layout Contract 修复**。详见下节
+- **`beta.64`**：知识管理同步与根目录收敛（无代码改动）
+- **`beta.65`**：**消除 `correlated` → `observed` 的静默提升**。区分「证据强度」（事件是否在可靠
+  Scope 内）与「证据指向」（它是否指名了声明步骤所指的那个对象）两个正交轴；同 Turn 不再等同于归属
+- **`beta.66`**：**定义视图** + 证据链路三处静默降级修复 + 证据词表收敛为 5 值 + 全库颜色字面量清零。
+  详见上文「你会看到什么」第 4 节与 [CHANGELOG.md](CHANGELOG.md)
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 
@@ -219,7 +236,7 @@ npm run verify
 npm pack --dry-run
 ```
 
-当前包含 345 组自动化测试，覆盖事件归并、来源快照、Schema 迁移、收据与偏好持久化、目录投影、学习笔记、人工验证结果、本地搜索、未保存草稿保护及暂存失败告警、备份落盘/读取、活动会话个人记录补回、并发原子写、清空维护屏障、清理安全、Host 隐私策略、DSH 会话格式 V3/V4 的 `tool/result` 契约、Phase 0 观测面、Phase 1 运行事件模型、Phase 2 关联与出处（SDD §17.4 假关系测试），以及 Phase 3 对齐（双通道声明抽取、证据状态语义、"证据不足≠没有执行"、泛化证据只记 partial、无评分守卫）、Phase 4 画布（布局确定性、不改图、有界折叠、隐藏项计数守恒、每条边可解释"为什么存在"、检查器必然声明它不表示什么）、Skill Runtime Scope（同 Turn 结构边界、同一 Turn 两次加载都判 unlinked、拒绝时间相邻）、以及 Layout Contract（根规则不得被困在媒体查询内、高度链禁用视口单位、括号配平）。以上命令不替代完整的 DSH Desktop 端到端回归。
+当前包含 382 组自动化测试，覆盖事件归并、来源快照、Schema 迁移、收据与偏好持久化、目录投影、学习笔记、人工验证结果、本地搜索、未保存草稿保护及暂存失败告警、备份落盘/读取、活动会话个人记录补回、并发原子写、清空维护屏障、清理安全、Host 隐私策略、DSH 会话格式 V3/V4 的 `tool/result` 契约、Phase 0 观测面、Phase 1 运行事件模型、Phase 2 关联与出处（SDD §17.4 假关系测试），以及 Phase 3 对齐（双通道声明抽取、证据状态语义、"证据不足≠没有执行"、泛化证据只记 partial、无评分守卫）、Phase 4 画布（布局确定性、不改图、有界折叠、隐藏项计数守恒、每条边可解释"为什么存在"、检查器必然声明它不表示什么）、Skill Runtime Scope（同 Turn 结构边界、同一 Turn 两次加载都判 unlinked、拒绝时间相邻）、定义视图（frontmatter 解析、ATX 标题目录与行号、步骤→目录锚点、仓库来源四种解析路径、凭据型 remote 整条拒绝、绝对路径不外泄、定义指纹三态比对），以及 Layout Contract（根规则不得被困在媒体查询内、高度链禁用视口单位、括号配平）。以上命令不替代完整的 DSH Desktop 端到端回归；发布流程见 [发布清单](docs/RELEASE.md)。
 
 ## FAQ
 
@@ -240,6 +257,7 @@ npm pack --dry-run
 - [Design system](design.md) — Skill Trace 后续 UI 的视觉、交互与验收权威
 - [Architecture](docs/ARCHITECTURE.md) — 事件、收据和目录的实现边界
 - [Privacy](docs/PRIVACY.md) — 本地数据边界与报告注意事项
+- [Release checklist](docs/RELEASE.md) — 发版、发布后校验与「我装好了 ≠ 它在跑」
 - [Changelog](CHANGELOG.md) — 版本变化
 - [Security policy](SECURITY.md) — 非敏感问题报告方式
 

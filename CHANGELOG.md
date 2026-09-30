@@ -1,5 +1,115 @@
 # Changelog
 
+## 0.4.0-beta.66 — 2026-09-30 · Skill Definition Viewer：第四个视图 + 证据链路修复
+
+**这是新功能，也是三处静默降级的修复。** 测试 345 → 382。
+
+### 一、证据链路的三处静默降级（此前「测试全绿」也照样发生）
+
+上一版把 `observed` 从对齐词表里移除之后，有 5 个测试红了。红得对——但真正的问题不是那 5 个断言，
+而是**它们背后的链路有三处在静默丢数据**，任何一处单独看都「工作正常」：
+
+| # | 位置 | 缺陷 | 后果 |
+|---|---|---|---|
+| A | `src/core/skill-runtime-scope.mjs` 的 `makeScope()` | 构造 `observedEvents` 时只拷贝 8 个字段，漏掉 `evidenceType` / `evidenceCategory` / `evidenceSpecific` / `modelIntentPresent` | 下游 `scopedRuntimeEvents()` 读这四个字段全是 `undefined`。`npm test` 因此永远落不到 `test` 类，被降级成裸能力 |
+| B | 同文件的 `indexByTurn()` | 凡 `!Number.isSafeInteger(event.turn)` 就丢弃事件 | **所有 `tool/result` 的 `turn` 都是 `null`**，于是结果事件永远进不了 Scope，`resolution` 恒为 `unresolved-request`——Scope 从来看不到 `success` / `failure` |
+| C | `src/core/runtime-alignment.mjs` 的 `alignStep()` | `matches.length === 0` 时直接返回 `insufficient` | 声明写「Inspect the project structure」（inspect），运行时是 `bash`（execute），kind 不匹配即判证据不足，**「模型确实表达了这一步意图」这个事实根本没机会被汇报** |
+
+**A 与 B 的修法**：A 补齐字段；B 重写为两遍——第一遍收集带 turn 的事件并建立 `invocationId → turn` 映射
+（同一 invocationId 落在两个 turn 时记为歧义），第二遍把无 turn 但能**唯一**映射到某 turn 的事件并入该 turn。
+这不是「按时间就近补全」：`invocationId` 是宿主自己给出的 request ↔ result join，属于宿主事实。
+
+**C 的修法**：把步骤分类规则抽成独立模块 `src/core/step-kind.mjs`，由声明侧与运行侧**共用同一份规则表**；
+`modelIntent` 从「只记一个布尔」改为「布尔 + 步骤类别」。两处文本只在**类别层面**比较，
+描述原文永不外泄、永不落盘。`STEP_KIND_RULES` 的 inspect 分支补上 `confirm|check|确认`——
+否则「Confirm the working directory」会落到 `other`，intent 通道永远打不通。
+
+修复后实测：同 Turn 内加载 Skill + `bash npm test`，得到
+`bash kind=cli resolution=matched status=success category=test specific=true intentKind=inspect`，
+此前是 `resolution=unresolved-request status=requested category=null`。
+
+### 二、证据词表收敛为 5 值 + 一张唯一映射表
+
+`observed` 被刻意移除（它读起来像「运行时观察到了这一步」，而运行时从未这么说）。
+规范词表是 `runtime-supported` / `intent-supported` / `partial` / `insufficient` / `unknown`。
+UI 徽章只做投影：
+
+| 关系 | 徽章 |
+|---|---|
+| `runtime-supported` | Runtime-supported |
+| `intent-supported` | Intent-supported |
+| `partial` | Partial |
+| `insufficient` / `unknown` | Insufficient |
+
+同时**明确禁止两个读法**：`correlated` 不得升格为 `runtime-supported`（这正是 `beta.65` 修的东西）；
+`scored: false` 不得被读成「评分为 0」。客户端此前读的是已被删除的 `alignment.stats.observed` 键，
+界面渲染 `observed undefined` 并**静默漏掉两个真实档位**，本版一并修正。
+
+### 三、Skill Definition Viewer（新的第四个视图）
+
+前面几个版本一直在「运行时发生了什么」，这个版本补上「Skill 自己声明了什么」。
+三栏结构对齐设计 demo（`grid-template-columns: 286px 1fr 410px`，
+断点 1180px → `250px 1fr 350px`、980px → `220px 1fr` 并收起右栏）：
+
+- **左栏**：当前 Skill 卡 → 运行记录（每次加载一条，标 `model` / `/name`）→ SKILL.md 目录（可折叠）→ 仓库来源卡
+- **中栏**：声明流程。start pill → 连接线 → 编号步骤卡，每张带证据徽章与声明类别 / 运行时证据标签；底部图例三档
+- **右栏**：双 Tab。`SKILL.md` 渲染定义原文（标题降一级避免第二个 `<h1>`；围栏代码块里的 `#` 不当标题）；
+  `证据` 面板给出 声明 / 关系 / 运行时证据 / 定义来源 / 说明 / 边界声明。**两个面板常驻 DOM、只由 CSS 切显隐**，
+  切 Tab 不再丢失文档滚动位置
+
+交互：点步骤 = 选中 + 切到证据面板 + 在文档里定位并高亮 700ms；点目录项 = 切回文档 + 滚动 + 高亮。
+
+### 四、新增模块与端点
+
+| 模块 | 职责 |
+|---|---|
+| `src/core/step-kind.mjs` | 步骤类别规则表（声明侧与运行侧共用；避免 `runtime-alignment → runtime-events → runtime-evidence` 循环依赖） |
+| `src/core/definition-outline.mjs` | frontmatter 解析 + ATX 标题目录（含行号）+ 步骤→目录锚点（按行号包含关系，不按文本相似度） |
+| `src/core/repository-resolver.mjs` | 仓库来源解析：frontmatter → git work tree（有界上溯 12 层，只读 `.git/config` 的 `origin` url）→ 不可用 |
+| `src/core/skill-definition.mjs` | Definition 视图组装 + 「本次运行看到的定义」与「现在读到的定义」的指纹比对 |
+
+`GET /skill-trace/definition?sessionId=&skillName=` 返回定义原文、目录、资源基与仓库来源，
+以及三态比对结论 `match` / `mismatch` / `unavailable`（只有一侧存在哈希时是 `unavailable`，不是温和版的 `mismatch`）。
+
+**边界（硬约束）**：定义正文**永不落盘、永不进收据**，只在活会话上现读现返；
+`resourceBase.path` 是绝对路径，**只暴露 `kind`，不暴露路径**；
+凭据型 remote（`https://user:token@…`）**整条拒绝**，不剥离、不半显；
+`.git` 找不到时判 `unresolved`，**不用目录名猜**。
+
+`<skill_content>` 外壳**无法在插件内复现**：`src/` 里没有任何 `@deepseek-ai` 运行时 import，
+`renderSkillContent()` 拿不到。该层因此显式报告为 `rendered-envelope-not-reproducible-outside-the-harness`，
+而不是自己拼一个看起来像的。
+
+### 五、文档高亮改为 Token，并补上颜色守卫
+
+文档高亮最初照抄 demo 的 `#fff8d8`。它是浅色值，暗色主题下浅底浅字不可读，
+于是不得不补一条 `body[data-ds-dark-theme]` 覆盖来救它——**那条覆盖本身就是这个 bug 的证据**。
+现在改为 `--st-highlight: color-mix(in srgb, var(--st-warning) 22%, var(--st-layer))`，
+两种主题各算各的底色，覆盖随之删除。
+
+顺带清掉 7 处既有的硬编码颜色，其中 `.st-tag[data-tone="ok"]` 有重复两行、
+后一行把前一行的 token 写法**静默覆盖**成了死代码。
+
+`scripts/verify-project.mjs` 新增扫描：`:root` 的 token 定义之外出现 `#hex` / `rgb(` / `hsl(` 即失败。
+**`VISUAL_TOKENS_OK` 这个标记此前是无条件打印的，背后没有任何检查**——这条扫描是它第一次被真正兑现。
+
+### 六、渲染冒烟测试从「数节点」改成「断言内容」
+
+原来的断言是「注入 definition 后多出 200 个以上节点」。它只能证明某分支执行了，**证明不了执行对了**。
+现在断言实际内容：标题成为标题元素、围栏代码块里的 `#` 不成为标题、`**bold**` 不留星号、
+非 `http(s)` 链接退化成纯文本、目录清单正好停在 40 条、未解析仓库不造链接也不留禁用态占位、双 Tab 面板恰好两个。
+
+改这一处时查出测试桩一个一直没人发现的缺陷：locale 桩返回 `{ lang: 'zh' }`，
+而契约是 `active: LocaleId`。客户端读 `active` 读到 `undefined` 就退回 `'en'`——
+**这个桩一直在悄悄渲染英文，写法看上去却是在渲染中文。**
+
+### 七、SDD 文档
+
+`01_重构方案/DSH-Skill-Trace-SDD-V5.0.md`（本地规划文档，`.gitignore` 排除）新增 §0.4 实施落地记录与
+§0.5 验收收口表，§11.9 的 demo 一致性十二条、§16 的五组验收条目全部通过并勾选。
+
+---
+
 ## 0.4.0-beta.65 — 2026-09-29 · Runtime Evidence Semantics：消除 correlated → observed 的静默提升
 
 **这是语义修复，不是新功能。** 测试 337 → 345。
