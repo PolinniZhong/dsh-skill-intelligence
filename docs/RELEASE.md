@@ -10,7 +10,7 @@
 ## 0. 前置检查（在仓库根目录）
 
 ```bash
-cd "/Users/zhongwentuo/DeepSeek Harness Native/DSH_Skill_Trace"
+cd "/Users/zhongwentuo/DeepSeek Harness Native/10_DSH_Skill_Trace"
 git status --porcelain          # 必须为空
 node scripts/build-client.mjs   # 重建 dist（prepack 也会跑，但这里先跑一次让 diff 可见）
 node --test 2>&1 | tail -8      # 必须 0 fail
