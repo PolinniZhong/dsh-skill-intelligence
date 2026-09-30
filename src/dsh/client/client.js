@@ -576,6 +576,124 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
 
 
 
+
+      /* ── Skill Definition Viewer（§11）───────────────────────────────────────
+       *
+       * 三栏是 §11 的规格：286px 定义目录 / 1fr 声明流程 / 410px 定义与证据。
+       * 它必须画在插件自托管容器**内部**——宿主 Layout 的 sidebar 与 rightbar 都是
+       * single 槽且已被 ui-sidebar / ui-sidebar-right 占用，外壳上不存在第四条栏位。
+       * 这是「一个页面内的三栏」，不是宿主外壳的三栏。
+       */
+      .st-audit{flex:1;min-height:0;display:grid;grid-template-columns:286px minmax(0,1fr) 410px;background:var(--st-bg)}
+      .st-audit-col{min-width:0;min-height:0;overflow:auto;background:var(--st-layer)}
+      .st-audit-left{border-right:1px solid var(--st-border);padding:14px;display:flex;flex-direction:column;gap:12px}
+      .st-audit-right{border-left:1px solid var(--st-border);display:flex;flex-direction:column;padding:0;overflow:hidden}
+      .st-audit-center{background:var(--st-layer-2);display:flex;flex-direction:column;overflow:hidden}
+      .st-audit-card{border-bottom:1px solid var(--st-border-soft);background:var(--st-layer-2);padding:0 0 12px;min-height:0}
+      .st-audit-card:last-child{border-bottom:0;padding-bottom:0}
+      .st-audit-card-title{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--st-faint)}
+      .st-audit-grow{flex:1;display:flex;flex-direction:column}
+      .st-audit-skill-name{display:block;font-size:14px;font-weight:650;overflow:hidden;text-overflow:ellipsis}
+      .st-audit-skill-desc{margin:6px 0 0;color:var(--st-muted);font-size:12px;line-height:1.5}
+      .st-audit-runs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+      .st-audit-run{width:100%;text-align:left;border:0;border-left:2px solid var(--st-border);background:transparent;padding:6px 8px;cursor:pointer;display:flex;flex-direction:column;gap:3px;color:var(--st-text)}
+      .st-audit-run[data-active="true"]{border-left-color:var(--st-brand);background:var(--st-brand-soft)}
+      .st-audit-run-head{font-size:12px;font-weight:600}
+      .st-audit-run-meta{color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
+      .st-audit-empty{margin:0;color:var(--st-faint);font-size:11.5px;line-height:1.5}
+      .st-audit-outline{list-style:none;margin:0;padding:0;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:1px}
+      .st-audit-outline-item{width:100%;text-align:left;border:0;background:transparent;color:var(--st-text);font-size:12px;padding:4px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-audit-outline li[data-level="2"] .st-audit-outline-item{padding-left:18px;color:var(--st-muted)}
+      .st-audit-outline li[data-level="3"] .st-audit-outline-item{padding-left:30px;color:var(--st-muted);font-size:11.5px}
+      .st-audit-outline-item:hover{background:var(--st-layer)}
+      .st-audit-outline-item[data-active="true"]{background:#fff8d8;color:var(--st-text)}
+      body[data-ds-dark-theme] .st-audit-outline-item[data-active="true"]{background:rgba(255,214,102,.18)}
+      .st-audit-repo{display:flex;flex-direction:column;gap:6px}
+      .st-audit-repo-head{display:flex;align-items:center;gap:8px}
+      .st-audit-repo-label{min-width:0;flex:1;font-size:11.5px;font-weight:600;word-break:break-all}
+      .st-audit-open{color:var(--st-brand);font-size:11.5px;text-decoration:none;white-space:nowrap}
+      .st-audit-open:hover{text-decoration:underline}
+      .st-audit-repo-meta{margin:0;color:var(--st-muted);font-size:11px;word-break:break-all}
+      .st-audit-clone{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0;padding:7px 8px;border-radius:8px;background:var(--st-layer);border:1px solid var(--st-border-soft);font-size:10.5px;overflow:auto;color:var(--st-muted);white-space:pre-wrap;word-break:break-all}
+      .st-audit-copy{flex:none;border:0;background:transparent;color:var(--st-brand);cursor:pointer;font-size:10.5px;padding:2px 4px}
+      .st-audit-toolbar{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
+      .st-audit-toolbar h2{margin:0;font-size:14px;font-weight:650}
+      .st-audit-toolbar p{margin:2px 0 0;color:var(--st-muted);font-size:11px}
+      .st-audit-toolbar-actions{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+      .st-audit-pillgroup{display:inline-flex;gap:6px}
+      .st-audit-pill,.st-audit-tag,.st-audit-chip,.st-audit-step-badge{border-radius:999px}
+      .st-audit-pill{padding:3px 8px;font-size:10.5px;border:1px solid var(--st-border);background:var(--st-layer-2);color:var(--st-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+      .st-audit-pill[data-tone="supported"]{color:var(--st-success);border-color:color-mix(in srgb,var(--st-success) 35%,var(--st-border))}
+      .st-audit-pill[data-tone="partial"]{color:var(--st-warning);border-color:color-mix(in srgb,var(--st-warning) 35%,var(--st-border))}
+      .st-audit-pill[data-tone="insufficient"]{color:var(--st-faint)}
+      .st-audit-tag,.st-audit-chip{padding:2px 7px;font-size:10.5px}
+      .st-audit-canvas{flex:1;min-height:0;overflow:auto;padding:18px 18px 22px;display:flex;flex-direction:column;gap:10px}
+      .st-audit-start,.st-audit-start-dot,.st-audit-connector{border-radius:999px}
+      .st-audit-start{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid var(--st-border);background:var(--st-layer);color:var(--st-muted);font-size:11.5px}
+      .st-audit-start-dot{width:6px;height:6px;border-radius:50%;background:var(--st-brand)}
+      .st-audit-connector{width:2px;height:14px;margin-left:16px;background:var(--st-edge);border-radius:1px}
+      .st-audit-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+      .st-audit-step{width:100%;text-align:left;display:flex;flex-direction:column;gap:9px;padding:12px 13px;border:1px solid var(--st-border);border-left:3px solid var(--st-edge);border-radius:10px;background:var(--st-layer);cursor:pointer;color:var(--st-text)}
+      .st-audit-step[data-tone="supported"]{border-left-color:var(--st-success)}
+      .st-audit-step[data-tone="partial"]{border-left-color:var(--st-warning)}
+      .st-audit-step[data-tone="insufficient"]{border-left-color:var(--st-faint)}
+      .st-audit-step[data-active="true"]{border-color:var(--st-brand);box-shadow:0 0 0 1px var(--st-brand)}
+      .st-audit-step-head{display:flex;align-items:center;gap:9px}
+      .st-audit-step-order{font-variant-numeric:tabular-nums;color:var(--st-faint);font-size:11px}
+      .st-audit-step-title{min-width:0;flex:1;font-size:13px;font-weight:600}
+      .st-audit-step-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border:1px solid var(--st-border);font-size:10.5px;color:var(--st-muted);white-space:nowrap}
+      .st-audit-step-badge[data-tone="supported"]{color:var(--st-success)}
+      .st-audit-step-badge[data-tone="partial"]{color:var(--st-warning)}
+      .st-audit-step-body{display:flex;flex-direction:column;gap:5px;border-top:1px dashed var(--st-border-soft);padding-top:8px}
+      .st-audit-step-line{display:flex;gap:8px;align-items:baseline;font-size:11.5px;color:var(--st-muted)}
+      .st-audit-step-key{flex:none;color:var(--st-faint);min-width:64px}
+      .st-audit-step-src{color:var(--st-brand);word-break:break-word}
+      .st-audit-tags{display:inline-flex;flex-wrap:wrap;gap:5px}
+      .st-audit-tag{background:var(--st-layer-2);border:1px solid var(--st-border-soft);color:var(--st-text)}
+      .st-audit-note,.st-audit-boundary{border-radius:8px;color:var(--st-muted);font-size:11.5px}
+      .st-audit-note{margin:0;padding:9px 11px;border:1px solid var(--st-border-soft);background:var(--st-layer-2);line-height:1.55}
+      .st-audit-boundary{margin:2px 0 0;padding:9px 11px;background:var(--st-layer-2);border:1px dashed var(--st-border)}
+      .st-audit-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:auto;padding-top:8px;color:var(--st-faint);font-size:11px}
+      .st-audit-legend-item{display:inline-flex;align-items:center;gap:5px}
+      .st-audit-legend-item i{font-style:normal}
+      .st-audit-legend-item[data-tone="supported"] i{color:var(--st-success)}
+      .st-audit-legend-item[data-tone="partial"] i{color:var(--st-warning)}
+      .st-audit-tabs{display:flex;border-bottom:1px solid var(--st-border);background:var(--st-layer);flex:none}
+      .st-audit-tab{flex:1;min-height:38px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--st-muted);font-size:12px;cursor:pointer}
+      .st-audit-tab[data-active="true"]{color:var(--st-brand);border-bottom-color:var(--st-brand);font-weight:600}
+      .st-audit-pane{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+      .st-audit-pane-head{display:flex;align-items:center;gap:8px;padding:11px 14px 6px}
+      .st-audit-pane-head h3{margin:0;font-size:13px;font-weight:650}
+      .st-audit-pane-meta{margin-left:auto;color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
+      .st-audit-chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 14px 10px;border-bottom:1px solid var(--st-border-soft)}
+      .st-audit-chip{background:var(--st-layer-2);border:1px solid var(--st-border-soft);color:var(--st-muted)}
+      .st-audit-chip[data-tone="provider"]{color:var(--st-warning)}
+      .st-audit-doc{padding:4px 16px 16px;font-size:12.5px;line-height:1.65;color:var(--st-text)}
+      .st-audit-doc-heading{margin:16px 0 6px;font-weight:650;scroll-margin-top:12px;border-radius:6px;transition:background-color .18s ease}
+      .st-audit-doc-heading[data-flash="true"]{background:#fff8d8}
+      body[data-ds-dark-theme] .st-audit-doc-heading[data-flash="true"]{background:rgba(255,214,102,.18)}
+      .st-audit-doc h2.st-audit-doc-heading{font-size:15px}
+      .st-audit-doc h3.st-audit-doc-heading{font-size:13.5px}
+      .st-audit-doc h4.st-audit-doc-heading,.st-audit-doc h5.st-audit-doc-heading,.st-audit-doc h6.st-audit-doc-heading{font-size:12.5px;color:var(--st-muted)}
+      .st-audit-doc-p{margin:8px 0}
+      .st-audit-doc-list{margin:8px 0;padding-left:22px;display:flex;flex-direction:column;gap:3px}
+      .st-audit-code,.st-audit-pre code{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace)}
+      .st-audit-code{padding:1px 5px;border-radius:5px;background:var(--st-layer-2);border:1px solid var(--st-border-soft);font-size:11.5px}
+      .st-audit-pre{margin:10px 0;border-radius:8px;border:1px solid var(--st-border-soft);background:var(--st-layer-2);overflow:auto;font-size:11.5px;line-height:1.55}
+      .st-audit-pre{padding:10px 11px}
+      .st-audit-link{color:var(--st-brand)}
+      .st-audit-pane-foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--st-border);color:var(--st-faint);font-size:10.5px}
+      .st-audit-evidence{display:flex;flex-direction:column;gap:9px;padding:4px 14px 16px}
+      .st-audit-field{display:flex;flex-direction:column;gap:4px;padding-bottom:9px;border-bottom:1px solid var(--st-border-soft)}
+      .st-audit-field:last-of-type{border-bottom:0}
+      .st-audit-field>span{color:var(--st-faint);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
+      .st-audit-field>strong{font-size:12.5px;font-weight:600}
+      .st-audit-foot{padding:7px 16px;border-top:1px solid var(--st-border);background:var(--st-layer);color:var(--st-faint);font-size:10.5px;text-align:center}
+      /* §11 断点：1180 收窄左右栏，980 收起证据栏（与 Demo 一致）。
+       * 再窄时连定义目录一起收起，只留声明流程——总比三栏互相压成一列可读性更差要强。 */
+      @media(max-width:1180px){.st-audit{grid-template-columns:250px minmax(0,1fr) 350px}}
+      @media(max-width:980px){.st-audit{grid-template-columns:220px minmax(0,1fr)}.st-audit-right{display:none}}
+      @media(max-width:760px){.st-audit{grid-template-columns:minmax(0,1fr)}.st-audit-left{display:none}}
       @media(max-width:1050px){.st-flow{grid-template-columns:minmax(0,1fr)}.st-flow-side{position:static;max-height:none}.st-flow-canvas{min-height:0}}
       @media(max-width:1050px){.st-runtime{grid-template-columns:minmax(0,1fr)}.st-rt-inspector{position:static;max-height:none}}
     `
@@ -1413,6 +1531,462 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
           h('p', { className: 'st-boundary-copy' }, '这些内容只保存在本机收据中，不会传给插件开发者；系统不生成“当前正确理解”，也不自动修改、评分或推荐 Skill。'))))
   }
 
+  // ─── Skill Definition Viewer（§4 / §5 / §11）────────────────────────────────
+  //
+  // 三栏放在**插件自托管容器内**：宿主的 `sidebar` 与 `rightbar` 都是 `single` 槽且已被占用，
+  // 外壳上不存在第二条左栏或右栏可加。所以这里是「一个页面内的三栏」，不是宿主外壳的三栏。
+  //
+  // 右栏只显示 **provider 正文**。模型实收的 `<skill_content>` 外壳由
+  // `@deepseek-ai/dsh-skill` 的 `renderSkillContent()` 渲染，而本插件 `src/` 里没有任何
+  // `@deepseek-ai` 运行时 import，**无法复现**。自己拼一个「差一个换行」的仿制品看起来像
+  // 一个可信的信封，却不是模型看到的东西——比不显示更糟，所以那里只显示可核对的哈希。
+
+  const AUDIT_BADGES = {
+    'runtime-supported': { zh: '运行时支持', en: 'Runtime-supported', tone: 'supported', glyph: '●' },
+    'intent-supported': { zh: '仅有意图', en: 'Intent-supported', tone: 'partial', glyph: '◑' },
+    partial: { zh: '部分支持', en: 'Partial', tone: 'partial', glyph: '◐' },
+    insufficient: { zh: '证据不足', en: 'Insufficient', tone: 'insufficient', glyph: '○' },
+    unknown: { zh: '未知', en: 'Unknown', tone: 'unknown', glyph: '○' },
+  }
+  // 徽章分组：图表只画三类，映射表在 §6.6，实现不得自创第四类。
+  const AUDIT_BADGE_GROUP = { 'runtime-supported': 'supported', 'intent-supported': 'partial', partial: 'partial', insufficient: 'insufficient', unknown: 'insufficient' }
+  const DOC_FLASH_MS = 700
+
+  function auditBadgeLabel(relationship) {
+    const meta = AUDIT_BADGES[relationship]
+    return meta ? localized(meta.zh, meta.en) : localized('未知', 'Unknown')
+  }
+
+  function slugifyHeading(text) {
+    const slug = String(text ?? '').trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+    return slug || 'section'
+  }
+
+  // 行内标记：先当作纯文本，再只认三种构造。文档正文里的一切都必须经 `raw()`，
+  // 否则 `h()` 会把文档句子当成 locale key 去查表。
+  const AUDIT_INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\[[^\]]+\]\([^)\s]+\))/g
+
+  function renderInlineMarkup(text) {
+    const nodes = []
+    const source = String(text ?? '')
+    let last = 0
+    let match
+    AUDIT_INLINE.lastIndex = 0
+    while ((match = AUDIT_INLINE.exec(source)) !== null) {
+      if (match.index > last) nodes.push(raw(source.slice(last, match.index)))
+      const token = match[0]
+      if (token.startsWith('`')) nodes.push(h('code', { key: `c${match.index}`, className: 'st-audit-code' }, raw(token.slice(1, -1))))
+      else if (token.startsWith('**')) nodes.push(h('strong', { key: `b${match.index}` }, raw(token.slice(2, -2))))
+      else {
+        const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(token)
+        // 只把 http(s) 渲染成可点。其它协议退化成文本，避免把 `javascript:` 之类的构造
+        // 从一份第三方 Skill 文档里带进界面。
+        if (link && /^https?:\/\//i.test(link[2])) nodes.push(h('a', { key: `a${match.index}`, className: 'st-audit-link', href: link[2], target: '_blank', rel: 'noreferrer noopener' }, raw(link[1])))
+        else nodes.push(raw(token))
+      }
+      last = match.index + token.length
+    }
+    if (last < source.length) nodes.push(raw(source.slice(last)))
+    return nodes
+  }
+
+  /**
+   * 一个足够小、且**以转义为先**的 Markdown 渲染器。
+   *
+   * 它只产出 React 元素，从不使用 `dangerouslySetInnerHTML`，所以 Skill 正文里的任何标记都
+   * 只是文本。标题的 `id` 取自服务端 outline 的行号映射（`anchorStepsToOutline` 用的是同一
+   * 套行号），因此「点步骤 → 定位段落」不会因为前端二次 slug 规则不同而锚错。
+   */
+  function renderSkillMarkdown(text, outline, flashId) {
+    const lines = String(text ?? '').split(/\r?\n/)
+    const idByLine = new Map((Array.isArray(outline) ? outline : []).map((entry) => [entry.line, entry.id]))
+    const blocks = []
+    let index = 0
+    let key = 0
+    const blockStart = /^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~)/
+    while (index < lines.length) {
+      const line = lines[index]
+      const lineNumber = index + 1
+      const fence = /^\s*(```+|~~~+)\s*([A-Za-z0-9+-]*)\s*$/.exec(line)
+      if (fence) {
+        const marker = fence[1][0]
+        const closing = new RegExp(`^\\s*${marker}{3,}\\s*$`)
+        const code = []
+        index += 1
+        while (index < lines.length) {
+          if (closing.test(lines[index])) { index += 1; break }
+          code.push(lines[index])
+          index += 1
+        }
+        blocks.push(h('pre', { key: `pre${key++}`, className: 'st-audit-pre', 'data-lang': fence[2] || undefined }, h('code', null, raw(code.join('\n')))))
+        continue
+      }
+      if (!line.trim()) { index += 1; continue }
+      const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
+      if (heading) {
+        // 面板自身已有层级，正文档降一级，避免出现第二个 `<h1>`。
+        const level = Math.min(heading[1].length + 1, 6)
+        const id = idByLine.get(lineNumber) ?? slugifyHeading(heading[2])
+        blocks.push(h(`h${level}`, {
+          key: `h${key++}`,
+          id: `st-audit-doc-${id}`,
+          className: 'st-audit-doc-heading',
+          'data-flash': flashId === id ? 'true' : undefined,
+        }, ...renderInlineMarkup(heading[2])))
+        index += 1
+        continue
+      }
+      const ordered = /^\s*\d+[.)]\s+(.*)$/.exec(line)
+      const bullet = /^\s*[-*+]\s+(.*)$/.exec(line)
+      if (ordered || bullet) {
+        const pattern = ordered ? /^\s*\d+[.)]\s+(.*)$/ : /^\s*[-*+]\s+(.*)$/
+        const items = []
+        while (index < lines.length) {
+          const item = pattern.exec(lines[index])
+          if (!item) break
+          items.push(item[1])
+          index += 1
+        }
+        blocks.push(h(ordered ? 'ol' : 'ul', { key: `l${key++}`, className: 'st-audit-doc-list' },
+          ...items.map((item, position) => h('li', { key: position }, ...renderInlineMarkup(item)))))
+        continue
+      }
+      const paragraph = [line.trim()]
+      index += 1
+      while (index < lines.length && lines[index].trim() && !blockStart.test(lines[index])) {
+        paragraph.push(lines[index].trim())
+        index += 1
+      }
+      blocks.push(h('p', { key: `p${key++}`, className: 'st-audit-doc-p' }, ...renderInlineMarkup(paragraph.join(' '))))
+    }
+    return blocks
+  }
+
+  function loadedRunsOf(traceEvents, skillName) {
+    return (Array.isArray(traceEvents) ? traceEvents : [])
+      .filter((trace) => trace?.status === 'loaded' && trace?.skillName === skillName)
+  }
+
+  function runSourceLabel(invocationType) {
+    if (invocationType === 'user-explicit') return '/name'
+    if (invocationType === 'model-invoked') return 'model'
+    return localized('未知来源', 'unknown source')
+  }
+
+  function formatRunTime(value) {
+    if (!Number.isFinite(value)) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    const pad = (number) => String(number).padStart(2, '0')
+    return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+
+  /**
+   * Skill Definition Viewer：左栏上下文 / 中栏声明流程 / 右栏定义与证据。
+   *
+   * 中栏画的是**声明流程**（`alignments[].items`），不是底层 Tool/MCP/CLI 拓扑——后者在
+   * 「运行流程」「运行图谱」两个视图里。两者混在一张画布上正是这个产品要避免的事。
+   */
+  function AuditView({ sessionId, data, loading, error, onRetry }) {
+    const alignments = data?.views?.receipt?.runtime?.alignments ?? []
+    const traceEvents = data?.receipt?.traceEvents ?? []
+    const loadedNames = React.useMemo(() => [...new Set(traceEvents.filter((trace) => trace?.status === 'loaded').map((trace) => trace.skillName))], [traceEvents])
+
+    const [skillName, setSkillName] = React.useState('')
+    const [runKey, setRunKey] = React.useState('')
+    const [tab, setTab] = React.useState('doc')
+    const [stepId, setStepId] = React.useState('')
+    const [flash, setFlash] = React.useState('')
+    const [definition, setDefinition] = React.useState(null)
+    const [definitionLoading, setDefinitionLoading] = React.useState(false)
+    const [definitionError, setDefinitionError] = React.useState('')
+    const [copiedClone, setCopiedClone] = React.useState(false)
+    const docRef = React.useRef(null)
+    const flashTimer = React.useRef(null)
+    const copyTimer = React.useRef(null)
+
+    // 复制 clone 命令。用 Clipboard API，失败时退化到一次性的 textarea + execCommand——
+    // 插件在浏览器里跑，没有可用的宿主机剪贴板服务，所以不引新依赖。
+    const copyClone = React.useCallback((text) => {
+      const settle = (ok) => {
+        setCopiedClone(ok)
+        if (copyTimer.current) clearTimeout(copyTimer.current)
+        copyTimer.current = setTimeout(() => setCopiedClone(false), 1600)
+      }
+      const fallback = () => {
+        try {
+          const area = document.createElement('textarea')
+          area.value = text
+          area.setAttribute('readonly', '')
+          area.style.position = 'fixed'
+          area.style.opacity = '0'
+          document.body.appendChild(area)
+          area.select()
+          const ok = document.execCommand('copy')
+          document.body.removeChild(area)
+          settle(ok)
+        } catch { settle(false) }
+      }
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => settle(true), fallback)
+      else fallback()
+    }, [])
+
+    // 默认落在最后一次加载的 Skill 上：那是用户刚看完的那次运行。
+    const activeName = skillName || loadedNames[loadedNames.length - 1] || ''
+    const runs = React.useMemo(() => loadedRunsOf(traceEvents, activeName), [traceEvents, activeName])
+    const activeRun = React.useMemo(() => runs.find((run) => run.eventId === runKey) ?? runs[runs.length - 1] ?? null, [runs, runKey])
+    const alignment = React.useMemo(() => alignments.find((entry) => entry.skillName === activeName) ?? null, [alignments, activeName])
+    const steps = alignment?.items ?? []
+    const activeStep = React.useMemo(() => steps.find((item) => item.declarationStepId === stepId) ?? steps[0] ?? null, [steps, stepId])
+    const repository = definition?.definition?.repository ?? null
+    const content = definition?.definition?.content ?? null
+    const outline = definition?.definition?.outline ?? []
+    const observation = definition?.observation ?? null
+
+    React.useEffect(() => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    }, [])
+
+    React.useEffect(() => {
+      if (!activeName) { setDefinition(null); return undefined }
+      let cancelled = false
+      setDefinitionLoading(true)
+      setDefinitionError('')
+      api(`/definition?sessionId=${encodeURIComponent(sessionId)}&skillName=${encodeURIComponent(activeName)}`)
+        .then((body) => { if (!cancelled) { setDefinition(body); setDefinitionLoading(false) } })
+        .catch((reason) => { if (!cancelled) { setDefinitionError(reason.message); setDefinitionLoading(false) } })
+      return () => { cancelled = true }
+    }, [sessionId, activeName])
+
+    React.useEffect(() => { setStepId('') }, [activeName])
+
+    // 步骤锚点。声明步骤本身**没有行号**（`extractDeclarationSteps` 不给，因为它的来源是
+    // 渲染后的指令文本），所以这里用与 `anchorStepsToOutline` 相同的规则在客户端重算一遍：
+    // 在正文里找到步骤标题所在行，再取「行号不大于它、且最接近」的 outline 标题作为归属。
+    // outline 的行号仍是唯一权威；定位不到就**不锚定**，不猜。
+    const stepAnchors = React.useMemo(() => {
+      const map = new Map()
+      const text = definition?.definition?.content?.text
+      if (!outline.length || !steps.length || !text) return map
+      const lines = String(text).split(/\r?\n/)
+      const clean = (value) => String(value ?? '')
+        .replace(/^\s*#{1,6}\s+/, '')
+        .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      for (const step of steps) {
+        const needle = clean(step.title)
+        if (!needle) continue
+        let lineNumber = 0
+        for (let index = 0; index < lines.length; index += 1) {
+          if (clean(lines[index]) === needle) { lineNumber = index + 1; break }
+        }
+        if (!lineNumber) continue
+        let best = null
+        for (const entry of outline) {
+          if (entry.line <= lineNumber && (!best || entry.line > best.line)) best = entry
+        }
+        if (best) map.set(step.declarationStepId, best.id)
+      }
+      return map
+    }, [outline, steps, definition])
+
+    function flashAnchor(anchorId) {
+      if (!anchorId) return
+      setTab('doc')
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      setFlash(anchorId)
+      flashTimer.current = setTimeout(() => setFlash(''), DOC_FLASH_MS)
+      // `scrollIntoView` 需要一轮渲染后才有节点，所以放到下一帧。
+      requestAnimationFrame(() => {
+        const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(anchorId) : anchorId.replace(/["\\]/g, '\\$&')
+        const node = docRef.current?.querySelector(`#st-audit-doc-${escaped}`)
+        node?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      })
+    }
+
+    if (loading && !data) return h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
+    if (error && !data) return h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry })
+    if (!loadedNames.length) return h(TraceState, { kind: 'empty', message: '当前对话暂未加载可追踪的 Skill。' })
+
+    const badgeCounts = { supported: 0, partial: 0, insufficient: 0 }
+    for (const step of steps) badgeCounts[AUDIT_BADGE_GROUP[step.relationship] ?? 'insufficient'] += 1
+
+    const definitionUnavailable = definition && definition.definition?.available !== true
+
+    return h('div', { className: 'st-audit', 'data-selected': activeStep ? 'true' : undefined },
+      // ── 左栏 ──────────────────────────────────────────────────────────────
+      h('aside', { className: 'st-audit-col st-audit-left' },
+        h('section', { className: 'st-audit-card' },
+          h('h2', { className: 'st-audit-card-title' }, localized('当前 Skill', 'Current Skill')),
+          h('strong', { className: 'st-audit-skill-name' }, raw(activeName)),
+          h('p', { className: 'st-audit-skill-desc' }, definition?.definition?.summary?.description || localized('未取得描述。', 'No description available.'))),
+
+        h('section', { className: 'st-audit-card' },
+          h('h2', { className: 'st-audit-card-title' }, localized('运行记录', 'Runs')),
+          runs.length
+            ? h('ul', { className: 'st-audit-runs' }, ...runs.map((run, position) => h('li', { key: run.eventId },
+              h('button', {
+                type: 'button',
+                className: 'st-audit-run',
+                'data-active': activeRun?.eventId === run.eventId ? 'true' : undefined,
+                onClick: () => setRunKey(run.eventId),
+              },
+              h('span', { className: 'st-audit-run-head' }, localized(`第 ${position + 1} 次`, `Run #${position + 1}`)),
+              h('span', { className: 'st-audit-run-meta' }, raw([
+                formatRunTime(run.requestedAt),
+                runSourceLabel(run.invocationType),
+                run.evidenceFingerprint?.value ? shortHash(run.evidenceFingerprint.value) : '',
+                run.turn === null ? '' : `T${run.turn}`,
+              ].filter(Boolean).join(' · ')))))))
+            : h('p', { className: 'st-audit-empty' }, localized('这次对话没有加载记录。', 'No load was recorded in this conversation.'))),
+
+        h('section', { className: 'st-audit-card st-audit-grow' },
+          h('h2', { className: 'st-audit-card-title' }, localized('Skill 定义目录', 'Skill Definition Outline')),
+          outline.length
+            ? h('ul', { className: 'st-audit-outline' }, ...outline.map((entry) => h('li', { key: entry.id, 'data-level': String(entry.level) },
+              h('button', {
+                type: 'button',
+                className: 'st-audit-outline-item',
+                'data-active': flash === entry.id ? 'true' : undefined,
+                onClick: () => flashAnchor(entry.id),
+              }, raw(entry.title)))))
+            : h('p', { className: 'st-audit-empty' }, definitionLoading ? localized('正在读取定义…', 'Reading the definition…') : localized('没有可用的标题结构。', 'No heading structure is available.'))),
+
+        h('section', { className: 'st-audit-card' },
+          h('h2', { className: 'st-audit-card-title' }, localized('仓库来源', 'Repository Source')),
+          repository?.status === 'resolved' && repository.label
+            ? h('div', { className: 'st-audit-repo' },
+              h('div', { className: 'st-audit-repo-head' },
+                h('span', { className: 'st-audit-repo-label' }, raw(repository.label)),
+                repository.cloneCommand ? h('a', { className: 'st-audit-open', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开 ↗', 'Open ↗')) : null),
+              h('p', { className: 'st-audit-repo-meta' }, localized(`依据：${repository.basis === 'frontmatter' ? 'Skill 自述' : 'git remote'}`, `Basis: ${repository.basis === 'frontmatter' ? 'declared by the Skill' : 'git remote'}`)),
+              repository.relativePath ? h('p', { className: 'st-audit-repo-meta' }, localized(`路径：${repository.relativePath}`, `Path: ${repository.relativePath}`)) : null,
+              repository.cloneCommand ? h('pre', { className: 'st-audit-clone' },
+                h('code', null, raw(`git clone ${repository.cloneCommand}`)),
+                h('button', {
+                  type: 'button',
+                  className: 'st-audit-copy',
+                  onClick: () => copyClone(`git clone ${repository.cloneCommand}`),
+                }, copiedClone ? localized('已复制', 'Copied') : localized('复制', 'Copy'))) : null)
+            : h('div', { className: 'st-audit-repo' },
+              h('p', { className: 'st-audit-empty' }, localized('仓库 · 未解析', 'Repository · Not available')),
+              h('p', { className: 'st-audit-repo-meta' }, localized('DSH 不提供仓库信息。只有 Skill 自述或所在 git work tree 能确定来源，不猜。', 'DSH exposes no repository information. Only a Skill that names its own repository, or a git work tree, can establish the source — nothing is guessed.'))))),
+
+      // ── 中栏 ──────────────────────────────────────────────────────────────
+      h('main', { className: 'st-audit-col st-audit-center' },
+        h('header', { className: 'st-audit-toolbar' },
+          h('div', null,
+            h('h2', null, localized('声明流程', 'Declared Skill Flow')),
+            h('p', null, raw(`${activeName}${activeRun ? ` · ${formatRunTime(activeRun.requestedAt)}` : ''}`))),
+          h('div', { className: 'st-audit-toolbar-actions' },
+            h('div', { className: 'st-audit-pillgroup' },
+              h('span', { className: 'st-audit-pill', 'data-tone': 'supported' }, raw(`${badgeCounts.supported} Runtime-supported`)),
+              h('span', { className: 'st-audit-pill', 'data-tone': 'partial' }, raw(`${badgeCounts.partial} Partial`)),
+              h('span', { className: 'st-audit-pill', 'data-tone': 'insufficient' }, raw(`${badgeCounts.insufficient} Insufficient`))),
+            h('button', { className: 'st-button', type: 'button', onClick: () => setTab('doc') }, localized('查看 SKILL.md', 'View SKILL.md')))),
+        h('div', { className: 'st-audit-canvas' },
+          h('div', { className: 'st-audit-start' }, h('span', { className: 'st-audit-start-dot', 'aria-hidden': 'true' }), localized('Skill 已加载 · 模型调用', 'Skill loaded · model invocation')),
+          h('div', { className: 'st-audit-connector', 'aria-hidden': 'true' }),
+          steps.length
+            ? h('ol', { className: 'st-audit-steps' }, ...steps.map((item, position) => {
+              const meta = AUDIT_BADGES[item.relationship] ?? AUDIT_BADGES.unknown
+              const evidence = Array.isArray(item.runtimeEvidence) ? item.runtimeEvidence : []
+              const anchor = stepAnchors.get(item.declarationStepId)
+              return h('li', { key: item.declarationStepId },
+                h('button', {
+                  type: 'button',
+                  className: 'st-audit-step',
+                  'data-tone': meta.tone,
+                  'data-active': activeStep?.declarationStepId === item.declarationStepId ? 'true' : undefined,
+                  onClick: () => { setStepId(item.declarationStepId); setTab('evidence'); if (anchor) flashAnchor(anchor) },
+                },
+                h('span', { className: 'st-audit-step-head' },
+                  h('span', { className: 'st-audit-step-order' }, String(position + 1).padStart(2, '0')),
+                  h('span', { className: 'st-audit-step-title' }, raw(item.title)),
+                  h('span', { className: 'st-audit-step-badge', 'data-tone': meta.tone }, h('i', { 'aria-hidden': 'true' }, meta.glyph), auditBadgeLabel(item.relationship))),
+                h('span', { className: 'st-audit-step-body' },
+                  h('span', { className: 'st-audit-step-line' }, h('span', { className: 'st-audit-step-key' }, localized('声明类别', 'Declared kind')), h('code', null, raw(item.kind))),
+                  h('span', { className: 'st-audit-step-line' }, h('span', { className: 'st-audit-step-key' }, localized('运行时证据', 'Runtime evidence')),
+                    evidence.length
+                      ? h('span', { className: 'st-audit-tags' }, ...evidence.slice(0, 6).map((entry, position_) => h('span', { className: 'st-audit-tag', key: `${entry.type}:${entry.category}:${position_}` }, raw(`${entry.type} · ${entry.category}`))))
+                      : h('span', { className: 'st-audit-empty' }, localized('具体目标无法从当前证据确认', 'The specific target cannot be confirmed from the current evidence'))),
+                  anchor ? h('span', { className: 'st-audit-step-line' }, h('span', { className: 'st-audit-step-key' }, localized('定义来源', 'Definition source')), h('span', { className: 'st-audit-step-src' }, raw(`SKILL.md § ${item.title}`))) : null))
+              )
+            }))
+            : h('div', { className: 'st-audit-note' }, localized('这次加载没有留下可对齐的声明步骤。', 'This load left no declarable steps to align against.')),
+          h('div', { className: 'st-audit-legend' },
+            h('span', { className: 'st-audit-legend-item', 'data-tone': 'supported' }, h('i', null, '●'), localized('运行时支持', 'Runtime-supported')),
+            h('span', { className: 'st-audit-legend-item', 'data-tone': 'partial' }, h('i', null, '◐'), localized('部分支持', 'Partial')),
+            h('span', { className: 'st-audit-legend-item', 'data-tone': 'insufficient' }, h('i', null, '○'), localized('证据不足', 'Insufficient'))))),
+
+      // ── 右栏 ──────────────────────────────────────────────────────────────
+      h('aside', { className: 'st-audit-col st-audit-right' },
+        h('div', { className: 'st-audit-tabs', role: 'tablist' },
+          h('button', { type: 'button', role: 'tab', className: 'st-audit-tab', 'aria-selected': tab === 'doc', 'data-active': tab === 'doc' ? 'true' : undefined, onClick: () => setTab('doc') }, 'SKILL.md'),
+          h('button', { type: 'button', role: 'tab', className: 'st-audit-tab', 'aria-selected': tab === 'evidence', 'data-active': tab === 'evidence' ? 'true' : undefined, onClick: () => setTab('evidence') }, localized('证据', 'Evidence'))),
+
+        tab === 'doc'
+          ? h('div', { className: 'st-audit-pane' },
+            h('header', { className: 'st-audit-pane-head' },
+              h('h3', null, localized('Skill 定义', 'Skill Definition')),
+              h('span', { className: 'st-audit-pane-meta' }, raw(content ? shortHash(content.sha256) : ''))),
+            h('div', { className: 'st-audit-chips' },
+              h('span', { className: 'st-audit-chip' }, 'SKILL.md'),
+              definition?.definition?.summary?.source ? h('span', { className: 'st-audit-chip' }, raw(definition.definition.summary.source)) : null,
+              h('span', { className: 'st-audit-chip', 'data-tone': 'provider' }, 'Provider content'),
+              h('span', { className: 'st-audit-chip' }, localized(
+                `快照 ${observation?.match === 'match' ? '一致' : observation?.match === 'mismatch' ? '已变化' : '不可用'}`,
+                `snapshot ${observation?.match ?? 'unavailable'}`))),
+            definitionError ? h('div', { className: 'st-notice' }, definitionError) : null,
+            definitionUnavailable
+              ? h('div', { className: 'st-audit-note' }, localized(
+                `当前读不到这份定义（${definition.definition.reason}）。这次运行加载过它，但它现在可能已经不在目录里了。`,
+                `This definition cannot be read right now (${definition.definition.reason}). The run loaded it, but it may no longer be installed.`))
+              : definitionLoading && !content
+                ? h('div', { className: 'st-audit-note' }, localized('正在读取定义…', 'Reading the definition…'))
+                : h('div', { className: 'st-audit-doc', ref: docRef }, ...renderSkillMarkdown(content?.text, outline, flash)),
+            h('footer', { className: 'st-audit-pane-foot' },
+              h('span', null, content?.truncated ? localized('正文超长，已截断显示；哈希仍按整份文件计算。', 'The body is truncated for display; the hash still covers the whole file.') : localized('只读展示，不落盘。', 'Read-only, never persisted.')),
+              repository?.status === 'resolved' && repository.cloneCommand ? h('a', { className: 'st-audit-open', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开仓库 ↗', 'Open repository ↗')) : null))
+          : h('div', { className: 'st-audit-pane' },
+            h('header', { className: 'st-audit-pane-head' },
+              h('h3', null, localized('步骤证据', 'Step Evidence')),
+              h('span', { className: 'st-audit-pane-meta' }, activeStep ? auditBadgeLabel(activeStep.relationship) : '')),
+            activeStep
+              ? h('div', { className: 'st-audit-evidence' },
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('声明', 'Declaration')), h('strong', null, raw(activeStep.title))),
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('关系', 'Relationship')), h('strong', null, auditBadgeLabel(activeStep.relationship)), h('code', null, raw(activeStep.relationship))),
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('运行时证据', 'Runtime evidence')),
+                  (Array.isArray(activeStep.runtimeEvidence) && activeStep.runtimeEvidence.length)
+                    ? h('div', { className: 'st-audit-tags' }, ...activeStep.runtimeEvidence.map((entry, position) => h('span', { className: 'st-audit-tag', key: `${entry.type}:${entry.category}:${position}` }, raw(`${entry.type} · ${entry.category}`))))
+                    : h('strong', { className: 'st-audit-empty' }, localized('运行时证据不足', 'No sufficient runtime evidence'))),
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('定义来源', 'Definition source')),
+                  stepAnchors.get(activeStep.declarationStepId)
+                    ? h('button', { type: 'button', className: 'st-reset-link', onClick: () => flashAnchor(stepAnchors.get(activeStep.declarationStepId)) }, raw(`SKILL.md § ${activeStep.title}`))
+                    : h('strong', { className: 'st-audit-empty' }, localized('无法定位到正文锚点', 'No document anchor could be located'))),
+                activeStep.limitation ? h('div', { className: 'st-audit-note' }, raw(activeStep.limitation)) : null,
+                h('div', { className: 'st-audit-note' }, localized(
+                  '这些 Runtime Event 为本次运行提供了可观察证据；不证明 Skill 对这些调用具有因果关系。',
+                  'These runtime events provide observable evidence for this run; they do not prove that the Skill caused these calls.')),
+                h('div', { className: 'st-audit-boundary' }, localized('证据充足 ≠ 正确。证据不足 ≠ 未执行。', 'Evidence ≠ correctness. Insufficient ≠ not executed.')))
+              : h('div', { className: 'st-audit-note' }, localized('这次加载没有可抽取的声明步骤。', 'No declarable steps were extracted from this load.')),
+            observation
+              ? h('div', { className: 'st-audit-evidence' },
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('是否本次加载', 'Loaded during this run')), h('strong', null, observation.loadedDuringRun ? localized('是', 'Yes') : localized('否', 'No'))),
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('目录发布', 'Published in catalog')),
+                  h('strong', null, observation.inPublishedCatalog === null ? localized('无法确认', 'Unconfirmed') : observation.inPublishedCatalog ? localized('当时已在目录中', 'Present in the catalog then') : localized('当时不在目录中', 'Not in the catalog then'))),
+                h('div', { className: 'st-audit-field' }, h('span', null, localized('指令指纹比对', 'Instruction fingerprint')),
+                  h('strong', null, observation.match === 'match' ? localized('一致', 'Match') : observation.match === 'mismatch' ? localized('文件已改变', 'The file has changed') : localized('本次未记录哈希', 'No hash was recorded for this run'))))
+              : null)),
+
+      h('footer', { className: 'st-audit-foot' }, localized(
+        'Skill Trace 不是 Agent Trace Viewer。它把 Skill 的原始定义、声明流程、本次运行证据与仓库来源放在同一条理解链上。',
+        'Skill Trace is not an Agent Trace Viewer. It places the Skill’s original definition, declared flow, runtime evidence and repository source on one line of understanding.')))
+  }
+
   function CatalogPage({ sessionId, context, onContextChange, reloadSignal, onMeta, onDataCleared }) {
     const [data, setData] = React.useState(null)
     const [loading, setLoading] = React.useState(true)
@@ -1721,16 +2295,16 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       alignment.items.length
         ? h('ul', { className: 'st-rt-align' }, ...alignment.items.map((item) => h('li', { key: item.declarationStepId },
           h('div', { className: 'st-rt-align-head' },
-            h('span', { className: 'st-rt-align-status', style: { color: inspectorStatusColor(item.status) } },
-              h('i', { 'aria-hidden': 'true' }, inspectorStatusGlyph(item.status)),
-              item.status),
+            h('span', { className: 'st-rt-align-status', style: { color: inspectorStatusColor(item.relationship) } },
+              h('i', { 'aria-hidden': 'true' }, inspectorStatusGlyph(item.relationship)),
+              item.relationship),
             h('code', null, item.kind)),
           h('strong', null, item.title),
           h('p', { className: 'st-rt-align-limit' }, item.limitation))))
         : h('p', { className: 'st-rt-notes' }, localized('这次加载没有可抽取的声明步骤。', 'No declarable steps were extracted from this load.')),
       h('p', { className: 'st-rt-notes' }, localized(
-        `证据状态计数：observed ${alignment.stats.observed} · partial ${alignment.stats.partial} · insufficient ${alignment.stats.insufficient} · unknown ${alignment.stats.unknown}。这里不评分——没有遵循率、百分比或排名。`,
-        `Evidence counts: observed ${alignment.stats.observed} · partial ${alignment.stats.partial} · insufficient ${alignment.stats.insufficient} · unknown ${alignment.stats.unknown}. Scored: false — no compliance rate, percentage or ranking.`)))
+        `证据状态计数：runtime-supported ${alignment.stats['runtime-supported'] ?? 0} · intent-supported ${alignment.stats['intent-supported'] ?? 0} · partial ${alignment.stats.partial ?? 0} · insufficient ${alignment.stats.insufficient ?? 0} · unknown ${alignment.stats.unknown ?? 0}。这里不评分——没有遵循率、百分比或排名。`,
+        `Evidence counts: runtime-supported ${alignment.stats['runtime-supported'] ?? 0} · intent-supported ${alignment.stats['intent-supported'] ?? 0} · partial ${alignment.stats.partial ?? 0} · insufficient ${alignment.stats.insufficient ?? 0} · unknown ${alignment.stats.unknown ?? 0}. Scored: false — no compliance rate, percentage or ranking.`)))
   }
 
   function inspectorStatusColor(status) {
@@ -1738,7 +2312,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   }
 
   function inspectorStatusGlyph(status) {
-    return { observed: '●', partial: '◐', candidate: '◌', unknown: '○', unlinked: '◍', insufficient: '○', failed: '✕', success: '●' }[status] ?? '○'
+    return { 'runtime-supported': '●', 'intent-supported': '◑', observed: '●', partial: '◐', candidate: '◌', unknown: '○', unlinked: '◍', insufficient: '○', failed: '✕', success: '●' }[status] ?? '○'
   }
 
   /**
@@ -2245,13 +2819,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     let queryView = null
     try {
       const value = new URLSearchParams(window.location.search).get('view')
-      if (['map', 'receipt', 'runtime'].includes(value)) queryView = value
+      if (['map', 'receipt', 'runtime', 'audit'].includes(value)) queryView = value
     } catch (_) {}
     const initialView = (() => {
       if (queryView) return queryView
       try {
         const stored = localStorage.getItem(VIEW_KEY)
-        return ['map', 'receipt', 'runtime'].includes(stored) ? stored : 'map'
+        return ['map', 'receipt', 'runtime', 'audit'].includes(stored) ? stored : 'map'
       } catch { return 'map' }
     })()
     const [view, setView] = React.useState(initialView)
@@ -2411,7 +2985,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     function chooseView(next) {
       setScreen('session'); setView(next); setError(''); setInspect(null); setReplayActive(false)
       try { localStorage.setItem(VIEW_KEY, next) } catch (_) {}
-      if (next === 'runtime') return
+      // `runtime` and `audit` stay session-local: the host preference only knows
+      // 'receipt' and 'map', and a first-run default of "runtime graph" would be
+      // wrong for a session that has no runtime events yet.
+      if (next === 'runtime' || next === 'audit') return
       api('/preferences', { method: 'POST', body: JSON.stringify({ defaultView: next }) })
         .then((body) => { setError(''); setData((current) => current ? { ...current, preferences: body.preferences } : current) })
         .catch(() => setError('默认视图已切换，但暂时无法保存到下次启动。'))
@@ -2447,6 +3024,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
 
     const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
       : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
+        : view === 'audit' ? h(AuditView, { sessionId, data, loading, error, onRetry: load })
         : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, runtimeProps)
           : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, runtimeProps)
             : data && !hasTrace && !hasRuntimeEvidence ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
@@ -2457,6 +3035,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     // 页头写"正在读取"、正文写"暂时无法读取"——**同一屏上两句话互相矛盾**（截图发现）。
     const sessionSubtitle = !data
       ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
+      : view === 'audit' && data ? localized(`${data.workspaceLabel} · ${(data.receipt?.traceEvents ?? []).filter((trace) => trace?.status === 'loaded').length} 次加载 · 声明流程与定义原文`, `${data.workspaceLabel} · ${(data.receipt?.traceEvents ?? []).filter((trace) => trace?.status === 'loaded').length} load(s) · declared flow and definition source`)
       : view === 'runtime' ? (runtime ? localized(`运行图谱 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 边 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime graph · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} edges · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行图谱…`, `${data.workspaceLabel} · rebuilding the runtime graph…`))
         : view === 'map' && hasRuntimeEvidence ? (runtime ? localized(`运行流程 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 关系 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime flow · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} relations · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行流程…`, `${data.workspaceLabel} · rebuilding the runtime flow…`))
           : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
@@ -2468,6 +3047,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     }
     const content = screen === 'catalog'
       ? h(CatalogPage, { sessionId, context: catalogContext, onContextChange: setCatalogContext, reloadSignal: catalogReload, onMeta: setCatalogMeta, onDataCleared: () => { setCatalogReload((value) => value + 1); load() } })
+      // The Definition Viewer owns its own three columns, so it must NOT sit inside
+      // `.st-layout`'s single padded column — that would make it a two-column page with a
+      // three-column page squeezed into column one.
+      : view === 'audit' ? sessionContent
       : h('div', { className: 'st-layout', 'data-simple': 'true', 'data-canvas': canvasView ? 'true' : 'false' },
         h('main', { className: 'st-main', 'aria-busy': loading, 'data-view': view },
           error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null,
@@ -2491,7 +3074,8 @@ null))
         hasTrace || hasRuntimeEvidence ? h('div', { className: 'st-view-switch', role: 'group', 'aria-label': '当前会话呈现方式' },
           hasTrace ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'receipt', onClick: () => chooseView('receipt') }, h(Icon, { name: 'receipt', size: 15 }), 'Skill 收据') : null,
           hasRuntimeEvidence ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'map', onClick: () => chooseView('map') }, h(Icon, { name: 'map', size: 15 }), '运行流程') : null,
-          hasRuntimeEvidence ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'runtime', onClick: () => chooseView('runtime') }, h(Icon, { name: 'graph', size: 15 }), '运行图谱') : null) : null,
+          hasRuntimeEvidence ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'runtime', onClick: () => chooseView('runtime') }, h(Icon, { name: 'graph', size: 15 }), '运行图谱') : null,
+          hasTrace ? h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'audit', onClick: () => chooseView('audit') }, h(Icon, { name: 'skill', size: 15 }), localized('定义视图', 'Definition')) : null) : null,
         h('div', { className: 'st-header-actions' },
           canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: showAll }, localized('显示全部', 'Show all')) : null,
           canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: () => setFitTick((value) => value + 1) }, localized('适配画布', 'Fit')) : null,
@@ -2519,4 +3103,4 @@ null))
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
   module.exports.__pure = { resolveSkillLoad }
-  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel }
+  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel, AuditView }

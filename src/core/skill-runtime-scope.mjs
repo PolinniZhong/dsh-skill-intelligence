@@ -117,14 +117,37 @@ const isInteger = (value) => Number.isSafeInteger(value)
  */
 function indexByTurn(runtimeEvents) {
   const byTurn = new Map()
+  const turnOfInvocation = new Map()
+  const deferred = []
   for (const event of runtimeEvents) {
     if (!event || !event.eventId) continue
-    // An event without a turn is not collected: it cannot be placed in any turn-bounded scope,
-    // and a load in that position is reported as `no-turn-boundary` rather than guessed at.
-    if (!isInteger(event.turn)) continue
+    // An event without a turn is not collected *here*: it cannot be placed in any turn-bounded
+    // scope, and a load in that position is reported as `no-turn-boundary` rather than guessed at.
+    if (!isInteger(event.turn)) {
+      if (event.invocationId) deferred.push(event)
+      continue
+    }
     if (!byTurn.has(event.turn)) byTurn.set(event.turn, [])
     byTurn.get(event.turn).push(event)
+    if (event.invocationId) {
+      const known = turnOfInvocation.get(event.invocationId)
+      if (known === undefined) turnOfInvocation.set(event.invocationId, event.turn)
+      // An id seen in two turns names no single turn, so it can place nothing.
+      else if (known !== event.turn) turnOfInvocation.set(event.invocationId, null)
+    }
   }
+  // Second pass. A `tool/result` carries no `turn` of its own, so the result of every call was
+  // dropped and a Scope could never see whether anything succeeded or failed. The result is
+  // placed by the invocation it belongs to — and `invocationId` is the host's own join between
+  // request and result, not a guess from timestamps or adjacency. An id that maps to no turn, or
+  // to more than one, still places nothing.
+  for (const event of deferred) {
+    const turn = turnOfInvocation.get(event.invocationId)
+    if (!isInteger(turn)) continue
+    byTurn.get(turn).push(event)
+  }
+  // Deferred events are appended last, so log order is restored before anything reads a scope.
+  for (const list of byTurn.values()) list.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
   return byTurn
 }
 
@@ -169,6 +192,15 @@ function makeScope(load, turnEvents, derivation) {
     turn: isInteger(event.turn) ? event.turn : null,
     step: isInteger(event.step) ? event.step : null,
     status: event.status ?? null,
+    // The evidence carded when the request was normalized has to travel with the member.
+    // It was being dropped here while `scopedRuntimeEvents` read it on the way out, so every
+    // scope handed downstream `evidenceCategory: null` whatever the call actually was — which
+    // silently demoted a recognised `npm test` to a bare capability.
+    evidenceType: event.evidenceType ?? null,
+    evidenceCategory: event.evidenceCategory ?? null,
+    evidenceSpecific: event.evidenceSpecific === true,
+    modelIntentPresent: event.modelIntentPresent === true,
+    modelIntentKind: event.modelIntentKind ?? null,
     relationStatus: status,
   }))
 
@@ -365,6 +397,11 @@ export function scopedRuntimeEvents(built, skillName) {
     type: entry.type,
     source: entry.source,
     capabilityId: entry.capabilityId,
+    evidenceType: entry.evidenceType,
+    evidenceCategory: entry.evidenceCategory,
+    evidenceSpecific: entry.evidenceSpecific,
+    modelIntentPresent: entry.modelIntentPresent,
+    modelIntentKind: entry.modelIntentKind,
     capabilityName: entry.capabilityName,
     invocationId: entry.invocationId,
     turn: entry.turn,
@@ -413,6 +450,46 @@ export function projectScopesOntoLayout(built, layout) {
     // An unlinked load has no scope, so it highlights nothing — reported, never guessed at.
     unlinked: (built?.unlinked ?? []).map((record) => ({ ...record, inScopeNodeIds: [] })),
     stats: built?.stats ?? null,
+  }
+}
+
+/**
+ * One record per Skill load — the run boundary that scope union erases.
+ *
+ * `scopedRuntimeEvents` merges every Scope a Skill has into one event set, which is fine for
+ * answering "what evidence exists for this Skill" and wrong for "what did *this* run do". A
+ * Skill loaded in turn 3 and again in turn 8 becomes two runs here, each with its own evidence.
+ *
+ * This is a projection, not a schema change: it reads the Scopes already built and adds no
+ * persistence, so nothing downstream is forced to move yet.
+ *
+ * @param built - the result of `buildSkillRuntimeScopes`.
+ * @param skillName - the Skill to project.
+ * @returns `{ runs }`, one entry per load, in load order. Unlinked loads produce no run.
+ */
+export function skillRunsFor(built, skillName) {
+  const { scopes, unlinked } = scopesForSkillName(built, skillName)
+  const runs = scopes.map((scope, index) => {
+    const events = scope.observedEvents ?? []
+    return {
+      runId: `${skillName}#${index + 1}`,
+      runIndex: index + 1,
+      skillName,
+      invocationId: scope.invocationId ?? null,
+      turn: scope.turnRange?.from ?? null,
+      stepRange: scope.stepRange ?? null,
+      startEventId: scope.startEventId ?? null,
+      endEventId: scope.endEventId ?? null,
+      eventIds: scope.eventIds ?? [],
+      // Each run keeps its own members. Callers that need the union still have
+      // `scopedRuntimeEvents`; callers asking "which run" must use this.
+      observedEvents: events,
+    }
+  })
+  return {
+    runs,
+    // A load the runtime cannot bound is reported, not folded into a neighbouring run.
+    unlinked: unlinked.map((record) => ({ skillName, derivation: record.derivation, reason: record.reason })),
   }
 }
 

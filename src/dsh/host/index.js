@@ -26,6 +26,7 @@ import { buildSkillRuntimeScopes, projectScopesOntoLayout } from '../../core/ski
 import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
 import { buildFingerprintReservation } from '../../core/runtime-fingerprint.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
+import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
 import { createPreferenceStore } from '../../storage/preference-store.mjs'
@@ -688,6 +689,29 @@ export function apply(ctx, config = {}) {
               sessionId,
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
               catalog: buildCatalogView({ catalogSnapshot, receipts, selectedSkillName, selectedEntryId, selectedDefinition, warningCount, searchQuery }),
+            })
+            return
+          }
+
+          if (method === 'GET' && url.pathname === '/skill-trace/definition') {
+            const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
+            const skillName = requiredSkillName(url.searchParams.get('skillName'))
+            const { registry, liveAgent, session, cwd } = registryContext(sessionId)
+            // The body is read here and returned here. It is deliberately not written into the
+            // receipt: `receiptForRuntime` below is only read for what the *run* recorded —
+            // hashes, load facts, the published catalog — never for content.
+            const definition = await buildSkillDefinitionView(registry, skillName, {
+              cwd,
+              scope: liveAgent,
+              now: Date.now(),
+            })
+            const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
+            sendJson(res, 200, {
+              ok: true,
+              sessionId,
+              workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
+              definition,
+              observation: compareDefinitionToRun(receipt, skillName, definition),
             })
             return
           }

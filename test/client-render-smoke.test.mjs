@@ -266,6 +266,23 @@ test('the client registers and its entry component renders without throwing', as
       [{ timeline: payload.timeline, index: -1, playing: true, onIndex() {}, onPlaying() {} }],
       [{ timeline: null, index: -1, playing: false, onIndex() {}, onPlaying() {} }],
     ],
+    // §11：Definition Viewer 是一个**新的一级视图**，三栏都长，任何一栏的 TDZ 或空
+    // 载荷访问都会让整页空白。四个形态：有数据、加载中、出错、以及「有回执但这次对话
+    // 没有对齐结果」——最后一种最容易漏，因为 `alignments` 是空的而 `traceEvents` 还在。
+    AuditView: [
+      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {} }],
+      [{ sessionId: 's', data: null, loading: true, error: '', onRetry() {} }],
+      [{ sessionId: 's', data: null, loading: false, error: '读取失败', onRetry() {} }],
+      [{
+        sessionId: 's',
+        data: {
+          ...payload,
+          receipt: { ...payload.receipt, traceEvents: [] },
+          views: { ...payload.views, receipt: { ...payload.views.receipt, runtime: { ...payload.views.receipt.runtime, alignments: [] } } },
+        },
+        loading: false, error: '', onRetry() {},
+      }],
+    ],
   }
   for (const [name, variants] of Object.entries(cases)) {
     const View = views[name]

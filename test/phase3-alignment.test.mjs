@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ALIGNMENT_EVIDENCE_LIMIT,
-  ALIGNMENT_STATUSES,
+  ALIGNMENT_RELATIONSHIPS,
   STEP_EXTRACTION_CHANNELS,
   STEP_KINDS,
   classifyInvocationStep,
@@ -189,7 +189,7 @@ function itemFor(alignment, titleFragment) {
   return alignment.items.find((item) => item.title.includes(titleFragment))
 }
 
-test('a declared step matched by a named capability is partial, not observed', () => {
+test('a declared step matched by a named capability is partial, not runtime-supported', () => {
   const events = [
     turnStart({ seq: 1, turn: 1 }),
     stepStart({ seq: 2, turn: 1, step: 1 }),
@@ -206,14 +206,14 @@ test('a declared step matched by a named capability is partial, not observed', (
   // arguments are never stored and no declared step carries a correlation id, so "Read the
   // source files" cannot be proven — only that a read capability ran. This assertion used to
   // read `observed`, which was the over-interpretation this round removed.
-  assert.equal(item.status, 'partial')
+  assert.equal(item.relationship, 'partial')
   assert.deepEqual(item.observedNodeIds, ['invocation:r1'])
   assert.equal(item.evidenceIds.includes(`${sessionId}:re:20`), true)
   assert.equal(item.evidenceIds.includes(`${sessionId}:re:21`), true)
   assert.deepEqual(item.matchedCapabilities, ['tool'])
 })
 
-test('a step matched only by a catch-all command is partial, never observed', () => {
+test('a step matched only by a catch-all command is partial, never supported', () => {
   // `bash` proves a command ran. It cannot prove the test suite was what ran,
   // because tool arguments are not stored.
   const events = [
@@ -227,8 +227,8 @@ test('a step matched only by a catch-all command is partial, never observed', ()
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
   const item = itemFor(alignmentOf(receipt), 'Run the test suite')
   assert.equal(item.kind, 'execute')
-  assert.equal(item.status, 'partial')
-  assert.equal(item.limitation.includes('泛化证据'), true)
+  assert.equal(item.relationship, 'partial')
+  assert.equal(item.limitation.includes('能力层面'), true)
   assert.equal(item.evidenceIds.length > 0, true)
 })
 
@@ -242,7 +242,7 @@ test('a step matched only by an unfinished call is partial', () => {
   let receipt = emptyReceipt(sessionId, 1)
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
   const item = itemFor(alignmentOf(receipt), 'Read the source files')
-  assert.equal(item.status, 'partial')
+  assert.equal(item.relationship, 'partial')
 })
 
 test('missing evidence is reported as insufficient, never as not done', () => {
@@ -257,13 +257,13 @@ test('missing evidence is reported as insufficient, never as not done', () => {
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
   const item = alignmentOf(receipt).items[0]
   assert.equal(item.kind, 'delegate')
-  assert.equal(item.status, 'insufficient')
+  assert.equal(item.relationship, 'insufficient')
   assert.deepEqual(item.evidenceIds, [])
   assert.deepEqual(item.observedNodeIds, [])
   assert.equal(item.limitation.includes('不等于 Agent 没有执行'), true)
   // The vocabulary cannot express "did not happen".
-  assert.equal(ALIGNMENT_STATUSES.includes('not-observed'), false)
-  assert.equal(ALIGNMENT_STATUSES.includes('skipped'), false)
+  assert.equal(ALIGNMENT_RELATIONSHIPS.includes('not-observed'), false)
+  assert.equal(ALIGNMENT_RELATIONSHIPS.includes('skipped'), false)
 })
 
 test('planning is insufficient without a planning surface and partial with one', () => {
@@ -277,7 +277,7 @@ test('planning is insufficient without a planning surface and partial with one',
   ]
   let receipt = emptyReceipt(sessionId, 1)
   for (const event of withoutPlanSurface) receipt = reduceSessionEvent(receipt, event)
-  assert.equal(alignmentOf(receipt).items[0].status, 'insufficient')
+  assert.equal(alignmentOf(receipt).items[0].relationship, 'insufficient')
 
   const withPlanSurface = [
     turnStart({ seq: 1, turn: 1 }),
@@ -288,7 +288,7 @@ test('planning is insufficient without a planning surface and partial with one',
   ]
   let planned = emptyReceipt(sessionId, 1)
   for (const event of withPlanSurface) planned = reduceSessionEvent(planned, event)
-  assert.equal(alignmentOf(planned).items[0].status, 'partial')
+  assert.equal(alignmentOf(planned).items[0].relationship, 'partial')
 })
 
 test('a step no rule can map is insufficient rather than guessed', () => {
@@ -303,7 +303,7 @@ test('a step no rule can map is insufficient rather than guessed', () => {
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
   const item = alignmentOf(receipt).items[0]
   assert.equal(item.kind, 'other')
-  assert.equal(item.status, 'insufficient')
+  assert.equal(item.relationship, 'insufficient')
 })
 
 test('a receipt with no runtime evidence at all reports unknown, not insufficient', () => {
@@ -318,7 +318,7 @@ test('a receipt with no runtime evidence at all reports unknown, not insufficien
   receipt = { ...receipt, runtimeEvents: [] }
   const alignment = alignmentOf(receipt)
   assert.equal(alignment.items.length, 3)
-  assert.equal(alignment.items.every((item) => item.status === 'unknown'), true)
+  assert.equal(alignment.items.every((item) => item.relationship === 'unknown'), true)
   assert.equal(alignment.items[0].limitation.includes('无法判断'), true)
 })
 
@@ -338,9 +338,9 @@ test('alignment reports counts of evidence states and no score', () => {
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
   const alignment = alignmentOf(receipt)
   assert.equal(alignment.scored, false)
-  assert.deepEqual(alignment.stats, { observed: 0, partial: 3, insufficient: 0, unknown: 0 })
+  assert.deepEqual(alignment.stats, { 'runtime-supported': 0, 'intent-supported': 0, partial: 3, insufficient: 0, unknown: 0 })
   for (const key of Object.keys(alignment.stats)) {
-    assert.equal(ALIGNMENT_STATUSES.includes(key), true)
+    assert.equal(ALIGNMENT_RELATIONSHIPS.includes(key), true)
   }
   const serialized = JSON.stringify(alignment).toLowerCase()
   for (const forbidden of ['compliance', 'percent', 'score"', 'rate"', 'ranking']) {
@@ -427,7 +427,7 @@ test('a user-explicit load aligns exactly like a model-invoked one', () => {
   ]) receipt = reduceSessionEvent(receipt, event)
   const alignment = alignmentOf(receipt)
   assert.equal(alignment.items.length, 3)
-  assert.equal(itemFor(alignment, 'Read the source files').status, 'partial')
+  assert.equal(itemFor(alignment, 'Read the source files').relationship, 'partial')
 })
 
 test('alignment is deterministic and carries its extraction channels', () => {
@@ -452,7 +452,7 @@ test('an unknown Skill aligns to an empty declaration without inventing steps', 
   const alignment = alignmentOf(receipt, 'never-loaded')
   assert.deepEqual(alignment.items, [])
   assert.equal(alignment.declaration.stepCount, 0)
-  assert.deepEqual(alignment.stats, { observed: 0, partial: 0, insufficient: 0, unknown: 0 })
+  assert.deepEqual(alignment.stats, { 'runtime-supported': 0, 'intent-supported': 0, partial: 0, insufficient: 0, unknown: 0 })
 })
 
 test('numbered items outside a process section are not relabelled as steps', () => {
@@ -514,7 +514,7 @@ test('a step matching hundreds of calls keeps a bounded citation but the true co
   for (const event of events) receipt = reduceSessionEvent(receipt, event)
 
   const item = alignmentOf(receipt).items[0]
-  assert.equal(item.status, 'partial')
+  assert.equal(item.relationship, 'partial')
   assert.equal(item.matchCount, 40)
   assert.equal(item.evidenceIds.length, ALIGNMENT_EVIDENCE_LIMIT)
   assert.ok(item.observedNodeIds.length <= 12)

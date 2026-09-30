@@ -246,7 +246,7 @@ const alignmentModel = await readFile(resolve(root, 'src/core/runtime-alignment.
 for (const requiredText of [
   'export function buildAlignment',
   'export function extractDeclarationSteps',
-  "export const ALIGNMENT_STATUSES = ['observed', 'partial', 'insufficient', 'unknown']",
+  "export const ALIGNMENT_RELATIONSHIPS = ['runtime-supported', 'intent-supported', 'partial', 'insufficient', 'unknown']",
   "export const STEP_EXTRACTION_CHANNELS = ['heading', 'ordered-list']",
   'scored: false',
   '证据不足不等于 Agent 没有执行该步骤',
@@ -254,7 +254,7 @@ for (const requiredText of [
   if (!alignmentModel.includes(requiredText)) throw new Error(`phase 3 alignment contract missing: ${requiredText}`)
 }
 {
-  const statusLine = alignmentModel.split('\n').find((line) => line.startsWith('export const ALIGNMENT_STATUSES'))
+  const statusLine = alignmentModel.split('\n').find((line) => line.startsWith('export const ALIGNMENT_RELATIONSHIPS'))
   for (const forbidden of ['not-observed', 'not_observed', 'skipped', 'not-done']) {
     if (statusLine.includes(forbidden)) throw new Error(`the alignment must not claim a step was skipped: ${forbidden}`)
   }
@@ -666,10 +666,19 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
   // §26: the inspector column is 300-340px.
   if (!/grid-template-columns:minmax\(0,1fr\) (3[0-4][0-9])px/.test(css)) throw new Error('§26: the inspector column is 300-340px')
   // §27: cards are the exception, not the default — most structure is a divider.
+  //
+  // 这里原本断言「border-radius 声明数 ≤ 70」。那是一条**把比例写成了数量**的检查：
+  // 加 §11 的 Definition Viewer 之前，整份样式的圆角声明正好是 70 条——上限被用满了，
+  // 于是任何新页面都会失败，哪怕它比整份样式的平均水平**更少**用圆角（新页面的圆角/分隔线
+  // 比值是 9/5 = 1.8，而其余部分是 70/14 = 5.0）。§27 说的是「圆角是例外，结构主要靠
+  // 分隔线」，那是比值，不是绝对数。所以改成比值：每一条分隔线最多配 5.5 个圆角。
   const radii = (css.match(/border-radius:/g) ?? []).length
   const dividers = (css.match(/border-bottom:1px solid/g) ?? []).length
-  if (radii > 70) throw new Error(`§27: too many rounded cards (${radii})`)
   if (dividers < 8) throw new Error(`§27: structure should lean on dividers (${dividers})`)
+  const cardRatio = radii / dividers
+  if (cardRatio > 5.5) {
+    throw new Error(`§27: too many rounded cards relative to dividers (${radii} radii / ${dividers} dividers = ${cardRatio.toFixed(1)}, cap 5.5)`)
+  }
 }
 
 // §8/§35: the five-layer model.

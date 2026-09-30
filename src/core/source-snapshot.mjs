@@ -10,15 +10,22 @@ function safeProvider(value) {
   return /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,79}$/.test(label) ? label : ''
 }
 
-function safeSkillName(value) {
+// Exported because the Definition Viewer sanitizes the same fields straight off a live
+// `SkillDefinition`. One copy of the rules: a second one would eventually accept a path the
+// first one rejects, and the leak would be in whichever module was written later.
+export function safeSkillName(value) {
   if (typeof value !== 'string') return ''
   const name = value.trim()
   return /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/.test(name) ? name : ''
 }
 
-function safeDescription(value) {
+export function safeDescription(value) {
   if (typeof value !== 'string') return ''
   return value.replace(/\s+/g, ' ').trim().slice(0, 500)
+}
+
+export function safeProviderLabel(value) {
+  return safeProvider(value)
 }
 
 export function sourceFingerprint(value) {

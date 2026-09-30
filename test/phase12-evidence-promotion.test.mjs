@@ -77,8 +77,8 @@ test('R1: a same-turn bash cannot make "Run tests" observed', () => {
   assert.ok(item, 'the declaration must produce the step')
   // The capability ran in the right turn. That is a type-level correspondence, and `bash` is a
   // catch-all besides: it cannot say which command ran.
-  assert.equal(item.status, 'partial')
-  assert.notEqual(item.status, 'observed')
+  assert.equal(item.relationship, 'partial')
+  assert.notEqual(item.relationship, 'runtime-supported')
 })
 
 test('R2: generic=false does not by itself earn observed', () => {
@@ -93,7 +93,7 @@ test('R2: generic=false does not by itself earn observed', () => {
   })
   const item = itemFor(alignment, "Inspect the repository's auth module")
   assert.ok(item)
-  assert.equal(item.status, 'partial', 'a named capability proves the capability, not the object')
+  assert.equal(item.relationship, 'partial', 'a named capability proves the capability, not the object')
   // The match itself is still recorded — this round removes a status, not the evidence.
   assert.equal(item.matchCount > 0, true)
   assert.equal(item.observedNodeIds.length > 0, true)
@@ -110,7 +110,7 @@ test('R3: evidence from another turn does not participate at all', () => {
     skillName: 'skill-a',
   })
   const item = itemFor(alignment, 'Run the tests')
-  assert.equal(item.status, 'insufficient', 'a later turn is not weaker evidence, it is no evidence')
+  assert.equal(item.relationship, 'insufficient', 'a later turn is not weaker evidence, it is no evidence')
   assert.equal(item.matchCount, 0)
 })
 
@@ -130,7 +130,7 @@ test('R4: two Skills in one turn earn nothing from same-turn containment', () =>
     const alignment = alignmentFor({ events, traces, skillName: name })
     assert.equal(alignment.scope.established, false)
     const item = itemFor(alignment, 'Run the tests')
-    assert.ok(['insufficient', 'unknown'].includes(item.status), `${name} landed in ${item.status}`)
+    assert.ok(['insufficient', 'unknown'].includes(item.relationship), `${name} landed in ${item.relationship}`)
     assert.equal(scopedRuntimeEvents(built, name).length, 0)
   }
 })
@@ -153,7 +153,7 @@ test('R5: relationStatus alone cannot reach observed, and is not read as a stren
     traces: [trace({ turn: 2, step: 1, skillName: 'skill-a', steps: ['Read the source files'] })],
     skillName: 'skill-a',
   })
-  assert.equal(itemFor(alignment, 'Read the source files').status, 'partial')
+  assert.equal(itemFor(alignment, 'Read the source files').relationship, 'partial')
 })
 
 test('R6: no current Runtime source can produce direct specificity, so observed is unreachable', () => {
@@ -183,10 +183,10 @@ test('R6: no current Runtime source can produce direct specificity, so observed 
   })
   assert.equal(alignment.items.length, 3)
   for (const item of alignment.items) {
-    assert.notEqual(item.status, 'observed', `${item.title} claimed observed with no direct evidence`)
-    assert.equal(item.status, 'partial', `${item.title} should retain its capability-level correspondence`)
+    assert.notEqual(item.relationship, 'runtime-supported', `${item.title} claimed observed with no direct evidence`)
+    assert.equal(item.relationship, 'partial', `${item.title} should retain its capability-level correspondence`)
   }
-  assert.deepEqual(alignment.stats, { observed: 0, partial: 3, insufficient: 0, unknown: 0 })
+  assert.deepEqual(alignment.stats, { 'runtime-supported': 0, 'intent-supported': 0, partial: 3, insufficient: 0, unknown: 0 })
 })
 
 test('partial and insufficient stay distinct — the fix is not a blanket downgrade', () => {
@@ -196,20 +196,20 @@ test('partial and insufficient stay distinct — the fix is not a blanket downgr
   const events = [load({ turn: 2, step: 1, skillName: 'skill-a' }), ...call({ turn: 2, step: 2, name: 'bash' })]
   const traces = [trace({ turn: 2, step: 1, skillName: 'skill-a', steps: ['Run the tests', 'Publish the summary'] })]
   const alignment = alignmentFor({ events, traces, skillName: 'skill-a' })
-  assert.equal(itemFor(alignment, 'Run the tests').status, 'partial', 'bash corresponds to execute')
-  assert.equal(itemFor(alignment, 'Publish the summary').status, 'insufficient', 'no produce capability ran')
-  assert.notEqual(itemFor(alignment, 'Run the tests').status, itemFor(alignment, 'Publish the summary').status)
+  assert.equal(itemFor(alignment, 'Run the tests').relationship, 'partial', 'bash corresponds to execute')
+  assert.equal(itemFor(alignment, 'Publish the summary').relationship, 'insufficient', 'no produce capability ran')
+  assert.notEqual(itemFor(alignment, 'Run the tests').relationship, itemFor(alignment, 'Publish the summary').relationship)
 
   // unknown: no Runtime Scope to align against at all. A load on its own still establishes a
   // scope (it is the scope's anchor), so that case is `insufficient` — the step simply has no
   // matching capability. `unknown` needs the absence of a scope, not the absence of a match.
   const noScope = alignmentFor({ events: [], traces, skillName: 'skill-a' })
   assert.equal(noScope.scope.established, false)
-  assert.equal(itemFor(noScope, 'Run the tests').status, 'unknown')
+  assert.equal(itemFor(noScope, 'Run the tests').relationship, 'unknown')
 
   const loadOnly = alignmentFor({ events: [load({ turn: 2, step: 1, skillName: 'skill-a' })], traces, skillName: 'skill-a' })
   assert.equal(loadOnly.scope.established, true, 'the load anchors a scope')
-  assert.equal(itemFor(loadOnly, 'Run the tests').status, 'insufficient')
+  assert.equal(itemFor(loadOnly, 'Run the tests').relationship, 'insufficient')
 })
 
 test('the limitation text still travels with the status', () => {

@@ -1,3 +1,4 @@
+import { extractRuntimeEvidence } from './runtime-evidence.mjs'
 /**
  * Normalized runtime event model and invocation aggregation.
  *
@@ -168,11 +169,22 @@ export function normalizeRequest(event, context) {
     timestamp: event.time,
     type: 'invocation.request',
   })
+  // Evidence is extracted here and the raw argument is dropped in the same call. What lands on
+  // the event is a bounded category and two booleans — never the command, the path, the query or
+  // the model's description. `extractRuntimeEvidence` never returns the raw value, so there is
+  // no later step at which it could leak into a receipt, a backup or an export.
+  const evidence = extractRuntimeEvidence({ name: data.name, capabilityId: kind.capability, arguments: data.arguments })
   return withOptional({ ...base, turn: context.turn ?? null, step: context.step ?? null, status: 'requested' }, {
     capabilityId: kind.capability,
     capabilityName: kind.capabilityName,
     detail: kind.detail,
     invocationId: callId,
+    evidenceType: evidence.evidenceType,
+    evidenceCategory: evidence.category,
+    evidenceSpecific: evidence.specific,
+    modelIntentPresent: evidence.modelIntent.present,
+    // The kind the model's `description` maps onto. Not the text — see `step-kind.mjs`.
+    modelIntentKind: evidence.modelIntent.kind,
   })
 }
 
@@ -352,6 +364,13 @@ export function aggregateInvocations(runtimeEvents) {
       endedAt: null,
       durationMs: null,
       status: 'unknown',
+      // Carded from the opening event, which extracted the evidence and discarded the raw
+      // argument. Only a bounded category, a step kind and two booleans travel this far.
+      evidenceType: seed.evidenceType ?? null,
+      evidenceCategory: seed.evidenceCategory ?? null,
+      evidenceSpecific: seed.evidenceSpecific === true,
+      modelIntentPresent: seed.modelIntentPresent === true,
+      modelIntentKind: seed.modelIntentKind ?? null,
       evidenceState: 'unknown',
       resolution: 'orphan-result',
       requestEventId: null,

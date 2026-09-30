@@ -22,17 +22,14 @@
 
 import { aggregateInvocations } from './runtime-events.mjs'
 import { buildSkillRuntimeScopes, scopesForSkillName, scopedRuntimeEvents } from './skill-runtime-scope.mjs'
+// The step vocabulary is shared with `runtime-evidence.mjs`, which classifies the model's own
+// `description` into the same kinds. One copy of the rules lives in `step-kind.mjs` so the two
+// sides cannot drift apart and start agreeing by accident.
+import { STEP_KINDS, normalizeTitle, classifyStepKind } from './step-kind.mjs'
+
+export { STEP_KINDS, classifyStepKind }
 
 export const ALIGNMENT_MODEL_VERSION = 1
-
-/**
- * The step vocabulary both sides are mapped into.
- *
- * `plan` is a real member with a real, narrow runtime surface (`todo_write`).
- * When that surface is absent the step is `insufficient` — which is the whole
- * point: planning usually cannot be proven from outside.
- */
-export const STEP_KINDS = ['inspect', 'edit', 'execute', 'delegate', 'consult', 'produce', 'plan', 'other']
 
 /**
  * Evidence states.
@@ -40,7 +37,11 @@ export const STEP_KINDS = ['inspect', 'edit', 'execute', 'delegate', 'consult', 
  * `not-observed` is deliberately absent: it would assert that the Agent skipped a
  * step, which no amount of missing runtime data can establish.
  */
-export const ALIGNMENT_STATUSES = ['observed', 'partial', 'insufficient', 'unknown']
+// `observed` is gone as a name. It read as "the runtime observed this step", which the runtime
+// never said: a capability name proves a capability ran, and `runtime-supported` says exactly
+// that and no more. `intent-supported` is new — the model's own account of what it meant to do,
+// kept in a separate state because it is not a runtime fact.
+export const ALIGNMENT_RELATIONSHIPS = ['runtime-supported', 'intent-supported', 'partial', 'insufficient', 'unknown']
 
 /** Which channel produced a declared step, so the extraction stays auditable. */
 export const STEP_EXTRACTION_CHANNELS = ['heading', 'ordered-list']
@@ -70,24 +71,38 @@ export const ALIGNMENT_NODE_LIMIT = 12
 export const ALIGNMENT_EVIDENCE_LIMIT = 24
 
 const STEP_LIMITATIONS = {
-  observed: '本次运行观察到与该步骤直接对应的 Runtime 证据；这不证明该步骤被完整或正确执行。',
-  partial: '只观察到泛化证据或未完成的调用，无法证明就是该步骤。',
-  insufficient: '未观察到能对应到该步骤的 Runtime 证据。证据不足不等于 Agent 没有执行该步骤。',
+  'runtime-supported': 'Runtime 输入本身支持这个声明动作（例如一个可识别的测试命令）。这证明该动作发生过，不证明结果正确，也不证明它服务于这个 Skill 的意图。',
+  'intent-supported': '只有模型自己写的 description 与声明有明显对应。description 是模型的意图陈述，不是 Runtime 事实。',
+  partial: '只观察到能力层面的对应，Runtime 输入不足以支持这个具体声明步骤。',
+  insufficient: '本次 Scope 内未观察到能对应到该步骤的 Runtime 证据。证据不足不等于 Agent 没有执行该步骤。',
   unknown: '本次会话没有可对齐的 Runtime 证据，无法判断。',
 }
 
-// Declaration-side keyword rules. Coarse and deterministic on purpose: a step
-// title is prose, and this only decides which runtime surface could correspond.
-// Order matters — the first match wins, so specific verbs are tested first.
-const STEP_KIND_RULES = [
-  { kind: 'execute', pattern: /run|execute|build|test|lint|verify|validate|命令|运行|执行|测试|构建|校验|跑/i },
-  { kind: 'edit', pattern: /edit|write|implement|fix|modify|refactor|patch|修改|实现|编写|修复|重构|落地|写入/i },
-  { kind: 'delegate', pattern: /delegate|subagent|sub-agent|spawn|委派|子代理|并行处理/i },
-  { kind: 'consult', pattern: /\bmcp\b|fetch|download|external api|drill into docs|联网|外部|查文档|调用接口/i },
-  { kind: 'produce', pattern: /report|summari[sz]e|output|publish|present|deliver|输出|总结|报告|交付|发布|生成结果/i },
-  { kind: 'inspect', pattern: /inspect|read|review|search|explore|investigate|look\s|grep|diff|浏览|查看|阅读|搜索|调研|了解|核实|审查|复核|评审|检查/i },
-  { kind: 'plan', pattern: /plan|design|decide|prioriti[sz]e|break\s?down|规划|计划|设计|方案|拆解|分析|决策|排期/i },
-]
+// Which evidence categories can support which declared step kind.
+//
+// A closed table, not a similarity score. `execute` is supported by a recognised build/test/lint
+// command and not by a directory listing, however recently it ran. `inspect` is supported only by
+// a query, never by a file target — the path is deliberately not kept, so "a source file was
+// read" cannot become "the declared module was read". A kind absent here is never supported.
+// Category → evidence type, so the breakdown can name where a category came from.
+const EVIDENCE_TYPE_OF = {
+  test: 'command', build: 'command', lint: 'command', typecheck: 'command', install: 'command',
+  git: 'command', 'file-listing': 'command', other: 'command',
+  'source-file': 'file-target', 'test-file': 'file-target', config: 'file-target',
+  documentation: 'file-target', image: 'file-target',
+  query: 'query', 'mcp-call': 'query', delegate: 'delegate', capability: 'generic',
+}
+
+const SUPPORTING_CATEGORIES = {
+  execute: ['test', 'build', 'lint', 'typecheck', 'install'],
+  consult: ['query', 'mcp-call'],
+  inspect: ['query'],
+  delegate: ['delegate'],
+}
+
+// Declaration-side keyword rules now live in `step-kind.mjs`, together with `classifyStepKind`
+// and `normalizeTitle`, because `runtime-evidence.mjs` classifies the model's `description`
+// with the very same rules. See that module for why one copy matters.
 
 // Runtime-side rules keyed by registered tool name. `generic: true` marks a
 // catch-all capability: it proves *something* ran, not what.
@@ -99,19 +114,6 @@ const RUNTIME_STEP_RULES = [
   { kind: 'produce', generic: false, names: ['present', 'publish', 'deliver', 'artifact'] },
   { kind: 'plan', generic: false, names: ['todo_write', 'todo_read', 'todo', 'create_goal', 'update_goal'] },
 ]
-
-function normalizeTitle(value) {
-  if (typeof value !== 'string') return ''
-  return value
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/https?:\/\/\S+/gi, '')
-    // Underscores are deliberately kept: `SPIKE_METHOD_LOADED` is an identifier,
-    // not emphasis, and stripping them would silently rewrite the declaration.
-    .replace(/[`*>#|]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160)
-}
 
 /**
  * How *specifically* an invocation speaks to a declared step.
@@ -139,20 +141,6 @@ export function invocationSpecificity(invocation) {
   // declaration-step correlation id, or a recorded tool argument, would be checked here.
   void invocation
   return 'capability'
-}
-
-/**
- * Map one declared step title onto the shared step vocabulary.
- * @param title - the declared step text.
- * @returns a step kind, or `other` when no rule applies.
- */
-export function classifyStepKind(title) {
-  const text = normalizeTitle(title)
-  if (!text) return 'other'
-  for (const rule of STEP_KIND_RULES) {
-    if (rule.pattern.test(text)) return rule.kind
-  }
-  return 'other'
 }
 
 /**
@@ -321,7 +309,9 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
     title: step.title,
     kind: step.kind,
     evidenceType: step.evidenceType,
-    status: 'insufficient',
+    relationship: 'insufficient',
+    runtimeEvidence: [],
+    modelIntent: { present: false },
     observedNodeIds: [],
     evidenceIds: [],
     matchedCapabilities: [],
@@ -329,7 +319,7 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
     limitation: STEP_LIMITATIONS.insufficient,
   }
   if (!hasRuntime) {
-    item.status = 'unknown'
+    item.relationship = 'unknown'
     item.limitation = STEP_LIMITATIONS.unknown
     return item
   }
@@ -339,7 +329,33 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
   }
 
   const matches = annotatedInvocations.filter((entry) => entry.step.kind === step.kind)
-  if (matches.length === 0) return item
+  if (matches.length === 0) {
+    // Nothing the runtime ran maps onto this step's kind. Before settling for `insufficient`,
+    // ask the narrower question: did the model's own `description` name this kind? A shell call
+    // can carry "Confirm the working directory" — the model's account of inspecting state —
+    // while the capability it actually ran is an execution. That correspondence is real, and it
+    // is exactly one relationship weaker, so it is reported as `intent-supported` rather than
+    // being allowed to support the step.
+    //
+    // The comparison is between two *kinds* produced by the same closed rule table in
+    // `step-kind.mjs`, never between two pieces of text: neither the description nor the
+    // declared title is ever matched, stored, or returned.
+    const intentMatches = annotatedInvocations.filter((entry) => (
+      entry.invocation.modelIntentPresent === true
+      && entry.invocation.modelIntentKind === step.kind
+    ))
+    if (intentMatches.length > 0) {
+      item.matchCount = intentMatches.length
+      // A pointer to where the claim came from. Deliberately no `evidenceIds`: nothing here is
+      // runtime evidence, and handing the UI an evidence id would draw an edge that is not there.
+      item.observedNodeIds = intentMatches.slice(0, ALIGNMENT_NODE_LIMIT)
+        .map((entry) => `invocation:${entry.invocation.invocationId}`)
+      item.modelIntent = { present: true }
+      item.relationship = 'intent-supported'
+      item.limitation = STEP_LIMITATIONS['intent-supported']
+    }
+    return item
+  }
 
   item.matchCount = matches.length
   item.observedNodeIds = matches.slice(0, ALIGNMENT_NODE_LIMIT).map((entry) => `invocation:${entry.invocation.invocationId}`)
@@ -347,33 +363,63 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
     .slice(0, ALIGNMENT_EVIDENCE_LIMIT)
   item.matchedCapabilities = [...new Set(matches.map((entry) => entry.invocation.kind))]
 
+  // Evidence specificity outranks the capability's generic flag.
+  //
+  // `bash` is a catch-all *tool* — `generic: true` — but `npm test` is not a catch-all command.
+  // Gating on the tool first meant a recognised test command fell into `partial` before its own
+  // category was ever consulted, which is the reverse of what the evidence supports. The flag
+  // still bounds what an unclassified command can claim; it does not bound a classified one.
+  const evidenceSupporting = SUPPORTING_CATEGORIES[step.kind] ?? []
+  const byEvidence = matches.filter((entry) => entry.invocation.resolution === 'matched'
+    && evidenceSupporting.includes(entry.invocation.evidenceCategory))
+  if (byEvidence.length > 0) {
+    item.runtimeEvidence = [...new Set(byEvidence.map((entry) => entry.invocation.evidenceCategory))]
+      .map((category) => ({ type: EVIDENCE_TYPE_OF[category] ?? 'command', category }))
+    item.modelIntent = { present: byEvidence.some((entry) => entry.invocation.modelIntentPresent === true) }
+    item.relationship = 'runtime-supported'
+    item.limitation = STEP_LIMITATIONS['runtime-supported']
+    return item
+  }
+
   const direct = matches.filter((entry) => !entry.step.generic)
   if (direct.length === 0) {
     // Only a catch-all capability matched: something ran, but not provably this.
-    item.status = 'partial'
+    item.relationship = 'partial'
     item.limitation = STEP_LIMITATIONS.partial
     return item
   }
   const settled = direct.filter((entry) => entry.invocation.resolution === 'matched')
   if (settled.length === 0) {
-    item.status = 'partial'
+    item.relationship = 'partial'
     item.limitation = STEP_LIMITATIONS.partial
     return item
   }
-  // Strength is not specificity. A settled match inside the Scope proves a capability of the
-  // right kind ran *here*; it does not prove it ran *for this step*. Only evidence that names
-  // the step's object may reach `observed`, and no current Runtime source can.
-  const specific = settled.filter((entry) => entry.specificity === 'direct')
-  if (specific.length === 0) {
-    item.status = 'partial'
-    item.limitation = STEP_LIMITATIONS.partial
+
+  // The breakdown. Duplicated categories are collapsed — this reports what kinds of evidence
+  // exist, not how many times each occurred.
+  item.runtimeEvidence = [...new Set(settled.map((entry) => entry.invocation.evidenceCategory).filter(Boolean))]
+    .map((category) => ({ type: EVIDENCE_TYPE_OF[category] ?? 'command', category }))
+  item.modelIntent = { present: settled.some((entry) => entry.invocation.modelIntentPresent === true) }
+
+  // Supported only when the runtime input itself is the right kind of thing for this step.
+  // A recognised test command supports "run the tests"; a directory listing does not, however
+  // recent it is. The model's own description is consulted after that, and lands in a different
+  // relationship because it is a different kind of claim.
+  const supporting = SUPPORTING_CATEGORIES[step.kind] ?? []
+  if (settled.some((entry) => supporting.includes(entry.invocation.evidenceCategory))) {
+    item.relationship = 'runtime-supported'
+    item.limitation = STEP_LIMITATIONS['runtime-supported']
     return item
   }
-  item.status = 'observed'
-  item.limitation = STEP_LIMITATIONS.observed
+  if (item.modelIntent.present) {
+    item.relationship = 'intent-supported'
+    item.limitation = STEP_LIMITATIONS['intent-supported']
+    return item
+  }
+  item.relationship = 'partial'
+  item.limitation = STEP_LIMITATIONS.partial
   return item
 }
-
 /**
  * Build the alignment model for one Skill in one receipt.
  *
@@ -473,8 +519,8 @@ export function buildAlignment(receipt, skillName) {
     ? entries.some((entry) => entry.name === skillName)
     : null
 
-  const stats = Object.fromEntries(ALIGNMENT_STATUSES.map((status) => [status, 0]))
-  for (const item of items) stats[item.status] += 1
+  const stats = Object.fromEntries(ALIGNMENT_RELATIONSHIPS.map((key) => [key, 0]))
+  for (const item of items) stats[item.relationship] += 1
 
   return {
     modelVersion: ALIGNMENT_MODEL_VERSION,

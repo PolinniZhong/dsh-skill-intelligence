@@ -149,7 +149,14 @@ test('§16 the declaration surface never scores a Skill', () => {
   // No percentage may be rendered, even though the panel names what it does not do.
   assert.equal(/\d\s*%|\$\{[^}]*\}%/.test(panel), false, 'the declaration panel must not render a percentage')
   // Counts are reported; judgements are not.
-  assert.ok(panel.includes('alignment.stats.observed'), 'evidence counts must be reported')
+  // 词表在 5d25871 收敛成 §6.6 的五个值。这里顺带锁住「不得再读一个不存在的 observed 键」——
+  // 那会让界面渲染成 `observed undefined`，并静默漏掉 runtime-supported 与 intent-supported
+  // 两个真实档位，而计数看起来仍然「有数」。
+  for (const key of ['runtime-supported', 'intent-supported', 'partial', 'insufficient', 'unknown']) {
+    assert.ok(panel.includes(`alignment.stats['${key}']`) || panel.includes(`alignment.stats.${key}`), `evidence counts must report ${key}`)
+  }
+  assert.equal(panel.includes('alignment.stats.observed'), false,
+    'the retired observed bucket must not be read as a stats key')
   // Every declared step carries the sentence saying what its state does not mean.
   assert.ok(panel.includes('item.limitation'), 'each declared step must carry its limitation')
 })
@@ -192,7 +199,7 @@ test('§9 the declaration surface marks status with a glyph and a word, not colo
   const start = client.indexOf('function inspectorStatusGlyph')
   assert.ok(start > 0, 'a glyph table must exist for the inspector')
   const block = client.slice(start, client.indexOf('function RuntimeInspector'))
-  for (const status of ['observed', 'partial', 'insufficient', 'unknown']) {
+  for (const status of ['runtime-supported', 'partial', 'insufficient', 'unknown']) {
     assert.ok(block.includes(status), `status ${status} needs a glyph`)
   }
 })

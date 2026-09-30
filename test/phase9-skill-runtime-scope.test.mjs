@@ -10,7 +10,7 @@ import {
   scopedRuntimeEvents,
   scopesForSkillName,
 } from '../src/core/skill-runtime-scope.mjs'
-import { buildAlignment, ALIGNMENT_STATUSES } from '../src/core/runtime-alignment.mjs'
+import { buildAlignment, ALIGNMENT_RELATIONSHIPS } from '../src/core/runtime-alignment.mjs'
 
 // Skill Runtime Scope — Core Unit Test layer.
 //
@@ -310,13 +310,13 @@ test('§17 alignment reads only in-scope events', () => {
   // only the turn-2 edit is visible, so inspect has no evidence inside the scope.
   const inspect = alignment.items.find((item) => item.kind === 'inspect')
   assert.ok(inspect, 'the declared inspect step must exist, or this test proves nothing')
-  assert.notEqual(inspect.status, 'observed', 'an out-of-scope event satisfied a declared step')
+  assert.notEqual(inspect.relationship, 'runtime-supported', 'an out-of-scope event satisfied a declared step')
   // And the in-scope edit must be seen, so the assertion above is not passing because
   // alignment lost its runtime entirely.
   const edit = alignment.items.find((item) => item.kind === 'edit')
   // In scope, but a capability name is all the Runtime model supports: `edit` proves an edit
   // capability ran, not that it touched what the step named.
-  assert.equal(edit?.status, 'partial', 'the in-scope edit was not matched')
+  assert.equal(edit?.relationship, 'partial', 'the in-scope edit was not matched')
 })
 
 test('§17 an unlinked Skill yields insufficient, never "not done"', () => {
@@ -336,12 +336,12 @@ test('§17 an unlinked Skill yields insufficient, never "not done"', () => {
   assert.equal(alignment.scope.established, false)
   assert.equal(alignment.scope.relationStatus, 'unlinked')
   for (const item of alignment.items) {
-    assert.ok(['insufficient', 'unknown'].includes(item.status),
-      `step landed in ${item.status}; an unattributable run cannot report more`)
+    assert.ok(['insufficient', 'unknown'].includes(item.relationship),
+      `step landed in ${item.relationship}; an unattributable run cannot report more`)
   }
 })
 
-test('§17 alignment still refuses to score, and its vocabulary is unchanged', () => {
+test('§17 alignment still refuses to score, and its vocabulary stays closed', () => {
   const events = [load({ turn: 1, step: 1, skillName: 'skill-a' }), ...call({ turn: 1, step: 2, name: 'bash' })]
   const receipt = receiptOf({ events, traces: [trace({ turn: 1, step: 1, skillName: 'skill-a' })], declaration: ['Run the tests'] })
   const alignment = buildAlignment(receipt, 'skill-a')
@@ -353,9 +353,9 @@ test('§17 alignment still refuses to score, and its vocabulary is unchanged', (
     assert.ok(!keys.includes(forbidden), `alignment exposes a score field: ${forbidden}`)
   }
   assert.equal(alignment.scored, false)
-  assert.deepEqual(ALIGNMENT_STATUSES, ['observed', 'partial', 'insufficient', 'unknown'])
+  assert.deepEqual(ALIGNMENT_RELATIONSHIPS, ['runtime-supported', 'intent-supported', 'partial', 'insufficient', 'unknown'])
   for (const forbidden of ['not-observed', 'skipped', 'not-done']) {
-    assert.ok(!ALIGNMENT_STATUSES.includes(forbidden), `status vocabulary contains ${forbidden}`)
+    assert.ok(!ALIGNMENT_RELATIONSHIPS.includes(forbidden), `status vocabulary contains ${forbidden}`)
   }
 })
 
