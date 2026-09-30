@@ -479,7 +479,60 @@ ranking 或百分比。
 
 默认页偏好只有 `skills` 与 `map`。`receipt` 与 `audit` 不再可保存为默认页：
 旧 IA 的默认页就是 receipt，所以存下来的 `receipt` 几乎不是「用户的选择」而是「被写下来的默认值」。
-读取时把它归一化为 `skills`；`map` 保留，因为选运行地图是刻意行为。
+
+**同一条推理也适用于 `map`，beta.67 漏掉了它。** `~/.dsh/skill-trace/preferences.json`
+里只有 `{"defaultView":"map"}` 时，文件本身没有记录这是用户点的、还是旧 IA 写下的缺省值——
+而 beta.66 的第一屏就是运行地图，所以从 beta.66 升上来的机器几乎都停在这个值上。
+文件没记录意图，就没法事后恢复意图，只能从 beta.68 起**开始记录**：
+
+| 磁盘上的值 | 判定 | 第一屏 |
+|---|---|---|
+| `{"version":2,"defaultView":"skills"}` | 本版写下 | `skills` |
+| `{"version":2,"defaultView":"map"}` | 本版写下，用户主动选的 | `map`（保留） |
+| `{"defaultView":"map"}`（无 `version`） | 无法判定 → 视为**从未表达偏好** | `skills` |
+
+`src/storage/preference-store.mjs` 的 `PREFERENCES_VERSION` 是唯一版本源，读路径走
+`normalizeStored`（无版本号即不认），写路径走 `normalizeChosen`（盖章）。客户端
+`src/dsh/client/client.js` 里另有一份 `PREFERENCE_VERSION`：只有它等于响应里的
+`preferences.version` 时才采纳宿主偏好——这样**旧宿主**（响应里根本没有 `version` 字段）
+也不会把第一屏交回给运行地图。两份常量由 `scripts/verify-project.mjs` 的
+`PREFERENCE_VERSION_OK` 钉住必须相等：它们若漂移，失败方式是静默的——不报错，只是第一屏换回去。
+
+### 两个端点的信封
+
+Skill-first 第一屏要的数据来自两个只读端点，都必须带 `sessionId`（缺失即 `400`）：
+
+| 端点 | 响应 | 载荷 |
+|---|---|---|
+| `GET /skill-trace/skills?sessionId=` | `{ok, sessionId, workspaceLabel, list}` | `list` = `buildSessionSkillList(receipt, {lookup})` |
+| `GET /skill-trace/skill?sessionId=&skillName=` | `{ok, sessionId, workspaceLabel, list, skill}` | 多一个 `skill` = `buildSkillDetail({receipt, view, skillName, listEntry})` |
+
+**列表套在 `list` 里，详情套在 `skill` 里**，客户端必须各解一层。这个信封确实错配过一次
+（服务端发 `body.list`，客户端读 `body.skills`），而当时两侧测试都是绿的：接口测试只看响应形状，
+组件测试走的是注入进去的列表。抓到它的是渲染台用**真实载荷**截的那张图——副标题按收据数着
+「1 个 Skill」，正文却写着「暂未加载」。现在由 `scripts/verify-project.mjs` 的成对断言钉住：
+宿主必须含 `list: buildSessionSkillList(`，客户端必须含 `setList(body?.list ?? null)`——
+只改一端就失败。
+
+两个端点都只读、不写盘；定义正文现读现返，不落盘。
+
+### Hooks 顺序是渲染合同
+
+`conversation.view` 的 slot entry 是一个 React 组件，而且**没有错误边界接住它**：
+组件一抛错，整个标签页就空掉，用户看到的是一片白。`0.4.0-beta.67` 就栽在这里——
+`RuntimeView` 与 `FlowCanvas` 把 `React.useMemo` 写在了提前 return 之后，第一帧（loading）
+少调一个 hook、数据到达后的第二帧多调一个，React 抛 `Minified React error #310`，
+Skill 标签页整片空白。
+
+所以「同一个组件里 hook 不得排在提前 return 之后」在本项目是源码级合同，由两道守卫执行：
+
+- `scripts/verify-project.mjs` 的 `HOOK_ORDER_OK`：按缩进切分顶层组件，比较**第一个提前 return**
+  与**最后一个 `React.use*`** 的行号，倒置即失败。
+- `test/client-hook-order.test.mjs`：导出 `scanHookOrder(source)`，对真实客户端断言零违规，
+  并用内联 fixture 证明扫描器两种写法都认——单行 `if (...) return ...` 与花括号换行。
+
+组件测试没抓到的原因值得记住：`test/client-render-smoke.test.mjs` 的 `useState` 桩永不更新，
+它只渲染「数据已经到了」的那一帧，而 #310 需要**两帧**才出现。
 
 ### 仍然受限的地方
 

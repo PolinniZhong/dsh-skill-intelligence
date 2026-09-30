@@ -1,15 +1,15 @@
 ---
 artifact: prd
-version: "0.17-v0.4-local-data-loop-candidate"
+version: "0.18-v0.5-skill-first-ia"
 created: 2026-08-26
-status: v0.4-local-data-loop-candidate-desktop-acceptance-pending
+status: v0.5-skill-first-ia-desktop-eyeball-pending
 ---
 
 # DSH Skill Trace 概览 PRD
 
 > 产品版本：V0.5 P0 真实使用工程验收版；V0.3 理解验证 Gate 继续有效  
 > 当前阶段：真实 Skill 加载、精确关联收据和本地会话理解链路已有运行证据；这不等于全部业务闭环完成，也不能作为钟先生已理解的证据。个人无提示复述与 24 小时复测仍待执行  
-> 工程发布候选：`dsh-skill-trace 0.4.0-beta.3` 停用无法证明落盘的 WebView Blob 下载，改为 Host 可验证本地备份、备份历史、打开位置、恢复预览、仅补缺恢复，以及清空/单删前安全备份；公开试用版仍为 `0.3.0-beta.1`，未执行发布或推送
+> 工程发布候选：`dsh-skill-trace 0.4.0-beta.68`（Skill-first IA），已发布到 npm 与 GitHub，`beta` 与 `latest` 两个标签都指向该版本；本轮唯一未完成项是 **DSH Desktop WebView 内的人眼走查**（三栏可读性与 1180 / 980 两处断点），清单见 `docs/RELEASE.md` §7.2
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
 > 用户可见命名：DSH 会话 Tab 使用“Skill 追踪”；默认段使用“本次 Skill”（Skill 列表 → Skill 详情），跨会话入口使用“我的 Skill”，两者之外的运行流程 / 运行图谱 / Skill 收据收在 `Advanced` 之下。“我的 Skill”不是第三种会话视图，“本次 Skill”与“我的 Skill”回答的是两个不同问题（这次用了哪些 / 工作区里有哪些）。“流程”只描述可观测事件关系，不代表 Agent 已执行 Skill 内全部步骤。
@@ -718,7 +718,7 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 - `FR-UI-004`：所有事实标签必须能展开查看证据来源和边界。
 - `FR-UI-005`：系统必须提供“Skill 收据”和“流程地图”两种视图；两者必须读取同一份 `SkillRunReceipt`、`SkillTraceEvent`、`MethodContinuityCard` 与依赖数据。V5.0 起两者降级到 `Advanced`，不再是第一视觉中心，也不得再与 Skill 平级。
 - `FR-UI-006`：系统不得因双视图而重复执行事件分析、模型调用、持久化或 Continuity 判断。
-- `FR-UI-007`：用户可设置默认视图为 `skills` 或 `map`；新会话进入 Skill Trace 时只渲染默认视图，用户主动切换后立即保存偏好。`receipt` 与 `audit` 已不再是可保存的默认页：历史存下的 `receipt` 在读取时归一化为 `skills`（那是旧 IA 写下的默认值，不是用户的选择）。
+- `FR-UI-007`：用户可设置默认视图为 `skills` 或 `map`；新会话进入 Skill Trace 时只渲染默认视图，用户主动切换后立即保存偏好。`receipt` 与 `audit` 已不再是可保存的默认页：历史存下的 `receipt` 在读取时归一化为 `skills`（那是旧 IA 写下的默认值，不是用户的选择）。**偏好必须带版本号写入；读取时无版本号一律视为「从未表达偏好」并归一化为 `skills`**——历史存下的 `map` 同样是旧 IA 写下的缺省值（beta.66 的第一屏就是运行地图），不得当成用户的选择。只有本版写下、且用户确实主动选择过的 `map` 才会被采纳。
 - `FR-UI-008`：切换视图必须保留当前 Session、选中 Skill、Step 与证据上下文；视图不得改变任何业务状态。
 - `FR-UI-009`：两种视图必须使用同一证据语法；除颜色外，同时使用标签、线型、图标或边框表达已验证、候选、待人工确认和覆盖未知。
 - `FR-UI-010`：加载中只显示一句进度提示；当前没有 Trace 时只显示一句空态提示，不渲染流程小结、依赖、产出、人工反馈或双视图切换。
@@ -765,7 +765,7 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 
 点一次列表项进入 Skill 详情（§8.2）。从进入到看懂一个 Skill 只需一次点击；禁止 `Session → Runtime → Node → Inspector → Skill → Definition` 这类四层以上的下钻。
 
-默认视图偏好只有 `skills` 与 `map` 两个取值；`receipt` 与 `audit` 已不再可保存为默认页（历史存下的 `receipt` 在读取时归一化为 `skills`）。偏好只影响呈现，不创建第二份收据，也不改变事实状态。
+默认视图偏好只有 `skills` 与 `map` 两个取值；`receipt` 与 `audit` 已不再可保存为默认页（历史存下的 `receipt` 在读取时归一化为 `skills`）。偏好文件带版本号，**无版本号的值视为「从未表达偏好」并归一化为 `skills`**：`receipt` 与 `map` 都曾经是旧 IA 写下的第一屏缺省值，文件里没有字段能证明它们是用户选的。偏好只影响呈现，不创建第二份收据，也不改变事实状态。
 
 当当前会话没有可追踪事件时，本区域退化为单句状态（“当前对话暂未加载可追踪的 Skill”），不渲染空列表骨架，也不创建虚假的依赖、输出或 Continuity 判断。零 Skill 会话仍保留「我的 Skill」入口。
 
@@ -1005,7 +1005,7 @@ V0.4 P0“我的 Skill”不调用模型：列表概要优先使用 Skill 自带
 - [x] `DEC-05`：V0.1 不调用模型，自动分析仅做确定性候选。
 - [x] `DEC-06`：先完成隔离生命周期 Spike，再把通过的机制并入正式插件。
 - [x] `DEC-07`：Skill 收据与流程地图共同进入 V0.1，读取同一份数据，不同时生成两套分析。
-- [x] `DEC-08`：首次默认**本次 Skill 列表**（`skills`）；用户主动选择后保存为其默认视图。V5.0 起 `receipt` 不再可作默认页——历史存下的 `receipt` 在读取时归一化为 `skills`，因为那是旧 IA 写下的默认值而不是用户的选择。
+- [x] `DEC-08`：首次默认**本次 Skill 列表**（`skills`）；用户主动选择后保存为其默认视图。V5.0 起 `receipt` 不再可作默认页——历史存下的 `receipt` 在读取时归一化为 `skills`，因为那是旧 IA 写下的默认值而不是用户的选择。`0.4.0-beta.68` 起偏好带版本号，**无版本号的 `map` 同样归一化为 `skills`**（beta.66 的第一屏就是运行地图，所以升级上来的机器几乎都停在该值上）——「无法判定是不是用户选的」一律按「不是」处理并落到 Skill 第一屏。
 - [x] `DEC-09`：Tab 使用“Skill 追踪”，页面标题使用“本次 Skill 使用记录”；“流程”只用于流程地图与流程小结。
 - [x] `DEC-10`：V0.1 移除无法形成开发者接收闭环的人工反馈入口；旧字段只保留兼容边界。
 - [x] `DEC-11`：核心目标收缩为“理解 Skill 如何运行 → 内化为个人知识 → 准备人工迭代”；插件只生成本地学习材料，不自动修改或发布 Skill。

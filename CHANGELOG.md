@@ -33,6 +33,31 @@
 
 复验：真实应用 reload 后第一屏是「Skills in this run」三栏——左栏 `ui-craft` / `Run #9` / 仓库未解析，中栏 4 张步骤卡，右栏 SKILL.md 与 Evidence，console 无 error。
 
+### 三、目录改名与知识管理同步（无代码改动）
+
+**目录**：项目目录由 `DSH_Skill_Trace` 改名为 `10_DSH_Skill_Trace`，并在旧名处留一个**相对软链接**，
+使已装的插件软链接（`~/.dsh/profiles/*/node_modules/dsh-skill-trace`）与会话历史的路径继续解析。
+npm 包名 `dsh-skill-trace` **不变**。`docs/RELEASE.md` 第 0 步的 `cd` 路径随之更新。
+
+**文档**：一次知识管理同步，改掉与现实不符的陈述：
+
+| 文档 | 滞后内容 |
+|---|---|
+| `docs/RELEASE.md` | 「当前待发布版本」停在 `0.4.0-beta.66`，提交 / tag / push / `gh release` / 安装示例全是那一版；行为探针也还是 beta.66 的 `/skill-trace/definition`（改为 beta.67 才有的 `/skill-trace/skills`，附实测返回） |
+| `README.md` | 版本历史只写到 `beta.66`，缺 `beta.67`（Skill-first IA）与 `beta.68` |
+| `docs/ARCHITECTURE.md` | 「默认视图」一节仍写「`map` 保留，因为选运行地图是刻意行为」——正是 beta.68 修掉的那条；补上偏好版本表、两个端点的信封契约、hooks 顺序这条渲染合同 |
+| `design.md`、`README.md` | 各有一处「完整架构见 `01_重构方案/…`」，而该目录被 `.gitignore` 排除，对读者是死链 |
+| `04-product-requirements.md` | 头部「工程发布候选」仍写 `0.4.0-beta.3` 并称「公开试用版仍为 `0.3.0-beta.1`，未执行发布或推送」；`FR-UI-007` 与 `DEC-08` 只提 `receipt` 归一化，漏了无版本号的 `map` |
+| `docs/PRIVACY.md` | 从没写清偏好文件里存的是什么（现补：只有 `version` 与 `defaultView` 两个字段，无会话标识） |
+| `99_归档/README.md`（本地目录，不随仓库发布） | 「仍在根目录的活文档」表里还列着 `07-adversarial-review.md`，而它自己就躺在这个归档目录里；另补一条维护约定——**公开文档不得把非公开目录写成「见 …」的来源** |
+| `docs/RELEASE.md` §7.2 | 验收层次由四层改为五层，并写明渲染台的两个盲点（自带 `?view=` 默认值、只截最后一帧） |
+
+`design.md` 另加 §19 缺陷修订记录：第一屏不得被旧缺省夺回；以及「一个组件崩了，整屏就是白的」——
+`conversation.view` 的 slot entry 没有错误边界，所以 §3 的状态 Gate 原则同时是一条渲染合同。
+
+无代码改动，测试与守卫数不变（**412 / 26**）。`0.4.0-beta.68` 因此**仍未发布**：
+文档已就位，剩下的是推送、打 tag 与 npm 发布。
+
 ## 0.4.0-beta.67 — 2026-10-01 · Skill-first 信息架构：第一屏从运行流程图换成「本次 Skill」
 
 **这是结构性重构，不是加第四个视图。** 测试 382 → 407。

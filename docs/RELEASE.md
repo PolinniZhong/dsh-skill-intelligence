@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**`0.4.0-beta.66`**。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+当前待发布版本：**`0.4.0-beta.68`**。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
 
 ---
 
@@ -39,8 +39,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.4.0-beta.66 — <一句话>"
-git tag -a v0.4.0-beta.66 -m "v0.4.0-beta.66"
+git commit -m "release: v0.4.0-beta.68 — <一句话>"
+git tag -a v0.4.0-beta.68 -m "v0.4.0-beta.68"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -51,7 +51,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.4.0-beta.66
+git push origin v0.4.0-beta.68
 ```
 
 ---
@@ -59,9 +59,9 @@ git push origin v0.4.0-beta.66
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.4.0-beta.66 \
-  --title "v0.4.0-beta.66 — Skill Definition Viewer" \
-  --notes-file <(sed -n '/^## 0.4.0-beta.66/,/^## 0.4.0-beta.65/p' CHANGELOG.md | sed '$d') \
+gh release create v0.4.0-beta.68 \
+  --title "v0.4.0-beta.68 — Skill-first 信息架构，以及两个只在真实应用里出现的升级缺陷" \
+  --notes-file <(sed -n '/^## 0.4.0-beta.68/,/^## 0.4.0-beta.67/p' CHANGELOG.md | sed '$d') \
   --prerelease
 ```
 
@@ -101,7 +101,7 @@ lsof -p "$(cat ~/.dsh/.harness.pid)" | grep -o '\.dsh/profiles/[a-z0-9-]*' | sor
 ### 6.2 往**上一步查到的** profile 安装
 
 ```bash
-dsh plugin --profile <上一步的输出> add dsh-skill-trace@0.4.0-beta.66
+dsh plugin --profile <上一步的输出> add dsh-skill-trace@0.4.0-beta.68
 ```
 
 ### 6.3 版本一致
@@ -119,15 +119,26 @@ pin（`~/.dsh/profiles/<p>/package.json` 里的依赖声明） == lockfile ==
 而不是「用户运行的是我装的那个目录」。
 
 ```bash
-# beta.66 的探针：这个端点在本版之前不存在
-curl -s "http://127.0.0.1:3080/skill-trace/definition?sessionId=probe&skillName=probe"
+# 探针：/skill-trace/skills 是 beta.67 才有的端点，更早的进程对它只会回 404
+curl -s "http://127.0.0.1:3080/skill-trace/skills?sessionId=probe"
 
 # 对照组：老路由，用来确认探针本身没写错
 curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3080/skill-trace/context?sessionId=probe"
 ```
 
-期望：探针返回 `{"ok":true,...,"definition":{...,"available":false,"reason":"unknown-skill"}}`，
-对照组返回 `200`。若探针返回 `404` 或 `{"ok":false,"error":"not found"}`，说明**新代码不在运行中的进程里**。
+期望（2026-10-01 在运行中的宿主上实测）：
+
+```json
+{"ok":true,"sessionId":"probe","workspaceLabel":"工作区未连接",
+ "list":{"schemaVersion":1,"sessionId":"probe","scope":"session-loaded-skills-only",
+         "skills":[],"skillCount":0,
+         "limitations":["registry-unavailable-so-descriptions-and-definition-status-are-missing"]}}
+```
+
+`sessionId=probe` 不是真会话，所以**空列表也是 200**——探针要证明的是「这个端点存在并答得出来」，
+不是「它有数据」。对照组返回 `200`。若探针返回 `404` 或 `{"ok":false,"error":"not found"}`，
+说明**新代码不在运行中的进程里**；若返回 `400 {"ok":false,"error":"sessionId 必填"}`，
+说明参数没被解析，同样是旧代码。
 
 ### 6.6 重启宿主，然后**重跑 6.5**
 
@@ -151,21 +162,30 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3080/skill-trace/cont
 > **安装插件后必须立即重启宿主。中间的窗口期插件界面会消失。**
 > 这不是可选步骤。
 
-### 7.2 验收有四个层次，缺一层就有盲区
+### 7.2 验收有五个层次，缺一层就有盲区
 
 | 层次 | 回答的问题 | 何时覆盖 |
 |---|---|---|
 | 单元 / 契约测试 | 模型算得对吗 | 每次 |
 | `verify-project` 守卫 | 结构约束还在吗 | 每次 |
-| **对运行中的宿主打接口** | **用户真的会看到这个吗** | 6.5 |
-| **人眼看渲染结果** | **画面对吗、可读吗** | 发布后手动 |
+| **对运行中的宿主打接口** | **这个端点真的在跑的进程里吗** | 6.5 |
+| **渲染台截图（近似应用）** | **画面照着真实载荷长得对吗** | 改界面后 |
+| **真实应用里复现 + 人眼看** | **用户看到的就是这个吗、可读吗** | 发布前 / 发布后手动 |
 
 前两层全绿**不能**替代第三层。曾经出现过：单元测试、契约测试、verify 全绿，
 而折叠节点在界面上把「24 个节点」写错的情况——因为缺陷在「客户端拿哪个数字去显示」，
 不在「模型算得对不对」。
 
-最后一行是**至今仍未自动化**的一层：布局是否重叠、三栏在 DSH WebView 里是否真的可读。
-只有人看过才算数。
+**第四层也不等于第五层。** `0.4.0-beta.67` 一度把渲染台当成了终点，结果两个缺陷都只在真实应用里出现：
+
+- 渲染台的 `?view=` 默认值是 `map`，于是它**自带一个视图选择**，把「宿主给的旧偏好要不要被尊重」
+  这整条分支短路掉了——所有截图都没走过那条路径。现在渲染台不写默认值，并新增 `?prefVersion=2`
+  复现「用户在新版里主动选了运行地图」。
+- 渲染台只截**最后一帧**。React #310 要两帧才出现（第一帧 loading、第二帧有数据），
+  所以截图永远看不到它。抓到它的是用 CDP 连上真实应用、点开那个标签页、读 console。
+
+最后一行是**至今仍未完全自动化**的一层：布局是否重叠、三栏在 DSH WebView 里是否真的可读、
+标签页会不会整片空白。只有人看过才算数。
 
 ---
 

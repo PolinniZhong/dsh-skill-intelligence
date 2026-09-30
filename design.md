@@ -34,7 +34,7 @@ supersedes: "1.5"
 
 这条变化是必要的，因为 v2.0 虽然实现了 Definition Viewer，却把它挂在「本次运行 → 定义视图」之下——用户仍然必须先理解 Turn / Step / Invocation / Runtime Graph / Scope / Edge，才能理解一个 Skill。判定标准：如果用户必须先理解运行模型才能理解 Skill，则 Skill-first 尚未完成。
 
-完整架构与验收见 `01_重构方案/DSH-Skill-Trace-SDD-Skill-First-IA.md`。
+完整架构与验收见 **`docs/ARCHITECTURE.md` §V5.0 — Skill-first Information Architecture**（公开、随仓库发布）；需求侧见 `04-product-requirements.md`。过程 SDD（`01_重构方案/DSH-Skill-Trace-SDD-Skill-First-IA.md`）留作本地规划记录，**不随仓库发布**，不要当成可点击的来源。
 
 ## 2. 设计目标
 
@@ -87,7 +87,7 @@ Skill 追踪
 固定原则：
 
 - **Skill 是产品一级对象**；Tool / MCP / CLI / Subagent 不是，它们只能作为 Runtime Evidence 的来源出现，不得成为与 Skill 平级的对象。
-- **「本次 Skill」是默认第一屏**。打开产品不得先面对运行图谱，也不得先面对 `Session / Turns / Nodes` 一类计数。
+- **「本次 Skill」是默认第一屏**。打开产品不得先面对运行图谱，也不得先面对 `Session / Turns / Nodes` 一类计数。**这条不得被历史偏好夺回**：旧版 IA 把默认第一屏写成过 `receipt` 与 `map`，那些值是被写下的缺省，不是用户的选择。偏好文件因此带版本号，**无版本号的值一律视为「从未表达偏好」**，落到「本次 Skill」；只有本版写下且用户主动选过 `map`，才以运行地图开场（见 `docs/ARCHITECTURE.md` §默认视图与偏好版本）。
 - **声明流程只能来自 Skill 自己的定义文本**（`Markdown → 确定性解析器 → Declared Skill Flow`）。运行时证据只能给已有步骤加标注，**不得增删步骤、改名或改序**。绝不允许反过来「从运行时事件推断出流程」。
 - **区分 `Declared` / `Observed` / `Inferred`**：`Declared` 来自 SKILL.md，`Observed` 来自 DSH 运行时事件，`Inferred` 尽量不做。禁止「某 Tool 距离某 Skill 最近 ⇒ 该 Tool 属于该 Skill」，也禁止「同一个 Turn ⇒ 把该 Turn 全部运行时事件都算成该 Skill 的」。
 - **「我的 Skill」是跨会话只读目录，与「本次加载过的 Skill」是两件事**，不得合成一个列表。列表里不得出现 Tool 数 / Runtime 节点数 / Runtime Edge 数。
@@ -672,6 +672,35 @@ Status 继续满足「**颜色不是唯一信息**」。
 - 运行流程 / 运行图谱 / Skill 收据**不删除**，只降级；画布与布局合同不变。
 - 声明步骤来源于 Skill 指令结构、不等于 Agent 执行轨迹——这条从 v1.0 起就在，本轮把它上升为架构方向（`Definition → Declared Flow → Evidence`，不可逆）。
 
-完整的架构、路由契约与验收标准见 `01_重构方案/DSH-Skill-Trace-SDD-Skill-First-IA.md`。
+完整的架构、路由契约与验收标准见 `docs/ARCHITECTURE.md` §V5.0 与 `docs/RELEASE.md` §7.2；
+过程 SDD 在本地 `01_重构方案/`（不随仓库发布）。
 
 **验收范围的更正**：此前的验收覆盖功能与数据层，**不包含视觉工艺**。视觉观感（布局 / 配色 / 密度 / 字体层次）经人工查看后评价为「一般」，尚未达到治理文档 §43 的最终视觉目标。本文件不再宣称该轮已完成视觉验收。
+
+---
+
+## 19. 缺陷修订记录（2026-10-01）· 第一屏被夺回，以及标签页整片空白
+
+Skill-first IA 上线（`0.4.0-beta.67`）后在真实应用里暴露两个缺陷，都**不改变上面任何视觉规则**，
+但都直接决定了用户第一眼看到什么。记在这里，因为它们各自对应一条设计约束。
+
+### 19.1 第一屏不得被旧缺省夺回
+
+用户升级后打开插件，看到的仍是「运行流程」——不是设计失效，是**旧偏好赢了**。
+`receipt` 与 `map` 都曾经是旧 IA 写下的第一屏缺省值，而偏好文件里没有任何字段能区分
+「用户选的」与「程序写的」。读法修正在 `docs/ARCHITECTURE.md` §默认视图与偏好版本：
+偏好带版本号，**无版本号即视为从未表达偏好**。
+
+对本文的影响只有一条，已写进 §3 固定原则：**「本次 Skill」是默认第一屏，这条不得被历史偏好夺回。**
+
+### 19.2 一个组件崩了，整屏就是白的
+
+`conversation.view` 的 slot entry 没有错误边界：组件抛错，用户看到的是一片空白，
+**不是错误页、不是降级视图**。`0.4.0-beta.67` 的真实故障正是如此——`RuntimeView` 与 `FlowCanvas`
+把 `React.useMemo` 写在提前 return 之后，第一帧（loading）少调一个 hook、第二帧多调一个，
+React 抛 #310，整个 Skill 标签页消失。
+
+因此本文的「状态 Gate」原则（§3 末条：先经状态 Gate 再挂载业务视图）**不能只按视觉理解**：
+它同时是一条渲染合同——loading / empty / error 这三条提前 return 路径，
+**不能让后面的 hook 数量与就绪态不同**。守卫见 `docs/RELEASE.md` §7.2 与
+`scripts/verify-project.mjs` 的 `HOOK_ORDER_OK`。

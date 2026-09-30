@@ -18,6 +18,8 @@ It stores only the minimum bounded metadata needed to display the observed load 
 
 Unsaved learning, validation, and output-reference drafts are temporarily buffered in the Desktop WebView's `sessionStorage` so in-app tab or view switches do not silently discard user input. This buffer is local, capped to 24 recent drafts and 500 characters per field, is not uploaded, and is not included in a Host backup until the user saves. It is removed after a successful save, matching receipt deletion, clear-all, or the end of the WebView session.
 
+The only local file outside the receipt store is the default-view preference, `~/.dsh/skill-trace/preferences.json`. It holds two fields and nothing else: `{"version": 2, "defaultView": "skills" | "map"}` — which screen the plugin opens on, plus which information architecture wrote it. Since `0.4.0-beta.68` the version field is what distinguishes a user's choice from a default written by an older release; a value without it is treated as "no preference expressed" and the plugin opens on the Skills screen. The file contains no session id, no Skill name, no path, and nothing derived from conversation content. Clear-all does not remove it (a preference is not a receipt); it goes away only with the plugin's local data area.
+
 ## User control
 
 Learning notes and validation results exist for the local user to revisit in the relevant Skill and receipt views. They are not sent to the project maintainer, used to score a Skill, or treated as causal proof. Removing the plugin does not itself delete those local records; deletion should remain an explicit user choice.
