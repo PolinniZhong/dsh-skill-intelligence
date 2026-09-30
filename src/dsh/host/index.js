@@ -27,6 +27,7 @@ import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
 import { buildFingerprintReservation } from '../../core/runtime-fingerprint.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
+import { buildSessionSkillList, buildSkillDetail } from '../../core/skill-view-model.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
 import { createPreferenceStore } from '../../storage/preference-store.mjs'
@@ -76,6 +77,15 @@ const GRAPH_NODE_LIMIT = 400
  * Event」。所以运行流程的节点预算按阅读密度定，而不是按硬上限定。
  */
 const FLOW_NODE_LIMIT = 16
+
+/**
+ * How many Skills one session list may ask the registry about.
+ *
+ * The lookups exist only to decorate entries that load evidence already produced, so this is a
+ * guard against a pathological session, not a product limit: a session that loaded more than
+ * this many distinct Skills still gets the list — just without descriptions past the cap.
+ */
+const SKILL_LIST_LOOKUP_LIMIT = 50
 
 /**
  * 运行流程还要折叠 Turn 列。一个 39 Turns 的真实会话若逐个画出 Turn，就是一根 34 行
@@ -437,6 +447,44 @@ export function apply(ctx, config = {}) {
       return { registry, liveAgent, session, cwd: session?.header?.cwd }
     }
 
+    /**
+     * Descriptions and sourcing for the Skills this session loaded.
+     *
+     * The registry is consulted *only* for names that already appear in the receipt's load
+     * evidence, so a Skill the registry can discover but this session never loaded cannot leak
+     * into the list. Lookups are bounded and failures degrade to a status rather than throwing:
+     * a list that loses its descriptions is still a truthful list.
+     *
+     * `definitionStatus` here means "the registry can resolve this name right now" — it is a
+     * resolution fact, not a hash comparison. The observed/current hash tri-state lives in the
+     * detail view, where the body is actually read.
+     */
+    async function buildSkillListLookup(registry, receipt, cwd, scope) {
+      if (!registry) return null
+      const names = [...new Set(
+        (receipt?.traceEvents ?? [])
+          .filter((trace) => trace?.status === 'loaded' && typeof trace.skillName === 'string')
+          .map((trace) => trace.skillName),
+      )].slice(0, SKILL_LIST_LOOKUP_LIMIT)
+      if (!names.length) return null
+      const entries = await Promise.all(names.map(async (name) => {
+        try {
+          const skill = await registry.get(name, { cwd, scope })
+          if (!skill) return [name, { definitionStatus: 'unknown-skill' }]
+          return [name, {
+            description: skill.description ?? null,
+            source: skill.source ?? null,
+            provider: skill.provider ?? null,
+            definitionStatus: 'available',
+          }]
+        } catch {
+          return [name, { definitionStatus: 'registry-unavailable' }]
+        }
+      }))
+      const table = new Map(entries)
+      return (name) => table.get(name) ?? null
+    }
+
     function mergeSourceSnapshots(receipt, updates) {
       const merged = new Map((receipt.sourceSnapshots ?? []).map((item) => [item.skillName, item]))
       for (const update of updates) merged.set(update.skillName, update)
@@ -716,6 +764,46 @@ export function apply(ctx, config = {}) {
             return
           }
 
+          if (method === 'GET' && url.pathname === '/skill-trace/skills') {
+            const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
+            const { registry, liveAgent, session, cwd } = registryContext(sessionId)
+            const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
+            const lookup = await buildSkillListLookup(registry, receipt, cwd, liveAgent)
+            sendJson(res, 200, {
+              ok: true,
+              sessionId,
+              workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
+              list: buildSessionSkillList(receipt, { lookup }),
+            })
+            return
+          }
+
+          if (method === 'GET' && url.pathname === '/skill-trace/skill') {
+            const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
+            const skillName = requiredSkillName(url.searchParams.get('skillName'))
+            const { registry, liveAgent, session, cwd } = registryContext(sessionId)
+            // The Skill's definition body is read here and returned here — same contract as
+            // `/skill-trace/definition` above: live read, read-only, never written into the
+            // receipt. Everything else about the Skill is assembled from what the run recorded.
+            const definition = await buildSkillDefinitionView(registry, skillName, {
+              cwd,
+              scope: liveAgent,
+              now: Date.now(),
+            })
+            const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
+            const lookup = await buildSkillListLookup(registry, receipt, cwd, liveAgent)
+            const list = buildSessionSkillList(receipt, { lookup })
+            const listEntry = list.skills.find((entry) => entry.name === skillName) ?? null
+            sendJson(res, 200, {
+              ok: true,
+              sessionId,
+              workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
+              list,
+              skill: buildSkillDetail({ receipt, view: definition, skillName, listEntry }),
+            })
+            return
+          }
+
           if (method === 'GET' && url.pathname === '/skill-trace/history-note') {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const skillName = requiredSkillName(url.searchParams.get('skillName'))
@@ -800,7 +888,7 @@ export function apply(ctx, config = {}) {
 
           if (method === 'POST' && url.pathname === '/skill-trace/preferences') {
             const body = await readBody(req)
-            if (!['receipt', 'map'].includes(body.defaultView)) throw new Error('defaultView 无效')
+            if (!['skills', 'map'].includes(body.defaultView)) throw new Error('defaultView 无效')
             const preferences = await preferenceStore.write({ defaultView: body.defaultView })
             sendJson(res, 200, { ok: true, preferences })
             return

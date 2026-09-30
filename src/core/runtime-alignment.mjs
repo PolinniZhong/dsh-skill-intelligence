@@ -26,6 +26,10 @@ import { buildSkillRuntimeScopes, scopesForSkillName, scopedRuntimeEvents } from
 // `description` into the same kinds. One copy of the rules lives in `step-kind.mjs` so the two
 // sides cannot drift apart and start agreeing by accident.
 import { STEP_KINDS, normalizeTitle, classifyStepKind } from './step-kind.mjs'
+// The declaration scanner moved to the *definition* side, because the declared flow is a
+// property of the Skill's own text and not of any run. It is imported back here so the stored
+// `continuityCandidate` path keeps parsing with exactly one set of rules.
+import { scanDeclaredSteps } from './skill-flow.mjs'
 
 export { STEP_KINDS, classifyStepKind }
 
@@ -165,103 +169,31 @@ export function classifyInvocationStep(name, capabilityId) {
   return { kind: 'other', generic: false }
 }
 
-function isProcessSection(title) {
-  return /流程|步骤|steps?|procedure|process|workflow|工作流|执行顺序|pipeline/i.test(title ?? '')
-}
-
-function splitOrdinal(text) {
-  const match = /^(\d{1,2})\s*[.)、:：]\s*(.+)$/.exec(text)
-  return match ? match[2].trim() : text
-}
-
 /**
  * Extract declared steps from a Skill body using two channels.
  *
- * Headings describe a declared process far more faithfully than stray numbered
- * lists, which in real Skills are usually conditional branches, constraint lists,
- * or routing rules rather than steps. So headings win whenever they yield a step.
- *
- * The ordered-list channel is narrower still: items qualify only inside a
- * process-ish section, or in a body with no sections at all (plain numbered
- * instructions). A Skill whose body lists constraints under `## 硬约束` and hides
- * its real process in a referenced file genuinely declares no steps *here*, and
- * saying so is more useful than relabelling its constraints as a process.
+ * The rules now live in `skill-flow.mjs`, on the definition side, because the declared
+ * flow belongs to the Skill's own text rather than to any run. This wrapper keeps the
+ * receipt path (`trace-reducer.mjs` reading a stored `continuityCandidate`) byte-identical
+ * to what it produced before the move: same channels, same ordering, same cap.
  *
  * @param instructions - the `<skill_instructions>` body.
  * @returns `{ steps, channel, headingCount, orderedListCount, note }`.
  */
 export function extractDeclarationSteps(instructions) {
-  const text = typeof instructions === 'string' ? instructions : ''
-  if (!text) return { steps: [], channel: null, headingCount: 0, orderedListCount: 0, note: 'no-instructions' }
-
-  const headingSteps = []
-  const listSteps = []
-  let inProcessSection = false
-  let hasSections = false
-  let position = 0
-
-  for (const rawLine of text.split(/\r?\n/)) {
-    position += 1
-    const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(rawLine)
-    if (heading) {
-      const level = heading[1].length
-      const raw = heading[2]
-      const title = normalizeTitle(splitOrdinal(raw))
-      const numbered = splitOrdinal(raw) !== raw
-      if (level === 1) continue
-      if (level === 2) {
-        // A level-2 heading that opens a process section names the section, not a
-        // step — so it is not carried, but its children are.
-        hasSections = true
-        inProcessSection = isProcessSection(title)
-        if (numbered && title) headingSteps.push({ title, position, evidenceType: 'heading' })
-        continue
-      }
-      // Deeper headings count as steps inside a declared process, or when they
-      // carry their own ordinal. Precision is preferred over recall: inventing a
-      // step that the Skill never declared corrupts every alignment below it.
-      if (title && (inProcessSection || numbered)) {
-        headingSteps.push({ title, position, evidenceType: 'heading' })
-      }
-      continue
-    }
-    const item = /^\s{0,3}\d{1,2}\s*[.)]\s+(.+)$/.exec(rawLine)
-    if (item) {
-      const title = normalizeTitle(item[1])
-      if (title) listSteps.push({ title, position, evidenceType: 'ordered-list', inProcess: inProcessSection })
-    }
+  const scan = scanDeclaredSteps(instructions)
+  return {
+    steps: scan.candidates.map((candidate, index) => ({
+      order: index + 1,
+      title: candidate.title,
+      kind: classifyStepKind(candidate.title),
+      evidenceType: candidate.evidenceType,
+    })),
+    channel: scan.channel,
+    headingCount: scan.headingCount,
+    orderedListCount: scan.orderedListCount,
+    note: scan.note,
   }
-
-  const headingCount = headingSteps.length
-  const orderedListCount = listSteps.length
-  // In a sectioned body, only a process section's list describes a process.
-  const usableList = hasSections ? listSteps.filter((step) => step.inProcess) : listSteps
-  const channel = headingCount ? 'heading' : (usableList.length ? 'ordered-list' : null)
-  const chosen = headingCount ? headingSteps : usableList
-
-  const steps = []
-  const seen = new Set()
-  for (const step of chosen) {
-    const key = step.title.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    steps.push({
-      order: steps.length + 1,
-      title: step.title,
-      kind: classifyStepKind(step.title),
-      evidenceType: step.evidenceType,
-    })
-    if (steps.length >= DECLARATION_STEP_LIMIT) break
-  }
-
-  // Say why nothing was declared, so an empty declaration is not mistaken for a
-  // Skill that has no process.
-  let note = null
-  if (!steps.length) {
-    if (hasSections && orderedListCount) note = 'numbered-items-outside-a-process-section'
-    else if (!hasSections && !orderedListCount) note = 'no-declared-process'
-  }
-  return { steps, channel, headingCount, orderedListCount, note }
 }
 
 /**
@@ -302,7 +234,7 @@ function declaredStepsFor(receipt, skillName) {
   return { steps, channel: channel ?? (steps.length ? steps[0].evidenceType : null), note }
 }
 
-function alignStep(step, annotatedInvocations, hasRuntime) {
+export function alignStep(step, annotatedInvocations, hasRuntime) {
   const item = {
     declarationStepId: `declared:${step.order}`,
     order: step.order,
@@ -457,7 +389,7 @@ function alignStep(step, annotatedInvocations, hasRuntime) {
  * Reports the Scope's extent and a sample of what it holds; the full event list lives in the
  * Scope itself and in the inspector, not duplicated here.
  */
-function scopeSummary(scopeIndex, skillName) {
+export function scopeSummary(scopeIndex, skillName) {
   const { scopes, unlinked } = scopesForSkillName(scopeIndex, skillName)
   if (scopes.length === 0) {
     const record = unlinked[0] ?? null
@@ -500,9 +432,17 @@ function scopeSummary(scopeIndex, skillName) {
   }
 }
 
-export function buildAlignment(receipt, skillName) {
-  const declared = declaredStepsFor(receipt, skillName)
-  const steps = declared.steps
+/**
+ * The runtime evidence side of alignment, for one Skill.
+ *
+ * Split out of `buildAlignment` so the Skill-first composer can attach evidence to a
+ * flow that came from the *definition* while using exactly the same annotation rules.
+ * Steps and evidence are deliberately decoupled here: this function never sees a step
+ * list, and `alignStep` never sees a receipt.
+ *
+ * @returns `{ annotated, hasRuntime, invocations, scopeIndex }`.
+ */
+export function annotatedInvocationsFor(receipt, skillName) {
   const scopeIndex = buildSkillRuntimeScopes(receipt)
   const scoped = scopedRuntimeEvents(scopeIndex, skillName)
   const invocations = aggregateInvocations(scoped)
@@ -511,7 +451,13 @@ export function buildAlignment(receipt, skillName) {
     specificity: invocationSpecificity(invocation),
     step: classifyInvocationStep(invocation.name, invocation.kind),
   }))
-  const hasRuntime = invocations.length > 0
+  return { annotated, hasRuntime: invocations.length > 0, invocations, scopeIndex }
+}
+
+export function buildAlignment(receipt, skillName) {
+  const declared = declaredStepsFor(receipt, skillName)
+  const steps = declared.steps
+  const { annotated, hasRuntime, scopeIndex } = annotatedInvocationsFor(receipt, skillName)
   const items = steps.map((step) => alignStep(step, annotated, hasRuntime))
 
   const entries = receipt?.catalogPublished?.entries

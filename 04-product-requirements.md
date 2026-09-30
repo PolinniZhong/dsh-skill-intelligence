@@ -12,7 +12,7 @@ status: v0.4-local-data-loop-candidate-desktop-acceptance-pending
 > 工程发布候选：`dsh-skill-trace 0.4.0-beta.3` 停用无法证明落盘的 WebView Blob 下载，改为 Host 可验证本地备份、备份历史、打开位置、恢复预览、仅补缺恢复，以及清空/单删前安全备份；公开试用版仍为 `0.3.0-beta.1`，未执行发布或推送
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
-> 用户可见命名：DSH 会话 Tab 使用“Skill 追踪”；跨会话入口使用“我的 Skill”；当前会话页面使用“本次 Skill 使用记录”，两个视图分别为“Skill 收据”和“流程地图”。“我的 Skill”不是第三种会话视图，“流程”只描述可观测事件关系，不代表 Agent 已执行 Skill 内全部步骤。
+> 用户可见命名：DSH 会话 Tab 使用“Skill 追踪”；默认段使用“本次 Skill”（Skill 列表 → Skill 详情），跨会话入口使用“我的 Skill”，两者之外的运行流程 / 运行图谱 / Skill 收据收在 `Advanced` 之下。“我的 Skill”不是第三种会话视图，“本次 Skill”与“我的 Skill”回答的是两个不同问题（这次用了哪些 / 工作区里有哪些）。“流程”只描述可观测事件关系，不代表 Agent 已执行 Skill 内全部步骤。
 
 ## 1. 概览
 
@@ -36,7 +36,7 @@ status: v0.4-local-data-loop-candidate-desktop-acceptance-pending
 
 ### 1.2 产品定位
 
-> DSH Skill Trace 不负责安装、启停、更新、市场或自动路由 Skill；它以只读方式呈现当前可发现的 Skill，让用户看见本会话实际加载了哪些 Skill、逐个理解这些 Skill 声明的运行方式，并把会话理解沉淀为本地个人 Skill 知识。
+> DSH Skill Trace 不负责安装、启停、更新、市场或自动路由 Skill；它以 Skill 为一级对象只读呈现：这次会话用了哪些 Skill、每个 Skill 自己声明了什么、声明流程各自拿到了什么运行时证据，以及来源与版本是否变化。运行流程与运行图谱仍然保留，但降级为服务技术用户的高级视图。
 
 它记录加载证据，不判断因果：
 
@@ -181,7 +181,7 @@ flowchart LR
         MC[Learning Projector<br/>按 Skill 生成候选步骤与依赖]
         PN[Personal Notes<br/>用户主动写入]
         LS[(Local Receipt Store<br/>最小本地数据)]
-        UI[Skill Trace UI<br/>我的 Skill / Skill 收据 / 流程地图 / Skill 详情]
+        UI[Skill Trace UI<br/>本次 Skill 列表 / Skill 详情 / 我的 Skill / Advanced]
     end
 
     U -->|发起任务| A
@@ -388,8 +388,10 @@ flowchart TD
     A[进入 Skill Trace]
     A1[读取用户默认视图偏好]
     A2{默认视图}
-    A3[渲染 Skill 收据]
-    A4[渲染流程地图]
+    A3[渲染本次 Skill 列表]
+    A4[渲染运行流程 Advanced]
+    A0[选中一个 Skill]
+    A5[打开 Skill 详情：Definition / Declared Flow / Runs / Repository]
     B{当前会话有可靠 Trace 吗}
     C[显示实际加载 Skill 与步骤]
     D{存在失败或恢复异常事件吗}
@@ -409,8 +411,9 @@ flowchart TD
     S[显示 coverage-unknown 与验证建议]
 
     A --> A1 --> A2
-    A2 -- 收据 --> A3 --> B
-    A2 -- 地图 --> A4 --> B
+    A2 -- skills --> A3 --> A0 --> A5
+    A2 -- map --> A4 --> A0
+    A5 --> B
     B -- 是 --> C
     C --> D
     D -- 是 --> E
@@ -471,7 +474,7 @@ flowchart TD
     L22 -->|打开原收据| C1
 ```
 
-信息层级约束：`我的 Skill` 是跨会话入口；`Skill 收据 / 流程地图` 是当前会话的两种互斥呈现。三者可以出现在同一工具栏，但必须通过分隔、分组或“当前会话”标签表达不同层级，不能做成三个无差别的视图按钮。
+信息层级约束（V5.0 起）：顶级导航是 `本次 Skill` 与 `我的 Skill` 两段；`运行流程 / 运行图谱 / Skill 收据` 收在 `Advanced` 之下，不与前两者平级。它们可以出现在同一工具栏，但必须通过分隔、分组或标签表达不同层级，不能做成几个无差别的视图按钮，尤其**不能让运行流程 / 运行图谱成为第一视觉中心**。
 
 ### 4.6 从发现到个人理解沉淀流程图
 
@@ -709,13 +712,13 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 
 ### 7.6 用户界面
 
-- `FR-UI-001`：默认入口必须先回答“本次实际加载了什么、能否继续”，再展开技术事件。
+- `FR-UI-001`：**默认入口必须先回答“这次用了哪些 Skill”**：第一屏是本次会话真正加载过的 Skill 列表，再由此展开定义、声明流程、运行记录与证据。用户不得被迫先理解 Turn / Step / Invocation / Runtime Graph / Scope / Edge 才能理解一个 Skill。
 - `FR-UI-002`：界面必须为加载、空、错误、无可靠 Trace、覆盖未知提供独立状态。
 - `FR-UI-003`：界面直接使用“Skill”；面向新手的解释可称“工作方式”，同时保留“Skill 是指令与资源包，不是人类专家”的说明。
 - `FR-UI-004`：所有事实标签必须能展开查看证据来源和边界。
-- `FR-UI-005`：系统必须提供“Skill 收据”和“流程地图”两种视图；两者必须读取同一份 `SkillRunReceipt`、`SkillTraceEvent`、`MethodContinuityCard` 与依赖数据。
+- `FR-UI-005`：系统必须提供“Skill 收据”和“流程地图”两种视图；两者必须读取同一份 `SkillRunReceipt`、`SkillTraceEvent`、`MethodContinuityCard` 与依赖数据。V5.0 起两者降级到 `Advanced`，不再是第一视觉中心，也不得再与 Skill 平级。
 - `FR-UI-006`：系统不得因双视图而重复执行事件分析、模型调用、持久化或 Continuity 判断。
-- `FR-UI-007`：用户可设置默认视图为 `receipt` 或 `map`；新会话进入 Skill Trace 时只渲染默认视图，用户主动切换后立即保存偏好。
+- `FR-UI-007`：用户可设置默认视图为 `skills` 或 `map`；新会话进入 Skill Trace 时只渲染默认视图，用户主动切换后立即保存偏好。`receipt` 与 `audit` 已不再是可保存的默认页：历史存下的 `receipt` 在读取时归一化为 `skills`（那是旧 IA 写下的默认值，不是用户的选择）。
 - `FR-UI-008`：切换视图必须保留当前 Session、选中 Skill、Step 与证据上下文；视图不得改变任何业务状态。
 - `FR-UI-009`：两种视图必须使用同一证据语法；除颜色外，同时使用标签、线型、图标或边框表达已验证、候选、待人工确认和覆盖未知。
 - `FR-UI-010`：加载中只显示一句进度提示；当前没有 Trace 时只显示一句空态提示，不渲染流程小结、依赖、产出、人工反馈或双视图切换。
@@ -731,8 +734,8 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 - `FR-UI-020`：Skill 收据必须新增“逐个看懂 Skill”区块；每张学习卡使用完整描边，并在多 Skill 时保持相互独立。
 - `FR-UI-021`：流程地图不得把 Skill 声明步骤画成已执行节点；选择 Skill 节点后，应在详情区展示其候选步骤和版本状态。
 - `FR-UI-022`：右侧栏应提供按 Skill 切换的本地学习笔记；收据模式默认选择第一个成功加载的 Skill，地图模式跟随当前选中的 Skill。
-- `FR-UI-023`：“我的 Skill”入口可位于“Skill 收据 / 流程地图”左侧，但必须通过间距、分隔或“当前会话”标签说明它是跨会话入口，不得表现为第三种收据视图。
-- `FR-UI-024`：进入“我的 Skill”不得改变用户的 `receipt / map` 默认偏好；返回当前会话时恢复原视图、选中 Skill 和展开上下文。
+- `FR-UI-023`：顶级导航由两段组成：**“本次 Skill”**（当前会话，默认段）与**“我的 Skill”**（跨会话只读目录）。两者必须有明确标签区分，不得表现为同一个列表，也不得表现为同一种会话视图。“Advanced”中的运行流程 / 运行图谱 / Skill 收据单独成组，不与上述两者平级。
+- `FR-UI-024`：进入“我的 Skill”不得改变用户的 `skills / map` 默认偏好；返回当前会话时恢复原视图、选中 Skill 和展开上下文。
 - `FR-UI-025`：“我的 Skill”空态区分 Registry 完整但无发现结果、Registry 覆盖未知和筛选无匹配；三者不得共用“没有 Skill”一句话。
 - `FR-UI-026`：“我的 Skill”入口不依赖当前会话是否有 Trace；零 Skill 会话仍保留入口，但当前会话区域继续遵守单句空态规则。
 - `FR-UI-027`：Skill Trace 界面语言必须跟随 DeepSeek Harness 的 `zh / en` 设置；宿主运行中切换后，当前 Tab、会话状态提示和插件自有文案原位刷新。未知 locale 回退英文；Skill 名称、声明、证据字段、工作区名、输出引用和用户笔记不翻译、不重写、不上传。
@@ -740,32 +743,56 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 - `FR-UI-029`：当前会话侧栏与“我的 Skill”时间线都可以编辑同一条原会话验证结果；保存后列表计数、筛选和展开内容必须同步刷新，不得复制为两条记录。
 - `FR-UI-030`：“我的 Skill”新增“待回看 / 已记录结果”筛选；待回看只由非空验证计划且无验证结果确定，已记录结果必须明确写成“人工记录”，不得缩写为“已验证 Skill”。
 - `FR-UI-031`：验证表单必须提供三种互斥状态、实际观察、下一步动作、保存中、错误、成功和清除状态；清除使用页面内二次确认并明确个人理解与验证计划仍会保留，不依赖宿主 WebView 的原生确认框；键盘焦点、窄屏重排与中英文切换沿用现有 UI 合同。
+- `FR-UI-032`：**Skill 是产品的一级对象**。Tool / MCP / CLI / Subagent 不是，它们只能作为 Runtime Evidence 的来源出现，不得成为与 Skill 平级的对象。技能列表中禁止显示 Tool 数、Runtime 节点数或 Runtime Edge 数。
+- `FR-UI-033`：**声明流程只能来自 Skill 自己的定义文本**（`Markdown → 确定性解析器 → Declared Skill Flow`）。运行时证据只能给已有步骤挂标注，**不得增加、删除、改名或重排步骤**；禁止从运行时事件反推出一条流程。系统不得为此引入 LLM、Embedding、向量库、RAG、自动摘要或 AI 分类。
+- `FR-UI-034`：数据模型与界面必须区分 `Declared`（来自 SKILL.md）、`Observed`（来自 DSH 运行时事件）与 `Inferred`（尽量不做）。禁止「某 Tool 距离某 Skill 最近 ⇒ 该 Tool 属于该 Skill」，也禁止「同一个 Turn ⇒ 把该 Turn 全部运行时事件都算成该 Skill 的」。
+- `FR-UI-035`：Skill 列表**只**展示当前会话有真实加载证据的 Skill，并必须与「当前 Registry 中可发现」区分开；不得把“我的 Skill”目录当作“本次使用的 Skill”。
+- `FR-UI-036`：Skill 运行记录以宿主给出的事件标识为准（`eventId` / `callId` / `turn-step`）。系统**不得伪造** `runId` 或其它 DSH 没有的原生字段。
+- `FR-UI-037`：定义指纹比对必须保留 `Observed Definition Hash` / `Current Definition Hash` 与三态 `match` / `mismatch` / `unavailable`。**禁止**把 `unavailable` 写成 `mismatch`，也禁止写成“Skill 已失效”——哈希只证明版本变化，不证明好坏。
+- `FR-UI-038`：Repository 属于 Skill 详情的标准信息（地址、打开仓库、打开 Skill 路径、复制 Clone URL）。地址只能来自 frontmatter、git remote `origin` 或明确的 metadata；**禁止**根据目录名、Skill 名或 npm 包名猜测 GitHub。猜不到就显示「未解析」，不伪造、不留禁用态占位。
+- `FR-UI-039`：Flow 步骤与 `SKILL.md` 必须可互相定位：点 Flow 步骤 → 右侧切到证据面板 + 原文滚到对应位置；点原文标题 → 对应步骤高亮。
+- `FR-UI-040`：进入产品**不得**先出现运行图谱，也不得先面对 `Session / Turns / Nodes` 一类计数；Skill 详情的首屏范围内必须同时出现 Skill 名称与简介、Declared Skill Flow 和 `SKILL.md` 原文。
+- `FR-UI-041`：从进入到看懂一个 Skill 最多一次点击。禁止 `Session → Runtime → Node → Inspector → Skill → Definition` 这种四层以上的下钻路径。
+- `FR-UI-042`：Runtime Flow 与 Runtime Graph **不删除**，但必须降级为 `Advanced`，服务技术型用户。产品分三层：第一层 Skill；第二层 Definition / Declared Flow / Runs / Evidence / Repository；第三层 Advanced Runtime Flow / Runtime Graph。
 
 ## 8. 信息架构与页面职责
 
-### 8.1 本次会话实际使用
+### 8.1 本次 Skill（默认段）
 
-默认页。展示加载成功、加载失败、待配对、覆盖状态、发生 Step 和最小输出引用。页面包含两种互斥渲染视图：
+**默认页。** 「本次 Skill」回答“这次会话用了哪些 Skill”，并按 `Skill → Skill Definition → Declared Skill Flow → Skill Run → Runtime Evidence` 的关系展开。
 
-- **Skill 收据（原方案二）**：面向新手，按“本次发生了什么 / Skill 加载结果 / 逐个看懂 Skill / 形成我的理解”组织信息；失败请求也保留，但不得写成已加载；
-- **流程地图（原方案三）**：面向框架型用户，以任务、Skill、Step、依赖与输出节点展示可观测关系和证据强度。
+第一屏是**本次会话真正加载过的 Skill 列表**：只有观测到真实加载证据的 Skill 才会出现；当前 Registry 里可发现但这次未加载的不在其中——那是 §8.3「我的 Skill」要回答的问题。每一项给出名称、声明简介、本会话加载次数、最近加载时间与当前定义状态。列表**不**显示 Tool 数、Runtime 节点数或 Runtime Edge 数，也不展示市场、安装、启停、更新、同步、排行或质量评分。
 
-系统首次使用默认进入 Skill 收据；用户切换后将所选视图保存为默认偏好。偏好只影响呈现，不创建两份收据，也不改变事实状态。
+点一次列表项进入 Skill 详情（§8.2）。从进入到看懂一个 Skill 只需一次点击；禁止 `Session → Runtime → Node → Inspector → Skill → Definition` 这类四层以上的下钻。
 
-多 Skill 会话中，Skill 收据按 Skill 名聚合卡片，并在卡片内展开每次 Turn/Step 与白话解释；流程地图则为每个唯一 Skill 建一个 Skill 节点、为每次加载建一个步骤节点，点击节点在详情区展开同源解释。同名 Skill 的多次调用可以指向同一 Skill 节点，但任何事件都不能被覆盖或省略。
+默认视图偏好只有 `skills` 与 `map` 两个取值；`receipt` 与 `audit` 已不再可保存为默认页（历史存下的 `receipt` 在读取时归一化为 `skills`）。偏好只影响呈现，不创建第二份收据，也不改变事实状态。
 
-每个成功加载的 Skill 另有一张学习卡。学习卡中的步骤是 Skill 指令结构的有界候选，不是 Agent 执行轨迹；个人理解和迭代计划由用户主动填写。用户可复制迭代清单交给后续任务，但插件本身不写回或发布 Skill。
+当当前会话没有可追踪事件时，本区域退化为单句状态（“当前对话暂未加载可追踪的 Skill”），不渲染空列表骨架，也不创建虚假的依赖、输出或 Continuity 判断。零 Skill 会话仍保留「我的 Skill」入口。
 
-两种视图底部共同呈现“本次流程小结”。其中“可见流程”仅表示事件的可观测先后顺序，不代表 Agent 的隐藏推理；“本次产出”只读取用户明确关联的工作区相对引用，未关联时必须直说未知。
+### 8.2 本次 Skill 的详情
 
-当当前会话没有可追踪事件时，本区域退化为单句状态，不展示上述两种视图及其辅助操作。空态不是一张“零数据收据”，也不创建虚假的依赖、输出或 Continuity 判断。
+Skill 详情是 Skill-first IA 的核心阅读面，首屏范围内必须同时出现 Skill 名称与简介、**Declared Skill Flow** 与 **`SKILL.md` 原文**。三栏：左栏是该 Skill 的运行记录与仓库来源；中栏是声明流程；右栏在 `SKILL.md` 原文与证据面板之间切换。
 
-### 8.2 我的 Skill
+**声明流程来自定义文本，不来自运行时。** 步骤由 SKILL.md 的 heading 或有序列表经确定性解析器得到（`Markdown → 确定性解析器 → Declared Skill Flow`），携带稳定的步号、标题、类别与原文行号。运行时证据只能给已有步骤挂上标注，**不得增加、删除、改名或重排步骤**；从运行时事件反推流程是被明确禁止的做法。这个方向不可逆：`Skill Definition → Declared Flow → Evidence`，绝不是 `Runtime → Flow`。
 
-跨会话只读学习入口。它与当前会话的“Skill 收据 / 流程地图”并列出现在工具栏，但不属于两种会话视图之一，也不改变用户的默认视图偏好。
+每个步骤的关系标注取五值词表之一，并在界面上投影成三类徽章（运行时支持 / 部分支持 / 证据不足）。它表达的是“这一步拿到了什么证据”，**不表达“这一步做对了”**——`Evidence ≠ correctness`，`Insufficient ≠ not executed`；系统不评分，不产生 compliance rate、score、ranking 或百分比。
+
+运行记录以宿主给出的事件标识为准（`eventId` / `callId` / `turn-step`），**不伪造** DSH 没有的 `runId`。每次记录至少显示 Run 序号、时间、加载类型、加载状态、定义指纹与 Turn。
+
+定义指纹比对保留 `Observed Definition Hash` / `Current Definition Hash` 与三态 `match` / `mismatch` / `unavailable`，且**不得**把 `unavailable` 写成 `mismatch`，也不得写成“Skill 已失效”。它同时列出该次运行当时的目录候选（只列名称与简介）。
+
+Repository 是标准信息：地址、打开仓库、打开 Skill 路径、复制 Clone URL。地址只能来自 frontmatter、git remote `origin` 或明确的 metadata；**禁止**根据目录名、Skill 名或 npm 包名猜测 GitHub。猜不到就显示「未解析」，不伪造、不留禁用态占位。
+
+交互上，Flow 步骤与 `SKILL.md` 必须可互相定位：点 Flow 步骤 → 选中该步 + 右侧切到证据面板 + 原文滚到对应位置并短暂高亮；点原文标题 → 对应步骤高亮。
+
+隐私边界在这里同样生效：定义正文**永不落盘、永不进收据**，只在当前会话上现读现返；资源基的绝对路径只暴露类别不暴露路径；凭据型仓库地址整条拒绝；`<skill_content>` 外壳在插件内不可复现，因此显式报告为不可复现而不是自行拼装。
+
+### 8.3 我的 Skill
+
+跨会话只读学习入口。它属于顶级导航的第二段，与「本次 Skill」并列但不属于同一种会话视图，也不改变用户的默认视图偏好。
 
 ```text
-[ 我的 Skill  X ]  │  当前会话：[ Skill 收据 ] [ 流程地图 ]  [ 刷新 ]
+[ 本次 Skill ] [ 我的 Skill ]  Advanced ▾        │  当前会话：[ Skill 列表 ] [ 运行流程 ]  [ 刷新 ]
 ```
 
 即使当前会话没有 Trace，“我的 Skill”入口仍可使用；单句空态只约束当前会话区域。
@@ -778,7 +805,7 @@ P0 首屏回答三个问题：
 
 列表支持按名称与 Skill 声明简介本地搜索，并按“全部 / 有真实收据 / 有会话理解 / 暂未观测 / 当前未发现 / 版本变化”筛选。数据集合是当前会话作用域 Registry 条目与本地历史条目的并集：顶部总数只统计当前可发现 Skill；有历史收据或个人笔记、但当前 Registry 已找不到的条目进入“历史 Skill”分组。列表不展示市场、安装、启停、更新、同步、排行或质量评分；对未挂载会话、Registry 覆盖未知、说明不足和身份冲突分别降级，不生成猜测性内容。
 
-### 8.3 Skill 详情
+### 8.4 我的 Skill 详情
 
 P0 详情固定按以下顺序组织，不允许把不同证据层混排：
 
@@ -788,7 +815,7 @@ P0 详情固定按以下顺序组织，不允许把不同证据层混排：
 
 P1 才在“实际运行记录”和“历次会话理解”之间增加 **我的 Skill 笔记**，用于用户明确维护的当前综合理解、改进意图与验证计划。
 
-### 8.4 个人理解沉淀
+### 8.5 个人理解沉淀
 
 P0 只把既有会话理解汇集到 Skill 详情中回看，不新增综合理解对象：
 
@@ -798,13 +825,25 @@ P0 只把既有会话理解汇集到 Skill 详情中回看，不新增综合理�
 
 P1 才允许用户明确选择“更新我的 Skill 笔记”并写入跨会话 `SkillLearningProfile`；届时仍不得删除或覆盖历史会话笔记，版本或 Skill 身份不一致时必须先确认目标 Skill。
 
-### 8.5 设置与数据
+### 8.6 设置与数据
 
 展示当前 Observer 覆盖、数据保存位置的脱敏表达、隐私字段说明，以及删除本地收据入口。
 
-### 8.6 手动试跑
+### 8.7 手动试跑
 
 V0.2 后置入口。试跑请求与真实加载事实必须分离：创建试跑请求不等于 Skill 已加载。
+
+### 8.8 Advanced：运行流程、运行图谱与 Skill 收据
+
+这三个视图服务技术型用户，收在 `Advanced` 之下，**不再是第一视觉中心，也不再与 Skill 平级**。它们仍然保留完整的观测能力，只是不再是进入产品的第一印象。
+
+- **运行流程（原流程地图）**：面向框架型用户，以任务、Skill、Step、依赖与输出节点展示可观测关系和证据强度。它与收据共用同一事实源，只改变阅读方式，不额外制造一套“AI 推断流程”。
+- **运行图谱**：同一运行的低层事件视图，带筛选，节点与边密度更高。
+- **Skill 收据**：面向新手，按“本次发生了什么 / Skill 加载结果 / 逐个看懂 Skill / 形成我的理解”组织信息；失败请求也保留，但不得写成已加载。多 Skill 会话中按 Skill 名聚合卡片，并在卡片内展开每次 Turn/Step 与白话解释。学习与验证是收据流内的一节，默认收起。
+
+三者底部共同呈现“本次流程小结”。其中“可见流程”仅表示事件的可观测先后顺序，不代表 Agent 的隐藏推理；“本次产出”只读取用户明确关联的工作区相对引用，未关联时必须直说未知。
+
+流程地图不得把 Skill 声明步骤画成已执行节点；选择 Skill 节点后，应在详情区展示其候选步骤和版本状态。当当前会话没有可追踪事件时，本组退化为单句状态，不展示上述视图及其辅助操作。
 
 ## 9. 异常与边界场景
 
@@ -966,7 +1005,7 @@ V0.4 P0“我的 Skill”不调用模型：列表概要优先使用 Skill 自带
 - [x] `DEC-05`：V0.1 不调用模型，自动分析仅做确定性候选。
 - [x] `DEC-06`：先完成隔离生命周期 Spike，再把通过的机制并入正式插件。
 - [x] `DEC-07`：Skill 收据与流程地图共同进入 V0.1，读取同一份数据，不同时生成两套分析。
-- [x] `DEC-08`：首次默认 Skill 收据；用户主动选择后保存为其默认视图。
+- [x] `DEC-08`：首次默认**本次 Skill 列表**（`skills`）；用户主动选择后保存为其默认视图。V5.0 起 `receipt` 不再可作默认页——历史存下的 `receipt` 在读取时归一化为 `skills`，因为那是旧 IA 写下的默认值而不是用户的选择。
 - [x] `DEC-09`：Tab 使用“Skill 追踪”，页面标题使用“本次 Skill 使用记录”；“流程”只用于流程地图与流程小结。
 - [x] `DEC-10`：V0.1 移除无法形成开发者接收闭环的人工反馈入口；旧字段只保留兼容边界。
 - [x] `DEC-11`：核心目标收缩为“理解 Skill 如何运行 → 内化为个人知识 → 准备人工迭代”；插件只生成本地学习材料，不自动修改或发布 Skill。
@@ -984,6 +1023,7 @@ V0.4 P0“我的 Skill”不调用模型：列表概要优先使用 Skill 自带
 - [x] `DEC-23`：用户随后授权并完成 V0.4 P0 只读技术 Spike；该决策保留 Spike 与编码分开的历史 Gate。
 - [x] `DEC-24`：用户单独授权 V0.4 P0 编码；实现范围止于只读目录、证据分级历史关联和既有会话理解回看，不扩展综合理解或 Skill 管理。
 - [x] `DEC-25`：V0.5 三次真实加载、精确收据和本地理解回读只证明工程闭环；主持人代理重述不得计作用户理解，P1 继续冻结到无提示复述与 24 小时复测完成。
+- [x] `DEC-26`：**V5.0 Skill-first Information Architecture Refactor**。Skill 由“Runtime Trace 中被观察到的一个对象”提升为**产品一级对象**；旧结构 `Session ├ Skill Receipt ├ Runtime Flow ├ Runtime Graph ├ Definition └ My Skills` 改为 `Skill ├ Definition ├ Declared Flow ├ Runs ├ Evidence └ Repository`。Runtime Flow / Runtime Graph / Skill 收据降级为 `Advanced`。声明流程的来源方向固定为 `Definition → Declared Flow → Evidence`，**不可逆**。Tool / MCP / CLI / Subagent 不是一级对象。
 
 ## 16. 验收标准
 
@@ -1027,7 +1067,7 @@ V0.4 P0“我的 Skill”不调用模型：列表概要优先使用 Skill 自带
 - 用户可按名称或 Skill 声明简介搜索，并在 10 秒内打开目标 Skill；
 - 列表至少区分“当前发现 / 有真实收据 / 有会话理解 / 暂未观测 / 当前未发现 / 版本变化”，且不存在“未观测 = 未使用”的文案；
 - 有历史收据或个人笔记、但当前 Registry 不再发现的 Skill 仍可在“历史 Skill”分组回看，且不计入当前可发现总数；
-- “我的 Skill”与“Skill 收据 / 流程地图”在视觉上可同栏进入，但语义上不是三个同级视图；
+- “本次 Skill”与“我的 Skill”在视觉上可同栏进入，但语义上不是两个同级列表；“Advanced”（运行流程 / 运行图谱 / Skill 收据）与它们分组，不得成为第一视觉中心；
 - Skill 详情固定区分“Skill 声明 / 实际运行记录 / 历次会话理解”；测试中关键误解为 0；
 - 未使用 Skill 只显示 Registry 声明，不生成虚构流程、使用次数、Continuity 结论或模型摘要；
 - 详情只按原收据、原版本回看既有 `PersonalLearningNote`，不把最近笔记、最长笔记或自动结果包装成综合理解；
@@ -1086,6 +1126,7 @@ V0.4 P0“我的 Skill”不调用模型：列表概要优先使用 Skill 自带
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 0.18 | 2026-09-30 | **Skill-first Information Architecture Refactor**：Skill 提升为产品一级对象，旧 `Session → Runtime → Definition` 层级改为 `Skill → Definition / Declared Flow / Runs / Evidence / Repository`；新增 §8.1「本次 Skill」为默认页、§8.2 本次 Skill 详情、§8.8 Advanced，原双视图与新学习入口收进 Advanced；默认视图偏好收敛为 `skills / map`（`receipt` 归一化为 `skills`）；新增 `FR-UI-032` 至 `FR-UI-042` 与 `DEC-26` |
 | 0.17 | 2026-08-28 | 补齐未保存草稿闭环：当前 Desktop 运行期间分域暂存、页面返回恢复、保存版本冲突失效、成功写入或删除后的确定性清理，以及关闭/重载提醒 |
 | 0.16 | 2026-08-28 | 纠正“工程闭环已通过”的过宽声明；冻结 Host 可验证备份、恢复预览、仅补缺恢复、删除前安全备份、动态语言提示与真实数据验收边界 |
 | 0.13 | 2026-08-27 | 同步 V0.5 P0 真实使用工程验收：3 个 Skill 均形成精确收据与本地会话理解；冻结“工程通过不等于用户理解”，等待无提示复述与 24 小时复测 |

@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents a local receipt plus a user-owned learning loop. It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
+DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object: a local receipt plus a user-owned learning loop. It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
 
 ```text
 DSH event stream
@@ -13,12 +13,21 @@ DSH event stream
   └─ turn/start · step/start        → log-order attribution cursor
        └─ trace reducer
             ├─ local session receipt
-            ├─ receipt / flow-map views
-            └─ read-only My Skills workspace
-                 ├─ no-selection seven-step learning guide
-                 ├─ per-Skill learning and validation timeline
-                 ├─ pending-review projection and local user-text search
-                 └─ deterministic continuation handoff
+            └─ skill view model (Skill-first)
+                 ├─ Skill list  — only Skills this session actually loaded
+                 └─ Skill detail
+                      ├─ Definition        live read, never persisted
+                      ├─ Declared Flow     parsed from the definition text
+                      ├─ Runs              load records + definition fingerprint
+                      ├─ Evidence          runtime evidence per declared step
+                      └─ Repository        resolved from frontmatter / git origin
+            └─ Advanced views (not first-visual)
+                 ├─ receipt / flow-map / runtime-graph
+                 └─ read-only My Skills workspace
+                      ├─ no-selection seven-step learning guide
+                      ├─ per-Skill learning and validation timeline
+                      ├─ pending-review projection and local user-text search
+                      └─ deterministic continuation handoff
 ```
 
 ## Evidence model
@@ -176,7 +185,7 @@ stylesheet's braces must balance.
 
 ## Canvas
 
-The plugin's third view draws the runtime graph. It is worth stating what the canvas is *not*: it is not a second source of truth. It receives positions, draws them, and asks the Host why a line exists when one is clicked.
+The runtime graph is an **Advanced** view, not the first visual. It is worth stating what the canvas is *not*: it is not a second source of truth. It receives positions, draws them, and asks the Host why a line exists when one is clicked.
 
 ### Why grouping is in the model
 
@@ -371,3 +380,114 @@ Scope 只存标识符与分类。不含提示词正文、不含工具参数、�
 - **跨 Turn 的 Skill 工作不在 Scope 内。** 这是刻意的：宁可少算，不算错。
 - **工具词表是固定的**：`classifyInvocationStep` 认识 `read`/`edit`/`bash` 等，
   实测会话里的 `read_image`/`job_output` 不在其中，会归类为 `other`（不强行归入某个步骤）。
+
+---
+
+## V5.0 — Skill-first Information Architecture
+
+### 它解决什么
+
+到 `0.4.0-beta.66` 为止，插件已经有 Definition Viewer、`SKILL.md` 原文、Definition Outline、
+Repository Resolver、Runtime Alignment、Runtime Evidence 与 Runs。但它们全部挂在
+「本次运行 → 定义视图」之下：
+
+```
+Session ├ Skill Receipt ├ Runtime Flow ├ Runtime Graph ├ Definition └ My Skills
+```
+
+Definition 是**运行的一个属性**。用户仍然必须先理解 Turn / Step / Invocation / Runtime Graph /
+Scope / Edge，才能理解一个 Skill。判定标准很直接：如果必须先理解运行模型才能理解 Skill，
+Skill-first 就没有完成。
+
+V5.0 把 Skill 提升为一级对象：
+
+```
+Skill ├ Definition ├ Declared Flow ├ Runs ├ Evidence └ Repository
+```
+
+数据关系是 `Skill → Skill Definition → Declared Skill Flow → Skill Run → Runtime Evidence`。
+Tool / MCP / CLI / Subagent **不是**一级对象，只能作为 Runtime Evidence 的来源出现。
+
+### 方向不可逆：声明流程来自定义，不来自运行时
+
+这是本次重构在技术上的核心一条。
+
+```
+Skill Definition → Definition Parser → Declared Skill Flow
+                                            ↓
+Runtime Evidence ────────────────→ attach evidence to Flow step
+```
+
+反过来做——从运行时事件归纳出一条流程——是被明确禁止的。那种产物是 Agent 的执行轨迹，
+不是 Skill 的声明；而且它会让「Flow 有几步」取决于这次会话凑巧触发了什么。
+
+实现上分成两个模块，边界就是这条方向：
+
+- `src/core/skill-flow.mjs`：**只**依赖定义文本。它不 import 任何 runtime 模块。
+  `extractDeclaredFlow(content, {truncated})` 产出
+  `steps[{id: 'declared:N', order, title, kind, line, evidenceType}]`，另外带上
+  `channel` / `note` / `headingCount` / `orderedListCount` / `stepCount` / `truncated` /
+  `withheldCount` / `limitations`。步骤标题经 `sanitizeFlowTitle`，含绝对路径 / `~/` /
+  Windows 盘符的整条扣留并计入 `withheldCount`——**宁可少一步，不落一条路径**。
+- `src/core/skill-view-model.mjs`：组合层。`attachEvidenceToFlow(flow, annotated, hasRuntime)`
+  **只从 flow 取 `id/order/title/kind/line/evidenceType`**，其余全部放进 `evidence.*`。
+  这是「运行时只能标注、不能增删改序」的实现点。
+
+`alignment` 仍然存在，但不再是 Flow 的来源，只是 `evidence` 的计算器。
+
+同一段 SKILL.md 文本喂进 `extractDeclaredFlow`，无论手上有没有 receipt，`flow.steps` 必须逐字相同
+（`test/phase15-skill-first-ia.test.mjs` 的 A5），而加入运行时证据后只有 `evidence.*` 变化（A6）。
+
+### 扫描器只有一份
+
+`Markdown → Declared Flow` 的扫描器（heading 优先、有序列表兜底、围栏与 frontmatter 跳过）住在
+`src/core/skill-flow.mjs` 的 `scanDeclaredSteps`。**receipt 路径也走同一个它**：`runtime-alignment.mjs`
+里的 `extractDeclarationSteps` 现在是一层包装，`scripts/verify-project.mjs` 会断言
+`runtime-alignment.mjs` 必须包含 `scanDeclaredSteps`——即 receipt 路径不得另留一份拷贝。
+
+拆分的动机是可观测的：receipt 路径历史上吃的是 harness 渲染的 `<skill_instructions>` 外壳，
+定义路径吃的是原始 `SKILL.md`。两者正常同源，但外壳一旦增删结构就会分歧。
+放在同一份扫描器下，分歧至少是可测的，而不是两套「声明步骤」各自演化。
+
+### Skill 列表只认加载证据
+
+`buildSessionSkillList(receipt, {lookup})` 只从 `receipt.traceEvents` 里 `status === 'loaded'`
+的项建列表。`lookup`（Host 侧的 `registry.get`）**只用来给已经加载过的名字补描述与定义状态**，
+绝不用来发现列表成员。因此「当前 Registry 里可发现」与「本次会话加载过」不会被混成一个列表——
+后者是本页，前者是「我的 Skill」。
+
+`definitionStatus` 是「registry 现在能否解析这个名字」，**不是哈希比对**。哈希三态属于 Skill 详情，
+那里才真的读正文。这个区分是刻意的：列表不该因为读不到正文而说某个 Skill 有问题。
+
+### Run 不伪造标识
+
+DSH 没有原生的 `runId`。`buildSkillRuns` 用宿主自己给出的事件标识（`eventId`，退回
+`callId` / `turn-step`）作为 `runKey`，**不发明字段**。定义指纹比对写进
+`definitionSnapshot{observedInstructionSha256, currentInstructionSha256, match}`，
+任一侧哈希缺失即 `unavailable`——**不为 `mismatch`**，也不写成「Skill 已失效」：
+哈希只证明版本变化，不证明好坏。
+
+### 证据词表与投影
+
+`SkillRun` 与 Flow 步骤之间的关系标注沿用五值词表
+（`runtime-supported` / `intent-supported` / `partial` / `insufficient` / `unknown`），
+界面上投影成三类徽章。它回答「这一步拿到了什么证据」，**不回答「这一步做对了」**。
+`Evidence ≠ correctness`，`Insufficient ≠ not executed`；没有 compliance rate、score、
+ranking 或百分比。
+
+### 默认视图
+
+默认页偏好只有 `skills` 与 `map`。`receipt` 与 `audit` 不再可保存为默认页：
+旧 IA 的默认页就是 receipt，所以存下来的 `receipt` 几乎不是「用户的选择」而是「被写下来的默认值」。
+读取时把它归一化为 `skills`；`map` 保留，因为选运行地图是刻意行为。
+
+### 仍然受限的地方
+
+- **声明流程与运行时步骤的对应仍靠 step kind。** `alignStep` 只在类别层面匹配，不比文本。
+  一个声明为 `inspect` 的步骤遇到一次 `bash` 调用不会直接判 `runtime-supported`；
+  它会走到 `intent-supported` 或停在 `partial`。这是「宁可说证据不足」的一贯取舍。
+- **receipt 路径仍然可能把围栏代码里的 `#` 当标题。** 定义路径已跳过围栏，receipt 路径为了
+  与历史收据逐字一致仍走原样扫描。两条路径产出的步骤因此在边界情况下会分歧，且这是已知的、
+  被测试锁住的行为，不是偶发缺陷。
+- **`<skill_content>` 外壳不可复现。** 插件里没有任何 `@deepseek-ai` 运行时导入，
+  `renderSkillContent()` 拿不到，因此该层显式报告为「不可在宿主之外复现」，而不是自己拼一个像的。

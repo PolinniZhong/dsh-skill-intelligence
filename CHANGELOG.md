@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.4.0-beta.67 — 2026-10-01 · Skill-first 信息架构：第一屏从运行流程图换成「本次 Skill」
+
+**这是结构性重构，不是加第四个视图。** 测试 382 → 406。
+
+### 一、为什么要把第一屏翻过来
+
+此前打开 Skill 追踪，第一眼是「运行流程图」——一个需要先理解 Turn / Invocation / 节点折叠规则才能读懂的对象。
+而用户打开这个插件时真正的问题是：**这次对话到底用了哪些 Skill？它们各自声明了什么、又实际拿到了什么证据？**
+流程图回答不了这个问题，它只在你已经知道「在找哪个 Skill」之后才有用。
+
+所以第一屏改成**本次对话加载过的 Skill 列表**，导航收敛成两段：「本次 Skill」与「我的 Skill」。
+运行流程、运行图谱、Skill 收据一并收进顶栏的「高级 ▾」——仍然可用，但降级为高级视图，不再与 Skill 平级。
+验收标准写死为一句：**如果用户必须先理解运行模型才能理解 Skill，则 Skill-first 尚未完成。**
+
+### 二、Skill 详情的三栏
+
+| 栏 | 内容 |
+|---|---|
+| 左 | 本次加载的 Skill 列表（名字 + 描述 + `N 次加载 · 时间 · 定义状态`）、该 Skill 的运行记录、仓库来源（解析到就给出相对路径与 clone 命令，解析不到只显示「仓库 · 未解析」） |
+| 中 | Skill 头部 + **声明流程**：start pill、连接线、编号步骤卡（步骤标题、声明类别、运行时证据、定义来源、证据徽章）、图例；流程为空时给出解释句而不是空白 |
+| 右 | 两个常驻挂载的面板，用 `data-active` 切换：**SKILL.md**（原文渲染 + 目录锚点 + 700ms 高亮）与 **证据**（声明 / 关系 / 运行时证据 / 定义来源 / 指令指纹比对 / 当时目录中的候选） |
+
+三栏仍在插件自托管的容器内（DSH 的左右栏是 single 且已被占用，不能新增第二条侧栏），
+断点与设计 demo 一致：1180px 收窄两侧，980px 收起证据栏，再窄则连同定义目录一起收起，只留声明流程。
+
+### 三、方向不可逆
+
+声明流程**只能**来自定义正文：由 `SKILL.md` 的标题层级与有序列表确定性抽取（`src/core/skill-flow.mjs`），
+不经过任何模型、Embedding 或检索；运行时证据只往步骤上挂标注，既不增删步骤也不重排步骤。
+代码结构把这条方向写死了：`skill-flow.mjs` 不认识任何运行时对象，`skill-view-model.mjs` 只做组合，
+客户端只渲染不推理。`scripts/verify-project.mjs` 因此新增一条守卫：`runtime-alignment.mjs` 必须包含
+`scanDeclaredSteps`——**收货路径与定义路径共享同一个扫描器，不允许各自留一份「声明步骤」的定义**。
+
+### 四、证据词表收敛为五值，界面只做投影
+
+底层关系仍然是 `runtime-supported` / `intent-supported` / `partial` / `insufficient` / `unknown` 五个值
+（`observed` 在 `5d25871` 被刻意移除——它读起来像「运行时观察到了这一步」，而运行时从未这么说）。
+界面只做投影：`runtime-supported` →「运行时支持」，`intent-supported` 与 `partial` →「部分支持」，
+`insufficient` 与 `unknown` →「证据不足」。徽章少一个值，但每一个都不撒谎。
+
+### 五、三条硬规矩
+
+1. **不伪造 Run 标识**：载荷里刻意不存在 `runId` 字段，Run 由会话内的加载事件标识（`runKey === eventId`）。
+2. **指纹三态**：`match` / `mismatch` / `unavailable`。任一侧缺失就是 `unavailable`——**绝不把「无法比对」写成「文件已改变」**，两者对用户的含义完全相反。
+3. **仓库来源可解释**：只可能来自 frontmatter、git origin 或用户配置；带凭据的 remote 整条拒绝而不是剥离后展示；猜不到就显示未解析，不造链接。
+
+### 六、顺手修掉的四个真实缺陷（都由真实数据或渲染台截图先发现）
+
+| # | 位置 | 缺陷 | 后果 |
+|---|---|---|---|
+| 1 | `src/dsh/client/client.js` 的列表请求 | 宿主把列表套在 `list` 里和 `sessionId` / `workspaceLabel` 一起返回，客户端却按顶层读 `list.skills` | **第一屏在真实数据下永远是空的**。单元测试走注入的 `suppliedList`、接口测试只看服务端，双双为绿——是渲染台用真实客户端 bundle + 真实会话载荷截图时暴露的。现已在 `verify-project.mjs` 里加一对断言把两端同时钉住 |
+| 2 | `src/core/skill-flow.mjs` 的 `splitOrdinal` | 只认以数字开头的标题 | 真实 Skill 最常见的写法 `### Step 1: …` 整段抽成空。现在同时认 `Step N` / `Phase N` / `Stage N` / `第 N 步`（前缀后必须真跟数字，`Step by step guide` 不会被误判） |
+| 3 | 同文件的 level-2 分支 | 用**剥掉编号后**的标题判断这是不是流程节 | `## Phase 2 — Runtime` 被剥成 `Runtime`，「Phase」消失，这一节的子标题全部落空。改为用原始标题判断 |
+| 4 | 客户端 limitation 码表 + 工具栏 | 码表写的是 `no-git-work-tree`，宿主实际发 `no-git-work-tree-found`；同时工具栏右侧的状态 chip 在长描述旁被压缩成竖排单字 | 界面直接显示裸代码；「定义可用」被竖着排成四行。已补齐码表（含 `repository:` 前缀与 `…-remote` 后缀族的规则匹配），并给工具栏动作区加 `flex:none` |
+
+另外，`test/phase3-alignment.test.mjs` 新增 4 个抽取回归测试，锁住 `Step N` / `Phase N` / `第 N 步` / `Step by step` 四种写法。
+
+### 七、验收
+
+- `node --test` → **406 项全绿**（含新增的 Skill 优先信息架构 19 项、定义视图 25 项）。
+- `node scripts/verify-project.mjs` → 24 个静态合同 marker 全 OK。
+- 渲染台（真实客户端 bundle + 真实会话载荷）逐张核对：首屏、详情、证据面板、步骤锚定、高级下拉。
+- **仍未覆盖**：DSH WebView 内的人眼确认。宿主不会热加载 host 入口，`/skill-trace/skills` 与 `/skill-trace/skill` 要等宿主重启后才存在，因此这一步留给发布会话。
+
 ## 0.4.0-beta.66 — 2026-09-30 · Skill Definition Viewer：第四个视图 + 证据链路修复
 
 **这是新功能，也是三处静默降级的修复。** 测试 345 → 382。

@@ -269,18 +269,42 @@ test('the client registers and its entry component renders without throwing', as
     meaning: '包含关系来自事件自带的 turn / step 字段。', limit: '包含只说明结构位置，不说明该调用达成了什么。',
     evidenceBoundary: { causal: false, compliance: false, correctness: false, note: '只报告观测到的关联。' },
   }
-  // §11 右栏的注入口。`definition` 平时由 `useEffect` 里的 fetch 填，而这个测试的 react
-  // stub 不执行 effect，所以不注入就等于「右栏一行都不跑」——Markdown 渲染器、Evidence
-  // 面板、目录候选清单全都在 `observation` 分支之下。这里给一份真形状的载荷，用一份
-  // 带围栏、标题、列表、行内标记与不安全协议的正文去压渲染器。
-  const definitionFixture = {
-    ok: true,
+  // §11 的注入口搬去了 SkillWorkbench：`list` 与 `skill` 平时由 `useEffect` 里的 fetch 填，
+  // 而这个测试的 react stub 不执行 effect，所以不注入就等于「右栏一行都不跑」——Markdown
+  // 渲染器、Evidence 面板、目录候选清单全都在注入之后的分支之下。这里给一份**真形状**的
+  // `/skill` 载荷（列表 + 详情），用一份带围栏、标题、列表、行内标记与不安全协议的正文去压渲染器。
+  const skillListFixture = {
+    schemaVersion: 1, sessionId: 's', scope: 'session-loaded-skills-only',
+    skills: [
+      {
+        name: 'code-review', description: '评审代码变更。', source: 'project-agents', provider: 'filesystem',
+        runCount: 1, lastLoadedAt: 1700000000000, lastInvocationType: 'model-invoked',
+        definitionStatus: 'available', repositoryStatus: 'resolved',
+      },
+      {
+        name: 'demo-skill', description: null, source: 'project-agents', provider: 'filesystem',
+        runCount: 0, lastLoadedAt: null, lastInvocationType: null,
+        definitionStatus: 'unknown-skill', repositoryStatus: 'unresolved',
+      },
+    ],
+    skillCount: 2, limitations: [],
+  }
+  // 仓库来源住在 `skill.repository`——Host 把它与 `definition` 并列放在详情顶层。
+  // 放错一层，「打开仓库 ↗」就永远不渲染，而测试照样绿。
+  const resolvedRepository = { status: 'resolved', basis: 'frontmatter', key: 'repository', label: 'example/code-review-skill', relativePath: 'skills/code-review', cloneCommand: 'https://github.com/example/code-review-skill', limitations: [] }
+  const skillDetailFixture = {
+    schemaVersion: 1, skillName: 'code-review',
+    summary: {
+      name: 'code-review', description: '评审代码变更。', whenToUse: null,
+      invocation: { modelInvocable: true, userInvocable: true }, source: 'project-agents', provider: 'filesystem',
+      runCount: 1, lastLoadedAt: 1700000000000, definitionStatus: 'available', definitionReason: null,
+    },
     definition: {
-      schemaVersion: 1, skillName: 'code-review', available: true, reason: null,
+      schemaVersion: 1, skillName: 'code-review', available: true, reason: null, checkedAt: 1700000000000,
       summary: { description: '评审代码变更。', whenToUse: null, invocation: { modelInvocable: true, userInvocable: true }, source: 'project-agents', provider: 'filesystem' },
       resourceBase: { kind: 'directory', path: null, pathOmitted: true, url: null, note: null },
       content: {
-        sha256: 'sha256:abc', returnedSha256: 'sha256:abc', bytes: 420, lineCount: 14, truncated: false,
+        sha256: 'sha256:abc', returnedSha256: 'sha256:abc', bytes: 420, lineCount: 21, truncated: false,
         text: [
           '---',
           'name: code-review',
@@ -308,23 +332,66 @@ test('the client registers and its entry component renders without throwing', as
         { id: 'purpose', level: 1, title: 'Purpose', line: 6 },
         { id: 'workflow', level: 2, title: 'Workflow', line: 10 },
       ],
+      outlineTruncated: false, outlineHeadingCount: 2,
       frontmatter: { present: true, bodyStartLine: 6, keys: ['name', 'metadata'] },
       renderedEnvelope: { available: false, reason: 'rendered-envelope-not-reproducible-outside-the-harness' },
+      repository: resolvedRepository,
       limitations: ['resource-base-path-withheld'],
-      // 仓库来源住在 definition **里面**——Host 把 `definition` 与 `observation` 并列放在
-      // payload 顶层，`repository` 是 definition 视图的一部分。放错一层，右栏的「打开仓库 ↗」
-      // 就永远不渲染，而测试照样绿。
-      repository: { status: 'resolved', basis: 'frontmatter', key: 'repository', label: 'example/code-review-skill', relativePath: 'skills/code-review', cloneCommand: 'https://github.com/example/code-review-skill', limitations: [] },
     },
+    // 声明流程来自**定义正文**。证据只标注它：`order` 原样保留，条数不由运行时反推。
+    flow: {
+      schemaVersion: 1, source: 'definition',
+      steps: [
+        {
+          id: 'declared:1', order: 1, title: 'Purpose', kind: 'heading', line: 6, evidenceType: 'heading',
+          evidence: { relationship: 'runtime-supported', limitation: null, runtimeEvidence: [{ type: 'invocation.request', category: 'cli' }], observedNodeIds: ['invocation:inv0'], evidenceIds: ['s:re:0'], matchedCapabilities: ['cli'], matchCount: 1, modelIntent: { present: false } },
+        },
+        {
+          id: 'declared:2', order: 2, title: 'Workflow', kind: 'heading', line: 10, evidenceType: 'heading',
+          evidence: { relationship: 'insufficient', limitation: '未观察到能对应到该步骤的 Runtime 证据。', runtimeEvidence: [], observedNodeIds: [], evidenceIds: [], matchedCapabilities: [], matchCount: 0, modelIntent: { present: false } },
+        },
+      ],
+      channel: 'heading', note: null, headingCount: 2, orderedListCount: 1, stepCount: 2, truncated: false, withheldCount: 0, limitations: [],
+    },
+    anchors: { 'declared:1': 'purpose', 'declared:2': 'workflow' },
+    runs: [{
+      runKey: 's:te:1', eventId: 's:te:1', skillName: 'code-review', status: 'loaded', invocationType: 'model-invoked',
+      turn: 1, step: 1, callSeq: 1, resultSeq: 2, requestedAt: 1700000000000, consumer: null, consumerIdentity: null,
+      coverage: {},
+      evidenceFingerprint: { algorithm: 'sha256', scope: 'skill-load', value: 'sha256:deadbeefdeadbeef' },
+      definitionSnapshot: { observedInstructionSha256: 'sha256:abc', currentInstructionSha256: 'sha256:abc', match: 'match' },
+    }],
+    evidence: { hasRuntime: true, scope: 'session', invocations: [], invocationCount: 0 },
+    repository: resolvedRepository,
     observation: {
-      match: 'match', observedInstructionSha256: ['sha256:abc'], currentInstructionSha256: 'sha256:abc',
+      match: 'match', observedInstructionSha256: 'sha256:abc', currentInstructionSha256: 'sha256:abc',
       loadedDuringRun: true, inPublishedCatalog: true,
       catalogPublication: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest' },
     },
+    limitations: [],
+  }
+  const skillPayload = { ok: true, sessionId: 's', workspaceLabel: '工作区', list: skillListFixture, skill: skillDetailFixture }
+  // 定义读不到时的形状：`definition` 只剩可用性字段，`flow.steps` 是**空数组**，
+  // 限制码说明「抽不出声明流程」。绝不从运行时调用反推步骤。
+  const unavailableSkill = {
+    schemaVersion: 1, skillName: 'code-review',
+    summary: {
+      name: 'code-review', description: null, whenToUse: null,
+      invocation: { modelInvocable: true, userInvocable: true }, source: 'project-agents', provider: 'filesystem',
+      runCount: 1, lastLoadedAt: 1700000000000, definitionStatus: 'unknown-skill', definitionReason: 'unknown-skill',
+    },
+    definition: { schemaVersion: 1, skillName: 'code-review', available: false, reason: 'unknown-skill', checkedAt: 1700000000000 },
+    flow: { schemaVersion: 1, source: 'definition', steps: [], channel: null, note: null, headingCount: 0, orderedListCount: 0, stepCount: 0, truncated: false, withheldCount: 0, limitations: ['definition-unavailable-so-no-declared-flow-could-be-extracted'] },
+    anchors: {},
+    runs: [],
+    evidence: { hasRuntime: true, scope: 'session', invocations: [], invocationCount: 0 },
+    repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] },
+    observation: { match: 'unavailable', observedInstructionSha256: null, currentInstructionSha256: null, loadedDuringRun: true, inPublishedCatalog: false, catalogPublication: null },
+    limitations: ['definition-unavailable-so-no-declared-flow-could-be-extracted'],
   }
   // 44 条候选：越过 `AUDIT_CATALOG_LIMIT`（40），逼出「另有 N 个未列出」那条分支。
   const catalogEntries = Array.from({ length: 44 }, (unused, index) => ({ name: `skill-${index}`, description: `候选 ${index}` }))
-  const auditPayload = { ...payload, receipt: { ...payload.receipt, catalogPublished: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest', entries: catalogEntries } } }
+  const catalogPayload = { ...payload, receipt: { ...payload.receipt, catalogPublished: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest', entries: catalogEntries } } }
 
   const cases = {
     FlowCanvas: [{ data: payload, loading: false, error: '', onRetry() {}, inspect: inspectNode, inspectLoading: false, inspectError: '', alignments: payload.views.receipt.runtime.alignments, skillLoads: payload.skillLoads, onSelect() {}, onCloseInspect() {} }],
@@ -348,11 +415,13 @@ test('the client registers and its entry component renders without throwing', as
       [{ timeline: payload.timeline, index: -1, playing: true, onIndex() {}, onPlaying() {} }],
       [{ timeline: null, index: -1, playing: false, onIndex() {}, onPlaying() {} }],
     ],
-    // §11：Definition Viewer 是一个**新的一级视图**，三栏都长，任何一栏的 TDZ 或空
-    // 载荷访问都会让整页空白。四个形态：有数据、加载中、出错、以及「有回执但这次对话
-    // 没有对齐结果」——最后一种最容易漏，因为 `alignments` 是空的而 `traceEvents` 还在。
-    AuditView: [
-      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {} }],
+    // §11：Skill Workbench 是一个**新的一级视图**，三栏都长，任何一栏的 TDZ 或空
+    // 载荷访问都会让整页空白。六个形态：有清单、有清单+详情、加载中、出错、
+    // 「有回执但这只 Skill 没有对齐结果」，以及**定义读不到**（`definition.available
+    // === false` 且 `flow.steps` 为空）——最后一种最容易漏，因为它走的是另一条渲染分支。
+    SkillWorkbench: [
+      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {}, list: skillListFixture }],
+      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {}, list: skillListFixture, skill: skillDetailFixture }],
       [{ sessionId: 's', data: null, loading: true, error: '', onRetry() {} }],
       [{ sessionId: 's', data: null, loading: false, error: '读取失败', onRetry() {} }],
       [{
@@ -362,10 +431,9 @@ test('the client registers and its entry component renders without throwing', as
           receipt: { ...payload.receipt, traceEvents: [] },
           views: { ...payload.views, receipt: { ...payload.views.receipt, runtime: { ...payload.views.receipt.runtime, alignments: [] } } },
         },
-        loading: false, error: '', onRetry() {},
+        loading: false, error: '', onRetry() {}, list: skillListFixture,
       }],
-      // 注入了定义之后，右栏的每一个分支都会真的执行一次。
-      [{ sessionId: 's', data: auditPayload, loading: false, error: '', onRetry() {}, definition: definitionFixture }],
+      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {}, list: skillListFixture, skill: unavailableSkill }],
     ],
   }
   for (const [name, variants] of Object.entries(cases)) {
@@ -375,22 +443,36 @@ test('the client registers and its entry component renders without throwing', as
       assert.doesNotThrow(() => render(View(props)), `${name} threw on variant ${index}`)
     })
   }
-  // 注入的定义必须**真的**渲染出来，而且要渲染成正确的形状。只比节点数是不行的：右栏从
+  // 注入的清单与详情必须**真的**渲染出来，而且要渲染成正确的形状。只比节点数是不行的：右栏从
   // Tab 面板到 Markdown 渲染器到目录清单，每一层都有分支，节点数涨了不代表每个分支都对。
   // 曾经那个断言（+200 个节点）既测不出 `javascript:` 链接漏成了 `<a>`，也测不出目录清单
   // 截断条数写错——它只证明「多了不少东西」。
-  const nodes = collect(views.AuditView({ sessionId: 's', data: auditPayload, loading: false, error: '', onRetry() {}, definition: definitionFixture }))
+  const nodes = collect(views.SkillWorkbench({
+    sessionId: 's', data: catalogPayload, loading: false, error: '', onRetry() {},
+    list: skillListFixture, skill: skillDetailFixture,
+  }))
   const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   const elements = (type) => nodes.filter((node) => node.type === type)
+  const childText = (node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')
+
+  // 0. 第一屏是 Skill 清单，不是运行图谱。清单按 Host 给的最后加载时间倒序原样显示，并且
+  //    **不带**运行节点数 / 边数 / 工具数——那些属于高级里的运行视图。
+  const listNames = nodes.filter((node) => node.props.className === 'st-skill-item-name').map(childText)
+  assert.deepEqual(listNames, ['code-review', 'demo-skill'], 'the first column lists exactly the Skills this session loaded, in Host order')
+  assert.ok(text.includes('评审代码变更。'), 'a Skill description is shown as written')
+  assert.ok(text.includes('1 次加载'), 'the list states how many times each Skill was loaded')
 
   // 1. Markdown 渲染器认得出标题、行内代码、围栏块。
-  const headingText = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
-    .flatMap((tag) => elements(tag).map((node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')))
+  const headingText = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].flatMap((tag) => elements(tag).map(childText))
   assert.ok(headingText.includes('Purpose') && headingText.includes('Workflow'), 'the outline headings become heading elements')
   assert.ok(!headingText.some((heading) => heading.includes('not a heading')), 'a # inside a fenced code block must not become a heading')
   assert.ok(text.includes('# not a heading'), 'the fenced block keeps its content verbatim, as code')
   assert.ok(text.includes('diff'), 'inline code is rendered')
   assert.ok(text.includes('changes') && !text.includes('**changes**'), 'bold is rendered as <strong>, not left as literal asterisks')
+  // 面板自己已经有层级，所以正文标题降一级：`# Purpose` 是 h2，页面里不会出现第二个 h1。
+  assert.ok(!elements('h1').some((node) => childText(node).includes('Purpose')), 'a body heading never becomes another <h1>')
+  // 锚点 id 取自 Host 的 outline 行号映射；客户端二次 slug 一旦和它不一致就会锚错段落。
+  assert.ok(nodes.some((node) => node.props.id === 'st-audit-doc-purpose' && node.type === 'h2'), 'the heading id comes from the Host outline entry, not a client-side slug')
 
   // 2. 第三方 SKILL.md 能写任何东西。只有 http(s) 允许变成链接，其余协议必须退化成纯文本，
   //    否则一份 Skill 文档就能把 `javascript:` 带进界面。
@@ -404,28 +486,44 @@ test('the client registers and its entry component renders without throwing', as
   assert.ok(external.every((node) => /noopener/.test(String(node.props.rel))), 'external links carry rel="noreferrer noopener"')
 
   // 2b. §11.9：仓库没解析出来时，界面上不能出现猜测出来的链接，也不能留一个禁用态的占位。
-  const unresolvedNodes = collect(views.AuditView({
-    sessionId: 's',
-    data: auditPayload,
-    loading: false, error: '', onRetry() {},
-    definition: {
-      ...definitionFixture,
-      definition: { ...definitionFixture.definition, repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] } },
-    },
+  const unresolvedSkill = {
+    ...skillDetailFixture,
+    repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] },
+    definition: { ...skillDetailFixture.definition, repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] } },
+  }
+  const unresolvedNodes = collect(views.SkillWorkbench({
+    sessionId: 's', data: catalogPayload, loading: false, error: '', onRetry() {},
+    list: skillListFixture, skill: unresolvedSkill,
   }))
   const unresolvedAnchors = unresolvedNodes.filter((node) => node.type === 'a' && node.props.target === '_blank')
   assert.equal(unresolvedAnchors.length, 0, 'an unresolved repository must not invent a link')
   assert.ok(unresolvedNodes.some((node) => node.type === '#text' && node.text.includes('仓库 · 未解析')), 'the surface states the repository is unresolved rather than staying blank')
 
+  // 2c. 定义读不到：`flow.steps` 是空的，界面不能从运行时的调用反推出一串假步骤；
+  //     指纹比对缺一半哈希时必须写「无法比对」，既不能当成 mismatch，也不能写成「已失效」。
+  const unavailableNodes = collect(views.SkillWorkbench({
+    sessionId: 's', data: catalogPayload, loading: false, error: '', onRetry() {},
+    list: skillListFixture, skill: unavailableSkill,
+  }))
+  const unavailableText = unavailableNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-step').length, 0, 'an unavailable definition yields no synthesised flow step')
+  assert.ok(unavailableText.includes('这份 Skill 的定义当前读不到，所以无法抽取声明流程。'), 'the empty flow explains itself instead of rendering an empty card')
+  assert.ok(unavailableText.includes('无法比对'), 'a missing fingerprint pair is stated as 无法比对')
+  assert.ok(!unavailableText.includes('文件已改变'), 'an unavailable comparison must never be reported as a mismatch')
+  assert.ok(!unavailableText.includes('已失效'), 'an unavailable comparison must never be reported as "the Skill is void"')
+
   // 3. 目录候选只列 AUDIT_CATALOG_LIMIT 条，并如实说明剩下的——一条都不能多渲染。
   assert.ok(text.includes('skill-0') && text.includes('skill-39'), 'the catalogue list renders up to the limit')
   assert.ok(!text.includes('skill-40'), 'the catalogue list must stop at the limit')
   assert.ok(text.includes('另有 4 个候选未列出'), 'the truncation is stated, not silently dropped')
+  assert.equal(nodes.filter((node) => node.type === 'ul' && node.props.className === 'st-audit-catalog-list').length, 1, 'the catalogue list renders once')
+  assert.equal(nodes.filter((node) => node.type === 'ul' && node.props.className === 'st-audit-catalog-list')[0].children.length, 40, 'the catalogue list stops at AUDIT_CATALOG_LIMIT')
 
   // 4. 两个 Tab 面板都留在 DOM 里（由 CSS 切显隐），所以切 Tab 不丢滚动位置——同时这也意味着
   //    "没有定义" 的那个变体不该渲染出任何一个面板的正文。
   assert.equal(nodes.filter((node) => node.props.className === 'st-audit-pane').length, 2, 'both tab panels stay mounted')
   assert.equal(nodes.filter((node) => node.props['data-active'] === 'true' && node.props.className === 'st-audit-pane').length, 1, 'exactly one panel is active')
+  assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-pane').length, 2, 'both tab panels stay mounted even without a definition')
 })
 
 test('a rendered view survives every payload shape the Host can send', () => {

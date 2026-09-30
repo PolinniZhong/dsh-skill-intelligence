@@ -68,6 +68,33 @@ test('a deeper heading counts as a step only inside a process or with an ordinal
   assert.deepEqual(result.steps.map((step) => step.title), ['有编号的一步'])
 })
 
+test('a "Step N:" heading is an ordinal, and its number is not part of the title', () => {
+  // 真实 Skill `ui-craft` 的声明流程就长这样：`## Discovery Phase` → `### Step 1..3`。
+  // 旧规则只认以数字开头的标题，于是这一整类 SKILL.md 的声明流程会抽成空。
+  const body = ['## Discovery', '### Step 1: Project Analysis', '### Step 2: Ask the User', '### Step 3: Apply Decisions'].join('\n')
+  const result = extractDeclarationSteps(body)
+  assert.deepEqual(result.steps.map((step) => step.title), ['Project Analysis', 'Ask the User', 'Apply Decisions'])
+})
+
+test('a "Phase N" heading opens a process section for its children', () => {
+  const body = ['## Phase 2 — Runtime', '### Collect events', '### Normalise them'].join('\n')
+  const result = extractDeclarationSteps(body)
+  assert.deepEqual(result.steps.map((step) => step.title), ['Collect events', 'Normalise them'])
+})
+
+test('a "第 N 步" heading is an ordinal too', () => {
+  const body = ['## 注意事项', '### 第 1 步：收集资料', '### 第 2 步：整理'].join('\n')
+  const result = extractDeclarationSteps(body)
+  assert.deepEqual(result.steps.map((step) => step.title), ['收集资料', '整理'])
+})
+
+test('prose that merely starts with "Step by step" is not an ordinal', () => {
+  // 前缀后必须真的跟数字，否则一整类标题会被误提升成步骤。
+  const body = ['## 注意事项', '### Step by step guide'].join('\n')
+  const result = extractDeclarationSteps(body)
+  assert.deepEqual(result.steps, [])
+})
+
 test('declaration extraction is bounded and de-duplicated', () => {
   const lines = ['## 执行流程']
   for (let index = 1; index <= 30; index += 1) lines.push(`### ${index}. 步骤${index}`)

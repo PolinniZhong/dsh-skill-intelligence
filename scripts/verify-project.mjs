@@ -263,9 +263,15 @@ for (const requiredText of [
     if (code.includes(forbidden)) throw new Error(`the alignment must not score a Skill: ${forbidden}`)
   }
   // Headings must outrank stray numbered lists, or real constraint lists get
-  // relabelled as a declared process.
-  if (!alignmentModel.includes('headingCount ? \'heading\'')) {
+  // relabelled as a declared process. The rule now lives in the shared scanner:
+  // `runtime-alignment.mjs` and `skill-flow.mjs` were split so the receipt path and the
+  // definition path cannot drift into two different notions of "declared step".
+  const skillFlow = await readFile(resolve(root, 'src/core/skill-flow.mjs'), 'utf8')
+  if (!skillFlow.includes("headingCount ? 'heading'")) {
     throw new Error('the heading channel must outrank the ordered-list fallback')
+  }
+  if (!alignmentModel.includes('scanDeclaredSteps')) {
+    throw new Error('the receipt path must share the declared-step scanner instead of owning a copy')
   }
 }
 if (!reducer.includes("from './runtime-alignment.mjs'")) throw new Error('the reducer must consume the alignment model')
@@ -817,6 +823,12 @@ for (const source of [client, host]) {
     if (source.includes(forbiddenAction)) throw new Error(`automatic Skill mutation or publication must remain absent: ${forbiddenAction}`)
   }
 }
+
+// `/skill-trace/skills` 的信封必须在两端一致：宿主把列表套在 `list` 里返回，客户端必须显式
+// 解包。这两条断言成对存在，是因为只改一端不会让任何单元测试变红——列表会静默变成空数组，
+// 第一屏只是「看起来这个会话没有 Skill」。渲染台截图抓到过这个 bug。
+if (!host.includes('list: buildSessionSkillList(')) throw new Error('the skills endpoint must nest its payload under `list`')
+if (!client.includes('setList(body?.list ?? null)')) throw new Error('the client must unwrap the skills payload from `list`')
 
 console.log('PROJECT_STRUCTURE_OK')
 console.log('CLIENT_DUAL_VIEW_CONTRACT_OK')

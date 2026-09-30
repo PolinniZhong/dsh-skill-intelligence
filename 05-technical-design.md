@@ -13,6 +13,8 @@ status: v0.4-learning-validation-candidate-human-recall-pending
 
 采用“标准 Skill 事件观察器 + 确定性 Reducer + 会话 Agent Preset 作用域 Registry + 独立本地收据 + 分 Skill 学习投影”的单插件方案。Host 不接管 Skill 路由，不修改 DSH 原始 Session，也不调用模型。Skill 收据、流程地图、学习卡和会话头部提示共享同一个 `SkillRunReceipt` View Model；“我的 Skill”复用收据目录生成独立的只读跨会话投影。
 
+V5.0 在 View Model 之上增加一层 Skill-first 组合：`src/core/skill-view-model.mjs` 由收据 + 活读的 Skill Definition 组合出 `SkillView`（Skill List 与 Skill Detail），`src/core/skill-flow.mjs` 从定义文本确定性抽出 Declared Skill Flow。**声明流程的来源方向不可逆**：`Skill Definition → Declared Flow → Runtime Evidence`。客户端只渲染这一层，不自行推理 Skill。
+
 V0.2 的关键变化是把“会话级继续使用候选”与“逐个 Skill 的学习卡”分开：前者回答整次工作能否延续，后者回答每个 Skill 声明了怎样的步骤、用户如何形成自己的理解和迭代计划。
 
 V0.4 P0 已按 Spike 结论实现：目录优先读取当前已挂载会话的 Agent Preset 作用域 Registry；旧收据没有运行当时的 Provider/来源身份，只能作为候选历史。V0.4 P1 在 Schema 5 中把人工验证结果继续挂在原会话收据上，并由目录投影生成待回看队列和时间线；不创建跨会话“正确理解”对象。

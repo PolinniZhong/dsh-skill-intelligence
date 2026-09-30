@@ -30,6 +30,12 @@ supersedes: "1.5"
 
 **v2.0 的主视觉变化**：界面的第一视觉从 **Skill 收据数据块**转移到 **Runtime Flow（运行流程）**。收据仍然存在，但降为同一批证据的另一种阅读方式。
 
+**v3.0 的主视觉变化（Skill-first IA）**：界面的第一视觉从 **Runtime Flow** 转移到 **本次使用的 Skill**。Skill 由此成为产品的一级对象：它有自己的定义、声明流程、运行记录、证据与来源。运行流程 / 运行图谱 / Skill 收据降级为 **Advanced** 中的技术视图，不再是第一视觉中心。
+
+这条变化是必要的，因为 v2.0 虽然实现了 Definition Viewer，却把它挂在「本次运行 → 定义视图」之下——用户仍然必须先理解 Turn / Step / Invocation / Runtime Graph / Scope / Edge，才能理解一个 Skill。判定标准：如果用户必须先理解运行模型才能理解 Skill，则 Skill-first 尚未完成。
+
+完整架构与验收见 `01_重构方案/DSH-Skill-Trace-SDD-Skill-First-IA.md`。
+
 ## 2. 设计目标
 
 ### 2.1 方向
@@ -61,22 +67,31 @@ supersedes: "1.5"
 
 ```text
 Skill 追踪
-├── 我的 Skill
-│   ├── Skill 列表：搜索、筛选、当前发现与历史候选
-│   └── Skill 详情：声明 / 实际运行记录 / 学习与验证时间线
-└── 当前会话
+├── 本次 Skill                     ← 默认第一屏
+│   ├── Skill 列表：本会话真正加载过的 Skill（名称 / 简介 / 加载次数 / 最近加载 / 定义状态）
+│   └── Skill 详情：一次点击进入
+│       ├── Skill Definition：SKILL.md 原文，只读、现读现返、不落盘
+│       ├── Declared Skill Flow：来自定义文本的声明流程，每步挂运行时证据
+│       ├── Runs：本会话的加载记录与定义指纹比对（match / mismatch / unavailable）
+│       └── Repository：来源地址，或「未解析」
+├── 我的 Skill                     ← 跨会话只读目录，不是「本次使用」
+│   ├── Skill 列表：搜索、当前发现与历史候选
+│   └── Skill 详情：声明 / 运行记录候选 / 学习与验证时间线
+└── Advanced                       ← 降级的技术视图
     ├── 运行流程：高层运行回放，只读
     ├── 运行图谱：同一运行的低层事件视图，带筛选
     └── Skill 收据：同一运行按证据顺序阅读
         └── 学习与验证：收据流内的一节，默认收起
-    └── Contextual Inspector：随当前选择变化
 ```
 
 固定原则：
 
-- “我的 Skill”是跨会话入口，不是第三种当前会话视图。
-- **运行流程与运行图谱是同一个 Runtime View Model 的两种密度**，不是两套实现、不是两个差不多的流程图。
-- 运行流程 / 运行图谱 / Skill 收据共享同一 View Model，只改变阅读方式与密度。
+- **Skill 是产品一级对象**；Tool / MCP / CLI / Subagent 不是，它们只能作为 Runtime Evidence 的来源出现，不得成为与 Skill 平级的对象。
+- **「本次 Skill」是默认第一屏**。打开产品不得先面对运行图谱，也不得先面对 `Session / Turns / Nodes` 一类计数。
+- **声明流程只能来自 Skill 自己的定义文本**（`Markdown → 确定性解析器 → Declared Skill Flow`）。运行时证据只能给已有步骤加标注，**不得增删步骤、改名或改序**。绝不允许反过来「从运行时事件推断出流程」。
+- **区分 `Declared` / `Observed` / `Inferred`**：`Declared` 来自 SKILL.md，`Observed` 来自 DSH 运行时事件，`Inferred` 尽量不做。禁止「某 Tool 距离某 Skill 最近 ⇒ 该 Tool 属于该 Skill」，也禁止「同一个 Turn ⇒ 把该 Turn 全部运行时事件都算成该 Skill 的」。
+- **「我的 Skill」是跨会话只读目录，与「本次加载过的 Skill」是两件事**，不得合成一个列表。列表里不得出现 Tool 数 / Runtime 节点数 / Runtime Edge 数。
+- **运行流程 / 运行图谱 / Skill 收据降级为 Advanced**，服务技术型用户；它们仍是同一个 Runtime View Model 的不同密度，不是两套实现。
 - 列表负责选择，详情负责理解，Inspector 负责当前对象的局部解释与操作。
 - **Inspector 随选择对象变化**，不固定占据页面一侧；没有选择时不显示空 Inspector。
 - **学习与验证是收据流内的一节，不是侧栏**，默认收起。
@@ -245,7 +260,9 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
   - 必须保留证据边界说明：“这里只记录可观察证据，不判断是否有效，也不上传或翻译个人内容。”
 - 导览内容最大宽度 860px 并水平居中；窄屏隐藏该入口，由目录选择承担。
 
-### 6.4 运行流程与运行图谱
+### 6.4 运行流程与运行图谱（Advanced）
+
+**两者都属于 `Advanced`，不是默认页，也不是进入产品的第一印象。** 打开产品时用户先看到的是「本次 Skill」列表。
 
 两者是**同一个 Runtime View Model 的两种密度**，由宿主侧的同一布局服务产出。
 
@@ -569,8 +586,11 @@ Status 继续满足「**颜色不是唯一信息**」。
 | Empty | 原因准确，不用历史或演示内容冒充当前数据；**筛选结果不写成空状态** |
 | Error | 原因与恢复动作明确，不泄露敏感内容；**渲染异常必须可见** |
 | 状态 | 图标、文字和颜色共同表达；候选与真实分离 |
-| Runtime Flow | 默认视图；可按节点步进回放；候选关系默认隐藏并报数 |
-| Runtime Graph | 筛选只做减法且报数；两种密度共用同一渲染器 |
+| 默认页 | 「本次 Skill」列表；**不是** Runtime Flow，也不是任何节点/轮次计数 |
+| Skill 详情 | 首屏同时出现 Skill 名称与简介、Declared Skill Flow 与 SKILL.md 原文；从进入到此最多一次点击 |
+| Declared Flow | 步骤只来自定义文本；运行时证据只挂标注，不增删改序；与原文行号可互相定位 |
+| Runtime Flow | **Advanced**；可按节点步进回放；候选关系默认隐藏并报数 |
+| Runtime Graph | **Advanced**；筛选只做减法且报数；两种密度共用同一渲染器 |
 | 五层模型 | 0–4 层可辨认；层不作为因果表达；投影不与图争夺节点预算 |
 | 收据 | 章节可折叠；无编号圆；学习与验证默认收起；无任何评分 |
 | 指纹预留 | 六项均标「尚未派生」；区分「未派生」与「未发现」 |
@@ -625,5 +645,33 @@ Status 继续满足「**颜色不是唯一信息**」。
 | 学习表单位置 | 收据流内，默认收起 | Skill Inspector 的 Tab，默认收起（§15/§38） | 待确认 |
 | 配色值 | `#7c3aed / #047857 / #b45309 / #475569 / #b91c1c` | `#7057df / #258b63 / #d67b2d / #5b6573 / #c9444f`（§25.3） | 待确认 |
 | 辅助字号下限 | 已守 10.5px | §26 为 10.5px；preview 用 9px | 待确认 |
+
+---
+
+## 18. 需求修订记录（2026-09-30）· Skill-first IA
+
+本轮把产品从 **Session-first** 改为 **Skill-first**，界面随之重构。
+
+**结构变化**
+
+```text
+旧：Session ├ Skill Receipt ├ Runtime Flow ├ Runtime Graph ├ Definition └ My Skills
+新：Skill   ├ Definition ├ Declared Flow ├ Runs ├ Evidence └ Repository
+     └ Advanced：Runtime Flow / Runtime Graph / Skill Receipt   └ My Skills
+```
+
+**对本文件的实质影响**
+
+- §1 增加 v3.0 主视觉变化说明；§2 的「产品信息架构」树与固定原则整节重写。
+- §6.4 的运行流程与运行图谱标记为 `Advanced`；§14 验收表新增「默认页」「Skill 详情」「Declared Flow」三行，并把 Runtime Flow 从「默认视图」改为 `Advanced`。
+- 默认视图偏好由 `receipt / map` 收敛为 `skills / map`。
+
+**保持不变（本轮刻意不动的边界）**
+
+- 只读观察、不评分、不做因果推断、不持久化 Prompt / Skill 正文 / Tool 输出 / Token / Cookie / 绝对路径 / 项目正文。
+- 运行流程 / 运行图谱 / Skill 收据**不删除**，只降级；画布与布局合同不变。
+- 声明步骤来源于 Skill 指令结构、不等于 Agent 执行轨迹——这条从 v1.0 起就在，本轮把它上升为架构方向（`Definition → Declared Flow → Evidence`，不可逆）。
+
+完整的架构、路由契约与验收标准见 `01_重构方案/DSH-Skill-Trace-SDD-Skill-First-IA.md`。
 
 **验收范围的更正**：此前的验收覆盖功能与数据层，**不包含视觉工艺**。视觉观感（布局 / 配色 / 密度 / 字体层次）经人工查看后评价为「一般」，尚未达到治理文档 §43 的最终视觉目标。本文件不再宣称该轮已完成视觉验收。
