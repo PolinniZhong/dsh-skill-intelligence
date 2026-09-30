@@ -526,6 +526,46 @@ test('the client registers and its entry component renders without throwing', as
   assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-pane').length, 2, 'both tab panels stay mounted even without a definition')
 })
 
+test('an unreachable Skill list is not reported as "no Skill was loaded"', () => {
+  const client = loadClient()
+  // 断言中文文案，所以要先真的挂上 zh：`localized()` 拿不到 locale 时会退回英文，
+  // 而这一屏的措辞正是被测对象。
+  client.apply({
+    effect(setup) { return setup?.() },
+    locale: {
+      bind: () => (value) => value,
+      register: () => () => {},
+      getSnapshot: () => ({ active: 'zh', lang: 'zh' }),
+      subscribe: () => () => {},
+    },
+    workspaces: { getSnapshot: () => ({ active: null }), subscribe: () => () => {} },
+    slots: { inject(_name, run) { run() }, register() {} },
+  })
+  const resolve = client.__pure.resolveSkillListState
+  assert.equal(typeof resolve, 'function', 'the first-screen state resolver must be exposed to the smoke test')
+
+  // 升级窗口：客户端已经更新、宿主进程还是旧的，`/skills` 直接 404。这时收据里明明记着
+  // Skill，页头也在数它们——正文如果写「暂未加载」，同一屏上就自相矛盾。
+  const unavailable = resolve({ hasSkills: false, hasDetail: false, loading: false, listError: 'not found', loadedSkillCount: 1 })
+  assert.equal(unavailable.kind, 'error', 'an unreachable list endpoint is an error, not an empty state')
+  assert.ok(!unavailable.message.includes('暂未加载'), 'it must not claim nothing was loaded while the receipt says otherwise')
+  assert.ok(unavailable.message.includes('1 个 Skill'), 'it repeats the count the receipt already knows')
+  assert.ok(unavailable.message.includes('重启'), 'it tells the user what to do about it')
+
+  // 拉不到、而且收据里也没有加载记录：仍然是错误态，但不能凭空写「0 个 Skill」。
+  const unknown = resolve({ hasSkills: false, hasDetail: false, loading: false, listError: 'not found', loadedSkillCount: 0 })
+  assert.equal(unknown.kind, 'error', 'an unreachable endpoint stays an error even when the count is unknown')
+  assert.ok(!unknown.message.includes('0 个 Skill'), 'a zero count is not spelled out')
+
+  // 宿主答了、答案是空列表：这才是真的空态。
+  assert.equal(resolve({ hasSkills: false, hasDetail: false, loading: false, listError: '', loadedSkillCount: 0 }).kind, 'empty', 'an empty answer from the host is the empty state')
+  // 加载中优先于错误：还不知道结果时不能先报错。
+  assert.equal(resolve({ hasSkills: false, hasDetail: false, loading: true, listError: 'not found', loadedSkillCount: 1 }).kind, 'loading', 'loading outranks the previous error')
+  // 有内容时什么都不返回，正文照常渲染。
+  assert.equal(resolve({ hasSkills: true, hasDetail: false, loading: false, listError: '', loadedSkillCount: 1 }), null, 'a non-empty list yields no placeholder')
+  assert.equal(resolve({ hasSkills: false, hasDetail: true, loading: false, listError: 'not found', loadedSkillCount: 1 }), null, 'a detail alone yields no placeholder')
+})
+
 test('a rendered view survives every payload shape the Host can send', () => {
   const shapes = {
     'no runtime evidence': (payload) => { payload.receipt.runtimeEvents = []; payload.views.receipt.runtime.eventCount = 0 },

@@ -1800,6 +1800,28 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   }
 
   /**
+   * 第一屏的空态 / 错误态判定。
+   *
+   * 抽成纯函数是因为这里是**唯一**知道「宿主拉不到列表」和「宿主说列表是空的」是两件事的
+   * 地方。前者在升级窗口里必然出现：新的客户端先落地，旧的宿主进程还在跑，`/skills` 直接
+   * 404；如果它和「暂未加载」共用一句话，页头（计数来自收据）和正文就会在同一屏上互相
+   * 打脸。纯函数还能直接测——组件里的 useEffect 在冒烟测试里根本不执行。
+   */
+  function resolveSkillListState({ hasSkills, hasDetail, loading, listError, loadedSkillCount = 0 }) {
+    if (hasSkills || hasDetail) return null
+    if (loading) return { kind: 'loading', message: localized('正在读取当前对话的 Skill 使用情况…', 'Reading how this conversation used Skills…') }
+    if (listError) {
+      return {
+        kind: 'error',
+        message: loadedSkillCount
+          ? localized(`本次对话记录了 ${loadedSkillCount} 个 Skill 的加载，但宿主暂时无法列出它们。宿主可能仍在运行旧版本，重启 DSH 后再试。`, `This conversation recorded ${loadedSkillCount} Skill load(s), but the host cannot list them right now. The host may still be running an older build; restart DSH and try again.`)
+          : localized('暂时无法从宿主读取 Skill 列表。宿主可能仍在运行旧版本，重启 DSH 后再试。', 'The Skill list cannot be read from the host right now. The host may still be running an older build; restart DSH and try again.'),
+      }
+    }
+    return { kind: 'empty', message: localized('当前对话暂未加载可追踪的 Skill。', 'No traceable Skill was loaded in this conversation.') }
+  }
+
+  /**
    * Skill Workbench：本次加载的 Skill → Skill 定义 → 声明流程 → 运行证据。
    *
    * 三栏（Skill 清单 / 声明流程 / SKILL.md 与证据）都长在插件自己的容器里——DSH 的
@@ -1813,7 +1835,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
    * `useEffect`，fetch 永远不会发生，于是三栏——包括整个 Markdown 渲染器与证据面板——
    * 在没有这个口子的情况下**一行都执行不到**。
    */
-  function SkillWorkbench({ sessionId, data, loading, error, onRetry, list: suppliedList, skill: suppliedSkill }) {
+  function SkillWorkbench({ sessionId, data, loading, error, onRetry, loadedSkillCount = 0, list: suppliedList, skill: suppliedSkill }) {
     const [skillName, setSkillName] = React.useState('')
     const [runKey, setRunKey] = React.useState('')
     const [tab, setTab] = React.useState('doc')
@@ -1822,6 +1844,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const [fetchedList, setList] = React.useState(null)
     const [fetchedDetail, setDetail] = React.useState(null)
     const [listLoading, setListLoading] = React.useState(false)
+    // 「宿主没给我列表」和「宿主给了我一个空列表」是两件事。前者在升级窗口里必然发生
+    // （新的客户端先落地，旧的宿主进程还在跑，`/skills` 直接 404），如果把它渲染成
+    // 「暂未加载可追踪的 Skill」，页头（读数来自收据）和正文就会在同一屏上互相打脸。
+    const [listError, setListError] = React.useState('')
     const [detailLoading, setDetailLoading] = React.useState(false)
     const [detailError, setDetailError] = React.useState('')
     const [copiedClone, setCopiedClone] = React.useState(false)
@@ -1905,12 +1931,15 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       if (suppliedList) return undefined
       let cancelled = false
       setListLoading(true)
+      setListError('')
       api(`/skills?sessionId=${encodeURIComponent(sessionId)}`)
         // 宿主把列表套在 `list` 里和 `sessionId`/`workspaceLabel` 一起返回
         // （`/skill` 同样把详情套在 `skill` 里），所以要显式解包；直接把整个信封塞进
         // 状态会让 `list.skills` 永远是 undefined，第一屏永远空。
-        .then((body) => { if (!cancelled) { setList(body?.list ?? null); setListLoading(false) } })
-        .catch(() => { if (!cancelled) { setList(null); setListLoading(false) } })
+        .then((body) => { if (!cancelled) { setList(body?.list ?? null); setListError(''); setListLoading(false) } })
+        // 拉不到 ≠ 没有。宿主进程比客户端旧时 `/skills` 直接 404，`api()` 抛 'not found'；
+        // 这个原因必须留下来，否则正文会写成「暂未加载」，而页头正在数收据里的 Skill。
+        .catch((reason) => { if (!cancelled) { setList(null); setListError(String(reason?.message || 'unavailable')); setListLoading(false) } })
       return () => { cancelled = true }
     }, [sessionId, suppliedList])
 
@@ -1957,10 +1986,14 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
 
     if (loading && !list && !detail) return h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
     if (error && !list && !detail) return h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry })
-    if (!skills.length && !detail) {
-      if (listLoading) return h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
-      return h(TraceState, { kind: 'empty', message: '当前对话暂未加载可追踪的 Skill。' })
-    }
+    const listState = resolveSkillListState({
+      hasSkills: Boolean(skills.length),
+      hasDetail: Boolean(detail),
+      loading: listLoading,
+      listError,
+      loadedSkillCount,
+    })
+    if (listState) return h(TraceState, { ...listState, onRetry: listState.kind === 'error' ? onRetry : undefined })
 
     const invocationType = activeEntry?.lastInvocationType ?? runs[0]?.invocationType ?? ''
     const startLabel = invocationType === 'user-explicit'
@@ -1987,7 +2020,9 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
                 formatRunTime(entry.lastLoadedAt),
                 definitionStatusText(entry.definitionStatus),
               ].filter(Boolean).join(' · ')))))))
-            : h('p', { className: 'st-audit-empty' }, localized('当前对话暂未加载可追踪的 Skill。', 'No traceable Skill was loaded in this conversation.'))),
+            : h('p', { className: 'st-audit-empty' }, listError
+              ? localized('列表暂时读不到，宿主可能仍在运行旧版本。', 'The list is unavailable; the host may still be running an older build.')
+              : localized('当前对话暂未加载可追踪的 Skill。', 'No traceable Skill was loaded in this conversation.'))),
 
         h('section', { className: 'st-audit-card' },
           h('h2', { className: 'st-audit-card-title' }, localized('运行记录', 'Runs')),
@@ -3238,7 +3273,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
 
     const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
       : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
-        : view === 'skills' ? h(SkillWorkbench, { sessionId, data, loading, error, onRetry: load })
+        : view === 'skills' ? h(SkillWorkbench, { sessionId, data, loading, error, onRetry: load, loadedSkillCount })
         : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, runtimeProps)
           : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, runtimeProps)
             : data && !hasTrace && !hasRuntimeEvidence ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
@@ -3322,5 +3357,5 @@ null))
   // render smoke test execute each one against a real payload. Source assertions cannot
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
-  module.exports.__pure = { resolveSkillLoad }
+  module.exports.__pure = { resolveSkillLoad, resolveSkillListState }
   module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel, SkillWorkbench }
