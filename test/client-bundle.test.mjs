@@ -83,11 +83,12 @@ test('the bundle carries no source-map reference it cannot serve', () => {
   if (referenced) assert.equal(referenced[1].endsWith('.map'), true)
 })
 
-test('the governed label ships as readable UTF-8, not as escapes', () => {
-  // §4 renames 流程地图 to 运行流程. The bundle must carry the label as text: the
-  // shell serves `text/javascript; charset=utf-8`, and an escaped artifact would
-  // both inflate the bundle and hide the copy from review.
-  assert.ok(bundle.includes('运行流程'), 'the governed label must ship as UTF-8 text')
+test('the governed labels ship as readable UTF-8, not as escapes', () => {
+  // v0.6 §3 names the two first-level pages. The bundle must carry those labels as
+  // text: the shell serves `text/javascript; charset=utf-8`, and an escaped artifact
+  // would both inflate the bundle and hide the copy from review.
+  assert.ok(bundle.includes('本次 Skill'), 'the first page label must ship as UTF-8 text')
+  assert.ok(bundle.includes('已安装 Skill'), 'the second page label must ship as UTF-8 text')
   assert.equal(bundle.includes('流程地图'), false, 'the superseded label must be gone')
-  assert.equal(bundle.includes('\\u8FD0\\u884C'), false, 'the label must not be escaped')
+  assert.equal(bundle.includes('\\u672C\\u6B21'), false, 'the label must not be escaped')
 })

@@ -412,27 +412,6 @@ test('the client registers and its entry component renders without throwing', as
   const catalogPayload = { ...payload, receipt: { ...payload.receipt, catalogPublished: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest', entries: catalogEntries } } }
 
   const cases = {
-    FlowCanvas: [{ data: payload, loading: false, error: '', onRetry() {}, inspect: inspectNode, inspectLoading: false, inspectError: '', alignments: payload.views.receipt.runtime.alignments, skillLoads: payload.skillLoads, onSelect() {}, onCloseInspect() {} }],
-    RuntimeView: [{ data: payload, loading: false, error: '', onRetry() {}, inspect: inspectNode, inspectLoading: false, inspectError: '', alignments: payload.views.receipt.runtime.alignments, skillLoads: payload.skillLoads, onSelect() {}, onCloseInspect() {} }],
-    ReceiptView: [{ model: payload.views.receipt, workspaceLabel: '工作区' }],
-    RuntimeInspector: [
-      [{ data: inspectNode, loading: false, error: '', alignments: payload.views.receipt.runtime.alignments, skillLoads: payload.skillLoads, onSelectEdge() {}, onClose() {} }],
-      [{ data: null, loading: true, error: '', onSelectEdge() {}, onClose() {} }],
-      [{ data: null, loading: false, error: '', onSelectEdge() {}, onClose() {} }],
-    ],
-    // §15/§38：学习验证是 Skill Inspector 的一个 Tab，默认收起。它有卡片、无卡片、
-    // 以及没有选中 Skill 三种形态，三种都必须能渲染。
-    LearningPanel: [
-      [{ sessionId: 's', skillName: 'demo-skill', cards: [{ skillName: 'demo-skill', versionState: 'current', dependencies: [] }], notes: [{ skillName: 'demo-skill', understanding: 'x', improvementIntent: 'y', validationPlan: 'z', updatedAt: 1 }], onUpdate() {} }],
-      [{ sessionId: 's', skillName: 'demo-skill', cards: [{ skillName: 'demo-skill', versionState: 'changed', dependencies: [] }], notes: [], onUpdate() {} }],
-      [{ sessionId: 's', skillName: 'other-skill', cards: [], notes: [], onUpdate() {} }],
-      [{ sessionId: 's', skillName: '', cards: [], notes: [] }],
-    ],
-    ReplayControls: [
-      [{ timeline: payload.timeline, index: 0, playing: false, onIndex() {}, onPlaying() {} }],
-      [{ timeline: payload.timeline, index: -1, playing: true, onIndex() {}, onPlaying() {} }],
-      [{ timeline: null, index: -1, playing: false, onIndex() {}, onPlaying() {} }],
-    ],
     // v0.6 §6：「本次 Skill」的第一屏是卡片列表。三个形态：有卡片、空列表（宿主答了、
     // 答案是空）、还没答（loading）。卡片整体是一个 `<button>`，点它进 Detail（§6.4）。
     CurrentSkillPage: [

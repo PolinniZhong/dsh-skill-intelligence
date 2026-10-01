@@ -58,11 +58,7 @@
     "local-first"
   ],
   "devDependencies": {
-    "@xyflow/react": "^12.12.0",
     "esbuild": "^0.28.2"
-  },
-  "dependencies": {
-    "elkjs": "^0.12.0"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": "*"

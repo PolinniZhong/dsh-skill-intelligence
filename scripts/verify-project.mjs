@@ -9,7 +9,6 @@ const required = [
   'cordis.patch.yml',
   'src/core/trace-reducer.mjs',
   'src/core/source-snapshot.mjs',
-  'src/core/catalog-view.mjs',
   'src/storage/receipt-store.mjs',
   'src/storage/preference-store.mjs',
   'src/dsh/host/index.js',
@@ -23,86 +22,56 @@ if (packageJson.name !== 'dsh-skill-trace') throw new Error('package name mismat
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-ui-conversation')) throw new Error('conversation client injection missing')
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-locale')) throw new Error('locale client injection missing')
 
-for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/catalog-view.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
+for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
   const result = spawnSync(process.execPath, ['--check', resolve(root, file)], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(`${file} syntax check failed:\n${result.stderr}`)
 }
 
 const client = await readFile(resolve(root, 'src/dsh/client/client.js'), 'utf8')
+// v0.6 的客户端契约。这张清单只保留**今天仍然存在**的东西：语言、主题生命周期、
+// 两个一级页面和唯一二级页、偏好落盘、以及定义/仓库/翻译这三组事实的措辞。
+//
+// 删掉的那些（`model.events`、`st-map-stage`、`api('/receipts'`、`const DRAFT_KEY` …）不是
+// 被放宽了，而是它们的宿主页面已经不在 v0.6 里了（§4）。一条守卫如果断言一个不存在的
+// 页面，它唯一的作用就是拦住删除 —— 所以在删页面的同一次改动里删掉它们。
 for (const requiredText of [
-  'Skill 收据',
-  '运行流程',
-  "localStorage.setItem(VIEW_KEY",
-  '当前对话暂未加载可追踪的 Skill。',
-  'model.events',
-  'method.callCount',
-  "api('/preferences'",
-  '本次 Skill 使用记录',
-  '本次流程小结',
-  '发生了什么',
-  '这不能说明什么',
-  'width:max(100%,1000px)',
-  'st-map-stage',
-  'margin-inline:auto',
+  // 双语与主题生命周期。`t()` 会查字典，所以字典就是界面的英文。
   'ctx.locale.register(NS',
   'React.useSyncExternalStore',
-  'Related load records (',
-  'Dependency signals: ',
-  'Agent invocable',
-  'Instruction fingerprint(s): ',
   "active || 'en') !== 'zh'",
-  '逐个看懂 Skill',
-  '我的理解与迭代',
-  '复制清单',
-  '不会自动修改或发布 Skill',
-  '我的 Skill',
-  '当前可发现',
-  '有真实收据',
-  '历次会话理解',
-  '内容相符候选',
-  '不选择最新一条充当当前综合理解',
-  '验证结果回执',
-  '学习与验证时间线',
-  "['pending', '待回看']",
-  "['validated', '已记录结果']",
-  "api('/validation-result'",
-  '不代表 Skill 的普遍质量',
-  '回看工作台',
-  'function CatalogGuide()',
-  'st-catalog-guide',
+  'ctx.effect(() => installStyles()',
   'if (previous) previous.replaceWith(style)',
   'if (document.getElementById(STYLE_ID) === style) style.remove()',
-  'st-guide-link',
-  '打开 Skill Trace 使用指南',
-  '把一次 Skill 使用，变成可回看的学习记录',
-  "['观察加载请求', '只记录可观测事件']",
-  "['回来记录结果', '把复测结果留在原会话']",
-  '不上传或翻译个人内容',
-  '搜索 Skill 名称、声明和我的记录',
-  '复制继续行动卡',
-  "api('/backups'",
-  "api('/backups/restore'",
-  "fetch('/api/host.openPath'",
-  "api('/receipts'",
-  '确认清空全部本地收据',
-  "'回看工作台': 'Review workspace'",
-  "'搜索 Skill 名称、声明和我的记录': 'Search Skill names, declarations, and my records'",
-  "'排序方式': 'Sort order'",
-  "'创建本地备份': 'Create local backup'",
-  "'打开备份文件夹': 'Open backup folder'",
-  "'恢复缺失收据': 'Restore missing receipts'",
-  "'恢复缺失数据': 'Restore missing data'",
-  "'清空本地收据': 'Clear local receipts'",
-  "'确认清空全部收据': 'Clear all receipts'",
-  "'复制继续行动卡': 'Copy continuation card'",
-  "const DRAFT_KEY = 'dsh-skill-trace.unsaved-drafts.v1'",
-  "draftId('learning', receipt.sessionId, learningSkill)",
-  "draftId('validation', sessionId, skillName)",
-  "draftId('output', receipt.sessionId)",
-  "window.addEventListener('beforeunload', handler)",
-  '未保存草稿只暂存在当前 Desktop 运行期间',
-  '当前无法暂存，切换页面前请先保存',
-  'const volatileDrafts = new Set()',
+  // §6/§7：两个一级页面各自的空态、读不到、与副标题，必须说自己的那件事。
+  '当前对话暂未加载可追踪的 Skill。',
+  '正在读取当前对话的 Skill 使用情况…',
+  '本次 Skill 使用记录',
+  '本次 Skill',
+  '正在读取当前目录…',
+  '工作区未连接',
+  // §8：返回的措辞由调用方给，所以页面里必须有「返回 Skill 列表」这个地方。
+  '返回 Skill 列表',
+  // 偏好：本地记住 + 写回宿主；两处都在，缺一处只会在下次启动时才显形。
+  'localStorage.setItem(VIEW_KEY',
+  "api('/preferences'",
+  // §10/§11：指纹三态与仓库未解析时必须说人话，不能显示裸代码，也不能沉默。
+  '指令指纹比对',
+  '一致',
+  '无法比对',
+  '定义可用',
+  '注册表不可用',
+  '没有找到 git work tree，无法确定仓库来源。',
+  '这份 Skill 的定义当前读不到，所以无法抽取声明流程。',
+  // §9/§12：只读、原文来源、译文不落盘 —— 三句话必须在界面上真的出现。
+  '只读展示',
+  '原文逐字来自 Skill 定义文件',
+  '中文预览只用于当前页面阅读',
+  '翻译没有完成',
+  // 新界面的样式钩子：卡片、已安装网格、文档面板、状态块。
+  'st-skill-card',
+  'st-installed-grid',
+  'st-detail-doc',
+  'st-trace-state',
 ]) {
   if (!client.includes(requiredText)) throw new Error(`client contract missing: ${requiredText}`)
 }
@@ -123,8 +92,44 @@ for (const supersededText of ['Skill 方法追踪', '方法收据', '方法地�
 }
 
 const host = await readFile(resolve(root, 'src/dsh/host/index.js'), 'utf8')
-for (const requiredText of ['preferenceStore.read()', "'/skill-trace/preferences'", 'preferenceStore.write', 'shouldPersistReceipt', 'syncReceipt', 'store.prune', 'store.list()', 'store.clear()', "'/skill-trace/learning-note'", "'/skill-trace/validation-result'", "'/skill-trace/catalog'", "'/skill-trace/history-receipt'", "'/skill-trace/backups'", "'/skill-trace/backups/preview'", "'/skill-trace/backups/restore'", "'/skill-trace/receipts'", 'createVerifiedBackup', 'buildLocalArchive', 'mergeMissingReceiptData', 'createSessionMutationQueue', 'runMaintenance', 'restoreMissingReceipts(archive.receipts, store, cache, enqueue)', 'agentPresets?.serviceFor', 'scope: liveAgent', 'setLearningNote', 'setValidationResult', 'sessionEventLog(session)', 'session.snapshotEvents()']) {
-  if (!host.includes(requiredText)) throw new Error(`preference persistence contract missing: ${requiredText}`)
+// v0.6 的宿主按「会话」组织：偏好、收据落盘、观测面、以及七个查询路由。
+//
+// 删掉的路由（`/backups*`、`/outputs`、`/continuity`、`/learning-note`、
+// `/validation-result`、`/receipts`、`/runtime`、`/inspect`、`/catalog`）不是被放宽了：
+// 它们服务的页面在 v0.6 里不存在（§4），所以这条断言必须和页面一起消失。
+for (const requiredText of [
+  'preferenceStore.read()',
+  "'/skill-trace/preferences'",
+  'preferenceStore.write',
+  // 收据仍然落盘 —— §4.4 只删它的**页面身份**，不删「这次加载发生过」这条证据。
+  'shouldPersistReceipt',
+  'syncReceipt',
+  'store.prune',
+  'store.read(',
+  'store.write(',
+  'store.delete(',
+  'createSessionMutationQueue',
+  'runMaintenance',
+  // 观测面：注册表与实时 agent 的来路。
+  'agentPresets?.serviceFor',
+  'scope: liveAgent',
+  'sessionEventLog(session)',
+  'session.snapshotEvents()',
+  // v0.6 的七个查询/写入端点。少一个都会让某个页面在运行时 404。
+  "'/skill-trace/context'",
+  "'/skill-trace/skills'",
+  "'/skill-trace/skill'",
+  "'/skill-trace/installed'",
+  "'/skill-trace/definition'",
+  "'/skill-trace/translate'",
+  'buildInstalledView',
+  'buildTranslationMessages',
+]) {
+  if (!host.includes(requiredText)) throw new Error(`host contract missing: ${requiredText}`)
+}
+// 删掉的东西不得以别的方式回来。
+for (const forbidden of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", "'/skill-trace/catalog'", "'/skill-trace/backups'", "'/skill-trace/learning-note'", "'/skill-trace/validation-result'", "'/skill-trace/receipts'", 'buildRuntimeGraph', 'computeRuntimeLayout', 'buildCatalogView']) {
+  if (host.includes(forbidden)) throw new Error(`a deleted v0.5 surface is still wired into the host: ${forbidden}`)
 }
 if (host.includes('rebuildReceipt(sessionId, session.events')) throw new Error('host must rebuild from the live session log, not the removed session.events field')
 if (host.includes("'/skill-trace/assessment'")) throw new Error('assessment route must remain absent until a real receiving loop exists')
@@ -279,61 +284,6 @@ if (/invocations:\s*aggregateInvocations/.test(reducer)) {
   throw new Error('the client view model must not carry the unbounded invocation list')
 }
 
-// Phase 4 canvas. Layout is a view concern that must stay separate from the facts,
-// and the client must draw what it is given rather than decide anything itself.
-const layoutModel = await readFile(resolve(root, 'src/core/runtime-layout.mjs'), 'utf8')
-for (const requiredText of [
-  'export function computeRuntimeLayout',
-  'export const LAYOUT_NODE_LIMIT',
-  'export const MAX_ROWS_PER_COLUMN',
-  'export const MAX_TURN_NODES',
-  'export const TURN_COLLAPSE_THRESHOLD',
-  'collapsedInsideCount',
-  'memberIds',
-]) {
-  if (!layoutModel.includes(requiredText)) throw new Error(`phase 4 layout contract missing: ${requiredText}`)
-}
-{
-  const code = layoutModel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  if (/\bviewport\b|\bzoom\b/.test(code)) throw new Error('the layout must not model a viewport')
-  // A bound that cannot report what it dropped is not a bound.
-  if (!layoutModel.includes('hidden: {')) throw new Error('the layout must report what it left out')
-}
-
-const inspectorModel = await readFile(resolve(root, 'src/core/runtime-inspector.mjs'), 'utf8')
-for (const requiredText of [
-  'export function inspectRuntimeNode',
-  'export function inspectRuntimeEdge',
-  'causal: false',
-  'compliance: false',
-  'correctness: false',
-  'INSPECTOR_EVIDENCE_LIMIT',
-]) {
-  if (!inspectorModel.includes(requiredText)) throw new Error(`phase 4 inspector contract missing: ${requiredText}`)
-}
-// Every inspected relation must state its own limit, not only its meaning, and the
-// fallback must be a sentence rather than nothing.
-if (!inspectorModel.includes("limit: entry?.limit ??")) {
-  throw new Error('every relation must state what it does not claim')
-}
-
-for (const requiredText of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", 'computeRuntimeLayout(graph)', 'inspectRuntimeEdge', 'inspectRuntimeNode']) {
-  if (!host.includes(requiredText)) throw new Error(`phase 4 route missing from host: ${requiredText}`)
-}
-for (const requiredText of ['/runtime?sessionId=', '/inspect?sessionId=', "'运行图谱'", 'RuntimeFlowView', 'memberCount']) {
-  if (!client.includes(requiredText)) throw new Error(`phase 4 canvas missing from client: ${requiredText}`)
-}
-// The client draws positions it was handed. If it ever computed them, the layout
-// would stop being one reviewable, testable thing on the Host side.
-for (const forbidden of ['MAX_ROWS_PER_COLUMN', 'LAYOUT_NODE_LIMIT', 'computeRuntimeLayout']) {
-  if (client.includes(forbidden)) throw new Error(`the client must not compute layout: ${forbidden}`)
-}
-// A folded node must be described by its true member count, never by the size of
-// the sample list the canvas happened to receive.
-if (/它代表 \$\{data\.memberIds\.length\}/.test(client)) {
-  throw new Error('a folded node must report its true member count, not the sample length')
-}
-
 // P0: recovering a past conversation's evidence from its durable log.
 //
 // The defect this pins was measured: without it the Runtime Graph answered
@@ -393,258 +343,6 @@ if (!builder.shippedBundleIsFresh()) {
   if (unresolved.length > 0) throw new Error(`the bundle requires modules the shell cannot resolve: ${unresolved.join(', ')}`)
 }
 
-// Runtime Flow canvas governance (§2.2, §8–§13, §32).
-//
-// The canvas is a read-only runtime replay. Both ways it could go wrong are quiet:
-// it could let a click change the run, or it could carry meaning by colour and line
-// alone. Neither would fail a type check.
-const canvas = await readFile(resolve(root, 'src/dsh/client/runtime-flow.js'), 'utf8')
-for (const requiredText of [
-  'export',                       // (module shape checked below)
-  'nodesDraggable: false',
-  'nodesConnectable: false',
-  'edgesUpdatable: false',
-  'panOnDrag: true',
-  'zoomOnScroll: true',
-  'fitView: true',
-  'STATUS_GLYPHS',
-  'KIND_LABELS',
-  "edge.status === 'candidate'",
-]) {
-  if (requiredText === 'export') continue
-  if (!canvas.includes(requiredText)) throw new Error(`canvas contract missing: ${requiredText}`)
-}
-if (!canvas.includes('module.exports = { RuntimeFlowView')) {
-  throw new Error('the canvas must export RuntimeFlowView')
-}
-// §2.2: no affordance that could turn a user action into a claim about the run.
-for (const forbidden of ['onConnect:', 'onReconnect:', 'nodesDraggable: true', 'edgesUpdatable: true']) {
-  if (canvas.includes(forbidden)) throw new Error(`the canvas must stay read-only: ${forbidden}`)
-}
-// §32: it consumes a view model and never reaches for evidence itself.
-for (const forbidden of ['runtimeEvents', 'evidenceIds', '/context?', 'arguments']) {
-  if (canvas.includes(forbidden)) throw new Error(`the canvas must not read evidence directly: ${forbidden}`)
-}
-// §10.2: a candidate relationship may never be drawn as a settled one.
-if (!/follows:\s*\{[^}]*dashed:\s*true/.test(canvas)) {
-  throw new Error('the follows relation must be drawn dashed')
-}
-// v0.6 §4：运行流程不再是页面，也不再是任何页面的正文。组件暂时留在文件里（下一步随它的
-// 其余测试一起删除），但页面不得再渲染它 —— 否则「Runtime 降级成事实层」就只是把入口藏起来。
-if (client.includes('h(FlowCanvas')) throw new Error('运行流程 must not be rendered by any page any more (§4)')
-if (!client.includes('installFlowStyles')) throw new Error("React Flow's stylesheet must be installed by the client")
-
-// ELK-assisted layout (§12/§34/§35/§36).
-//
-// ELK owns crossing minimisation inside §35's layers. It must not own geometry:
-// its own coordinates produced a 4804 × 4937 canvas on a real session, the vertical
-// strip §20/§36 exist to prevent. And it must not run unbounded — measured at 556 ms
-// for 120–200 rendered nodes.
-const elkLayout = await readFile(resolve(root, 'src/core/runtime-layout-elk.mjs'), 'utf8')
-for (const requiredText of [
-  'export async function computeRuntimeLayoutWithElk',
-  'export const ELK_NODE_LIMIT',
-  "elk.partitioning.partition",
-  "'elk.layered.layering.strategy': 'PARTITIONING'",
-  "engine: LAYOUT_ENGINE_ELK",
-  "engine: LAYOUT_ENGINE_DETERMINISTIC",
-]) {
-  if (!elkLayout.includes(requiredText)) throw new Error(`ELK layout contract missing: ${requiredText}`)
-}
-// Ordering only: the placer must be what produces the final geometry, so the height
-// bound survives.
-if (!elkLayout.includes('computeRuntimeLayout(graph, { ...options, orderOf:')) {
-  throw new Error('ELK must supply ordering only; the placer owns geometry so §36 holds')
-}
-// A layout engine may never take the view down with it.
-if (!elkLayout.includes('catch (error)')) throw new Error('the ELK path must degrade instead of throwing')
-if (!host.includes('await computeRuntimeLayoutWithElk')) throw new Error('the runtime route must offer the ELK-assisted layout')
-if (!client.includes("data-engine")) throw new Error('the client must report which layout engine ran')
-
-// Contextual Inspector (§14), per-type tabs (§15) and 声明 ↔ 实际 (§16).
-const alignment = await readFile(resolve(root, 'src/core/runtime-alignment.mjs'), 'utf8')
-if (!alignment.includes('export function buildSkillLoadIndex')) {
-  throw new Error('the Skill load join must live on the Host, not in the UI')
-}
-// An ambiguous join must be dropped, never resolved to the nearest candidate.
-if (!alignment.includes('if (hits.length !== 1) continue')) {
-  throw new Error('an ambiguous Skill load must be left unlinked rather than guessed')
-}
-for (const requiredText of [
-  'INSPECTOR_TAB_LABELS',
-  'DeclarationPanel',
-  "tabs.includes(tab) ? tab : tabs[0]",
-  '不评分',
-]) {
-  if (!client.includes(requiredText)) throw new Error(`contextual inspector contract missing: ${requiredText}`)
-}
-// §16: the declaration surface may never grow a score.
-{
-  const panel = client.slice(client.indexOf('function DeclarationPanel'), client.indexOf('function inspectorStatusColor'))
-  for (const forbidden of ['遵循率', '百分比', '排名', 'score:', 'percent', 'complianceRate']) {
-    if (panel.includes(forbidden) && !panel.includes(`没有遵循率`)) {
-      throw new Error(`the declaration panel must not score a Skill: ${forbidden}`)
-    }
-  }
-  if (!/不评分|Scored: false/.test(panel)) throw new Error('the declaration panel must state that scoring is off')
-}
-// §15/§38（冲突②选 A）：学习与验证只作 Skill Inspector 的一个 Tab，
-// 既不是固定侧栏，也不再在收据流里单列。
-if (client.includes("h('aside', { className: 'st-aside' }")) {
-  throw new Error('the learning rail must not be pinned as a side column (§14)')
-}
-if (client.includes("className: 'st-section st-panels'")) {
-  throw new Error('the receipt must not carry its own learning section (§15/§38)')
-}
-if (!client.includes('function LearningPanel')) {
-  throw new Error('there must be a learning panel (§15/§38)')
-}
-if (!/active === 'learning' \? h\(LearningPanel/.test(client)) {
-  throw new Error('the inspector must render the learning panel on its learning tab')
-}
-// §15: Skill 的三个 Tab 是「运行证据 / 声明 ↔ 实际 / 学习验证」。
-if (!/\? \['evidence', 'declaration', 'learning'\]/.test(client)) {
-  throw new Error('a Skill must expose evidence, declaration and learning tabs (§15)')
-}
-// §38: 表单默认收起。
-if (!/h\('details', \{ className: 'st-section st-learning-panel' \}/.test(client)) {
-  throw new Error('the learning form must be collapsible (§38)')
-}
-if (/st-learning-panel'[^)]*open: true/.test(client)) {
-  throw new Error('the learning form must default to collapsed (§38)')
-}
-// §13: replay belongs to the canvas, so both densities have it.
-for (const name of ['FlowCanvas', 'RuntimeView']) {
-  const start = client.indexOf(`function ${name}(`)
-  const body = client.slice(start, client.indexOf('\n  function ', start + 10))
-  if (!body.includes('ReplayControls')) throw new Error(`§13: ${name} must offer replay`)
-}
-// §22 lists "all events" as its own control, not as the absence of a toggle.
-if (!client.includes("'显示全部事件'")) throw new Error('§22: the graph view needs an explicit all-events control')
-// v0.6 §4：Runtime Inspector 不再有任何页面消费者，所以这条接线必须消失（先是 UI，再是
-// View consumer，最后才是 Host route 与图表代码 —— 每一步都要能构建、能跑测试）。
-if (/alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client)) {
-  throw new Error('the runtime inspector must not be wired into a page any more (§4)')
-}
-
-// Runtime replay (§37). It is a read of the Host's timeline: stepping must not be
-// able to change what the receipt says happened, and it must not become a video.
-const replay = await readFile(resolve(root, 'src/core/runtime-replay.mjs'), 'utf8')
-for (const requiredText of [
-  'export function buildReplayTimeline',
-  'export const REPLAY_STEP_LIMIT',
-  'truncated',
-  'startedAt',
-]) {
-  if (!replay.includes(requiredText)) throw new Error(`replay contract missing: ${requiredText}`)
-}
-// A step must land on a drawn node, so a folded group has to be resolvable.
-if (!replay.includes('node.memberIds ?? []')) {
-  throw new Error('the timeline must resolve an event to the group that drew it')
-}
-if (!replay.includes('if (nodeId === last) continue')) {
-  throw new Error('consecutive events on one node must be one step, not two')
-}
-// Truncation must be reported rather than silent.
-if (!replay.includes('truncated = true')) throw new Error('a truncated timeline must say so')
-{
-  const code = replay.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  for (const forbidden of ['writeFile', 'fetch(', 'store.']) {
-    if (code.includes(forbidden)) throw new Error(`replay must not write: ${forbidden}`)
-  }
-}
-if (!client.includes('function ReplayControls')) throw new Error('the canvas must offer replay controls')
-{
-  const start = client.indexOf('function ReplayControls')
-  const block = client.slice(start, client.indexOf('function FlowCanvas'))
-  // §37: a step-through, not an auto-playing video.
-  for (const forbidden of ['requestAnimationFrame', '@keyframes', 'transition:']) {
-    if (block.includes(forbidden)) throw new Error(`replay must not animate: ${forbidden}`)
-  }
-  if (!block.includes('上一步') || !block.includes('下一步') || !block.includes('暂停')) {
-    throw new Error('replay must offer step, step back and pause')
-  }
-  // And it may not write while replaying.
-  for (const forbidden of ['api(', 'onUpdate', 'setData(']) {
-    if (block.includes(forbidden)) throw new Error(`replay must not call the API: ${forbidden}`)
-  }
-}
-
-// §17/§18: the receipt is a set of sections, not a numbered wizard.
-if (client.includes("st-section-number' }, '1'")) {
-  throw new Error('the receipt must not use numbered step circles (§17.2)')
-}
-for (const requiredText of ['function ReceiptDetails', 'st-receipt-run-line', "'运行摘要'", "'Skill 加载证据'", "'候选依赖'", "'运行指纹（预留结构）'"]) {
-  if (!client.includes(requiredText)) throw new Error(`receipt governance missing: ${requiredText}`)
-}
-// §17.1: every part can be folded, so a long receipt stays navigable.
-if (!client.includes("h('details', { className: 'st-rsec'")) {
-  throw new Error('receipt sections must be collapsible (§17.1)')
-}
-
-// Runtime Graph governance (§20/§21/§22).
-const canvasModule = await readFile(resolve(root, 'src/dsh/client/runtime-flow.js'), 'utf8')
-for (const requiredText of [
-  'function filterLayout',
-  'const FILTER_TYPES =',
-  'function filterTypeOf',
-  'hiddenNodes',
-  'hiddenEdges',
-]) {
-  if (!canvasModule.includes(requiredText)) throw new Error(`graph filter contract missing: ${requiredText}`)
-}
-// §32: a filter may only remove. If it could construct a node or an edge, the canvas
-// would become a place where relationships are invented.
-{
-  const fn = canvasModule.slice(canvasModule.indexOf('function filterLayout'))
-  for (const forbidden of ['nodes.push', 'edges.push', 'concat(', 'from: ', 'to: ']) {
-    if (fn.includes(forbidden)) throw new Error(`the filter must only remove: ${forbidden}`)
-  }
-}
-// §21: one renderer, two densities — not two similar flowcharts.
-// The old graph view drew its own SVG path builder and edge class; both must stay gone.
-if (client.includes('rtEdgePath') || client.includes("className: 'st-rt-edge'")) {
-  throw new Error('the graph view must not draw its own canvas (§21)')
-}
-if (!client.includes('h(RuntimeFlowView')) throw new Error('the graph view must reuse the one canvas renderer')
-for (const requiredText of ['仅显示主路径', '只看失败/重试', 'FILTER_TYPES.map', 'hideCandidate: true']) {
-  if (!client.includes(requiredText)) throw new Error(`§22 control missing: ${requiredText}`)
-}
-// §22's default is the main path, and what is hidden is always stated.
-if (!/已隐藏|Hiding/.test(client)) throw new Error('a filtered canvas must state what it hid')
-// v0.6 §4：视图驱动的 graph/flow 密度选择随运行图谱一起消失。
-if (client.includes("view === 'runtime' ? 'graph' : 'flow'")) {
-  throw new Error('the client must not pick a graph density from a view that is no longer a page (§4)')
-}
-if (!canvasModule.includes("density === 'graph' ? 'bottom-left' : 'top-right'")) {
-  throw new Error('the graph legend must move to the bottom-left (§21)')
-}
-for (const requiredText of ['conversation.composer', 'st-host', '--st-host-composer-h', 'hostRect.bottom - top']) {
-  if (!client.includes(requiredText)) throw new Error(`host composer accommodation missing: ${requiredText}`)
-}
-if (!host.includes('GRAPH_NODE_LIMIT')) throw new Error('the Host must own the debug density budget')
-
-// My Skills slimming (§23/§24).
-//
-// §24 permits the unselected-state guide and forbids the promo treatment around it:
-// oversized headline, numbered step circles, benefit cards, "your Skill is getting
-// stronger" copy. The guide must also keep saying what it does not do.
-if (client.includes('st-guide-number')) {
-  throw new Error('My Skills must not use numbered step circles (§17.2/§24)')
-}
-if (/\.st-guide-header h2\{[^}]*font-size:2[0-9]px/.test(client)) {
-  throw new Error('My Skills must not use a promo-scale heading (§24/§26)')
-}
-if (!client.includes('把一次 Skill 使用')) {
-  throw new Error('the unselected-state guide must remain (§24 permits it)')
-}
-if (!client.includes('不判断是否有效，也不上传或翻译个人内容')) {
-  throw new Error('the guide must keep stating its evidence boundary')
-}
-for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开始']) {
-  if (client.includes(forbidden)) throw new Error(`conclusive marketing copy is not allowed: ${forbidden}`)
-}
-
 // Visual tokens (§25/§26/§27). These are the rules that a stylesheet drifts away from
 // one page at a time, and that no functional test can see.
 {
@@ -670,9 +368,12 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
   // §26's structural sizes.
   if (!/\.st-topbar\{[^}]*min-height:72px/.test(css)) throw new Error('§26: the top bar is 72px')
   if (!/\.st-heading h1\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
-  if (!/\.st-rsec-name\{[^}]*font-size:(1[3-5](?:\.\d+)?)px/.test(css)) throw new Error('§26: a section title is 13-15px')
-  // §26: the inspector column is 300-340px.
-  if (!/grid-template-columns:minmax\(0,1fr\) (3[0-4][0-9])px/.test(css)) throw new Error('§26: the inspector column is 300-340px')
+  // v0.6 §8.2/§9.3 replaced the three-column workbench with one detail page: a 280px
+  // fact column, and a 170px outline strip inside the SKILL.md panel. The old
+  // assertions described a page that no longer exists, so they moved with it.
+  if (!/\.st-detail-card h3\{[^}]*font-size:(1[3-5](?:\.\d+)?)px/.test(css)) throw new Error('§26: a card title is 13-15px')
+  if (!/grid-template-columns:280px minmax\(0,1fr\)/.test(css)) throw new Error('§8.2: the detail fact column is 280px')
+  if (!/grid-template-columns:170px minmax\(0,1fr\)/.test(css)) throw new Error('§9.3: the document outline is a 170px navigation strip')
   // §27: cards are the exception, not the default — most structure is a divider.
   //
   // 这里原本断言「border-radius 声明数 ≤ 70」。那是一条**把比例写成了数量**的检查：
@@ -682,7 +383,10 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
   // 分隔线」，那是比值，不是绝对数。所以改成比值：每一条分隔线最多配 5.5 个圆角。
   const radii = (css.match(/border-radius:/g) ?? []).length
   const dividers = (css.match(/border-bottom:1px solid/g) ?? []).length
-  if (dividers < 8) throw new Error(`§27: structure should lean on dividers (${dividers})`)
+  // 同样的道理：`dividers >= 8` 也是把 v0.5 那份样式表的规模写成了门槛。v0.6 删掉
+  // 收据工作台后样式表从 529 行降到 227 行，分隔线自然跟着少——但 §27 要说的是**比例**，
+  // 所以这里只要求「分隔线还在用」，把判断留给下面的比值。
+  if (dividers < 3) throw new Error(`§27: structure should lean on dividers (${dividers})`)
   const cardRatio = radii / dividers
   if (cardRatio > 5.5) {
     throw new Error(`§27: too many rounded cards relative to dividers (${radii} radii / ${dividers} dividers = ${cardRatio.toFixed(1)}, cap 5.5)`)
@@ -722,107 +426,6 @@ for (const forbidden of ['你的 Skill 正在变强', '正在变强', '立即开
     if (!literal) continue
     if (/^#(?:fff|ffffff)$/i.test(literal[0])) continue
     throw new Error(`§11.9: colour literal ${literal[0]} in "${value.trim()}" cannot follow the theme — use a --st-* token`)
-  }
-}
-
-// §8/§35: the five-layer model.
-const layoutModule = await readFile(resolve(root, 'src/core/runtime-layout.mjs'), 'utf8')
-for (const requiredText of [
-  "if (kind === 'capability') return 2",
-  "if (kind === 'result' || kind === 'error') return 4",
-  "if (kind === 'turn' || kind === 'child') return 1",
-  'const KIND_NAMES',
-  'const rowHeight = compact ? 88 : 115',
-  '{ width: 190, height: rowHeight }',
-  'capabilityNodeCount',
-  'skippedLevelCount',
-]) {
-  if (!layoutModule.includes(requiredText)) throw new Error(`five-layer model missing: ${requiredText}`)
-}
-// §32: the projection may only draw containment. If it could cite a correlation rule or
-// emit another relation type, the canvas would be inferring relationships again.
-{
-  const fn = layoutModule.slice(layoutModule.indexOf('const projectedEdges'))
-  for (const forbidden of ["type: 'follows'", "type: 'spawns'", "type: 'retries'", 'rule: \'']) {
-    if (fn.includes(forbidden)) throw new Error(`§32: the projection may not draw ${forbidden}`)
-  }
-}
-// §36: the projected levels share the hard bound rather than sitting on top of it.
-if (!layoutModule.includes('projectionBudget = Math.max(0, nodeLimit - view.size)')) {
-  throw new Error('§36: the layer projection must share the node budget')
-}
-// The canvas has to know the kinds it is asked to draw.
-const flowModule = await readFile(resolve(root, 'src/dsh/client/runtime-flow.js'), 'utf8')
-for (const requiredText of ["capability: '能力'", "result: '结果'", "error: '错误'", 'CAPABILITY_COLORS.error', 'CAPABILITY_COLORS.result']) {
-  if (!flowModule.includes(requiredText)) throw new Error(`the canvas cannot draw §35 layer 2 or 4: ${requiredText}`)
-}
-// The outcome level is about outcome, not capability — and its colour needs a label
-// beside it so §9 holds.
-if (!flowModule.includes("if (node.kind === 'capability') return CAPABILITY_COLORS[node.capabilityId]")) {
-  throw new Error('a capability node must take the colour of the capability it groups')
-}
-
-// §31: the Runtime Fingerprint structure is reserved and nothing is derived from it.
-const fingerprintModule = await readFile(resolve(root, 'src/core/runtime-fingerprint.mjs'), 'utf8')
-for (const requiredText of [
-  'export const FINGERPRINT_PATTERNS',
-  "'runtime'",
-  "'tool'",
-  "'mcp'",
-  "'cli'",
-  "'failure'",
-  "'recovery'",
-  "status: 'not-yet-derived'",
-  'value: null',
-  'derived: false',
-]) {
-  if (!fingerprintModule.includes(requiredText)) throw new Error(`§31 fingerprint reservation missing: ${requiredText}`)
-}
-// §16/§31: a reserved fingerprint must not carry a score, and must not present "nobody
-// looked" as "looked and found nothing".
-{
-  // Comments are allowed to name what the code refuses to do; only real code is checked.
-  const code = fingerprintModule.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  for (const forbidden of ['score', 'rate:', 'ranking', 'percent']) {
-    if (code.includes(forbidden)) throw new Error(`§16: the fingerprint must not carry ${forbidden}`)
-  }
-}
-if (!client.includes('FingerprintSection') || !client.includes('尚未派生')) {
-  throw new Error('§31: the receipt must show the reserved structure and say it is not derived')
-}
-if (!client.includes('空不代表')) {
-  throw new Error('§31: the reserved surface must distinguish "not derived" from "none found"')
-}
-// §36: aggregation begins at the governed size, and §20.1's per-turn folding is its own
-// trigger rather than a consequence of the global one.
-for (const requiredText of ['export const AGGREGATE_NODE_THRESHOLD = 30', 'export const AGGREGATE_EDGE_THRESHOLD = 50']) {
-  if (!layoutModule.includes(requiredText)) throw new Error(`§36 threshold missing: ${requiredText}`)
-}
-if (!layoutModule.includes('members.length > collapseThreshold')) {
-  throw new Error('§20.1: a busy turn must fold on its own trigger')
-}
-
-const receiptStore = await readFile(resolve(root, 'src/storage/receipt-store.mjs'), 'utf8')
-for (const requiredText of ['randomBytes(6)', "await rm(temporary, { force: true })"]) {
-  if (!receiptStore.includes(requiredText)) throw new Error(`receipt atomic-write contract missing: ${requiredText}`)
-}
-
-const catalog = await readFile(resolve(root, 'src/core/catalog-view.mjs'), 'utf8')
-for (const requiredText of ["'exact'", "'content-match-candidate'", "'name-only-candidate'", "'conflict'", "'current-not-discovered'", 'runtimeIdentity', 'pendingReview', 'confirmedValidationCount', 'searchMatchEntryIds', 'userSearchText']) {
-  if (!catalog.includes(requiredText)) throw new Error(`catalog evidence contract missing: ${requiredText}`)
-}
-
-const snapshot = await readFile(resolve(root, 'src/core/source-snapshot.mjs'), 'utf8')
-for (const requiredText of ['buildCatalogSnapshot', 'loadSkillDefinition', 'sourceFingerprint', 'captureRuntimeIdentity']) {
-  if (!snapshot.includes(requiredText)) throw new Error(`scoped registry contract missing: ${requiredText}`)
-}
-for (const forbidden of ['prompt:', 'skillBody', 'cookie:', 'token:']) {
-  if (reducer.toLowerCase().includes(forbidden.toLowerCase())) throw new Error(`privacy implementation contains forbidden persisted field: ${forbidden}`)
-}
-
-for (const source of [client, host]) {
-  for (const forbiddenAction of ['ctx.skills.register(', 'skill_create', 'publishSkill', 'installSkill']) {
-    if (source.includes(forbiddenAction)) throw new Error(`automatic Skill mutation or publication must remain absent: ${forbiddenAction}`)
   }
 }
 
