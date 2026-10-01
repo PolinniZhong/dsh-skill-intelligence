@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**`0.7.0`**（Skill 理解与复用）。`CHANGELOG.md` 顶部那一段就是它。已发布版本是 `0.6.1`（2026-10-01，GitHub Release **与 npm**）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**当前没有待发布版本**：`0.7.0`（Skill 理解与复用）已于 2026-10-01 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`），下一版从它开始。`CHANGELOG.md` 顶部那一段仍是刚发出去的那一版。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
 ---
 
@@ -11,11 +11,11 @@
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `a9a6959 feat: Skill 理解与复用 —— 已安装卡片进详情 / 中文阅读版落盘 / 复刻 Skill` |
-| `origin/main` | `8808aa4` —— 本地**领先 1 个提交**；`0.7.0` 的知识库治理（`spec/` 落盘、三份旧文档归档、`AGENTS.md` / `README.md` / `design.md` / `CHANGELOG.md` / `docs/RELEASE.md` 同步）**还没提交** |
-| 远端最新 tag | `v0.6.1`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.6.1^{}` → `b3bc500`） |
-| npm | `beta` 与 `latest` **都指向 `0.6.1`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
-| 工作区 | 知识库治理的未提交改动：`.gitignore` / `AGENTS.md` / `CHANGELOG.md` / `README.md` / `design.md` / `docs/ARCHITECTURE.md` / `docs/RELEASE.md` / `package.json` / `scripts/verify-project.mjs` / `src/dsh/host/index.js`，三份根目录旧文档重命名为 `docs/archive/*`，新增未跟踪的 `spec/`（`PRD.md` 692 行 / `SDD.md` 969 行）——全部属于本次发布 |
+| 本地 `HEAD` | `5fac5d9 release: v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走`（= `origin/main`） |
+| `origin/main` | `5fac5d961fa7b01e91ef02f81c76c85a1dcee431` —— 与本地 `main` **0 领先 / 0 落后** |
+| 远端最新 tag | `v0.7.0`（`refs/tags/v0.7.0^{}` → `5fac5d9`） |
+| npm | `beta` 与 `latest` **都指向 `0.7.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 工作区 | 干净（`git status --porcelain` 无输出）——下一版从这里开始 |
 
 **第一个要决定的事是版本号 —— 这次是 `0.7.0`。** 上一版 `0.6.1` 只修了一处布局塌陷，是 patch；这一版加了三条宿主路由、四个新模块、一个对象级动作，并且**改变了译文的生命周期**（从内存搬进本机数据目录），按语义是 minor。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
 
@@ -150,7 +150,17 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
-### 6.0 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
+### 6.0 本次 `v0.7.0` 的实际结果（2026-10-01 已执行）
+
+| 项 | 结果 |
+|---|---|
+| 发布提交 | `5fac5d9 release: v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走`（`package.json` `0.7.0`） |
+| `origin/main` | `5fac5d961fa7b01e91ef02f81c76c85a1dcee431` —— 与本地 `main` **0 领先 / 0 落后** |
+| tag | `v0.7.0` → 注释对象 `9ceb019ba63039a8e56635d43ca00298b92a830b`，解引用到 `5fac5d9`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-trace/releases/tag/v0.7.0>（`Latest`，`prerelease=false`、`draft=false`），正文取 `CHANGELOG.md` 的 266 行 `## 0.7.0` 段 |
+| 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `GUARD_MARKERS_ARE_BACKED_OK` 与 `RELEASE_ASSETS_IN_SYNC_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129280 字节**（source hash `31d39c71f13aeeb8`），重建后 `git status` 无 `dist` 差异 |
+
+### 6.0.1 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -164,7 +174,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | 渲染台实测 | `.st-detail-doc` 高度 **2px → 640px**，内部滚动区 clientHeight **24 → 539** / scrollHeight 4233；主内容区 scrollHeight 3399 |
 | README 五张截图 | 用 Chrome for Testing 以真实 1600×1050 视口重拍后转 jpg：`skill-list.jpg` 69384B / `installed-skills.jpg` 334705B / `skill-detail.jpg` 266250B / `skill-detail-table.jpg` 289567B / `skill-detail-zh.jpg` 335350B |
 
-### 6.0.1 上一版 `v0.6.0` 的实际结果（2026-10-01）
+### 6.0.2 上一版 `v0.6.0` 的实际结果（2026-10-01）
 
 | 项 | 结果 |
 |---|---|
