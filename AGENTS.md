@@ -21,9 +21,9 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`0.6.1`**（`package.json`）· tag `v0.6.1` · 2026-10-01 · **只发 GitHub** · 已推送并建 Release（发布提交 `b3bc500`） |
+| 插件包版本 | **`0.6.1`**（`package.json`）· tag `v0.6.1` · 2026-10-01 · **GitHub Release 与 npm 都已发布** · 发布提交 `b3bc500` |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-trace`（分支 `main`）· `main` 与 `origin/main` 同步 |
-| npm | **停在 `0.4.0-beta.66`**（`beta` 与 `latest` 都指向它）。`0.5.0`、`0.6.0` 与 `0.6.1` **都只发 GitHub**，所以「npm 落后」是**已知状态，不是漂移** |
+| npm | **`beta` 与 `latest` 都指向 `0.6.1`**（本次已发布）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1` |
 | 测试 | **397 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
 | 静态守卫 | **23 组**（`npm run verify`，见 §6.3） |
 | 客户端 | `src/dsh/client/client.js` **1970 行**，bundle `dist/client.js` **108839 字节** |
@@ -423,7 +423,7 @@ git rev-parse origin/main && git ls-remote origin refs/tags/vX.Y.Z
 ```
 
 - **`RELEASE_ASSETS_IN_SYNC_OK` 会钉住** README 的「当前公开版为 `x`」与 `github:` 安装示例的 `#vx` 锚点。曾经 README 落后 49 个版本。
-- **npm 安装示例锚定的是 npm 上真实存在的版本**（`0.4.0-beta.66`），不是最新版——因为 `0.5.0` / `0.6.0` / `0.6.1` 都只发了 GitHub。
+- **npm 安装示例锚定的是 npm 上真实存在的版本**（现为 `0.6.1`，此前长期是 `0.4.0-beta.66`）——`0.5.0` / `0.6.0` 只在 GitHub，发布范围与 `0.6.1` 不同。
 - **`npm publish` 从本地 `git HEAD` 读 `gitHead`。** 先发后推、或用 Git-data API 推（会生成不同 sha）会留下**永远 404** 的 commit 链接。**顺序是硬规则：先推成功 → 确认本地/远端对齐 → 最后才 publish。**
 - **tag 打在发布提交上**（推送时 `main` 的顶端）。历史上 `bc78e53` 的 tag 落在 `HEAD` 之前 9 个提交处，照 commit message 找位置会漏掉之后 9 个提交。
 - GitHub Release 的正文**直接从 CHANGELOG 取**，不要另写一份——两份说明一定会漂移。

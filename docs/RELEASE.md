@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**`0.6.1`**（`CHANGELOG.md` 的标题已是 `0.6.1 — 2026-10-01 · SKILL.md 面板不再被框架层压成 2px`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+已发布版本：**`0.6.1`**（2026-10-01，GitHub Release **与 npm**）。`CHANGELOG.md` 顶部那一段就是它。**下一版发布前，把这里改回「当前待发布版本」并更新下面的起点表。** 发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
 
 ---
 
@@ -103,14 +103,12 @@ gh release create v0.6.1 \
 
 ## 5. npm 发布
 
-**本次跳过**：`0.5.0`、`0.6.0`、`0.6.1` 都只发布到 GitHub。npm 上的 `dsh-skill-trace` 停在 `0.4.0-beta.66`，
-`beta` 与 `latest` 两个标签都指向它——README 已经照实这么写，所以「npm 落后三版」是**已知状态**，不是漂移。
-
-将来要补发这一版时：
+`0.6.1` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 当时只发 GitHub，所以 npm 的版本号是从
+`0.4.0-beta.66` 直接跳过来的）。两条命令，顺序不能换：
 
 ```bash
-npm publish --tag latest                        # 该版本从未发布过时
-npm dist-tag add dsh-skill-trace@0.6.1 latest   # 版本已发布、只想挪标签时
+npm publish --tag latest --cache=/tmp/npm-cache-dsh                     # 这个版本第一次发布
+npm dist-tag add dsh-skill-trace@0.6.1 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
 ```
 
 **不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未
@@ -121,8 +119,16 @@ npm error code E403
 npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - You cannot publish over the previously published versions: 0.4.0-beta.66.
 ```
 
-正确做法是 `npm dist-tag add`（`beta.66` 发布时就是这么做的）。
+正确做法是 `npm dist-tag add`（`beta.66` 与 `0.6.1` 都是这么做的）。
 `prepack` 会自动重建 `dist`，所以发布产物里的客户端 bundle 一定是最新源码构建的。
+
+两条本机与顺序上的硬约束：
+
+1. **顺序**：`npm publish` 从本地 `git HEAD` 读 `gitHead`——**先推成功、确认本地与远端对齐，最后才
+   publish**，否则 package 页上的 commit 链接永远 404（见附录 A）。
+2. **本机 `~/.npm` 不可写**（DSH 沙箱所致，**不是**属主问题——不要跑 npm 建议的
+   `sudo chown -R 501:20 ~/.npm`）：所有 npm 命令都带 `--cache=/tmp/npm-cache-dsh`。注册表**读**会滞后
+   几十秒到几分钟，核对时用新 cache 目录加 `--prefer-online`。
 
 ---
 

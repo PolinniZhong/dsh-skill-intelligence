@@ -111,16 +111,16 @@ flowchart LR
 
 ### 1. 安装
 
-从 GitHub 安装（`0.6.1` 目前只发布在这里）：
+从 GitHub 安装（锚定本次发布的 tag）：
 
 ```bash
 dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.6.1&path:/"
 ```
 
-或从 npm 安装（npm 上的 `dsh-skill-trace` 仍停在 `0.4.0-beta.66`——`0.5.0`、`0.6.0` 与 `0.6.1` 都没有发布到 npm）：
+或从 npm 安装（`0.6.1` 已发布，`beta` 与 `latest` 都指向它——中间的 `0.5.0` 与 `0.6.0` 只在 GitHub）：
 
 ```bash
-dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.66
+dsh plugin --profile web add dsh-skill-trace@0.6.1
 ```
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。
@@ -168,7 +168,7 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开版为 `0.6.1`（GitHub Release）。这一版**没有发布到 npm**：npm 上的 `dsh-skill-trace` 仍停在 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指向它——要用 npm 装就照上面第二段装那个版本，或直接用 `github:` 写法装 `0.6.1`。**这一版只修了一处客户端布局**：`0.6.0` 把框架层做到 1800px 以上之后，`SKILL.md` 面板用的 `flex:1` 在常规窗口里被压成 2px——表格、原文、中文预览都等于没有可读高度；现在面板固定占视口 72%（上限 640px），内部自己滚动。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文预览。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 1970 行，bundle 108839 字节，宿主路由 7 条。
+当前公开版为 `0.6.1`，GitHub Release 与 npm 上是**同一份构建**：npm 的 `beta` 与 `latest` 都指向 `0.6.1`。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`。**这一版只修了一处客户端布局**：`0.6.0` 把框架层做到 1800px 以上之后，`SKILL.md` 面板用的 `flex:1` 在常规窗口里被压成 2px——表格、原文、中文预览都等于没有可读高度；现在面板固定占视口 72%（上限 640px），内部自己滚动。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文预览。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 1970 行，bundle 108839 字节，宿主路由 7 条。
 
 **`0.5.0` 之后，Skill 详情内部陆续加了几样东西，信息架构没动。** 先是**真正的 GFM 表格渲染**——此前 `ui-craft/SKILL.md` 里 101 行以 `|` 开头的内容全部退化成竖线串；同一版给翻译加了表格结构校验：单元格里的自然语言照翻，表格的行列形状不许变。
 
@@ -256,7 +256,7 @@ dsh plugin --profile web remove dsh-skill-trace
   **2px**：表格、原文、中文预览在 1600×1050 里没有任何可读高度。面板改为自己带高度
   （`flex:0 0 auto;height:min(72vh,640px)`，内部各自滚动），实测 640px。README 的五张截图随之重拍，
   框架层与 `SKILL.md` 面板各占一张。客户端 1967 → 1970 行，bundle 108468 → 108839 字节，
-  测试与守卫数量不变（397 / 23）；**这一版也只发布在 GitHub**
+  测试与守卫数量不变（397 / 23）；**这一版 GitHub 与 npm 同时发布**，npm 的 `beta` 与 `latest` 都指向它
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 
