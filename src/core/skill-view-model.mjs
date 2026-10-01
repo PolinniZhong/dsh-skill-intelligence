@@ -23,6 +23,8 @@
 import { extractDeclaredFlow, flowAnchors } from './skill-flow.mjs'
 import { alignStep, annotatedInvocationsFor, scopeSummary } from './runtime-alignment.mjs'
 import { compareDefinitionToRun } from './skill-definition.mjs'
+import { buildSkillFramework } from './skill-framework.mjs'
+import { buildSkillRuntimeLogic } from './skill-runtime-logic.mjs'
 
 export const SKILL_VIEW_SCHEMA_VERSION = 1
 
@@ -277,6 +279,40 @@ export function buildSkillDetail(options = {}) {
     for (const [stepId, entryId] of flowAnchors(flow, { entries: view.outline ?? [] })) anchors[stepId] = entryId
   }
 
+  // The framework is the Skill's *shape*; the flow above is one module inside it. Both are read
+  // from the same definition body, deterministic and offline, and neither can be derived from the
+  // run — which is why the framework is built before any runtime data is folded in.
+  let framework = null
+  if (definitionAvailable) {
+    framework = buildSkillFramework({
+      content: view.content.text,
+      outline: view.outline ?? [],
+      summary: view.summary ?? null,
+      truncated: view.content.truncated === true,
+      resourceBase: view.resourceBase ?? null,
+    })
+    for (const section of framework.sections) {
+      if (section.anchorId && !anchors[section.id]) anchors[section.id] = section.anchorId
+    }
+    for (const item of framework.limitations) limitations.push(item)
+  }
+
+  // Step states are counted where the steps are built, so the runtime view reports the same
+  // states the step list shows. Two independent tallies would eventually disagree.
+  const stepStates = {}
+  for (const step of flow.steps) {
+    const relationship = step?.evidence?.relationship ?? 'unknown'
+    stepStates[relationship] = (stepStates[relationship] ?? 0) + 1
+  }
+  const runtimeLogic = buildSkillRuntimeLogic({
+    receipt,
+    runs,
+    evidence,
+    observation,
+    stepStates,
+  })
+  for (const item of runtimeLogic.limitations) limitations.push(item)
+
   return {
     schemaVersion: SKILL_VIEW_SCHEMA_VERSION,
     skillName,
@@ -293,10 +329,12 @@ export function buildSkillDetail(options = {}) {
       definitionReason: view?.available === true ? null : (view?.reason ?? null),
     },
     definition: view,
+    framework,
     flow,
     anchors,
     runs,
     evidence,
+    runtimeLogic,
     repository: view?.repository ?? null,
     observation,
     limitations,

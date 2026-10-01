@@ -3,23 +3,23 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**未定**（`CHANGELOG.md` 里的标题是 `Unreleased — Skill 详情增强`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+当前待发布版本：**`0.6.0`**（`CHANGELOG.md` 的标题已是 `0.6.0 — 2026-10-01 · Skill 详情拆成四层`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
 
 ---
 
-## 本次发布的起点（2026-10-02 实测，发布会话照此核对）
+## 本次发布的起点（2026-10-01 实测，发布会话照此核对）
 
 | 项 | 值 |
 |---|---|
 | 本地 `HEAD` | 见 `git log --oneline -1`；本条之后还有文档提交 |
-| `origin/main` | `112a032 release: v0.5.0 — 首个正式版：合并从未公开的 .67 / .68 / .69` —— **就是 `v0.5.0` 本身，已公开** |
-| 远端最新 tag | `v0.5.0`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.5.0^{}` → `112a032`） |
+| `origin/main` | `fd950fe docs: the project described three products, and only one of them exists` —— 本地领先 **4** 个提交，尚未推送 |
+| 远端最新 tag | `v0.5.0`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.5.0^{}`） |
 | npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`）——落后远端两个版本，见下 |
-| 工作区 | 干净 |
+| 工作区 | 有未提交改动（客户端、核心模块、文档、`dist/`）——全部属于本次发布 |
 
-**第一个要决定的事是版本号，不是命令。** 这一次是 `0.5.0` 之后的功能增强（详情页新增「Skill 框架」，Markdown 渲染新增 GFM 表格），按语义该进 minor。但 **`0.6.0` 会和文档里通行的 `SDD v0.6`（信息架构规格的版本）撞车**——两者同时出现在一句话里会互相吞掉。`v0.5.1` 读起来不冲突，代价是把一个新增能力放进 patch。这是产品决策，发布会话要显式选一个并写进 `package.json`、`CHANGELOG.md` 与 tag 三处，三处必须逐字相同。
+**第一个要决定的事是版本号，不是命令 —— 这次已经定下来了：`0.6.0`。** 这一版是 `0.5.0` 之后的功能增强（Skill 详情重做成四层——「Skill 框架」不再是那条声明流程，另加「本次运行逻辑」与「步骤证据」；Markdown 渲染新增 GFM 表格），按语义该进 minor。代价是 **`0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格的版本）撞车**——两者同时出现在一句话里会互相吞掉。当时另一个候选 `v0.5.1` 读起来不冲突，代价是把一个新增能力放进 patch。**这次选了 `0.6.0`，是显式决策**（理由写在 `CHANGELOG.md` 这一版的第二段）。落点必须逐字相同：`package.json`、`CHANGELOG.md`、tag 三处。
 
-**第二个要决定的事是 npm。** `v0.5.0` 当时**只发了 GitHub**，所以 npm 上仍是 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指着它。如果这次要上 npm，发布范围就从「一个版本」变成「补两个版本」，`--tag latest` 会跳过整个 v0.5.0 的内容；如果仍然只发 GitHub，就把 §5 整节当不存在，别执行一半。
+**第二个要决定的事是 npm —— 这次仍然只发 GitHub。** `v0.5.0` 当时也只发了 GitHub，所以 npm 上仍是 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指着它。要把 npm 追上来，发布范围就从「一个版本」变成「补三个版本」（v0.5.0、v0.6.0 与它们中间的 `beta.67`–`.69`），`--tag latest` 会跳过全部 v0.5.0 的内容；**本次把 §5 整节当不存在，别执行一半。**
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 
@@ -40,7 +40,7 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 `RELEASE_ASSETS_IN_SYNC_OK` 会钉住两处**会被人照抄**的内容：README 的「当前公开版为 `x`」（旧措辞
 「当前公开预发布版为」也接受）必须等于 `package.json` 的 version，README 的 `github:` 安装示例必须
 `#v<version>` 锚定。这条规则来自一次真实漂移——`package.json` 已到 `beta.52`，README 还写着 `beta.3`，
-**落后 49 个版本**。注意 npm 安装示例**不在**这条守卫里：`0.5.0` 没有发布到 npm，那一行锚定的是 npm 上
+**落后 49 个版本**。注意 npm 安装示例**不在**这条守卫里：`0.5.0` 与 `0.6.0` 都没有发布到 npm，那一行锚定的是 npm 上
 真实存在的版本（`0.4.0-beta.66`）。
 
 ---
@@ -61,8 +61,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.5.0 — 首个正式版：合并从未公开的 .67 / .68 / .69"
-git tag -a v0.5.0 -m "v0.5.0"
+git commit -m "release: v0.6.0 — Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格"
+git tag -a v0.6.0 -m "v0.6.0"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -73,7 +73,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.5.0
+git push origin v0.6.0
 ```
 
 推送曾经失败过一次——`fatal: unable to access '…': Error in the HTTP2 framing layer`。当时可用的做法是
@@ -81,19 +81,19 @@ git push origin v0.5.0
 
 ```bash
 git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.5.0
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.6.0
 ```
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.5.0`。
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.6.0`。
 
 ---
 
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.5.0 \
-  --title "v0.5.0 — 首个正式版：Skill-first 两级信息架构（合并 .67 / .68 / .69）" \
-  --notes-file <(sed -n '/^## 0.5.0/,/^## 0.4.0-beta.69/p' CHANGELOG.md | sed '$d')
+gh release create v0.6.0 \
+  --title "v0.6.0 — Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格" \
+  --notes-file <(sed -n '/^## 0.6.0/,/^## 0.5.0/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。
@@ -103,14 +103,14 @@ gh release create v0.5.0 \
 
 ## 5. npm 发布
 
-**本次跳过**：`0.5.0` 只发布到 GitHub。npm 上的 `dsh-skill-trace` 停在 `0.4.0-beta.66`，`beta` 与
-`latest` 两个标签都指向它——README 已经照实这么写，所以「npm 落后一版」是**已知状态**，不是漂移。
+**本次跳过**：`0.5.0` 与 `0.6.0` 都只发布到 GitHub。npm 上的 `dsh-skill-trace` 停在 `0.4.0-beta.66`，
+`beta` 与 `latest` 两个标签都指向它——README 已经照实这么写，所以「npm 落后两版」是**已知状态**，不是漂移。
 
 将来要补发这一版时：
 
 ```bash
 npm publish --tag latest                        # 该版本从未发布过时
-npm dist-tag add dsh-skill-trace@0.5.0 latest   # 版本已发布、只想挪标签时
+npm dist-tag add dsh-skill-trace@0.6.0 latest   # 版本已发布、只想挪标签时
 ```
 
 **不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未
@@ -146,7 +146,7 @@ lsof -p "$(cat ~/.dsh/.harness.pid)" | grep -o '\.dsh/profiles/[a-z0-9-]*' | sor
 
 ```bash
 # 0.5.0 不在 npm 上，所以用 github: 写法（与 README 的安装示例一致）
-dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.5.0&path:/"
+dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.6.0&path:/"
 ```
 
 ### 6.3 版本一致
@@ -220,16 +220,22 @@ python3 -c 'import json; d=json.load(open("/tmp/translate-probe.json")); print(s
 
 ### 6.5c 这一版**没有新路由**，所以没有路由探针
 
-「Skill 框架」与 GFM 表格全在客户端。宿主的路由表一条没加、一条没改（`src/dsh/host/index.js` 仍是那七条），
-所以 §6.5 的两枚探针**能证明宿主是新的，但区分不了这一版的前后** —— 它们在这一版之前就是 200。
+四层（框架 / 本次运行逻辑 / 步骤证据 / 表格）全在客户端，它们的视图模型也只在 `buildSkillDetail()` 里
+组装（`src/core/skill-view-model.mjs` 新增两支 import，宿主 `src/dsh/host/index.js` 一行没改，路由表
+仍是那七条）。所以 §6.5 的两枚探针**能证明宿主是新的，但区分不了这一版的前后** —— 它们在这一版之前
+就是 200。
 
 这一版唯一能证明「客户端是新」的静态手段仍是 §6.4 的逐文件 sha256，而**动态手段只有重启后的人眼**。
-验收清单见 `01_重构方案/发布会话验收清单.md`；最小的一组是：打开一个详情页，`SKILL.md` **上方**应出现
-「Skill 框架」卡片（标题右侧有「共 N 步」），卡片里每一步的右侧是**观察**状态而不是执行状态；把文档
-滚到任何一张表，应看到带边框的真表格，而不是一列竖线。
+验收清单见 `01_重构方案/发布会话验收清单.md`；最小的一组是：打开一个详情页（**用 `ui-craft` 这类复杂
+Skill，不要用四步的示例**），主内容区从上到下应依次是「Skill 框架」（多个角色模块 + 一个「声明流程」
+子模块 + 一个「渐进披露」子模块）、「本次运行逻辑」（五段，每段带状态与事实）、「步骤证据」，
+最后才是 `SKILL.md`；框架里每个小节的右侧是**观察**状态或不可点的行，不是「已执行」；把文档滚到
+任何一张表，应看到带边框的真表格，而不是一列竖线。
 
-**一段话就能判断反了没有**：如果界面里出现「已执行」「未执行」「已完成」中的任何一个，那是**旧行为**
-或**改错了** —— 这一版刻意只允许说「暂无足够证据」。八个禁用词由 `SKILL_FRAMEWORK_OK` 守着。
+**一段话就能判断反了没有**：如果「Skill 框架」还是那条 `01 → 02 → 03 → 04`，说明跑的还是旧 bundle；
+如果界面里出现「已执行」「未执行」「已完成」「已加载」「已读取」中的任何一个，那是**旧行为**或
+**改错了** —— 这一版刻意只允许说「暂无足够证据」。两组禁用词分别由 `FLOW_EVIDENCE_FORBIDDEN` 与
+`RUNTIME_LOGIC_FORBIDDEN` 定义，`SKILL_FRAMEWORK_OK` 逐条查解析后的标签。
 
 ### 6.6 重启宿主，然后**重跑 6.5 与 6.5b**
 

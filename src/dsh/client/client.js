@@ -22,8 +22,15 @@ const { parseTableAt } = require('../../core/markdown-table.mjs')
 // 是为了让「界面说的」和「模型算的」是同一套词。
 const {
   FLOW_DECLARATION_NOTE, FLOW_EMPTY_TEXT, FLOW_TRUNCATED_TEXT, FLOW_UNAVAILABLE_TEXT,
+  STEP_EVIDENCE_HEADINGS, STEP_EVIDENCE_NOTE,
   flowEvidenceLabel, flowEvidenceState, flowKindLabel,
 } = require('../../core/flow-evidence.mjs')
+// 框架与运行逻辑的说法同样来自核心层：它们是纯数据，能在没有浏览器的情况下断言，
+// 也就不会随某一次界面改动悄悄变形。
+const {
+  DISCLOSURE_NOTE, FRAMEWORK_NOTE, FRAMEWORK_ROLE_LABELS, FRAMEWORK_ROLE_HINTS, FRAMEWORK_UNCLASSIFIED_LABEL,
+} = require('../../core/skill-framework.mjs')
+const { RUNTIME_LOGIC_NOTE } = require('../../core/skill-runtime-logic.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -297,9 +304,12 @@ function installStyles() {
       .st-detail-back{align-self:center;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 0;cursor:pointer;white-space:nowrap}
       .st-detail-back:hover{color:var(--st-text)}
       .st-detail-body{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:12px 22px 18px}
-      /* 主内容列：声明流程在最上，SKILL.md 占满剩下的高度。流程卡是摘要，所以
-         flex 取 0 0 auto —— 它永远不会把文档挤到看不见，步骤多了在卡内滚动。 */
-      .st-detail-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px}
+      /* 主内容列：框架 / 运行逻辑 / 步骤证据 / SKILL.md 四层自上而下，整列自己滚。
+       *
+       * 以前这一列不滚、只让文档内部滚，前提是顶部只有一张 4 步的流程图。现在三层分析块
+       * 加起来的自然高度就可能超过一屏，所以整列接管滚动，而文档卡保留一个最小高度 ——
+       * 它仍然是一份要逐字读 300 行的定义，压成一条缝就没法读了。 */
+      .st-detail-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
       .st-framework{flex:0 0 auto;min-width:0;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:12px 14px}
       .st-framework-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
       .st-framework-title-row h3{margin:0;font-size:13px}
@@ -329,6 +339,105 @@ function installStyles() {
       .st-framework-step[data-state="unknown"] .st-framework-state{color:var(--st-faint)}
       .st-framework-arrow{padding:2px 0 2px 12px;color:var(--st-faint);font-size:11px;line-height:1}
       .st-framework-truncated{margin:8px 0 0;color:var(--st-warning);font-size:11px}
+      /* ── Skill 框架（v0.6 §13）：结构 · 声明流程 · 渐进披露 ─────────────────────
+       *
+       * 模块网格用 auto-fit 而不是固定列数：一个 Skill 可能只认出 3 个角色，也可能有 8 个，
+       * 固定列数必然让其中一种排得很难看。左边框只有一种颜色 —— 它标的是「这一组的边界」，
+       * 不编码任何状态；角色靠标题区分，不靠颜色。
+       */
+      .st-fw-structure{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:10px;margin-top:10px;align-items:start}
+      .st-fw-module{min-width:0;border:1px solid var(--st-border-soft);border-left:2px solid var(--st-border-strong);border-radius:8px;background:var(--st-layer);padding:9px 10px}
+      .st-fw-module-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+      .st-fw-module-label{font-size:12px;font-weight:650;color:var(--st-text)}
+      .st-fw-module-count{color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
+      .st-fw-module-hint{margin:2px 0 0;color:var(--st-muted);font-size:10.5px;line-height:1.45}
+      .st-fw-sections{display:flex;flex-direction:column;gap:0;margin-top:6px}
+      /* 小节是模块**内部**的一行，不是又一张卡：模块已经有边框和圆角了，再套一层圆角盒子
+         正是 §27 说的「卡片套卡片」。所以这里用分隔线，选中态用 inset 阴影画左边框，
+         既不占位、也不需要圆角。 */
+      .st-fw-section{display:flex;flex-direction:column;gap:4px;width:100%;margin:0;padding:6px 4px;border:0;border-bottom:1px solid var(--st-border-soft);background:transparent;color:var(--st-text);text-align:left;font:inherit;cursor:pointer;transition:background-color .16s ease}
+      .st-fw-section:last-child{border-bottom:0}
+      .st-fw-section:hover{background:var(--st-layer-2)}
+      .st-fw-section[data-static="true"]{cursor:default}
+      .st-fw-section[data-static="true"]:hover{background:transparent}
+      .st-fw-section[data-active="true"]{background:var(--st-highlight);box-shadow:inset 2px 0 0 var(--st-accent)}
+      .st-fw-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+      .st-fw-section-title{min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-fw-section-meta{color:var(--st-faint);font-size:10.5px;white-space:nowrap}
+      .st-fw-opening{margin:0;color:var(--st-muted);font-size:11px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .st-fw-items{margin:0;padding-left:14px;color:var(--st-muted);font-size:10.5px;line-height:1.5;display:flex;flex-direction:column;gap:2px}
+      .st-fw-items li{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-fw-more{list-style:none;margin-left:-14px;color:var(--st-faint)}
+      .st-fw-absent{grid-column:1/-1;margin:8px 0 0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      /* 分节：声明流程与渐进披露是框架的**子模块**，所以只给一条上分隔线，不再套一张卡 ——
+         套卡会让它们看起来和「框架」平级，那正是这次要改掉的层级错位。 */
+      .st-fw-sub{margin-top:12px;padding-top:10px;border-top:1px solid var(--st-border-soft)}
+      .st-fw-sub-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+      .st-fw-sub-head h4{margin:0;font-size:12.5px}
+      .st-fw-sub-note{color:var(--st-faint);font-size:10.5px}
+      /* 渐进披露的链条是一条**机制**的顺序（全文先到、资源按需再读），不是运行顺序，也不是
+         六个并列的选项 —— 所以它是六个标签夹着箭头，而不是六张胶囊卡片。 */
+      .st-fw-chain{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:9px 0 0;padding:0}
+      .st-fw-chain-item{display:flex;align-items:center;gap:4px}
+      .st-fw-chain-label{color:var(--st-text-secondary);font-size:10.5px;font-weight:600;white-space:nowrap}
+      .st-fw-chain-arrow{color:var(--st-faint);font-size:10.5px}
+      .st-fw-base{margin:8px 0 0;color:var(--st-faint);font-size:10.5px}
+      .st-fw-tier{margin-top:8px}
+      .st-fw-tier-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+      .st-fw-tier-title{font-size:11.5px;font-weight:600}
+      .st-fw-tier-count{color:var(--st-faint);font-size:10.5px}
+      .st-fw-resources{display:flex;flex-direction:column;gap:0;margin-top:5px;max-height:168px;overflow:auto}
+      /* 资源也是行不是卡：一个 tier 里可能列十几个文件，卡片会把这栏变成一摞盒子。 */
+      .st-fw-resource{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:8px;width:100%;margin:0;padding:4px 2px;border:0;border-bottom:1px solid var(--st-border-soft);background:transparent;color:var(--st-text);text-align:left;font:inherit;cursor:pointer}
+      .st-fw-resource:last-child{border-bottom:0}
+      .st-fw-resource:hover{background:var(--st-layer-2)}
+      .st-fw-resource[data-static="true"]{cursor:default}
+      .st-fw-resource[data-static="true"]:hover{background:transparent}
+      .st-fw-resource-path{font-size:10.5px;color:var(--st-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-fw-resource-when{min-width:0;color:var(--st-muted);font-size:10.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      /* ── 本次运行逻辑：五段固定的生命周期，不是时间线上的事件序列 ─────────────── */
+      .st-runtime{flex:0 0 auto;min-width:0;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:12px 14px}
+      .st-runtime-stages{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:10px;margin:10px 0 0;padding:0;align-items:start}
+      .st-runtime-stage{min-width:0;border:1px solid var(--st-border-soft);border-left:2px solid var(--st-border-strong);border-radius:8px;background:var(--st-layer);padding:9px 10px}
+      .st-runtime-stage-head{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+      .st-runtime-order{color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
+      .st-runtime-label{font-size:12px;font-weight:650;min-width:0;flex:1}
+      .st-runtime-state{font-size:11px;white-space:nowrap}
+      .st-runtime-hint{margin:3px 0 0;color:var(--st-faint);font-size:10.5px;line-height:1.45}
+      .st-runtime-statement{margin:6px 0 0;color:var(--st-text);font-size:11.5px;line-height:1.5}
+      .st-runtime-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:7px 0 0;font-size:10.5px}
+      .st-runtime-facts dt{color:var(--st-muted);white-space:nowrap}
+      .st-runtime-facts dd{margin:0;min-width:0;color:var(--st-text);overflow-wrap:anywhere}
+      .st-runtime-limitation{margin:6px 0 0;color:var(--st-faint);font-size:10.5px;line-height:1.45}
+      /* 颜色只是旁证：句子本身已经说清"观察到了什么"。删掉样式表也不会让界面说谎。 */
+      .st-runtime-stage[data-state="observed"]{border-left-color:var(--st-success)}
+      .st-runtime-stage[data-state="partial"]{border-left-color:var(--st-warning)}
+      .st-runtime-stage[data-state="intent"]{border-left-color:var(--st-warning)}
+      .st-runtime-stage[data-state="observed"] .st-runtime-state{color:var(--st-success)}
+      .st-runtime-stage[data-state="partial"] .st-runtime-state{color:var(--st-warning)}
+      .st-runtime-stage[data-state="intent"] .st-runtime-state{color:var(--st-warning)}
+      .st-runtime-stage[data-state="none"] .st-runtime-state{color:var(--st-muted)}
+      .st-runtime-stage[data-state="unknown"] .st-runtime-state{color:var(--st-faint)}
+      /* ── 步骤证据：状态词后面必须跟着「凭什么这么说」 ───────────────────────── */
+      .st-steps{flex:0 0 auto;min-width:0;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:12px 14px}
+      .st-steps-list{list-style:none;display:flex;flex-direction:column;gap:0;margin:10px 0 0;padding:0;max-height:260px;overflow:auto}
+      /* 步骤是行不是卡：左侧那条 2px 色带才是状态，一行一条分隔线比摞一排盒子更省地方。 */
+      .st-steps-item{display:flex;flex-direction:column;gap:4px;padding:7px 2px 7px 8px;border:0;border-bottom:1px solid var(--st-border-soft);border-left:2px solid var(--st-border-strong);background:transparent}
+      .st-steps-item:last-child{border-bottom:0}
+      .st-steps-head{display:grid;grid-template-columns:26px minmax(0,1fr) auto auto;align-items:center;gap:8px}
+      .st-steps-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+      .st-steps-rows{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:0;font-size:10.5px}
+      .st-steps-rows dt{color:var(--st-muted);white-space:nowrap}
+      .st-steps-rows dd{margin:0;min-width:0;color:var(--st-text);overflow-wrap:anywhere}
+      .st-steps-none{margin:2px 0 0;font-size:10.5px;color:var(--st-faint)}
+      .st-steps-item[data-state="observed"]{border-left-color:var(--st-success)}
+      .st-steps-item[data-state="partial"]{border-left-color:var(--st-warning)}
+      .st-steps-item[data-state="intent"]{border-left-color:var(--st-warning)}
+      .st-steps-item[data-state="observed"] .st-framework-state{color:var(--st-success)}
+      .st-steps-item[data-state="partial"] .st-framework-state{color:var(--st-warning)}
+      .st-steps-item[data-state="intent"] .st-framework-state{color:var(--st-warning)}
+      .st-steps-item[data-state="none"] .st-framework-state{color:var(--st-muted)}
+      .st-steps-item[data-state="unknown"] .st-framework-state{color:var(--st-faint)}
       /* 表格：Skill 定义里最常被读错的一类内容，退化成竖线串就等于没渲染。窄的时候整张表
          横滚，而不是把列压到读不出来。 */
       .st-audit-table-scroll{margin:10px 0;overflow-x:auto}
@@ -571,6 +680,13 @@ function installStyles() {
     'no-local-directory-to-inspect': ['资源基准不是本地目录，无法向上寻找仓库。', 'The resource base is not a local directory, so no repository could be looked up.'],
     'resource-base-path-withheld': ['资源基准的绝对路径已扣留。', 'The absolute resource base path was withheld.'],
     'rendered-envelope-not-reproducible-outside-the-harness': ['渲染后的信封无法在 Harness 之外重现。', 'The rendered envelope cannot be reproduced outside the harness.'],
+    'section-heading-does-not-match-a-known-framework-role': ['有小节的标题没有匹配到已知的框架角色，按原标题列出。', 'Some section headings matched no known framework role and keep their own titles.'],
+    'definition-truncated-so-the-framework-may-be-incomplete': ['定义正文被截断，框架可能不完整。', 'The definition body was truncated, so the framework may be incomplete.'],
+    'definition-has-no-headings-so-only-the-preamble-could-be-read': ['这份定义没有小节标题，所以只读到了开头一段。', 'This definition has no section headings, so only its opening paragraph could be read.'],
+    'declared-resources-are-not-loaded-resources': ['声明资源不等于已读取资源：这里只显示 SKILL.md 写到的引用。', 'Declared resources are not loaded resources: only the references SKILL.md writes down are shown here.'],
+    'runtime-facts-come-only-from-what-this-session-observed': ['运行事实只来自当前会话观察到的内容。', 'Runtime facts come only from what this session observed.'],
+    'runtime-evidence-is-categorical-and-carries-no-argument-text': ['运行证据只有类别与计数，不保留命令、路径或查询原文。', 'Runtime evidence is categorical and keeps no command, path or query text.'],
+    'runtime-events-could-not-be-linked-to-this-skill': ['运行时事件无法与这个 Skill 关联，所以能力与证据保持为空。', 'Runtime events could not be linked to this Skill, so capability and evidence stay empty.'],
   }
 
   // 复合码（`git-remote-unrecognised-remote`、`frontmatter-repository-empty-remote`）是
@@ -777,30 +893,145 @@ function installStyles() {
       raw(`← ${localized('返回 Skill 列表', 'Back to the Skill list')}${backLabel ? localized(`（${backLabel}）`, ` (${backLabel})`) : ''}`))
   }
 
+  /** 小节卡片的元信息：行号 · 条目数 · 表格数 · 子小节数。全是定义里数得出来的事实。 */
+  function sectionMeta(section) {
+    const meta = []
+    if (Number.isSafeInteger(section?.line)) meta.push(`L${section.line}`)
+    if (section?.itemCount > 0) meta.push(localized(`${section.itemCount} 项`, `${section.itemCount} items`))
+    if (section?.tables > 0) meta.push(localized(`${section.tables} 张表`, `${section.tables} tables`))
+    if (section?.childCount > 0) meta.push(localized(`${section.childCount} 小节`, `${section.childCount} subsections`))
+    return meta.join(' · ')
+  }
+
   /**
-   * Skill 框架 —— 把 `detail.flow.steps[]` 画成一张**声明**流程图。
+   * 框架里的一个小节。
    *
-   * 三条不能松的边界：
+   * 可点是因为锚点来自**同一份** `definition.outline`；没有锚点的（比如从 description 合成出来的
+   * Trigger）渲染成 `div` —— 一个点了没反应的按钮，比一个不可点的元素更糟。
    *
-   *   1. **步骤只来自定义正文。** 这个组件只读 `flow.steps[]`，一个字都不从 `runs` /
-   *      `evidence` 里取。证据能做的唯一一件事，是给已经存在的步骤标一个状态；
-   *      它不能新增、删除、改名或重排步骤——那正是这次重构要拿掉的运行优先反转。
-   *   2. **「暂无足够证据」不是「未执行」。** 状态词表在 `core/flow-evidence.mjs`，那里
-   *      同时列着禁用词。这一步没有留下可对齐的工具调用，只说明我们没看到，不说明 Agent 没做。
-   *   3. **点击 = 定位，不是跳转。** 走的是 SKILL.md 已有的 `flashAnchor`，不新开页面、
-   *      不打开任何运行图。没有锚点的步骤渲染成不可点的元素，而不是一个点了没反应的按钮。
+   * 合成出来的小节标题写成「（来自 Skill 描述）」而不是「（无标题）」：前者说的是一处**来源**，
+   * 后者听起来像原文掉了个标题 —— 而原文本来就没有这一节。
    */
-  function SkillFramework({ flow, anchors, definitionAvailable, flash, onStepClick }) {
+  function FrameworkSection({ section, anchors, flash, onAnchorClick }) {
+    const anchorId = typeof anchors?.[section?.id] === 'string' ? anchors[section.id] : ''
+    const meta = sectionMeta(section)
+    const items = Array.isArray(section?.items) ? section.items : []
+    const title = section?.title
+      || (section?.source === 'summary'
+        ? localized('来自 Skill 描述', 'From the skill description')
+        : localized('（无标题）', '(untitled)'))
+    const props = {
+      className: 'st-fw-section',
+      'data-static': anchorId ? undefined : 'true',
+      'data-active': anchorId && flash === anchorId ? 'true' : undefined,
+    }
+    const body = [
+      h('span', { key: 'h', className: 'st-fw-section-head' },
+        h('span', { className: 'st-fw-section-title' }, raw(title)),
+        meta ? h('span', { className: 'st-fw-section-meta' }, raw(meta)) : null),
+      section?.opening ? h('span', { key: 'o', className: 'st-fw-opening' }, raw(section.opening)) : null,
+      items.length
+        ? h('ul', { key: 'i', className: 'st-fw-items' },
+          ...items.slice(0, 3).map((item, index) => h('li', { key: index }, raw(item))),
+          section.itemCount > 3 || section.itemsTruncated
+            ? h('li', { key: 'more', className: 'st-fw-more' }, raw(localized(`…共 ${section.itemCount} 项`, `${section.itemCount} in total`)))
+            : null)
+        : null,
+    ]
+    return anchorId
+      ? h('button', { ...props, type: 'button', onClick: () => onAnchorClick(anchorId) }, ...body)
+      : h('div', props, ...body)
+  }
+
+  /**
+   * Framework / Structure —— 这个 Skill 由什么组成。
+   *
+   * 这里显示的是 SKILL.md **自己的**章节结构，不是把整个 Skill 压成几个步骤。所以角色是
+   * 「命中的标签」而不是「唯一的分类」：认得出角色的章节归到角色下，认不出的按原标题单列
+   * （`其它章节`）—— 一个复杂的 Skill 不该因为标题不常见就被吞掉。
+   *
+   * 没有对应章节的角色只在末尾列一句「SKILL.md 里没有可识别的模块」，不补空卡片：
+   * 缺一个模块是事实，画一个空盒子会让人以为这里本来该有东西。
+   */
+  function FrameworkStructure({ framework, anchors, flash, onAnchorClick }) {
+    const sections = Array.isArray(framework?.sections) ? framework.sections : []
+    const byId = new Map(sections.map((section) => [section.id, section]))
+
+    const groups = []
+    for (const role of framework?.roles ?? []) {
+      const label = FRAMEWORK_ROLE_LABELS[role.role]
+      const hint = FRAMEWORK_ROLE_HINTS[role.role]
+      groups.push({
+        key: role.role,
+        label: label ? localized(label.zh, label.en) : role.role,
+        hint: hint ? localized(hint.zh, hint.en) : null,
+        sections: (role.sections ?? []).map((id) => byId.get(id)).filter(Boolean),
+      })
+    }
+    const others = (framework?.unclassified ?? []).map((id) => byId.get(id)).filter(Boolean)
+    // 兜底：任何没有被角色分到、也没被标成 unclassified 的小节，仍然要出现。角色列表以后
+    // 多一个字段、少一次赋值，都不该让一个小节从界面上安静地消失 —— 少显示一节，读者会以为
+    // SKILL.md 里本来就没有它。
+    const covered = new Set([...groups.flatMap((group) => group.sections.map((section) => section.id)), ...others.map((section) => section.id)])
+    for (const section of sections) {
+      if (!covered.has(section.id)) others.push(section)
+    }
+    if (others.length) {
+      groups.push({
+        key: 'other',
+        label: localized(FRAMEWORK_UNCLASSIFIED_LABEL.zh, FRAMEWORK_UNCLASSIFIED_LABEL.en),
+        hint: localized('没有匹配到已知的框架角色，按原标题列出。', 'These headings matched no known framework role, so they keep their own titles.'),
+        sections: others,
+      })
+    }
+
+    const absent = (framework?.coverage?.absent ?? []).map((role) => {
+      const label = FRAMEWORK_ROLE_LABELS[role]
+      return label ? localized(label.zh, label.en) : role
+    })
+
+    if (groups.length === 0) {
+      return h('p', { className: 'st-framework-empty' }, raw(localized(
+        '这份 SKILL.md 没有可用的小节结构。',
+        'This SKILL.md has no usable section structure.')))
+    }
+
+    return h('div', { className: 'st-fw-structure' },
+      ...groups.map((group) => h('section', { key: group.key, className: 'st-fw-module', 'data-role': group.key },
+        h('div', { className: 'st-fw-module-head' },
+          h('span', { className: 'st-fw-module-label' }, raw(group.label)),
+          h('span', { className: 'st-fw-module-count' }, raw(`${group.sections.length}`))),
+        group.hint ? h('p', { className: 'st-fw-module-hint' }, raw(group.hint)) : null,
+        h('div', { className: 'st-fw-sections' },
+          ...group.sections.map((section) => h(FrameworkSection, {
+            key: section.id, section, anchors, flash, onAnchorClick,
+          }))))),
+      absent.length
+        ? h('p', { className: 'st-fw-absent' }, raw(localized(
+          `SKILL.md 里没有可识别的模块：${absent.join(' / ')}`,
+          `No recognisable module in SKILL.md for: ${absent.join(' / ')}`)))
+        : null)
+  }
+
+  /**
+   * Declared Workflow —— `detail.flow.steps[]`，也就是 SKILL.md **明确写出**的那段流程。
+   *
+   * 它从「整个 Skill 的框架」降级成框架里的一个模块，这是这次调整的要点：ui-craft 的
+   * Discovery Phase 只有 4 步，而它整个 Skill 有 11 个小节。把 4 步当成框架，是把
+   * 「Skill 声明了什么过程」误读成「Skill 是什么」。
+   *
+   * 步骤只来自定义正文。证据能做的唯一一件事，是给已经存在的步骤标一个状态；它不能新增、
+   * 删除、改名或重排步骤。
+   */
+  function DeclaredWorkflow({ flow, anchors, flash, onStepClick }) {
     const language = isEnglish() ? 'en' : 'zh'
     const steps = Array.isArray(flow?.steps) ? flow.steps : []
     const mapping = anchors && typeof anchors === 'object' ? anchors : {}
-    const truncated = flow?.truncated === true
 
     // 每一步的四个格子：序号 · 标题 · 类型 · 观察状态。类型与状态是两件事，所以永远
     // 分成两列 —— 合成一句"运行：有证据"会让"声明成运行"读成"运行过"。
     const cellsOf = (step) => {
       const relationship = step?.evidence?.relationship
-      const state = flowEvidenceState(relationship)
       const limitation = typeof step?.evidence?.limitation === 'string' ? step.evidence.limitation : ''
       return [
         h('span', { key: 'n', className: 'st-framework-num' }, raw(String(step?.order ?? '').padStart(2, '0'))),
@@ -814,38 +1045,264 @@ function installStyles() {
       ]
     }
 
+    const body = steps.length === 0
+      ? h('p', { className: 'st-framework-empty' }, raw(localized(FLOW_EMPTY_TEXT.zh, FLOW_EMPTY_TEXT.en)))
+      : h('ol', { className: 'st-framework-steps' },
+        ...steps.map((step, position) => {
+          const anchorId = typeof mapping[step?.id] === 'string' ? mapping[step.id] : ''
+          const props = {
+            className: 'st-framework-step',
+            'data-state': flowEvidenceState(step?.evidence?.relationship).tone,
+            'data-active': anchorId && flash === anchorId ? 'true' : undefined,
+          }
+          return h('li', { key: step?.id ?? position, className: 'st-framework-item' },
+            anchorId
+              ? h('button', { ...props, type: 'button', onClick: () => onStepClick(anchorId) }, ...cellsOf(step))
+              : h('div', { ...props, 'data-static': 'true' }, ...cellsOf(step)),
+            position < steps.length - 1
+              ? h('span', { key: 'a', className: 'st-framework-arrow', 'aria-hidden': 'true' }, raw('↓'))
+              : null)
+        }))
+
+    return h('section', { className: 'st-fw-sub' },
+      h('div', { className: 'st-fw-sub-head' },
+        h('h4', null, localized('声明流程 · Declared Workflow', 'Declared workflow')),
+        h('span', { className: 'st-fw-sub-note' }, raw(localized(
+          `SKILL.md 明确写出的流程${steps.length ? `，共 ${steps.length} 步` : ''}`,
+          `The flow SKILL.md explicitly writes out${steps.length ? `, ${steps.length} steps` : ''}`)))),
+      body,
+      flow?.truncated && steps.length
+        ? h('p', { className: 'st-framework-truncated' }, raw(localized(FLOW_TRUNCATED_TEXT.zh, FLOW_TRUNCATED_TEXT.en)))
+        : null)
+  }
+
+  /**
+   * Progressive Disclosure —— Skill 怎么按需展开自己的资源。
+   *
+   * 这条链是 Skill 的**加载与资源组织机制**，不是工作流：它讲的是 SKILL.md 全文先到、
+   * 被引用的资源按需再读。
+   *
+   * 「声明资源」和「已读取资源」在这里被刻意分成两件事。收据里没有任何来源证据能证明
+   * `references/tokens.md` 被读过，所以界面只说「声明」；`loaded` 永远是空的，
+   * 它空着本身就是要说的事实。
+   */
+  function ProgressiveDisclosure({ framework, onAnchorClick }) {
+    const chain = Array.isArray(framework?.chain) ? framework.chain : []
+    const resources = framework?.resources ?? null
+    const declared = Array.isArray(resources?.declared) ? resources.declared : []
+    const tiers = Array.isArray(resources?.tiers) ? resources.tiers : []
+    const byPath = new Map(declared.map((item) => [item.path, item]))
+
+    const resourceRow = (path, owner) => {
+      const item = byPath.get(path) ?? { path, anchorId: '' }
+      const anchorId = typeof item.anchorId === 'string' ? item.anchorId : ''
+      const props = { key: path, className: 'st-fw-resource', 'data-static': anchorId ? undefined : 'true' }
+      const body = [
+        h('code', { key: 'p', className: 'st-fw-resource-path' }, raw(path)),
+        item.when ? h('span', { key: 'w', className: 'st-fw-resource-when' }, raw(item.when)) : null,
+      ]
+      return anchorId
+        ? h('button', { ...props, type: 'button', onClick: () => onAnchorClick(anchorId) }, ...body)
+        : h('div', props, ...body)
+    }
+
+    const list = tiers.length
+      ? tiers.map((tier) => h('div', { key: tier.line ?? tier.title, className: 'st-fw-tier' },
+        h('div', { className: 'st-fw-tier-head' },
+          h('span', { className: 'st-fw-tier-title' }, raw(tier.title || localized('未分组', 'Ungrouped'))),
+          h('span', { className: 'st-fw-tier-count' }, raw(localized(`${tier.count} 个引用`, `${tier.count} references`)))),
+        h('div', { className: 'st-fw-resources' },
+          ...(tier.resourcePaths ?? []).map((path) => resourceRow(path, tier)))))
+      : declared.length
+        ? h('div', { className: 'st-fw-resources' }, ...declared.map((item) => resourceRow(item.path, null)))
+        : h('p', { className: 'st-framework-empty' }, raw(localized(
+          'SKILL.md 没有声明任何外部资源。',
+          'SKILL.md declares no external resource.')))
+
+    const base = resources?.base ?? null
+
+    return h('section', { className: 'st-fw-sub' },
+      h('div', { className: 'st-fw-sub-head' },
+        h('h4', null, localized('渐进披露 · Progressive Disclosure', 'Progressive disclosure')),
+        h('span', { className: 'st-fw-sub-note' }, raw(localized(
+          `声明引用 ${resources?.declaredCount ?? 0} 个 · 已读取 ${resources?.loadedCount ?? 0} 个`,
+          `${resources?.declaredCount ?? 0} declared · ${resources?.loadedCount ?? 0} read`)))),
+      h('ol', { className: 'st-fw-chain' },
+        ...chain.map((stage, index) => h('li', { key: stage.id, className: 'st-fw-chain-item' },
+          h('span', { className: 'st-fw-chain-label' }, raw(localized(stage.label.zh, stage.label.en))),
+          index < chain.length - 1
+            ? h('span', { key: 'a', className: 'st-fw-chain-arrow', 'aria-hidden': 'true' }, raw('→'))
+            : null))),
+      base
+        ? h('p', { className: 'st-fw-base' }, raw(localized(
+          `资源基准：${base.kind ?? 'unknown'}${base.pathOmitted ? '（路径已省略）' : ''}`,
+          `Resource base: ${base.kind ?? 'unknown'}${base.pathOmitted ? ' (path withheld)' : ''}`)))
+        : null,
+      list,
+      h('p', { className: 'st-framework-note' }, raw(localized(DISCLOSURE_NOTE.zh, DISCLOSURE_NOTE.en))))
+  }
+
+  /**
+   * Skill 框架 = Structure + Declared Workflow + Progressive Disclosure。
+   *
+   * 三者放在一张卡里、彼此有分节，是因为它们回答的是同一个问题的三个面：「这个 Skill 是什么」。
+   * 运行过程不在这里 —— 那是下一张卡（`RuntimeLogic`），两者的边界必须一眼看得出来。
+   */
+  function SkillFramework({ framework, flow, anchors, definitionAvailable, flash, onStepClick, onAnchorClick }) {
+    const sectionCount = Number.isSafeInteger(framework?.sectionCount) ? framework.sectionCount : 0
+    const stepCount = Array.isArray(flow?.steps) ? flow.steps.length : 0
     const body = !definitionAvailable
       ? h('p', { className: 'st-framework-empty' }, raw(localized(FLOW_UNAVAILABLE_TEXT.zh, FLOW_UNAVAILABLE_TEXT.en)))
-      : steps.length === 0
-        ? h('p', { className: 'st-framework-empty' }, raw(localized(FLOW_EMPTY_TEXT.zh, FLOW_EMPTY_TEXT.en)))
-        : h('ol', { className: 'st-framework-steps' },
-          ...steps.map((step, position) => {
-            const anchorId = typeof mapping[step?.id] === 'string' ? mapping[step.id] : ''
-            const props = {
-              className: 'st-framework-step',
-              'data-state': flowEvidenceState(step?.evidence?.relationship).tone,
-              'data-active': anchorId && flash === anchorId ? 'true' : undefined,
-            }
-            return h('li', { key: step?.id ?? position, className: 'st-framework-item' },
-              anchorId
-                ? h('button', { ...props, type: 'button', onClick: () => onStepClick(anchorId) }, ...cellsOf(step))
-                : h('div', { ...props, 'data-static': 'true' }, ...cellsOf(step)),
-              position < steps.length - 1
-                ? h('span', { key: 'a', className: 'st-framework-arrow', 'aria-hidden': 'true' }, raw('↓'))
-                : null)
-          }))
+      : h('div', null,
+        h(FrameworkStructure, { framework, anchors, flash, onAnchorClick }),
+        h(DeclaredWorkflow, { flow, anchors, flash, onStepClick }),
+        h(ProgressiveDisclosure, { framework, onAnchorClick }))
 
     return h('section', { className: 'st-framework' },
       h('div', { className: 'st-framework-head' },
         h('div', { className: 'st-framework-title-row' },
           h('h3', null, localized('Skill 框架', 'Skill Framework')),
-          steps.length ? h('span', { className: 'st-framework-count' }, raw(localized(`共 ${steps.length} 步`, `${steps.length} steps`))) : null),
-        h('p', { className: 'st-framework-sub' }, localized('来自 SKILL.md 的声明流程', 'The declared flow from SKILL.md')),
-        h('p', { className: 'st-framework-note' }, raw(localized(FLOW_DECLARATION_NOTE.zh, FLOW_DECLARATION_NOTE.en)))),
+          definitionAvailable && sectionCount
+            ? h('span', { className: 'st-framework-count' }, raw(localized(
+              `${sectionCount} 个小节 · ${stepCount} 步声明流程`,
+              `${sectionCount} sections · ${stepCount} declared steps`)))
+            : null),
+        h('p', { className: 'st-framework-sub' }, localized(
+          '这个 Skill 由什么组成：结构、声明流程、渐进披露',
+          'What this Skill is made of: structure, declared flow, progressive disclosure')),
+        h('p', { className: 'st-framework-note' }, raw(localized(FRAMEWORK_NOTE.zh, FRAMEWORK_NOTE.en)))),
       body,
-      truncated && steps.length
-        ? h('p', { className: 'st-framework-truncated' }, raw(localized(FLOW_TRUNCATED_TEXT.zh, FLOW_TRUNCATED_TEXT.en)))
-        : null)
+      h('p', { className: 'st-framework-note' }, raw(localized(FLOW_DECLARATION_NOTE.zh, FLOW_DECLARATION_NOTE.en))))
+  }
+
+  /**
+   * 本次运行逻辑 —— 这个 Skill 在**这一次会话**里走过哪几个阶段，哪些阶段观察不到。
+   *
+   * 它不是运行图：阶段是固定的五段生命周期，不是按时间排序的事件序列。每个阶段显示的核心
+   * 是「能观察到的事实」和「这句判断为什么只能这么说」，看不到的地方就写着看不到。
+   */
+  function RuntimeLogic({ runtimeLogic }) {
+    const language = isEnglish() ? 'en' : 'zh'
+    const stages = Array.isArray(runtimeLogic?.stages) ? runtimeLogic.stages : []
+
+    const factValue = (fact) => {
+      const value = fact?.value
+      switch (fact?.kind) {
+        case 'count': return raw(String(value))
+        case 'code': return h('code', null, raw(String(value)))
+        case 'flag': return raw(value === true
+          ? localized('是', 'Yes')
+          : value === false ? localized('否', 'No') : localized('未知', 'Unknown'))
+        case 'names': return raw(Array.isArray(value) ? value.join(' · ') : String(value ?? ''))
+        case 'step-kinds': return raw(Array.isArray(value) ? value.map((kind) => flowKindLabel(kind, language)).join(' · ') : '')
+        case 'pairs': return raw(Array.isArray(value) ? value.map((pair) => `${pair.label} × ${pair.value}`).join(' · ') : '')
+        case 'evidence-states': return raw(Array.isArray(value)
+          ? value.map((pair) => `${flowEvidenceLabel(pair.label, language)} × ${pair.value}`).join(' · ')
+          : '')
+        default: return raw(value === null || value === undefined ? '—' : String(value))
+      }
+    }
+
+    if (stages.length === 0) {
+      return h('section', { className: 'st-runtime' },
+        h('div', { className: 'st-framework-head' },
+          h('h3', null, localized('本次运行逻辑', 'Runtime logic this session'))),
+        h('p', { className: 'st-framework-empty' }, raw(localized('没有可显示的运行观察。', 'No runtime observation to show.'))))
+    }
+
+    return h('section', { className: 'st-runtime' },
+      h('div', { className: 'st-framework-head' },
+        h('div', { className: 'st-framework-title-row' },
+          h('h3', null, localized('本次运行逻辑', 'Runtime logic this session')),
+          h('span', { className: 'st-framework-count' }, raw(localized(
+            `观察到 ${runtimeLogic.observedCount} / ${runtimeLogic.stageCount} 段`,
+            `${runtimeLogic.observedCount} of ${runtimeLogic.stageCount} stages observed`)))),
+        h('p', { className: 'st-framework-sub' }, localized(
+          '当前会话能观察到的 Skill 生命周期',
+          'The Skill lifecycle this session could observe')),
+        h('p', { className: 'st-framework-note' }, raw(localized(RUNTIME_LOGIC_NOTE.zh, RUNTIME_LOGIC_NOTE.en)))),
+      h('ol', { className: 'st-runtime-stages' },
+        ...stages.map((stage) => h('li', { key: stage.id, className: 'st-runtime-stage', 'data-state': stage.tone },
+          h('div', { className: 'st-runtime-stage-head' },
+            h('span', { className: 'st-runtime-order' }, raw(String(stage.order).padStart(2, '0'))),
+            h('span', { className: 'st-runtime-label' }, raw(localized(stage.label.zh, stage.label.en))),
+            h('span', { className: 'st-runtime-state' }, raw(flowEvidenceLabel(stage.state, language)))),
+          h('p', { className: 'st-runtime-hint' }, raw(localized(stage.hint.zh, stage.hint.en))),
+          stage.statement ? h('p', { className: 'st-runtime-statement' }, raw(localized(stage.statement.zh, stage.statement.en))) : null,
+          stage.facts.length
+            ? h('dl', { className: 'st-runtime-facts' },
+              ...stage.facts.map((item) => [
+                h('dt', { key: `${item.id}-t` }, raw(localized(item.label.zh, item.label.en))),
+                h('dd', { key: `${item.id}-d` }, factValue(item)),
+              ]).flat())
+            : null,
+          stage.limitations.length
+            ? h('p', { className: 'st-runtime-limitation' }, raw(stage.limitations.map((item) => limitationLabel(item)).join(' · ')))
+            : null))))
+  }
+
+  /**
+   * 步骤证据 —— `detail.flow.steps[].evidence` 摆到台面上。
+   *
+   * 这一段存在的理由只有一个：状态词（「暂无足够证据」）很容易被读成结论（「没做」）。
+   * 所以每一行都不只给状态，还把后端已经算好的引用数、类别、命中类型一起给出来 ——
+   * 让用户能自己看出「这里确实没有东西可对齐」，而不是只能相信一个词。
+   */
+  function StepEvidence({ flow }) {
+    const language = isEnglish() ? 'en' : 'zh'
+    const steps = Array.isArray(flow?.steps) ? flow.steps : []
+    const heading = (key) => localized(STEP_EVIDENCE_HEADINGS[key].zh, STEP_EVIDENCE_HEADINGS[key].en)
+
+    if (steps.length === 0) {
+      return h('section', { className: 'st-steps' },
+        h('div', { className: 'st-framework-head' },
+          h('h3', null, localized('步骤证据', 'Step evidence')),
+          h('p', { className: 'st-framework-note' }, raw(localized(STEP_EVIDENCE_NOTE.zh, STEP_EVIDENCE_NOTE.en)))),
+        h('p', { className: 'st-framework-empty' }, raw(localized('没有声明步骤，也就没有步骤证据。', 'No declared steps, so no step evidence.'))))
+    }
+
+    return h('section', { className: 'st-steps' },
+      h('div', { className: 'st-framework-head' },
+        h('div', { className: 'st-framework-title-row' },
+          h('h3', null, localized('步骤证据', 'Step evidence')),
+          h('span', { className: 'st-framework-count' }, raw(localized(`${steps.length} 步`, `${steps.length} steps`)))),
+        h('p', { className: 'st-framework-note' }, raw(localized(STEP_EVIDENCE_NOTE.zh, STEP_EVIDENCE_NOTE.en)))),
+      h('ol', { className: 'st-steps-list' },
+        ...steps.map((step) => {
+          const item = step?.evidence ?? {}
+          const references = Array.isArray(item.runtimeEvidence) ? item.runtimeEvidence : []
+          const nodes = Array.isArray(item.observedNodeIds) ? item.observedNodeIds.length : 0
+          const evidenceIds = Array.isArray(item.evidenceIds) ? item.evidenceIds.length : 0
+          const capabilities = Array.isArray(item.matchedCapabilities) ? item.matchedCapabilities : []
+          const hasAny = references.length + nodes + evidenceIds + capabilities.length > 0
+          const rows = [
+            references.length ? [heading('runtimeEvidence'), references.map((entry) => [entry?.type, entry?.category].filter(Boolean).join(' · ')).join('，')] : null,
+            nodes ? [heading('observedNodes'), String(nodes)] : null,
+            evidenceIds ? [heading('evidenceIds'), String(evidenceIds)] : null,
+            capabilities.length ? [heading('matchedCapabilities'), capabilities.map((kind) => flowKindLabel(kind, language)).join(' · ')] : null,
+            [heading('modelIntent'), item.modelIntent?.present === true ? heading('present') : heading('absent')],
+            [heading('matchCount'), String(item.matchCount ?? 0)],
+          ].filter(Boolean)
+          return h('li', {
+            key: step?.id,
+            className: 'st-steps-item',
+            'data-state': flowEvidenceState(item.relationship).tone,
+          },
+            h('div', { className: 'st-steps-head' },
+              h('span', { className: 'st-framework-num' }, raw(String(step?.order ?? '').padStart(2, '0'))),
+              h('span', { className: 'st-steps-title' }, raw(step?.title ?? '')),
+              h('span', { className: 'st-framework-kind' }, raw(flowKindLabel(step?.kind, language))),
+              h('span', { className: 'st-framework-state' }, raw(flowEvidenceLabel(item.relationship, language)))),
+            // 没有东西可展示时不再写「相关运行证据：没有可展示的证据引用」—— 那等于先立一个
+            // 名头再当场收回，读起来像这一行出了故障。空就是一句话。
+            hasAny
+              ? h('dl', { className: 'st-steps-rows' },
+                ...rows.map(([label, value]) => [
+                  h('dt', { key: `${label}-t` }, raw(label)),
+                  h('dd', { key: `${label}-d` }, raw(value)),
+                ]).flat())
+              : h('p', { className: 'st-steps-none' }, raw(heading('none'))))
+        })))
   }
 
   function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill }) {
@@ -1124,20 +1581,25 @@ function installStyles() {
       translationState,
       h('div', { className: 'st-detail-doc-body' }, outlineNav, documentScroll))
 
-    // 声明流程在 SKILL.md 之前 —— 用户第一眼要回答的是「这个 Skill 大致分几步」，
-    // 然后才是逐字读定义。定义读不到时不画伪流程：空流程是诚实的，从运行证据里
-    // 现编一个流程正是这次重构要拿掉的那件事。
+    // 四层分开摆：框架（这个 Skill 由什么组成）→ 运行逻辑（这次会话观察到什么）→ 步骤证据
+    // （声明步骤各自有什么）→ SKILL.md 原文。它们以前挤在一张「流程图」里，于是 ui-craft
+    // 那样 11 个小节的 Skill 只显示成 4 步；分层之后，一张卡只说一件事。
     const framework = h(SkillFramework, {
+      framework: detail?.framework ?? null,
       flow: detail?.flow ?? null,
       anchors: detail?.anchors ?? null,
       definitionAvailable: Boolean(definition) && definition.available === true,
       flash,
       onStepClick: flashAnchor,
+      onAnchorClick: flashAnchor,
     })
+
+    const runtimeLogic = h(RuntimeLogic, { runtimeLogic: detail?.runtimeLogic ?? null })
+    const stepEvidence = h(StepEvidence, { flow: detail?.flow ?? null })
 
     return h('div', { className: 'st-detail' },
       h('div', { className: 'st-detail-body' }, sidePanel,
-        h('div', { className: 'st-detail-main' }, framework, docPanel)))
+        h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)))
   }
 
   /**
@@ -1497,4 +1959,9 @@ function installStyles() {
   // 共用同一次调用），而"表格有没有被画成表格"只有渲染出节点才验得了 —— 源码断言只能
   // 证明函数名出现过。
   module.exports.__pure = { resolveSkillListState, alignOutlineToTranslation, invocationLabel, renderSkillMarkdown }
-  module.exports.__views = { Workbench, CurrentSkillPage, SkillDetailPage, SkillFramework, DetailBackButton, InstalledSkillsPage, SkillCard, TraceState }
+  module.exports.__views = {
+    Workbench, CurrentSkillPage, SkillDetailPage, SkillFramework, DetailBackButton, InstalledSkillsPage, SkillCard, TraceState,
+    // 框架与运行逻辑各自成组件，就能在**没有浏览器**的情况下把它们渲染一遍：措辞风险只有
+    // 渲染出来才看得见，而"未执行"这类词在源码里根本搜不到 —— 它是一条不存在的分支。
+    FrameworkStructure, DeclaredWorkflow, ProgressiveDisclosure, RuntimeLogic, StepEvidence,
+  }

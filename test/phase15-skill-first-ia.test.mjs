@@ -360,13 +360,29 @@ test('A7: without a definition the flow is honestly empty and never built from i
   assert.equal(detail.evidence.invocationCount >= 0, true)
 })
 
-test('A8: every anchored step points at a real outline entry', () => {
+test('A8: every anchor points at a real outline entry — for steps and framework sections alike', () => {
   const view = definitionOf(SKILL_MD)
   const detail = buildSkillDetail({ receipt: receiptOf({ rawEvents: [], traces: [] }), view, skillName: 'skill-a' })
   const entryIds = new Set(view.outline.map((entry) => entry.id))
-  assert.deepEqual(Object.keys(detail.anchors).sort(), ['declared:1', 'declared:2', 'declared:3'])
-  for (const entryId of Object.values(detail.anchors)) assert.ok(entryIds.has(entryId))
+
+  // 声明步骤仍然逐个带锚点：点一步跳进 SKILL.md 是既有行为，不能因为多了一层就丢。
+  assert.deepEqual(detail.flow.steps.map((step) => step.id), ['declared:1', 'declared:2', 'declared:3'])
+  for (const step of detail.flow.steps) assert.equal(typeof detail.anchors[step.id], 'string')
   assert.equal(detail.anchors['declared:1'], 'workflow')
+
+  // 框架的小节复用同一张锚点表 —— 一个 id 只有一处权威，否则点击会落到两个地方。
+  // 合成出来的小节（SKILL.md 里没有对应标题，例如 Trigger 取自 description）报
+  // `anchorId: null`，于是它**必须**没有锚点：一个点了不动的按钮比不可点的元素更糟。
+  assert.ok(detail.framework.sections.length >= 2)
+  for (const section of detail.framework.sections) {
+    if (section.anchorId === null) assert.equal(detail.anchors[section.id], undefined)
+    else assert.equal(detail.anchors[section.id], section.anchorId)
+  }
+
+  // 底线：锚点的**值**必须是真实存在的大纲 id，否则点击就是死链接。
+  for (const [key, entryId] of Object.entries(detail.anchors)) {
+    assert.ok(entryIds.has(entryId), `${key} → ${entryId} is not an outline entry`)
+  }
 })
 
 // ---------------------------------------------------------------------------

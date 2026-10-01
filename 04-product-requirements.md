@@ -1,15 +1,15 @@
 ---
 artifact: prd
-version: "0.21-skill-framework-and-tables"
+version: "0.22-skill-detail-four-layers"
 created: 2026-08-26
-status: skill-framework-desktop-eyeball-pending
+status: released-0.6.0
 ---
 
 # DSH Skill Trace 概览 PRD
 
 > 产品版本：V0.6 两级信息架构重构版  
-> 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。v0.6 当时把 Client 从 3536 行收到 1345 行、bundle 从 421 KB 收到 52 KB；**此后详情页内部又加了「Skill 框架」与 GFM 表格，信息架构未动**，当前实测为 377 项自动化测试、23 项静态契约守卫、Client 源码 **1500 行**、bundle 421 KB → **62 KB**  
-> 工程发布版：`dsh-skill-trace 0.5.0`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面）。**已发布到 GitHub**（tag `v0.5.0`）——`0.4.0-beta.67` / `.68` / `.69` 三版从未单独公开，内容一并包含在这一版里；**npm 未同步**：`beta` 与 `latest` 仍指向 `0.4.0-beta.66`。发布步骤与起点见 `docs/RELEASE.md`。本轮未完成项一项：**DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），走查清单见 `01_重构方案/发布会话验收清单.md`
+> 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。v0.6 当时把 Client 从 3536 行收到 1345 行、bundle 从 421 KB 收到 52 KB；**此后详情页内部扩成四层（框架 / 本次运行逻辑 / 步骤证据 / `SKILL.md`）并加了 GFM 表格，信息架构未动**，当前实测为 397 项自动化测试、23 项静态契约守卫、Client 源码 **1967 行**、bundle 421 KB → **106 KB**（108468 字节）  
+> 工程发布版：`dsh-skill-trace 0.6.0`（详情页四层：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md`；信息架构仍是 v0.6 的两级）。**已发布到 GitHub**（tag `v0.6.0`）——`0.4.0-beta.67` / `.68` / `.69` 与 `0.5.0` 的内容也都只在这条 GitHub 线上；**npm 未同步**：`beta` 与 `latest` 仍指向 `0.4.0-beta.66`，落后两版。发布步骤与起点见 `docs/RELEASE.md`。验收走查清单见 `01_重构方案/发布会话验收清单.md`（17 个检查点，已在一次真实 `ui-craft` 载入上走查）
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
 > 用户可见命名：DSH 会话 Tab 仍为“Skill 追踪”；一级页面**恰好两个**——“本次 Skill”（`current`，本次对话加载过哪些 Skill，来自收据的 load evidence）与“已安装 Skill”（`installed`，本机 / 当前作用域可发现什么，只读 `GET /skill-trace/catalog`，**刻意不读收据**）。二级页面**恰好一个**——Skill 详情，点任意一张卡都进入它，返回按钮文案由来源 state 派生（“返回 Skill 列表（本次 Skill）” / “返回 Skill 列表（已安装 Skill）”），不得硬编码。**没有 `Advanced` 组**：运行流程 / 运行图谱 / Skill 收据 / 上下文检查器 / 声明流程面板 / 跨会话学习工作台已在 v0.6 整体删除。“流程”只描述可观测事件关系，不代表 Agent 已执行 Skill 内全部步骤。
@@ -555,7 +555,7 @@ stateDiagram-v2
 ### 6.5 当前范围（v0.6 两级信息架构 + 详情页增强）
 
 **两个一级页面**：「本次 Skill」（这次对话加载过哪些）与「已安装 Skill」（这台机器上有哪些）。
-**一个二级页面**：Skill 详情——事实卡 + **Skill 框架** + `SKILL.md`（原文 / 中文预览）。
+**一个二级页面**：Skill 详情——事实卡 + **Skill 框架** + **本次运行逻辑** + **步骤证据** + `SKILL.md`（原文 / 中文预览）。
 
 **范围外 / 已删除**：Runtime Flow 画布、Runtime Graph 画布、Skill 收据页、Contextual Inspector、跨会话学习工作台（学习笔记 / 验证结果 / 历史卡）、backup / export / outputs / continuity / learning-note / validation-result 功能，以及依赖 `elkjs` 与 `@xyflow/react`。Host 路由由 22 条收敛为 7 条。
 
@@ -672,8 +672,13 @@ stateDiagram-v2
 - `FR-UI-050`：翻译失败时段控**回到 `原文`（显示什么就是选中什么）**，但错误必须保持可见并提供重试入口；**禁止静默失败**。
 - `FR-UI-051`：**页面不得因为坏输入卸载整个 Tab。** 任何缺失字段必须降级为可见的错误状态（一句说明 + 可重试），不得整页崩溃、空白，也不得把缺失字段静默当成空值渲染。
 - `FR-UI-052`：**UI 不得做 declared→runtime 推断**：不得由运行时事件反推声明步骤，也不得把“已加载”渲染成“已执行”；没有证据只能显示未知。这条方向不可逆：`Skill Definition → 阅读`，绝不是 `Runtime → Flow`。
-- `FR-UI-054`：**Skill 详情必须把声明结构本身显示出来。** 主内容区在 `SKILL.md` **之前**渲染「Skill 框架」，内容只来自 `detail.flow.steps[]`（即定义正文）。它回答的是“这个 Skill 说自己分几步”，不是“这次跑了哪几步”。
-- `FR-UI-055`：**框架里的每一步只能被标注，不能被构造。** 运行时证据只允许给已存在的声明步骤附加状态；不得新增、删除、重命名或重排任何一步。`SkillFramework` 在实现上不得读取 `runs` / `invocations` / `observedNodeIds`，否则步骤数会变成“发生了什么”的函数。
+- `FR-UI-054`：**Skill 详情必须把 Skill 的组成结构本身显示出来。** 主内容区在 `SKILL.md` **之前**渲染「Skill 框架」，由 `buildSkillFramework()` 从定义正文**确定性**解析——不得调用模型总结，不得由运行证据反推。框架由三个子模块构成：**结构**（小节归入八个角色，未归类的小节进「其它章节」而不是被丢弃，正文里没有的角色在 `coverage.absent` 里直说缺什么，不补齐）、**声明流程**、**渐进披露**。它回答的是“这个 Skill 由什么组成”，**不是**“这个 Skill 说自己分几步”——后者只是框架的一个子模块。
+- `FR-UI-054a`：**声明流程不等于 Skill 框架。** `detail.flow` 一个字不删，但只能在框架内作为「声明流程 · Declared Workflow」子模块出现，不得再被当作整个框架渲染。`extractDeclaredFlow()` 抽到的是 `SKILL.md` 里某一小节的有序列表，把它当成能力包的整体形状，就会把一个 342 行、11 个小节、39 个外部资源的 Skill 说明成四步。
+- `FR-UI-054b`：**声明资源不等于已读取资源。** 渐进披露只显示 `SKILL.md` 写到的引用；在没有任何来源证据证明某个文件被读过之前，`resources.loaded` 必须为空，界面不得出现「已读取 references/tokens.md」这样的说法，也不得假装追踪到了资源调用。同一个路径先后出现多次只产出一条记录（`alsoDeclaredAt` 记下其余行号）。
+- `FR-UI-054c`：**另起一层「本次运行逻辑」，只陈述本次会话能观察到的事实。** 五段固定为 `目录 → 载入 → 指令 → 运行能力 → 证据`，由 `buildSkillRuntimeLogic()` 从当前收据推出。没有可关联的运行事件时，五段只能取最保守的那一档，不得写「没有运行」。阶段之间没有因果顺序，必须在界面上说明；**这不是运行图**，不得画任何跨阶段或 Skill→Tool 的边。
+- `FR-UI-054d`：**`detail.flow.steps[].evidence` 必须真正显示出来。** 每个声明步骤都要给出后端已经算好的依据（`relationship` / `runtimeEvidence` / `observedNodeIds` / `evidenceIds` / `matchedCapabilities` / `modelIntent` / `matchCount`），并常驻一句说明：「暂无足够证据」表示本次会话没有观察到可以对应的运行证据，**不代表这一步没有执行**。
+- `FR-UI-054e`：**四层的顺序是需求，不是排版。** 详情页主内容区自上而下必须是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。
+- `FR-UI-055`：**框架里的每一步只能被标注，不能被构造。** 运行时证据只允许给已存在的声明步骤附加状态；不得新增、删除、重命名或重排任何一步，也不得由运行证据反推出一个“看起来合理”的框架。`SkillFramework` 在实现上不得读取 `runs` / `invocations` / `observedNodeIds`，否则步骤数会变成“发生了什么”的函数。
 - `FR-UI-056`：**框架的状态词只陈述观察，不陈述执行。** 五档固定为「有相关运行证据 / 部分相关证据 / 仅有模型意图 / 暂无足够证据 / 无法判断」，与 `ALIGNMENT_RELATIONSHIPS` 一一对应；「已执行 / 未执行 / 已完成 / 未完成 / 执行成功 / 执行失败 / 已运行 / 未运行」八个词不得出现在界面任何位置。**没有证据不等于没有执行。** 未知关系一律兜底为「无法判断」而不是「暂无足够证据」。
 - `FR-UI-057`：**框架标题下必须有免责句。** 逐字为「流程来自 SKILL.md 的声明；运行证据仅用于标注当前会话中的相关观察，不代表 Agent 内部推理过程。」不可改写、不可省略、不可只在 tooltip 里。点击某一步走文档已有的锚点机制定位并高亮对应章节，不跳页、不打开运行图、不新增页面。
 - `FR-UI-058`：**GFM 表格必须渲染成真表格，且原文与中文预览共用同一个渲染器。** 表头行 + 分隔行同时成立才算一张表（setext 的 `---` 不是分隔行）；单元格保留行内代码、链接与 `\|` 转义；表格不得吞掉相邻的段落、标题或代码围栏。渲染器只允许一个调用点——两个调用点意味着两套行为，而其中一套没人测。**不得为此引入 Markdown 库或布局引擎**（`mermaid` / `marked` / `markdown-it` / `remark` / `rehype` / `reactflow` / `@xyflow/react` / `elkjs` / `d3`）。翻译侧同步校验表格形状：行数、列数、每行格数与分隔结构变化即判失败并重试；但掩码占位符被破坏仍必须报 `placeholder`——报成表格会让用户去改一张没坏的表。
@@ -866,9 +871,9 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 ### 12.3 客户端预算（v0.6 实测）
 
-- client 源码 3536 → 1345 行（v0.6 收敛量）；**当前 1500 行**，bundle 421 KB → **62 KB**；
-- 377 项自动化测试、23 项静态契约守卫；
-- 「Skill 框架」只读 `flow.steps` 与证据状态，不引入布局引擎（`mermaid` / `@xyflow/react` / `elkjs` 都不是依赖）；GFM 表格由 `src/core/markdown-table.mjs` 解析，渲染与翻译校验共用同一个解析器；
+- client 源码 3536 → 1345 行（v0.6 收敛量）；**当前 1962 行**，bundle 421 KB → **106 KB**；
+- 397 项自动化测试、23 项静态契约守卫；
+- 「Skill 框架」由 `src/core/skill-framework.mjs` 确定性解析（无模型调用），「本次运行逻辑」由 `src/core/skill-runtime-logic.mjs` 从收据推出；两者都不引入布局引擎（`mermaid` / `@xyflow/react` / `elkjs` 都不是依赖）；GFM 表格由 `src/core/markdown-table.mjs` 解析，渲染与翻译校验共用同一个解析器；
 - 列表首屏不读 `SKILL.md` 全文，进入详情才读；
 - 翻译只由用户点击触发，结果只在内存。
 
@@ -1074,6 +1079,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 0.22 | 2026-10-03 | **Skill 详情重做：框架 / 运行逻辑 / 证据四层分开（信息架构未动）**。上一版把「Skill 框架」做成了从定义正文抽出的 `01 → 02 → 03 → 04` 竖排链条——模型上错了：`extractDeclaredFlow()` 抽的是 `SKILL.md` 里某一小节的有序列表，于是 342 行、11 个小节、39 个外部资源的 `ui-craft` 被说明成四步。**声明流程不等于 Skill 框架**。新增 `src/core/skill-framework.mjs`（579 行，无依赖）：按标题层级切小节、按标题词归入八个角色（identity / trigger / rules / controls / workflow / resources / output / verification）、前导段落合成 `framework:preamble`、未归类的小节进「其它章节」而不是被丢弃、缺失的角色在 `coverage.absent` 里直说、被引用的资源按 `### Tier` 分层（同一路径多次出现只留一条，`alsoDeclaredAt` 记其余行号）。`detail.flow` 一个字没删，降级为框架内的「声明流程」子模块。新增 `src/core/skill-runtime-logic.mjs`（256 行）：从当前收据推出 `目录 → 载入 → 指令 → 运行能力 → 证据` 五段，每段给出 `state` / `facts[]` / `limitations[]`，无收据时全取最保守档；`RUNTIME_LOGIC_FORBIDDEN` 在 `FLOW_EVIDENCE_FORBIDDEN` 之上再加 `已加载 / 已读取 / 已注入 / 已生效`。`detail.flow.steps[].evidence` 第一次被界面真正显示（「步骤证据」层）。`detail.anchors` 变成步骤与框架小节**共用**的映射，合成小节的 `anchorId` 为 `null` 且渲染成不可点的行。四层顺序由守卫按字面匹配（`the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`）。测试 377 → 397、客户端 1500 → 1967 行、bundle 62 → 106 KB、守卫维持 23 组（§26 字号下限、§27 圆角/分隔比、四层顺序三条守卫都拦下过这一版）。**发布为 `0.6.0`（2026-10-01，只发 GitHub，npm 未同步）** |
 | 0.21 | 2026-10-02 | **Skill 详情增强：声明流程与 GFM 表格（信息架构未动）**。详情页主内容区**上方**新增「Skill 框架」：把自 v0.6 起就已在 `buildSkillDetail()` 里算出、却从没有被界面读过的 `detail.flow.steps[]` 渲染成定义正文所述的竖排链条，每一步标注序号 / 标题 / `kind` / **观察**状态，点击走文档已有的 `flashAnchor` 滚到 `SKILL.md` 对应章节（`detail.anchors` 提供映射），不跳页、不新增页面。**状态词表是这一版最要紧的约束**：`runtime-supported` / `partial` / `intent-supported` / `insufficient` / `unknown` 五档分别读作「有相关运行证据」「部分相关证据」「仅有模型意图」「暂无足够证据」「无法判断」，`FLOW_EVIDENCE_FORBIDDEN` 里的八个词（已执行 / 未执行 / 已完成 / 未完成 / 执行成功 / 执行失败 / 已运行 / 未运行）一个都不许出现在界面里——**观察不到证据推不出没有执行**。`renderSkillMarkdown()` 新增 GFM 表格（此前 `ui-craft/SKILL.md` 里 101 行以 `|` 开头的内容全部退化成竖线串）；原文与中文预览**共用同一个渲染器调用点**（守卫数出来必须恰好 1 个）。翻译新增表格结构校验（行列数与分隔结构变了判 `table`，但掩码被破坏仍必须报 `placeholder`，否则用户会去改一张没坏的表）。测试 357 → 377、守卫 22 → 23、客户端 1345 → 1500 行、bundle 52 → 62 KB |
 | 0.20 | 2026-10-01 | **中文预览的第五次失败：判定根本不看语言**。`checkChunk()` 只查结构，所以模型把 3302 字符**原样返回英文**时拿了满分——横幅说「其余已翻译」，正文里躺着英文（用户原话「宏观你那是提示成功，但是我没有看到」）。新增 `looksUntranslated()`（输出与输入逐字相同、或目标语言是中文而输出里一个汉字都没有且字母数 ≥24 → 判 `untranslated`）；标题**层级**对得上就按原文钉回去（`alignHeadingLevels()`，不再为一个 `#` 丢掉整段），**数量**对不上才失败；失败的那一段先劈成两半再试（`splitChunkSource()` + 递归 `translateLeaf()`，最多 2 层），坏的那半继续劈、好的那半把译文留住；重试时告诉模型上次错在哪。**译文寿命按用户要求定义**：插件内切换 Skill 保留（`src/core/translation-cache.mjs`，进程内 Map，最多 8 条 LRU），退出 DeepSeek Harness 才清掉——仍然只存内存、不落盘、不进对话（`FR-UI-047` 不变）。顶栏改为「导航 → 这一页的数据 → 刷新」，两个一级页面不再重复正文段头。测试 349 → 357 |
 | 0.19 | 2026-10-01 | **V0.6 两级信息架构收敛**：删除运行流程 / 运行图谱 / Skill 收据页 / Contextual Inspector / 声明流程面板 / 跨会话学习工作台 / 备份导出链路，以及依赖 `elkjs`、`@xyflow/react`；一级页面收敛为「本次 Skill」（`current`）与「已安装 Skill」（`installed`），二级页面收敛为唯一 Skill 详情；新增只读仅内存的中文预览、Definition 事实卡与 Repository 三级解析；Host 路由 22 → 7；偏好升级到 `PREFERENCES_VERSION = 3`（无版本号与 v0.5 词汇 `skills` / `map` / `receipt` / `audit` 一律归一化为 `current`）；新增 `FR-UI-043` 至 `FR-UI-053`、`US-14` 至 `US-17`、`DEC-27` 至 `DEC-29`；357 项自动化测试 / 22 项静态契约守卫；剩余唯一未完成项为真实 DSH Desktop WebView 人眼走查 |

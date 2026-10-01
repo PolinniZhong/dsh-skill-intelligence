@@ -801,9 +801,10 @@ console.log('VISUAL_TOKENS_OK')
   for (const forbidden of ['ReactFlow', 'window.open', 'location.href']) {
     if (framework.includes(forbidden)) throw new Error(`a step click must stay inside this page, but the framework touches ${forbidden}`)
   }
-  // 顺序：声明流程在 SKILL.md **之前**。位置反过来就是另一种产品（先读文档、再猜结构）。
-  if (!/className: 'st-detail-main' \}, framework, docPanel/.test(client)) {
-    throw new Error('the declared flow must sit above SKILL.md inside the detail body')
+  // 顺序：框架 → 本次运行逻辑 → 步骤证据 → SKILL.md。位置反过来就是另一种产品（先读文档、
+  // 再猜结构）；把运行逻辑排到框架前面，则是把「声明」读成「观察到」。
+  if (!/className: 'st-detail-main' \}, framework, runtimeLogic, stepEvidence, docPanel/.test(client)) {
+    throw new Error('the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order')
   }
 
   // 3. 表格：一个解析器，两个读者。渲染器和翻译校验共用它，否则"画得出来"与"校验得过"

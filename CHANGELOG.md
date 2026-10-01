@@ -1,36 +1,53 @@
 # Changelog
 
-## Unreleased — Skill 详情增强：声明流程与 GFM 表格
+## 0.6.0 — 2026-10-01 · Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格
 
 **这一版没有动信息架构。** 一级页面仍是「本次 Skill」与「已安装 Skill」，二级页面仍是唯一的 Skill 详情；运行流程 / 运行图谱 / 运行检查器 / 回放 / 学习验证都没有回来。改动只发生在 Skill 详情**内部**。
 
-版本号留到发布会话决定。这里写 `Unreleased` 而不是猜一个数字，是因为候选的 `0.6.0` 与文档里通行的 **SDD v0.6**（信息架构规格的版本）只差一个 `0.`——两者同时出现在一句话里就会互相吞掉。按语义应进 minor（新增能力），按可读性应进 `0.5.1`。这是发布决策，不是实现决策。
+**版本号选了 `0.6.0`，这是一个显式决策，不是默认。** 另一个候选是 `0.5.1`：改动全部落在详情页内部，按「有没有加页面」算，它更像修订版。但这一版新增了两支核心模块与一层新的展示模型（框架 / 运行逻辑），并把「Skill 框架」的含义整个换掉——按语义该进 minor。代价是 `0.6.0` 与文档里通行的 **SDD v0.6**（信息架构规格自身的版本）只差一个 `0.`，两者同时出现在一句话里会互相吞掉。因此本仓库的写法是：说规格时一律写「SDD v0.6」并带前后文，说版本时一律带 `v`。
 
-### 一、Skill 框架：把「这个 Skill 怎么运转」放到读正文之前
+发布范围与 `0.5.0` 相同：**只发 GitHub，npm 仍停在 `0.4.0-beta.66`**。
 
-`detail.flow` 自 v0.6 起就由 `extractDeclaredFlow()` 从定义正文里抽出来，`attachEvidenceToFlow()` 也已经为每一步算好了证据关系——**客户端从来没有读过它们**。于是要回答「ui-craft 大致分几步」，用户得自己读完 31174 个字符。
+### 一、Skill 框架不再等于声明流程
 
-现在详情页主内容区的最上方是「Skill 框架」（Skill Framework）：标题行右侧写明「共 4 步」，副标题说明来源，下面是从 `flow.steps[]` 渲染出来的竖排链条（`01 → 02 → 03 → 04`），每一步带序号、标题、类型胶囊与证据状态。不是图画布，没有可拖拽节点，没有 `elkjs` / `@xyflow/react` / `mermaid`——守卫会拒掉这几个依赖。
+上一版把「Skill 框架」做成了 `01 → 02 → 03 → 04` 的竖排链条。**它是错的，而且错在模型上，不在视觉上。**
 
-**状态文案是这一节真正的设计。** 五档来自既有的 `ALIGNMENT_RELATIONSHIPS`，五句话在 `src/core/flow-evidence.mjs` 里冻结：
+链条的内容来自 `extractDeclaredFlow()`：它在定义正文里找一个小节（`## Workflow`、`流程`、`Steps`），把那个小节的有序列表抽出来。这对一份「四步做完一件事」的小 Skill 恰好成立；对 `ui-craft` 就只剩四条：`01 Project Analysis / 02 Ask the User / 03 Apply Decisions / 04 Craft Read`。于是一个 342 行、11 个小节、39 个外部资源的能力包，在界面上被说明成四步。**声明流程是一份 Skill 的一部分，不是这份 Skill 的形状。**
 
-| 关系 | 中文 | 英文 |
-|---|---|---|
-| `runtime-supported` | 有相关运行证据 | Observed |
-| `partial` | 部分相关证据 | Partial |
-| `intent-supported` | 仅有模型意图 | Intent only |
-| `insufficient` | 暂无足够证据 | Not enough evidence |
-| `unknown` | 无法判断 | Unknown |
+现在「Skill 框架」回答的是「这个 Skill 由什么组成」，由 `src/core/skill-framework.mjs`（579 行，无依赖）从同一份正文里**确定性**地解析出来——不调模型，不猜：
 
-被禁止的是另一组词：`已执行` / `未执行` / `已完成` / `执行成功` / `已运行` 等八个。它们把「没看到证据」写成「没做过」，而前者推不出后者。`FLOW_EVIDENCE_FORBIDDEN` 列出这八个词，守卫则**动态 import 词表、逐条查解析出来的标签**——因为查字面量的第一版守卫被自己放过了：`FLOW_EVIDENCE_FORBIDDEN` 那行本身就含「未执行」，搜索总能命中它。`intent-supported` 也单列一档而不是并进 `partial`：它说的是模型 description 与步骤对得上，那是意图陈述，不是运行事实。
+- 按标题层级切出小节（`buildDefinitionOutline()` 已经做过的活），前导段落合成一节（`framework:preamble`），文档大标题单独留作 `titleEntry`；
+- 每个小节按标题词归入八个角色之一：`identity` / `trigger` / `rules` / `controls` / `workflow` / `resources` / `output` / `verification`。归类只走 `classifySection()` 的关键词表，不看内容像不像；
+- 归不进任何角色的小节**不丢**：进 `unclassified`，界面上以「其它章节」显示，并记一条 `section-heading-does-not-match-a-known-framework-role`；
+- 一层兜底：角色分组与 `unclassified` 都没覆盖到的小节，仍然会被推回「其它章节」渲染。少显示一节，读者会以为 `SKILL.md` 里本来就没有它；
+- 没有某个角色的 Skill，界面在 `coverage.absent` 里**直说**缺什么（`ui-craft` 缺 `verification`），而不是替它补一节。**「没有」是要显示的事实，不是要填补的空**；
+- 触发条件如果正文没写、`summary.description` 写了，就用描述合成一节，并标上 `source: 'summary'`——界面因此写「来自 Skill 描述」而不是「（无标题）」。「来自描述」说的是一处**来源**，「无标题」听起来像原文掉了个标题。
 
-免责句紧贴标题、与流程图同时进入视野——不是 tooltip、不是折叠区：「流程来自 SKILL.md 的声明；运行证据仅用于标注当前会话中的相关观察，不代表 Agent 内部推理过程。」
+`detail.flow` 一个字没删。它只是从「框架本身」降级成框架里的一个子模块（「声明流程 · Declared Workflow」），因为它能表达的就只有「SKILL.md 明确写出的那几步」。
 
-点某一步**不跳页**，走的是文档已有的 `flashAnchor`（与左侧目录同一个机制）滚到 SKILL.md 对应章节并高亮。没有锚点的步骤渲染成不可点的行，而不是假装能点。
+`detail.anchors` 因此从「步骤 id → 章节 id」变成一张**共用的**映射：声明步骤与框架小节写进同一张表，因为有锚点的小节渲染成按钮、没有锚点的渲染成不可点的行。**一个点了不动的按钮比一个不可点的元素更糟。** 伪小节（从描述合成的那一节）的 `anchorId` 是 `null`，它在表里干脆不出现。
 
-空态与边界：`flow.steps.length === 0` → 「当前 Skill 没有可抽取的声明流程。」（说的是抽取结果，不是这个 Skill 没有流程）；定义读不到 → 「定义当前读不到」，不生成伪流程；某步没有证据 → 「暂无足够证据」，不是「未执行」；`flow.truncated` → 明确提示定义正文被截断。
+### 二、渐进披露：声明资源不等于已读取资源
 
-### 二、GFM 表格：101 行竖线终于变成了表
+框架的第三个子模块是 `Progressive Disclosure`：`Skill 目录 → 载入 Skill → SKILL.md 全文 → 资源基准路径 → 被引用的资源 → 按需读取`。它不是工作流，是 Skill 的加载与资源组织方式。
+
+同一份 `skill-framework.mjs` 从正文里抽出被引用的资源（`references/*.md` 这类路径），按 `### Tier 1 — Required` 这样的子标题分层，并把每行后面那句解释一起带上。对 `ui-craft` 是 **39 个声明引用 / 0 个已读取**。
+
+**`0 个已读取` 不是没做完，是这一版要说的话。** 收据里没有任何来源证据能证明某个 `references/tokens.md` 被读过，所以 `resources.loaded` 永远是空数组，模块的 `note` 逐字写着「声明资源不等于已读取资源」。这条界线还有一个副作用：同一个路径先后出现在两个小节里（`ui-craft` 的 `references/brief.md` 先在路由表、后在资源清单），记录只有一条——`line` 留在第一次出现的位置，`declaredIn` / `group` / `when` 取资源小节的版本，`alsoDeclaredAt` 记下第二次的行号。**一个路径就是一个资源，提及多少次都是一条。**
+
+### 三、本次运行逻辑：本次会话能观察到什么
+
+详情页多了第二块：「本次运行逻辑」，由 `src/core/skill-runtime-logic.mjs`（256 行）从**当前会话的收据**推出五段：`目录 → 载入 → 指令 → 运行能力 → 证据`。
+
+它不是运行图，也没有新的数据源——每一段只用已有字段，把「看得到什么」和「看不到什么」一起写出来：这一段取五个状态词里的一个，`facts[]` 列出当前会话确实观察到的事实（条目数、摘要、调用类型、指令指纹是否一致……），`limitations[]` 在观察不到时说明为什么。没有可关联的运行事件时，五段**全是最保守的那一档**，不是「没有运行」——空输入得不出否定结论。这一点和步骤证据共用同一组禁用词，词表在 `FLOW_EVIDENCE_FORBIDDEN` 之上又加了 `已加载 / 已读取 / 已注入 / 已生效`。
+
+阶段之间没有因果顺序，界面上写明了；`runtime-alignment.mjs` 的保守规则一条没动，`Skill Load` 之后 100ms 的一次工具调用**不会**被画成 `Skill → Tool`。
+
+### 四、步骤证据：状态词旁边给出依据
+
+`detail.flow.steps[].evidence` 自 v0.6 起就算好了（关系、命中类型、观察到的节点、证据 id、有没有模型意图、匹配数），**客户端一次都没读过**。现在每一步下面直接列出这些依据，外加那句最容易被跳过的注：「「暂无足够证据」表示本次会话没有观察到可以对应的运行证据，不代表这一步没有执行。」
+
+### 五、GFM 表格：101 行竖线终于变成了表
 
 `renderSkillMarkdown()` 之前认标题、段落、有序/无序列表、代码围栏与行内标记，**不认表格**。`ui-craft/SKILL.md` 里有 101 行以 `|` 开头——路由表、Knob 表——全部退化成一行行竖线串。
 
@@ -40,11 +57,17 @@
 
 原文与中文预览共用**同一个** `renderSkillMarkdown` 调用点。守卫数的就是调用点数量：两个调用点意味着两套行为，而两套行为里必有一套没人测。
 
-### 三、工程数字
+### 六、四层的顺序也是产品的一部分
 
-测试 **357 → 377**（新增 `test/flow-evidence.test.mjs` 6 项、`test/markdown-table.test.mjs` 6 项、冒烟渲染 3 项、翻译表格校验 5 项）；静态契约守卫 **22 → 23**（新增 `SKILL_FRAMEWORK_OK`，五组断言，逐条反向验证过）。客户端 `src/dsh/client/client.js` 1345 → **1500 行**，`dist/client.js` 52 → **62 KB**（63222 字节）。新增核心模块 `src/core/flow-evidence.mjs`（104 行）与 `src/core/markdown-table.mjs`（129 行）。
+主内容区从上到下是：**框架 → 本次运行逻辑 → 步骤证据 → SKILL.md**。守卫按这个字面顺序匹配渲染调用（`h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)`），错了就报 `the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`。
 
-以上没有一条是「新增页面」——这一版一个插件页面都没加；两条能力都长在已有的 Skill 详情里。
+位置反过来就是另一种产品：先读文档、再猜结构。把运行逻辑排到框架前面，则是把「声明」读成「观察到」。
+
+### 七、工程数字
+
+测试 **377 → 397**（新增 `test/phase16-skill-framework.test.mjs` 16 项、冒烟渲染 5 项），静态契约守卫维持 23 组——`SKILL_FRAMEWORK_OK` 扩了新断言，而 §26 的辅助字号下限（10px → 10.5px）、§27 的圆角/分隔比（6.2 → 3.38）、详情页四层顺序三条守卫都拦下过这一版的实现。客户端 `src/dsh/client/client.js` 1500 → **1967 行**，`dist/client.js` 62 → **106 KB**（108468 字节）。新增核心模块 `src/core/skill-framework.mjs`（579 行）与 `src/core/skill-runtime-logic.mjs`（256 行）。
+
+以上没有一条是「新增页面」——这一版一个插件页面都没加；四层全都长在已有的 Skill 详情里。
 
 ## 0.5.0 — 2026-10-01 · 首个正式版：把从未公开的 .67 / .68 / .69 合并成一次发布
 

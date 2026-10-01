@@ -240,6 +240,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/core/skill-runtime-scope.mjs` | Bounds runtime evidence to the Turn in which a Skill loaded; no imports, so it is a leaf |
 | `src/core/skill-flow.mjs` | `Markdown → Declared Flow`, definition-only; imports no runtime module |
 | `src/core/skill-view-model.mjs` | Composition layer; runtime evidence may annotate the declared flow but never add, remove, or reorder a step |
+| `src/core/skill-framework.mjs` | `Markdown → Skill Framework`, definition-only and deterministic — no model call, no summary. Splits the body into sections, classifies each heading into one of eight roles, synthesises a preamble section, keeps every unmatched heading as `unclassified` rather than dropping it, reports absent roles as absent instead of inventing them, and extracts declared resources with their tiers. `flow` is one sub-module of the result, not the result |
 | `src/core/skill-definition.mjs` | One live read-only view of a definition, with `currentInstructionSha256`; the body is never persisted |
 | `src/core/definition-outline.mjs` | Markdown outline plus declared-step anchors; pure, and does not interpret the Skill |
 | `src/core/repository-resolver.mjs` | Resolves the repository a definition points at; never derives it from Skill identity, because DSH has no repository field |
@@ -250,6 +251,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/core/runtime-evidence.mjs` | Seam between raw tool arguments and the evidence model |
 | `src/core/step-kind.mjs` | Shared step vocabulary; alignment compares only at kind level |
 | `src/core/flow-evidence.mjs` | The labels the framework is allowed to use: five states keyed by the alignment relationships, the shared disclaimer, and `FLOW_EVIDENCE_FORBIDDEN` — the eight words that assert execution rather than observation. The guard imports this module and checks the resolved labels, because a source-text check would be satisfied by the forbidden list itself |
+| `src/core/skill-runtime-logic.mjs` | `Receipt → what this session could actually observe`, in five stages (catalog / load / instructions / capability / evidence). Every stage carries the five-state vocabulary, the facts that *were* observed, and a per-stage limitation when nothing was. No receipt means the most conservative state for every stage, never a negative claim; `RUNTIME_LOGIC_FORBIDDEN` extends the flow-evidence ban with 已加载 / 已读取 / 已注入 / 已生效 |
 | `src/core/markdown-table.mjs` | GFM table parsing — `parseTableAt` (header row plus delimiter row, or it is not a table) and `tableSignature` (columns, alignments, per-row cell counts). Shared deliberately: the renderer and the translation check must agree on what counts as a table, or "it renders" and "it validates" drift apart |
 | `src/core/source-snapshot.mjs` | Safe source identity and snapshot metadata (sha256 plus provider sanitizing) |
 | `src/core/session-log.mjs` | Reads the durable session log from disk as a fallback; the live session is always preferred |
@@ -270,16 +272,24 @@ Workbench                      first-level page switch + host preference
   ├─ InstalledSkillsPage       已安装 Skill   ← GET /installed
   │    └─ SkillCard
   └─ SkillDetailPage           Skill Detail   ← GET /definition, POST /translate
-       ├─ SkillFramework       flow.steps[] + evidence status, above the document
+       ├─ SkillFramework       the Skill's composition, above the document
+       │    ├─ FrameworkStructure     sections grouped into eight roles (+ 其它章节, + absent roles)
+       │    ├─ DeclaredWorkflow       flow.steps[] + evidence status — a sub-module, not the framework
+       │    └─ ProgressiveDisclosure  declared vs loaded resources, with tiers
+       ├─ RuntimeLogic         the five observable stages of this session
+       ├─ StepEvidence         detail.flow.steps[].evidence, rendered for the first time
        └─ renderSkillMarkdown  one call site for the original and the translation
 ```
 
 Two rules hold this shape together, and both are enforced by `SKILL_FRAMEWORK_OK` rather than by convention:
 
-- **The framework only annotates.** `SkillFramework` reads `flow.steps` and nothing else — no `runs`, no `invocations`, no `observedNodeIds`. If runtime data could add a step, the step count would become a property of what happened instead of what the Skill declares, which is the same mistake the deleted runtime graph made.
+- **Declaration and observation render apart.** `SkillFramework` (structure, declared workflow, resources) reads only the definition; `RuntimeLogic` and `StepEvidence` read only the receipt. No path leads from runtime evidence back into the framework — a Skill whose structure was inferred from what happened would describe the run, not the Skill, which is the same mistake the deleted runtime graph made. Runtime data may *annotate* a declared step; it may never add, remove, or reorder one.
+- **The four layers keep their order.** The detail body is `framework, runtimeLogic, stepEvidence, docPanel`; the guard matches that literal order and fails with `the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`. Reversing it is a different product: read the document first, guess the structure second. Putting runtime logic above the framework reads a declaration as an observation.
 - **One renderer, one call site.** The assertion counts `renderSkillMarkdown(` call sites (excluding the definition and the `__pure` export) and requires exactly one. Two call sites would mean the original and the Chinese preview could diverge, and only one of the two behaviours would be tested.
 
-`SkillFramework` is deliberately not a canvas: no `elkjs`, no `@xyflow/react`, no `mermaid` — the guard rejects all of them as dependencies. What it draws is the vertical chain the definition already describes, which is why it costs a `grid` and eleven CSS rules rather than a layout engine.
+None of these layers is a canvas: no `elkjs`, no `@xyflow/react`, no `mermaid` — the guard rejects all of them as dependencies. The framework draws roles and sections; the declared workflow draws the chain the definition already describes; the runtime logic draws five stages with no edges between them. That is why the whole thing costs a `grid`, a divider and a `<dl>` rather than a layout engine.
+
+`detail.anchors` is a **shared** map: declared steps and framework sections both resolve to an outline entry id, because the same click handler serves both. A section without an anchor (a synthesised one, whose `anchorId` is `null`) renders as a non-clickable row and is absent from the map entirely — a button that does nothing when clicked is worse than an element that never claimed to be clickable.
 
 The client calls only the seven surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
 

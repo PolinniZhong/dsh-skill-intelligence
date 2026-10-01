@@ -26,19 +26,29 @@ const source = readFileSync(join(CLIENT_DIR, 'client.js'), 'utf8')
  */
 /**
  * The smoke harness evaluates modules as CommonJS, but `src/core/*.mjs` are ESM.
- * esbuild rewrites them for the real bundle; this lowers the export shapes the
- * client actually imports — named `export function` declarations and `export const`
- * tables — and fails loudly on anything else so a new export form cannot be
- * lowered silently.
+ * esbuild rewrites them for the real bundle; this lowers the shapes the
+ * client actually imports — named `export function` declarations, `export const`
+ * tables, and single-line named `import { … } from '…'` — and fails loudly on
+ * anything else so a new form cannot be lowered silently.
  *
  * `export const` arrived with the flow-evidence vocabulary: those frozen tables are
  * data the client reads directly, and rewriting them into accessor functions purely
- * to please a test harness would be the tail wagging the dog. The guarantee that
- * matters is unchanged — an unrecognised form still throws instead of being skipped.
+ * to please a test harness would be the tail wagging the dog. `import` arrived with
+ * the runtime-logic view: it reads that same vocabulary, and whether a core module
+ * may be read by the client must not depend on how many dependencies it happens to
+ * have. The guarantee that matters is unchanged — an unrecognised form still throws
+ * instead of being skipped.
  */
 function lowerEsmToCjs(code, target) {
-  const names = [...code.matchAll(/^export (?:function|const|let|class) (\w+)/gm)].map((match) => match[1])
-  const stripped = code.replace(/^export (function|const|let|class) /gm, '$1 ')
+  const withRequires = code.replace(
+    /^import\s+\{([^}]*)\}\s+from\s+'([^']+)'\s*$/gm,
+    (_whole, names, spec) => `const {${names}} = require('${spec}')`,
+  )
+  if (/^import /m.test(withRequires)) {
+    throw new Error(`client-modules: ${target} uses an import form this harness cannot lower`)
+  }
+  const names = [...withRequires.matchAll(/^export (?:function|const|let|class) (\w+)/gm)].map((match) => match[1])
+  const stripped = withRequires.replace(/^export (function|const|let|class) /gm, '$1 ')
   if (/^export /m.test(stripped)) {
     throw new Error(`client-modules: ${target} uses an export form this harness cannot lower`)
   }
@@ -754,6 +764,191 @@ test('the framework states its own emptiness instead of inventing a flow', () =>
   })).filter((node) => node.props.className === 'st-framework-step')
   assert.deepEqual(active.map((node) => node.props['data-active']), [undefined, 'true', undefined, undefined],
     'the step whose anchor is being flashed is the only one marked active')
+})
+
+// ── 框架 / 运行逻辑 / 步骤证据：三层各自的界面 ───────────────────────────────
+//
+// 这三张卡回答三个不同的问题（Skill 由什么组成 / 这次会话观察到了什么 / 每一步凭什么这么说），
+// 所以它们必须能分开渲染、分开断言。混成一张图正是这一版要改掉的毛病。
+
+const frameFramework = {
+  schemaVersion: 1, source: 'definition',
+  titleEntry: { id: 'ui-craft', title: 'UI Craft', line: 1 },
+  sectionCount: 3,
+  sections: [
+    { id: 'framework:preamble', title: 'UI Craft', line: 1, anchorId: 'ui-craft', role: 'identity', synthetic: true,
+      opening: '你是一个有品味的设计工程师。', items: [], itemCount: 0, itemsTruncated: false },
+    { id: 'rules', title: '核心规则', line: 40, anchorId: 'rules', role: 'rules', synthetic: false,
+      opening: '发布任何界面前先问自己一句话。', items: ['不要默认用蓝色', '不要用全大写标题', '不要卡片网格'], itemCount: 44, itemsTruncated: false },
+    { id: 'framework:trigger', title: null, line: null, anchorId: null, role: 'trigger', synthetic: true, source: 'summary',
+      opening: '用在做界面设计与实现的工作上。', items: [], itemCount: 0, itemsTruncated: false },
+    { id: 'odd', title: '其它章节', line: 90, anchorId: 'odd', role: null, synthetic: false,
+      opening: '', items: [], itemCount: 0, itemsTruncated: false },
+  ],
+  roles: [
+    { role: 'identity', label: { zh: '定位 · Purpose', en: 'Purpose' }, hint: { zh: '这个 Skill 是干什么的', en: 'What this Skill is' }, sections: ['framework:preamble'] },
+    { role: 'rules', label: { zh: '规则 · Rules', en: 'Rules' }, hint: { zh: '它的核心规则', en: 'Its core rules' }, sections: ['rules'] },
+  ],
+  unclassified: ['odd'],
+  chain: [
+    { id: 'catalog', order: 1, label: { zh: 'Skill 目录', en: 'Skill catalog' } },
+    { id: 'load', order: 2, label: { zh: '载入 Skill', en: 'Skill load' } },
+    { id: 'instructions', order: 3, label: { zh: 'SKILL.md 全文', en: 'Full SKILL.md' } },
+    { id: 'base', order: 4, label: { zh: '资源基准路径', en: 'Resource base' } },
+    { id: 'declared', order: 5, label: { zh: '被引用的资源', en: 'Referenced resources' } },
+    { id: 'ondemand', order: 6, label: { zh: '按需读取', en: 'Read on demand' } },
+  ],
+  coverage: { present: ['identity', 'rules'], absent: ['verification', 'resources'] },
+  resources: {
+    declared: [
+      { order: 1, path: 'references/tokens.md', label: 'references/tokens.md', line: 300, groupLine: 296, when: '三层 token 主干。', anchorId: 'reference-files', declaredIn: 'Reference Files', role: 'resources', group: 'Tier 1', alsoDeclaredAt: [] },
+      { order: 2, path: 'references/brief.md', label: 'references/brief.md', line: 7, groupLine: 296, when: '先读它，它锚定后面每一个决定。', anchorId: 'reference-files', declaredIn: 'Reference Files', role: 'resources', group: 'Tier 1', alsoDeclaredAt: [15] },
+    ],
+    declaredCount: 2, loaded: [], loadedCount: 0,
+    groups: [{ title: 'Tier 1', count: 2, resourcePaths: ['references/tokens.md', 'references/brief.md'] }],
+    tiers: [{ title: 'Tier 1 — Required', count: 2, line: 296, role: 'resources', resourcePaths: ['references/tokens.md', 'references/brief.md'] }],
+    base: { kind: 'directory', pathOmitted: true },
+    note: { zh: '声明资源不等于已加载资源。', en: 'Declared resources are not loaded resources.' },
+  },
+  limitations: ['declared-resources-are-not-loaded-resources'],
+}
+
+test('the framework shows the Skill’s structure, not a four-step strip', () => {
+  const client = mountChineseClient()
+  const clicked = []
+  const nodes = collect(client.__views.SkillFramework({
+    framework: frameFramework, flow: frameFlow,
+    anchors: { 'framework:preamble': 'ui-craft', rules: 'rules' },
+    definitionAvailable: true, flash: null, onStepClick() {}, onAnchorClick: (id) => clicked.push(id),
+  }))
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  // 1. 角色是模块，标题来自核心层，不是界面自己编的。
+  const modules = nodes.filter((node) => node.props.className === 'st-fw-module')
+  assert.equal(modules.length, 3, '两个认识的角色 + 一组其它章节')
+  assert.ok(text.includes('定位 · Purpose') && text.includes('规则 · Rules'), '角色标签来自核心层')
+  assert.ok(text.includes('其它章节'), '认不出角色的小节收进「其它章节」，而不是丢掉')
+
+  // 2. 没出现的角色必须说「没有」，而不是留白让读者以为漏了。
+  assert.ok(nodes.some((node) => node.props.className === 'st-fw-absent' && node.children?.some?.((c) => String(c).includes('Verification'))),
+    'a role the document never writes out is named as absent, not left blank')
+
+  // 3. 一个小节显示：标题、行号、条目数，以及被截断时的总数。
+  assert.ok(text.includes('核心规则') && text.includes('44 项'), '条目数是**总数**，不是渲染出来的三条')
+  const longSection = nodes.find((node) => node.props.className === 'st-fw-section' && node.children?.some?.((c) => c?.props?.className === 'st-fw-items'))
+  assert.equal(longSection.children.find((c) => c?.props?.className === 'st-fw-items') === undefined, false, 'items render as a list')
+  assert.ok(text.includes('不要默认用蓝色'), 'the first items are shown verbatim')
+
+  // 4. 从 description 合成出来的小节说的是来源，不是「无标题」——原文本来就没有这一节。
+  assert.ok(text.includes('来自 Skill 描述'), 'a synthesised section names its source')
+  assert.ok(!text.includes('（无标题）'), 'nothing is labelled untitled when we know where it came from')
+
+  // 5. 有锚点的小节是按钮，没锚点的是静态元素。合成出来的小节没有锚点。
+  const sectionNodes = nodes.filter((node) => node.props.className === 'st-fw-section')
+  assert.equal(sectionNodes.filter((node) => node.type === 'button').length, 2, '两节在文档里找得到锚点')
+  assert.equal(sectionNodes.filter((node) => node.props['data-static'] === 'true').length, 2, '两节没有锚点，就不做成按钮')
+  sectionNodes.find((node) => node.type === 'button').props.onClick()
+  assert.deepEqual(clicked, ['ui-craft'], '点击小节复用同一个 flashAnchor，不新开页面或运行图')
+
+  // 6. 框架的免责句与声明流程的是**两句**：一句说来源，一句说证据的边界。
+  assert.ok(text.includes('框架来自 SKILL.md 自身的章节结构') && text.includes('也不会由运行证据反推'),
+    'the structure note states what the framework is read from, in the core layer’s own words')
+  assert.ok(text.includes('流程来自 SKILL.md 的声明'), 'the declared-flow disclaimer is still rendered')
+})
+
+test('progressive disclosure counts the references and claims no reads', () => {
+  const client = mountChineseClient()
+  const nodes = collect(client.__views.ProgressiveDisclosure({ framework: frameFramework, onAnchorClick() {} }))
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  assert.deepEqual(
+    nodes.filter((node) => node.props.className === 'st-fw-chain-label').map((node) => node.children[0]),
+    ['Skill 目录', '载入 Skill', 'SKILL.md 全文', '资源基准路径', '被引用的资源', '按需读取'],
+    'the chain comes from the core layer, so the interface cannot invent a stage')
+
+  assert.ok(text.includes('声明引用 2 个 · 已读取 0 个'), 'the counts are declared vs read, said out loud')
+  assert.ok(text.includes('Tier 1 — Required'), 'tier titles come from the document’s own headings')
+  assert.ok(text.includes('references/brief.md') && text.includes('先读它，它锚定后面每一个决定。'),
+    'each reference shows its path and the document’s own words for when to read it')
+  assert.ok(text.includes('资源基准：directory（路径已省略）'), 'the resource base says the path was withheld rather than printing a guess')
+  assert.ok(text.includes('声明资源不等于已读取资源'), 'the screen shares the core layer’s sentence about the difference')
+})
+
+const frameRuntimeLogic = {
+  schemaVersion: 1, source: 'session-observation',
+  stages: [
+    { id: 'catalog', order: 1, label: { zh: 'Skill 目录', en: 'Catalog' }, hint: { zh: '这次会话发布了哪些可发现 Skill', en: 'What this session published' },
+      state: 'runtime-supported', tone: 'observed', statement: '这次会话发布了 12 个可发现 Skill，其中包含这个 Skill。',
+      facts: [{ id: 'catalog-entry-count', label: { zh: '目录条目', en: 'Catalog entries' }, kind: 'count', value: 12 },
+        { id: 'catalog-digest', label: { zh: '目录摘要', en: 'Digest' }, kind: 'code', value: 'sha256:abcd' }], limitations: [] },
+    { id: 'load', order: 2, label: { zh: '载入 Skill', en: 'Load' }, hint: { zh: '这次会话有没有调用它', en: 'Whether it was invoked' },
+      state: 'runtime-supported', tone: 'observed', statement: '这次会话记录到 1 次加载。',
+      facts: [{ id: 'load-count', label: { zh: '加载次数', en: 'Loads' }, kind: 'count', value: 1 },
+        { id: 'load-coverage', label: { zh: '覆盖范围', en: 'Coverage' }, kind: 'code', value: 'instructions' }], limitations: [] },
+    { id: 'capability', order: 3, label: { zh: '运行能力', en: 'Runtime capability' }, hint: { zh: '有没有观察到相关能力', en: 'Related capability' },
+      state: 'unknown', tone: 'unknown', statement: null, facts: [],
+      limitations: ['runtime-events-could-not-be-linked-to-this-skill'] },
+  ],
+  observedCount: 2, stageCount: 5,
+  limitations: ['runtime-events-could-not-be-linked-to-this-skill'],
+}
+
+test('runtime logic states what this session observed, stage by stage', () => {
+  const client = mountChineseClient()
+  const nodes = collect(client.__views.RuntimeLogic({ runtimeLogic: frameRuntimeLogic }))
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  const stages = nodes.filter((node) => node.props.className === 'st-runtime-stage')
+  assert.equal(stages.length, 3, 'every stage gets a node, observed or not')
+  assert.deepEqual(nodes.filter((node) => node.props.className === 'st-runtime-order').map((node) => node.children[0]),
+    ['01', '02', '03'], 'stages are numbered by the lifecycle, not by what happened')
+  assert.deepEqual(stages.map((node) => node.props['data-state']), ['observed', 'observed', 'unknown'])
+  assert.ok(text.includes('2 / 5 段'), 'the header counts observed stages against the whole lifecycle')
+
+  // 事实按类型渲染：数字、代码、清单各是各的样子。
+  assert.ok(text.includes('12') && text.includes('sha256:abcd'), 'a count is a number and a digest is code')
+  assert.ok(nodes.some((node) => node.type === 'code' && node.children?.[0] === 'sha256:abcd'), 'a code fact renders as code, not as prose')
+  assert.ok(text.includes('运行时事件无法与这个 Skill 关联'), 'a stage that could not be judged says why, in the shared vocabulary')
+
+  // 五个阶段必须说清「不是因果顺序」——否则它读起来就像一张流程图。
+  assert.ok(text.includes('阶段之间没有因果顺序'), 'the note denies a causal reading of the stages')
+  for (const forbidden of ['已执行', '已完成', '执行成功', '已加载']) {
+    assert.ok(!text.includes(forbidden), `runtime logic must not claim ${forbidden}`)
+  }
+})
+
+test('step evidence shows the grounds behind each state', () => {
+  const client = mountChineseClient()
+  const flow = {
+    ...frameFlow,
+    steps: [
+      { ...frameFlow.steps[0], evidence: { relationship: 'runtime-supported', limitation: null, matchCount: 2,
+        runtimeEvidence: [{ type: 'tool-call', category: 'bash' }], observedNodeIds: ['invocation:1'], evidenceIds: ['e1'], matchedCapabilities: ['bash'], modelIntent: { present: true } } },
+      { ...frameFlow.steps[3], evidence: undefined },
+    ],
+  }
+  const nodes = collect(client.__views.StepEvidence({ flow }))
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  const items = nodes.filter((node) => node.props.className === 'st-steps-item')
+  assert.equal(items.length, 2, 'one row per declared step, including the one with nothing to show')
+  assert.deepEqual(items.map((node) => node.props['data-state']), ['observed', 'unknown'])
+
+  // 「凭什么这么说」必须列出来，而不是只给一个状态词。
+  assert.ok(text.includes('tool-call · bash'), 'the evidence kind and category are shown')
+  assert.ok(text.includes('有') && text.includes('模型意图'), 'the model-intent column is shown as a yes/no fact')
+  assert.ok(text.includes('暂无足够证据'), 'a step with no evidence still gets a state, not a blank')
+  assert.ok(text.includes('不代表'), 'the note denies the reading "no evidence means it never happened"')
+
+  // 没有引用可展示时，不再写「相关运行证据：没有可展示的证据引用」——先立一个名头再当场收回，
+  // 读起来像这一行坏了。空就是一句话，而且这句话只出现一次（那一步确实什么都没得展示）。
+  assert.equal(nodes.filter((node) => node.props.className === 'st-steps-none').length, 1,
+    'a step with nothing to show gets one sentence instead of a label/value pair')
+  assert.equal(nodes.filter((node) => node.type === 'dt' && node.children?.[0] === '相关运行证据').length, 1,
+    'the evidence label only appears on the step that actually has evidence')
+
+  // flow 为 null 时不能抛。
+  assert.ok(collect(client.__views.StepEvidence({ flow: null })).length > 0, 'a missing flow renders rather than throwing')
 })
 
 // ── Markdown 表格 ─────────────────────────────────────────────────────────────

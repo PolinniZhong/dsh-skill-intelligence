@@ -70,6 +70,28 @@ export const FLOW_UNAVAILABLE_TEXT = Object.freeze({
 })
 
 /**
+ * 「暂无足够证据」这句话容易读成「没做」。步骤证据卡片把这句写在自己的标题下面，
+ * 因为一个没有留下工具调用的步骤，最可能的原因恰恰是它发生在模型的推理里。
+ */
+export const STEP_EVIDENCE_NOTE = Object.freeze({
+  zh: '「暂无足够证据」表示本次会话没有观察到可以对应的运行证据，不代表这一步没有执行。',
+  en: '\u201cNot enough evidence\u201d means this session observed nothing that lines up \u2014 it does not mean the step was never carried out.',
+})
+
+/** 步骤证据卡片里，一行证据引用（`runtimeEvidence[]`）的说法。 */
+export const STEP_EVIDENCE_HEADINGS = Object.freeze({
+  runtimeEvidence: { zh: '相关运行证据', en: 'Related runtime evidence' },
+  observedNodes: { zh: '关联的调用', en: 'Linked invocations' },
+  evidenceIds: { zh: '证据条目', en: 'Evidence entries' },
+  matchedCapabilities: { zh: '命中的步骤类型', en: 'Matched step kinds' },
+  modelIntent: { zh: '模型意图', en: 'Model intent' },
+  matchCount: { zh: '匹配数', en: 'Matches' },
+  none: { zh: '没有可展示的证据引用', en: 'No evidence reference to show' },
+  present: { zh: '有', en: 'Present' },
+  absent: { zh: '没有', en: 'None' },
+})
+
+/**
  * 步骤类型（`step.kind`）的说法。
  *
  * 它们是**名词**，说的是这一步声明成哪一类动作，不是它做成了什么。`execute` 译成「运行」而不是

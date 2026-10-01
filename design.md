@@ -34,7 +34,9 @@ supersedes: "2.1"
 
 这条变化是必要的，因为 v2.0 虽然实现了 Definition Viewer，却把它挂在「本次运行 → 定义视图」之下——用户仍然必须先理解 Turn / Step / Invocation / Runtime Graph / Scope / Edge，才能理解一个 Skill。判定标准：如果用户必须先理解运行模型才能理解 Skill，则 Skill-first 尚未完成。
 
-**v4.0（当前）**：Skill 详情页内部增强——声明流程以「Skill 框架」的形式出现在 `SKILL.md` **之前**，Markdown 表格按 GFM 渲染成真表格。一级 / 二级页面结构不变。
+**v4.0**：Skill 详情页内部增强——声明流程以「Skill 框架」的形式出现在 `SKILL.md` **之前**，Markdown 表格按 GFM 渲染成真表格。一级 / 二级页面结构不变。
+
+**v4.1（当前）**：Skill 详情的**框架层被重做**。v4.0 把「Skill 框架」等同于那条 `01 → 02 → 03 → 04`，那是错的——`extractDeclaredFlow()` 抽到的只是 `SKILL.md` 里某一小节的有序列表，于是 342 行、11 个小节、39 个外部资源的 `ui-craft` 被说明成四步。现在框架是**组成结构**（角色分类 + 声明流程子模块 + 渐进披露），另起一层「本次运行逻辑」，并把 `detail.flow.steps[].evidence` 第一次显示出来。一级 / 二级页面结构不变。
 
 完整架构与验收见 **`docs/ARCHITECTURE.md`**；需求侧见 `04-product-requirements.md`；技术侧见 `05-technical-design.md` §0。当前有效的规格与视觉契约在 `01_重构方案/`（**不随仓库发布，不要当成可点击的来源**）。
 
@@ -327,7 +329,12 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 | ContinuationCard | 原收据时间、候选步骤、用户记录、人工判断 | 确定性整理；不调用模型、不自动执行 |
 | LearningGuide | 一句产品价值、文字化步骤、合并后的证据边界 | 仅未选择条目时显示；无编号圆；不使用示例收据 |
 | EmptyState | 准确原因、可选单一动作 | 区分无数据、无匹配、不可读取 |
-| **SkillFramework** | 标题 + 步数、来源副标题、免责说明、`01 → 02 → …` 声明步骤链 | **只标注、不构造**：只读 `flow.steps` 与 `anchors`，不得读 `runs` / `invocations` / `observedNodeIds`。单列、无拖拽、无自动布局 |
+| **SkillFramework** | 标题 + 「N 个小节 · N 步声明流程」、来源副标题、常驻说明，下辖三个子模块 | **声明与观察分离**：框架只读定义，`runs` / `invocations` / `observedNodeIds` 一概不读；运行证据只出现在 `RuntimeLogic` 与 `StepEvidence` 里，且只能给已存在的声明步骤附加状态。单列、无拖拽、无自动布局 |
+| **FrameworkStructure** | 角色模块（定位 / 触发 / 规则 / 控制 / 工作流 / 资源 / 产出 / 验证 + 「其它章节」），每模块列出小节；底部一行列出正文里没有的角色 | 角色来自 `classifySection()` 的确定性关键词表，不调模型。未归类的小节**必须**出现（`unclassified` + 一层兜底），缺失的角色**必须**直说（`coverage.absent`），不得补齐。`itemCount` 显示总数而不是只渲染出来的三条 |
+| **DeclaredWorkflow** | 框架内的子模块：`01 → 02 → …` 声明步骤链 | 与 v4.0 同一条：只标注、不构造。它现在是框架的**子模块**，不再是框架本身 |
+| **ProgressiveDisclosure** | 六段加载链（目录 → 载入 → 全文 → 资源基准 → 被引用资源 → 按需读取）+ 按 `Tier` 分层的资源清单 | **声明资源 ≠ 已读取资源**：`resources.loaded` 为空时界面不得出现「已读取」；同一路径只留一条记录 |
+| **RuntimeLogic** | 五段（目录 / 载入 / 指令 / 运行能力 / 证据），每段给状态、事实 `dl` 与限制说明 | 只列当前会话能观察到的事实；**不是运行图**，阶段之间不画边；无收据时五段全取最保守档，不得写「没有运行」 |
+| **StepEvidence** | 每个声明步骤一行：关系状态 + 依据（命中类型 / 观察节点数 / 证据 id / 匹配类型 / 是否模型意图） | 依据来自后端已算好的 `step.evidence`，前端不再推导；常驻「不代表这一步没有执行」 |
 | **FrameworkStep** | 序号、标题、类型胶囊、证据状态 | 状态来自五档词表；`insufficient` 逐字是「暂无足够证据」。标题用 `evidence.limitation` 作 `title` |
 | **MarkdownTable** | 表头 + 数据行 | 表头行与分隔行同时成立才算表；对齐走 `text-align`；外层横向可滚动，长 URL 不撑破容器 |
 
@@ -770,3 +777,52 @@ React 抛 #310，整个 Skill 标签页消失。
 译文只活在内存里：在插件内切换 Skill 再回来仍在，退出 DeepSeek Harness 即消失。
 切走再回来是**同一份译文**，不会重新请求模型。`FR-UI-047` 由 `TRANSLATION_MEMORY_ONLY_OK` 守着——
 译文落盘即违规，按事故处理。
+
+---
+
+## 22. 需求修订记录（2026-10-03）· 框架不再等于声明流程
+
+一次**详情页内部**的重做，一级 / 二级页面结构完全不变。改的是产品模型，不是视觉。
+
+**一、`Declared Skill Flow ≠ Skill Framework`**
+
+v4.0 的「Skill 框架」读的是 `detail.flow.steps[]`，而它来自 `extractDeclaredFlow()`：在定义正文里找
+一个流程类小节（`## Workflow`、`流程`、`Steps`），抽那个小节的有序列表。这对「四步做完一件事」的小 Skill
+恰好成立；`ui-craft` 因此只剩 `01 Project Analysis / 02 Ask the User / 03 Apply Decisions / 04 Craft Read`，
+于是一个 342 行、11 个小节、39 个外部资源的能力包被说明成四步。**声明流程是一份 Skill 的一部分，
+不是这份 Skill 的形状。**
+
+现在的层级是：
+
+```text
+Skill
+ ├─ Definition     SKILL.md（原始事实源）
+ ├─ Framework      结构 / 声明流程 / 渐进披露     ← 只读定义
+ └─ Runtime Logic  目录 → 载入 → 指令 → 能力 → 证据 ← 只读收据
+```
+
+- 结构由 `src/core/skill-framework.mjs` **确定性**解析：标题层级切小节 → 八个角色归类 → 未归类进
+  「其它章节」→ 缺失角色写进 `coverage.absent`。**不调模型总结，不由运行证据反推。**
+- `detail.flow` 保留，降级为框架内的「声明流程 · Declared Workflow」。
+- 渐进披露单独成节，并明确 **Declared Resource ≠ Loaded Resource**：没有来源证据就不说「已读取」。
+- 运行逻辑由 `src/core/skill-runtime-logic.mjs` 从收据推出五段，每段带 `state` / `facts[]` / `limitations[]`。
+- `detail.flow.steps[].evidence` 进入界面（「步骤证据」层）。
+- `detail.anchors` 变成步骤与框架小节**共用**的映射；合成小节的 `anchorId` 为 `null`，渲染成不可点的行。
+
+**二、四层的顺序是需求**
+
+主内容区自上而下：**框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`**。守卫按字面匹配渲染调用顺序。
+位置反过来就是另一种产品（先读文档、再猜结构）；把运行逻辑排到框架前面，则是把「声明」读成「观察到」。
+
+**三、禁止词表再加四个**
+
+`RUNTIME_LOGIC_FORBIDDEN = FLOW_EVIDENCE_FORBIDDEN + [已加载 / 已读取 / 已注入 / 已生效]`。前者禁的是
+「把没看到说成没做」，新增的四个禁的是「把声明说成已发生」——`SKILL.md` 里写着 `references/tokens.md`
+不等于这个文件被读过。
+
+**四、状态词与免责句不变**
+
+五档词表、`FLOW_DECLARATION_NOTE`、`insufficient` = 「暂无足够证据」全部沿用 v4.0；新增一条常驻说明：
+「「暂无足够证据」表示本次会话没有观察到可以对应的运行证据，不代表这一步没有执行。」
+
+**不变**：只读观察、不评分、不做因果推断、不持久化 Prompt / Skill 正文 / Tool 输出 / Token / Cookie / 绝对路径 / 项目正文。
