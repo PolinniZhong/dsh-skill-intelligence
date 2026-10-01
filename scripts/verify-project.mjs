@@ -134,9 +134,7 @@ for (const requiredText of [
   "'/skill-trace/translate'",
   'buildInstalledView',
   'buildChunkMessages',
-  'maskProtected',
-  'restoreProtected',
-  'checkChunk',
+  'runSegmentedTranslation',
 ]) {
   if (!host.includes(requiredText)) throw new Error(`host contract missing: ${requiredText}`)
 }
@@ -620,6 +618,31 @@ console.log('VISUAL_TOKENS_OK')
     }
   }
   console.log('TRANSLATION_MEMORY_ONLY_OK')
+
+// --- 翻译必须是分段的，而且必须自己说哪几段没翻成 -------------------------------
+// 0.4.0-beta.69 的翻译在真实应用里**一次都没成功过**，而 341 个测试全绿。原因不是模型，
+// 是当时那条路必须连上真模型才能跑：单元测试只覆盖了 `inspectTranslation` 的正确性，
+// 而它一直是正确的 —— 错的是"整篇必须完美"这个策略，那个策略当时没有任何测试能碰到。
+// 所以这里钉住三件让修复成立的事：掩码真的接在策略里、宿主真的把回退段数带回界面、
+// 界面真的有那句话。
+{
+  const core = await readFile(resolve(root, 'src/core/skill-translation.mjs'), 'utf8')
+  for (const expected of ['runSegmentedTranslation', 'maskProtected', 'restoreProtected', 'checkChunk', 'PLACEHOLDER_OPEN']) {
+    if (!core.includes(expected)) throw new Error(`the translation core must export ${expected}`)
+  }
+  // 定义存在不等于用上了：掩码必须真的在策略入口处被调用。
+  if (!/runSegmentedTranslation[\s\S]{0,600}maskProtected\(definitionText\)/.test(core)) {
+    throw new Error('runSegmentedTranslation must mask the definition before it asks the model anything')
+  }
+  const route = host.slice(host.indexOf("url.pathname === '/skill-trace/translate'"))
+  for (const expected of ['result.fallbackChunks', 'chunkCount']) {
+    if (!route.includes(expected)) throw new Error(`the translation route must report ${expected}`)
+  }
+  if (!clientCode.includes('fallbackChunks')) {
+    throw new Error('the client must say how many segments fell back to the original')
+  }
+  console.log('TRANSLATION_SEGMENTED_OK')
+}
 
 // v0.6 §6 / §8 / §9 Skill-first 的信息架构 ----------------------------------------------
 // 这一段的断言全部关于**形状**，不是措辞：卡片列表、唯一的二级页、以及「译文只在内存里」。

@@ -16,13 +16,10 @@ import { buildInstalledView } from '../../core/installed-view.mjs'
 import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
 import {
   buildChunkMessages,
-  checkChunk,
-  chunkMasked,
   compareTranslationSource,
   DEFAULT_TRANSLATION_LANGUAGE,
   inspectTranslation,
-  maskProtected,
-  restoreProtected,
+  runSegmentedTranslation,
   TRANSLATION_ERROR,
 } from '../../core/skill-translation.mjs'
 import { buildSessionSkillList, buildSkillDetail } from '../../core/skill-view-model.mjs'
@@ -298,10 +295,6 @@ const TRANSLATION_ATTEMPTS_PER_CHUNK = 2
 async function translateSkillDefinition({ llm, selection, skillName, definitionText, targetLanguage }) {
   const { BlockAssembler, createUserMessage } = await import('@deepseek-ai/dsh-llm')
 
-  const { masked, tokens } = maskProtected(definitionText)
-  const chunks = chunkMasked(masked)
-  const total = chunks.length
-
   const askModel = async (system, body) => {
     const messages = [createUserMessage({
       content: [{ type: 'text', text: body }],
@@ -322,40 +315,18 @@ async function translateSkillDefinition({ llm, selection, skillName, definitionT
     return assembler.blocks().filter((block) => block.type === 'text').map((block) => block.text).join('')
   }
 
-  const pieces = []
-  let fallbackChunks = 0
-  for (const chunk of chunks) {
-    const built = buildChunkMessages({
-      skillName,
-      chunkSource: chunk.source,
-      targetLanguage,
-      index: chunk.index,
-      total,
-    })
-    let accepted = null
-    for (let attempt = 0; attempt < TRANSLATION_ATTEMPTS_PER_CHUNK && accepted === null; attempt += 1) {
-      let produced = ''
-      try {
-        produced = await askModel(built.system, built.messages[0].content)
-      } catch {
-        produced = ''
-      }
-      if (checkChunk({ source: chunk.source, translation: produced, tokens }).ok) accepted = produced
-    }
-    if (accepted === null) {
-      // 回退的是**掩码态**原文，稍后与其它段一起还原，所以围栏与路径仍然是逐字的。
-      fallbackChunks += 1
-      pieces.push(chunk.source)
-    } else {
-      pieces.push(accepted)
-    }
-  }
-
-  return {
-    translation: restoreProtected(pieces.join(''), tokens),
-    chunkCount: total,
-    fallbackChunks,
-  }
+  // 策略（掩码、分段、重试、段级回退）全在 `runSegmentedTranslation` 里，那部分用假模型
+  // 就能测；这里只负责把 DSH 的 llm 包成一个 `ask`。
+  return runSegmentedTranslation({
+    definitionText,
+    skillName,
+    targetLanguage,
+    attempts: TRANSLATION_ATTEMPTS_PER_CHUNK,
+    ask: ({ chunk, index, total }) => {
+      const built = buildChunkMessages({ skillName, chunkSource: chunk.source, targetLanguage, index, total })
+      return askModel(built.system, built.messages[0].content)
+    },
+  })
 }
 export function apply(ctx, config = {}) {
   ctx.inject(['webServer', 'sessions', 'agents'], (webCtx) => {

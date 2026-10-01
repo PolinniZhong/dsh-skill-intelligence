@@ -11,6 +11,7 @@ import {
   inspectTranslation,
   maskProtected,
   restoreProtected,
+  runSegmentedTranslation,
 } from '../src/core/skill-translation.mjs'
 
 /**
@@ -162,4 +163,79 @@ test('translation context is the definition only', () => {
   // §20：会话消息、工具输出、凭据都不进翻译请求。
   assert.equal(built.messages.length, 1)
   assert.equal(built.messages[0].role, 'user')
+})
+
+// --- 假模型：策略本身必须能在没有真模型的情况下被证明 ------------------------------
+//
+// beta.69 的翻译逻辑整块长在宿主里，跑它必须连上真模型。于是「一次都没成功过」在
+// 341 个测试里完全看不出来 —— 旧测试只测了 `inspectTranslation` 的正确性，而它一直
+// 是正确的。下面这些用例把失败模式搬进测试：模型改坏标题、模型丢掉占位符、模型整段
+// 报错。它们全都必须在毫秒内复现，而不是等用户点三次才发现。
+
+/** 一个"会翻译"的假模型：把 ASCII 词换成中文，结构原样返回。 */
+function fakeTranslate(source) {
+  return source.replace(/[A-Za-z][A-Za-z'-]*/g, (word) => `译${word.length}`)
+}
+
+/** 收集每段被请求了几次。 */
+function recorder(fn) {
+  const calls = []
+  const ask = async ({ chunk, index, attempt }) => {
+    calls.push({ index, attempt })
+    return fn(chunk.source, index, attempt)
+  }
+  ask.calls = calls
+  return ask
+}
+
+test('a well-behaved model translates the document and nothing falls back', async () => {
+  const ask = recorder((source) => fakeTranslate(source))
+  const result = await runSegmentedTranslation({ definitionText: DEFINITION, skillName: 'ui-craft', ask })
+  assert.equal(result.fallbackChunks, 0)
+  assert.ok(result.chunkCount >= 1)
+  assert.ok(result.translation.includes('译2'), 'the prose really was translated')
+  assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
+})
+
+test('a model that breaks one segment retries it and then falls back alone', async () => {
+  // 每段都降一级标题 —— 这正是真实模型对长文档做的事。
+  const ask = recorder((source) => fakeTranslate(source).replace(/^## /m, '### '))
+  const result = await runSegmentedTranslation({ definitionText: DEFINITION, skillName: 'ui-craft', ask, attempts: 2 })
+  assert.ok(result.fallbackChunks >= 1, 'the broken segments fall back')
+  assert.equal(result.chunkCount, ask.calls.length / 2, 'each failed segment was asked exactly twice')
+  // 关键断言：整篇**仍然**是结构完好的，而不是像 beta.69 那样被整体丢弃。
+  assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
+  // 回退的段保留原文，而不是留空。
+  assert.ok(result.translation.includes('# ui-craft'), 'the fallen-back heading is still there in English')
+})
+
+test('a model that always throws yields the original document, not an error', async () => {
+  const ask = recorder(() => { throw new Error('model unavailable') })
+  const result = await runSegmentedTranslation({ definitionText: DEFINITION, skillName: 'ui-craft', ask, attempts: 2 })
+  assert.equal(result.fallbackChunks, result.chunkCount, 'every segment fell back')
+  assert.equal(result.translation, DEFINITION, 'the user sees the original, byte for byte')
+  assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
+})
+
+test('a model that is right on the second try costs one retry, not a fallback', async () => {
+  const ask = recorder((source, index, attempt) => (attempt === 0 ? '' : fakeTranslate(source)))
+  const result = await runSegmentedTranslation({ definitionText: DEFINITION, skillName: 'ui-craft', ask, attempts: 2 })
+  assert.equal(result.fallbackChunks, 0)
+  assert.notEqual(result.translation, DEFINITION, 'it really used the second answer')
+  assert.ok(ask.calls.some((call) => call.attempt === 1), 'there was a retry')
+})
+
+test('a model that eats every placeholder cannot corrupt a code fence', async () => {
+  // 最坏情况：模型把占位符全删了。掩码的意义就在这里 —— 围栏内容从未发给它，
+  // 所以回退之后围栏仍然逐字存在。这正是 §12.4 要保证的事。
+  const { masked } = maskProtected(DEFINITION)
+  const chunks = chunkMasked(masked, 200)
+  const carriesToken = chunks.some((chunk) => chunk.source.includes(PLACEHOLDER_OPEN))
+  assert.ok(carriesToken, 'some segment carries a protected span')
+  const ask = recorder((source) => fakeTranslate(source.replace(new RegExp(`${PLACEHOLDER_OPEN}\\s*\\d+\\s*${PLACEHOLDER_CLOSE}`, 'g'), '')))
+  const result = await runSegmentedTranslation({ definitionText: DEFINITION, skillName: 'ui-craft', ask, attempts: 2 })
+  assert.ok(result.fallbackChunks >= 1)
+  assert.ok(result.translation.includes('node scripts/build-client.mjs'), 'the command is still verbatim')
+  assert.ok(result.translation.includes('this line must never be translated'), 'the comment inside the fence too')
+  assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
 })

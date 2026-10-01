@@ -429,4 +429,55 @@ export function compareTranslationSource({ requestedSha256, currentSha256 } = {}
   return requested === current ? 'match' : 'mismatch'
 }
 
+/**
+ * 分段翻译的**策略**部分，与 DSH 无关：`ask` 是注入的，所以真实的 `llm.stream` 与
+ * 一个说假话的假模型走的是同一段代码。
+ *
+ * 这是这一版最重要的设计决定。beta.69 的翻译逻辑整块长在宿主里、必须连上真模型才能跑，
+ * 于是「一次都没成功过」在单元测试里完全看不出来 —— 测试只测了 `inspectTranslation`
+ * 正确性，而它一直是正确的。策略搬到这里之后，「模型毁了第 3 段」是一个可以在毫秒内
+ * 复现的用例，而不是要等用户点三次才能发现的故障。
+ */
+export async function runSegmentedTranslation({
+  definitionText,
+  skillName,
+  targetLanguage = DEFAULT_TARGET_LANGUAGE,
+  ask,
+  attempts = 2,
+} = {}) {
+  if (typeof ask !== 'function') throw new Error('ask 必须是函数')
+  const { masked, tokens } = maskProtected(definitionText)
+  const chunks = chunkMasked(masked)
+  const pieces = []
+  const fallbackIndexes = []
+
+  for (const chunk of chunks) {
+    let accepted = null
+    for (let attempt = 0; attempt < attempts && accepted === null; attempt += 1) {
+      let produced = ''
+      try {
+        produced = await ask({ chunk, index: chunk.index, total: chunks.length, attempt })
+      } catch {
+        produced = ''
+      }
+      const verdict = checkChunk({ source: chunk.source, translation: produced, tokens })
+      if (verdict.ok) accepted = produced
+    }
+    if (accepted === null) {
+      // 回退的是**掩码态**原文，稍后与其它段一起还原，所以围栏与路径仍然是逐字的。
+      fallbackIndexes.push(chunk.index)
+      pieces.push(chunk.source)
+    } else {
+      pieces.push(accepted)
+    }
+  }
+
+  return {
+    translation: restoreProtected(pieces.join(''), tokens),
+    chunkCount: chunks.length,
+    fallbackChunks: fallbackIndexes.length,
+    fallbackIndexes,
+  }
+}
+
 export const DEFAULT_TRANSLATION_LANGUAGE = DEFAULT_TARGET_LANGUAGE
