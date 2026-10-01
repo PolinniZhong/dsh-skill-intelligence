@@ -1,14 +1,14 @@
 ---
 artifact: prd
-version: "0.20-v0.6-two-level-ia"
+version: "0.21-skill-framework-and-tables"
 created: 2026-08-26
-status: v0.6-two-level-ia-desktop-eyeball-pending
+status: skill-framework-desktop-eyeball-pending
 ---
 
 # DSH Skill Trace 概览 PRD
 
 > 产品版本：V0.6 两级信息架构重构版  
-> 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。当前为 357 项自动化测试、22 项静态契约守卫，Client 源码 3536 → 1345 行、Client bundle 421 KB → 52 KB  
+> 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。v0.6 当时把 Client 从 3536 行收到 1345 行、bundle 从 421 KB 收到 52 KB；**此后详情页内部又加了「Skill 框架」与 GFM 表格，信息架构未动**，当前实测为 377 项自动化测试、23 项静态契约守卫、Client 源码 **1500 行**、bundle 421 KB → **62 KB**  
 > 工程发布版：`dsh-skill-trace 0.5.0`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面）。**已发布到 GitHub**（tag `v0.5.0`）——`0.4.0-beta.67` / `.68` / `.69` 三版从未单独公开，内容一并包含在这一版里；**npm 未同步**：`beta` 与 `latest` 仍指向 `0.4.0-beta.66`。发布步骤与起点见 `docs/RELEASE.md`。本轮未完成项一项：**DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），走查清单见 `01_重构方案/发布会话验收清单.md`
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
@@ -631,7 +631,7 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 
 **仍不可逆的两个方向**：`Declared`（定义正文）/ `Observed`（运行时）/ `Inferred`。声明步骤只能来自定义正文；运行时证据只能标注，不能增删改序。产品不评分、不给百分比、不做排名、不使用“未观测到执行”一类词汇。
 
-**当前工程数字**：357 项自动化测试、22 项静态契约守卫、client 源码 3536 → 1345 行、client bundle 421 KB → 52 KB。
+**当前工程数字**：377 项自动化测试、23 项静态契约守卫、client 源码 **1500 行**、client bundle 421 KB → **62 KB**（v0.6 当时是 1345 行 / 52 KB）。
 
 ## 7. 功能需求
 
@@ -782,6 +782,11 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 - `FR-UI-050`：翻译失败时段控**回到 `原文`（显示什么就是选中什么）**，但错误必须保持可见并提供重试入口；**禁止静默失败**。
 - `FR-UI-051`：**页面不得因为坏输入卸载整个 Tab。** 任何缺失字段必须降级为可见的错误状态（一句说明 + 可重试），不得整页崩溃、空白，也不得把缺失字段静默当成空值渲染。
 - `FR-UI-052`：**UI 不得做 declared→runtime 推断**：不得由运行时事件反推声明步骤，也不得把“已加载”渲染成“已执行”；没有证据只能显示未知。这条方向不可逆：`Skill Definition → 阅读`，绝不是 `Runtime → Flow`。
+- `FR-UI-054`：**Skill 详情必须把声明结构本身显示出来。** 主内容区在 `SKILL.md` **之前**渲染「Skill 框架」，内容只来自 `detail.flow.steps[]`（即定义正文）。它回答的是“这个 Skill 说自己分几步”，不是“这次跑了哪几步”。
+- `FR-UI-055`：**框架里的每一步只能被标注，不能被构造。** 运行时证据只允许给已存在的声明步骤附加状态；不得新增、删除、重命名或重排任何一步。`SkillFramework` 在实现上不得读取 `runs` / `invocations` / `observedNodeIds`，否则步骤数会变成“发生了什么”的函数。
+- `FR-UI-056`：**框架的状态词只陈述观察，不陈述执行。** 五档固定为「有相关运行证据 / 部分相关证据 / 仅有模型意图 / 暂无足够证据 / 无法判断」，与 `ALIGNMENT_RELATIONSHIPS` 一一对应；「已执行 / 未执行 / 已完成 / 未完成 / 执行成功 / 执行失败 / 已运行 / 未运行」八个词不得出现在界面任何位置。**没有证据不等于没有执行。** 未知关系一律兜底为「无法判断」而不是「暂无足够证据」。
+- `FR-UI-057`：**框架标题下必须有免责句。** 逐字为「流程来自 SKILL.md 的声明；运行证据仅用于标注当前会话中的相关观察，不代表 Agent 内部推理过程。」不可改写、不可省略、不可只在 tooltip 里。点击某一步走文档已有的锚点机制定位并高亮对应章节，不跳页、不打开运行图、不新增页面。
+- `FR-UI-058`：**GFM 表格必须渲染成真表格，且原文与中文预览共用同一个渲染器。** 表头行 + 分隔行同时成立才算一张表（setext 的 `---` 不是分隔行）；单元格保留行内代码、链接与 `\|` 转义；表格不得吞掉相邻的段落、标题或代码围栏。渲染器只允许一个调用点——两个调用点意味着两套行为，而其中一套没人测。**不得为此引入 Markdown 库或布局引擎**（`mermaid` / `marked` / `markdown-it` / `remark` / `rehype` / `reactflow` / `@xyflow/react` / `elkjs` / `d3`）。翻译侧同步校验表格形状：行数、列数、每行格数与分隔结构变化即判失败并重试；但掩码占位符被破坏仍必须报 `placeholder`——报成表格会让用户去改一张没坏的表。
 - `FR-UI-053`：响应式按内容需要收缩：宽屏（≥1180px）为左栏 + 文档两列；中等宽度（980–1179px）收窄左栏、缩短 Outline；极窄时左栏变成顶部 metadata block，Outline 可折叠。**长 code fence、长 URL 与长路径不得撑破容器**（`word-break` 或容器内横向滚动），且细则以 `01_重构方案/DSH-Skill-Trace-v0.6_design.md` §22 为准。
 
 ## 8. 信息架构与页面职责
@@ -961,8 +966,9 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 ### 12.3 客户端预算（v0.6 实测）
 
-- client 源码 3536 → 1345 行；client bundle 421 KB → 52 KB；
-- 357 项自动化测试、22 项静态契约守卫；
+- client 源码 3536 → 1345 行（v0.6 收敛量）；**当前 1500 行**，bundle 421 KB → **62 KB**；
+- 377 项自动化测试、23 项静态契约守卫；
+- 「Skill 框架」只读 `flow.steps` 与证据状态，不引入布局引擎（`mermaid` / `@xyflow/react` / `elkjs` 都不是依赖）；GFM 表格由 `src/core/markdown-table.mjs` 解析，渲染与翻译校验共用同一个解析器；
 - 列表首屏不读 `SKILL.md` 全文，进入详情才读；
 - 翻译只由用户点击触发，结果只在内存。
 
@@ -1130,7 +1136,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 ### 16.6 V0.6 两级信息架构 Gate（工程通过，人眼走查待完成）
 
-- `npm run verify` 通过：357 项自动化测试、22 项静态契约守卫全绿；
+- `npm run verify` 通过：377 项自动化测试、23 项静态契约守卫全绿；
 - client 源码 3536 → 1345 行、bundle 421 KB → 52 KB；
 - Host 路由只有 7 条：`/context`、`/skills`、`/skill`、`/installed`、`/definition`、`/translate`、`/preferences`；
 - 一级页面只有两个；不存在任何 `Advanced` 组、折叠区或“更多”菜单能到达已删除页面；
@@ -1177,6 +1183,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 0.21 | 2026-10-02 | **Skill 详情增强：声明流程与 GFM 表格（信息架构未动）**。详情页主内容区**上方**新增「Skill 框架」：把自 v0.6 起就已在 `buildSkillDetail()` 里算出、却从没有被界面读过的 `detail.flow.steps[]` 渲染成定义正文所述的竖排链条，每一步标注序号 / 标题 / `kind` / **观察**状态，点击走文档已有的 `flashAnchor` 滚到 `SKILL.md` 对应章节（`detail.anchors` 提供映射），不跳页、不新增页面。**状态词表是这一版最要紧的约束**：`runtime-supported` / `partial` / `intent-supported` / `insufficient` / `unknown` 五档分别读作「有相关运行证据」「部分相关证据」「仅有模型意图」「暂无足够证据」「无法判断」，`FLOW_EVIDENCE_FORBIDDEN` 里的八个词（已执行 / 未执行 / 已完成 / 未完成 / 执行成功 / 执行失败 / 已运行 / 未运行）一个都不许出现在界面里——**观察不到证据推不出没有执行**。`renderSkillMarkdown()` 新增 GFM 表格（此前 `ui-craft/SKILL.md` 里 101 行以 `|` 开头的内容全部退化成竖线串）；原文与中文预览**共用同一个渲染器调用点**（守卫数出来必须恰好 1 个）。翻译新增表格结构校验（行列数与分隔结构变了判 `table`，但掩码被破坏仍必须报 `placeholder`，否则用户会去改一张没坏的表）。测试 357 → 377、守卫 22 → 23、客户端 1345 → 1500 行、bundle 52 → 62 KB |
 | 0.20 | 2026-10-01 | **中文预览的第五次失败：判定根本不看语言**。`checkChunk()` 只查结构，所以模型把 3302 字符**原样返回英文**时拿了满分——横幅说「其余已翻译」，正文里躺着英文（用户原话「宏观你那是提示成功，但是我没有看到」）。新增 `looksUntranslated()`（输出与输入逐字相同、或目标语言是中文而输出里一个汉字都没有且字母数 ≥24 → 判 `untranslated`）；标题**层级**对得上就按原文钉回去（`alignHeadingLevels()`，不再为一个 `#` 丢掉整段），**数量**对不上才失败；失败的那一段先劈成两半再试（`splitChunkSource()` + 递归 `translateLeaf()`，最多 2 层），坏的那半继续劈、好的那半把译文留住；重试时告诉模型上次错在哪。**译文寿命按用户要求定义**：插件内切换 Skill 保留（`src/core/translation-cache.mjs`，进程内 Map，最多 8 条 LRU），退出 DeepSeek Harness 才清掉——仍然只存内存、不落盘、不进对话（`FR-UI-047` 不变）。顶栏改为「导航 → 这一页的数据 → 刷新」，两个一级页面不再重复正文段头。测试 349 → 357 |
 | 0.19 | 2026-10-01 | **V0.6 两级信息架构收敛**：删除运行流程 / 运行图谱 / Skill 收据页 / Contextual Inspector / 声明流程面板 / 跨会话学习工作台 / 备份导出链路，以及依赖 `elkjs`、`@xyflow/react`；一级页面收敛为「本次 Skill」（`current`）与「已安装 Skill」（`installed`），二级页面收敛为唯一 Skill 详情；新增只读仅内存的中文预览、Definition 事实卡与 Repository 三级解析；Host 路由 22 → 7；偏好升级到 `PREFERENCES_VERSION = 3`（无版本号与 v0.5 词汇 `skills` / `map` / `receipt` / `audit` 一律归一化为 `current`）；新增 `FR-UI-043` 至 `FR-UI-053`、`US-14` 至 `US-17`、`DEC-27` 至 `DEC-29`；357 项自动化测试 / 22 项静态契约守卫；剩余唯一未完成项为真实 DSH Desktop WebView 人眼走查 |
 | 0.18 | 2026-09-30 | **（v0.6 部分取代）** **Skill-first Information Architecture Refactor**：Skill 提升为产品一级对象，旧 `Session → Runtime → Definition` 层级改为 `Skill → Definition / Declared Flow / Runs / Evidence / Repository`；新增 §8.1「本次 Skill」为默认页、§8.2 本次 Skill 详情、§8.8 Advanced，原双视图与新学习入口收进 Advanced；默认视图偏好收敛为 `skills / map`（`receipt` 归一化为 `skills`）；新增 `FR-UI-032` 至 `FR-UI-042` 与 `DEC-26`；其中 `Advanced` 分组、声明流程面板与跨会话学习入口已在 0.19 删除 |

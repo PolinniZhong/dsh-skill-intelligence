@@ -249,6 +249,8 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/core/installed-view.mjs` | The installed-catalog search predicate, shared by the host and the client so "found it" cannot depend on which end answered |
 | `src/core/runtime-evidence.mjs` | Seam between raw tool arguments and the evidence model |
 | `src/core/step-kind.mjs` | Shared step vocabulary; alignment compares only at kind level |
+| `src/core/flow-evidence.mjs` | The labels the framework is allowed to use: five states keyed by the alignment relationships, the shared disclaimer, and `FLOW_EVIDENCE_FORBIDDEN` — the eight words that assert execution rather than observation. The guard imports this module and checks the resolved labels, because a source-text check would be satisfied by the forbidden list itself |
+| `src/core/markdown-table.mjs` | GFM table parsing — `parseTableAt` (header row plus delimiter row, or it is not a table) and `tableSignature` (columns, alignments, per-row cell counts). Shared deliberately: the renderer and the translation check must agree on what counts as a table, or "it renders" and "it validates" drift apart |
 | `src/core/source-snapshot.mjs` | Safe source identity and snapshot metadata (sha256 plus provider sanitizing) |
 | `src/core/session-log.mjs` | Reads the durable session log from disk as a fallback; the live session is always preferred |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |
@@ -257,7 +259,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 ## Client component tree
 
-`src/dsh/client/client.js` is the entire client — about 1345 lines after v0.6, down from about 3536, with a bundle of about 52 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
+`src/dsh/client/client.js` is the entire client — about 1500 lines, down from about 3536 before v0.6, with a bundle of about 62 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
 ```text
 Workbench                      first-level page switch + host preference
@@ -268,7 +270,16 @@ Workbench                      first-level page switch + host preference
   ├─ InstalledSkillsPage       已安装 Skill   ← GET /installed
   │    └─ SkillCard
   └─ SkillDetailPage           Skill Detail   ← GET /definition, POST /translate
+       ├─ SkillFramework       flow.steps[] + evidence status, above the document
+       └─ renderSkillMarkdown  one call site for the original and the translation
 ```
+
+Two rules hold this shape together, and both are enforced by `SKILL_FRAMEWORK_OK` rather than by convention:
+
+- **The framework only annotates.** `SkillFramework` reads `flow.steps` and nothing else — no `runs`, no `invocations`, no `observedNodeIds`. If runtime data could add a step, the step count would become a property of what happened instead of what the Skill declares, which is the same mistake the deleted runtime graph made.
+- **One renderer, one call site.** The assertion counts `renderSkillMarkdown(` call sites (excluding the definition and the `__pure` export) and requires exactly one. Two call sites would mean the original and the Chinese preview could diverge, and only one of the two behaviours would be tested.
+
+`SkillFramework` is deliberately not a canvas: no `elkjs`, no `@xyflow/react`, no `mermaid` — the guard rejects all of them as dependencies. What it draws is the vertical chain the definition already describes, which is why it costs a `grid` and eleven CSS rules rather than a layout engine.
 
 The client calls only the seven surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
 
@@ -553,7 +564,7 @@ UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → �
 | 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
 | 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
 
-因此客户端从约 3536 行降到约 1345 行，bundle 从 421 KB 降到约 52 KB，只调用留下来的七条路由，
+因此客户端从约 3536 行降到约 1500 行，bundle 从 421 KB 降到约 62 KB，只调用留下来的七条路由，
 并且只注册一个 slot（`conversation.view`）。
 
 ### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着
