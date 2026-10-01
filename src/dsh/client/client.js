@@ -18,6 +18,9 @@ const { readCachedTranslation, translationCacheKey, writeCachedTranslation } = r
 // 表格的解析规则只有一份：翻译校验拿它判「形状有没有被改坏」，渲染器拿它画 HTML 表格。
 // 两边各扫一遍行的话，迟早会在「什么算一张表」上分家，而分家时两道防线会同时失效。
 const { parseTableAt } = require('../../core/markdown-table.mjs')
+// 复刻的名字规则必须和宿主**同一条**：DSH 取 Skill 身份取的是 frontmatter 里的 `name`，
+// 前端先放行一个宿主会拒的名字，等于让用户填完表单才被退回来（v0.7 §十四）。
+const { CLONE_MAX_BYTES, CLONE_MODES, CLONE_SCOPES, cloneTargetName, isSkillName } = require('../../core/skill-clone.mjs')
 // 声明流程的状态词表来自核心层：它和 runtime-alignment 的五个关系一一对应，写在这里
 // 是为了让「界面说的」和「模型算的」是同一套词。
 const {
@@ -215,10 +218,12 @@ function installStyles() {
       [data-plugin="dsh-skill-trace"].st-host{height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px));max-height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px))}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}
       .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
-      /* v0.6 §22 顶栏：品牌 + 两个一级页面入口 + 刷新。高度取设计文档的 68px，
-        高于 design.md §6.1 的 58px 下限。曾经这里有第二条规则把它覆写成 72px ——
-        那个数字来自哪个文档都说不清，就成了「样式表里的一句口口相传」。 */
-      .st-topbar{min-height:68px;padding:0 18px;display:flex;align-items:center;gap:14px;flex:none;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
+      /* v0.6 §22 顶栏：两个一级页面入口 + 这一页的状态 + 刷新。
+        2026-10-05（用户：「这个背景占用太多高度，去掉后下方数据上移」）：顶栏不再是一块
+        有底色的横条，高度收到贴着内容的 48px —— 分段控件本身就 36px，原来的 68px 里有
+        32px 是纯空白。它现在靠一条分隔线与下面的内容分开，而不是靠一块和页面不同色的
+        底板；省下的 20px 全给了下方列表。 */
+      .st-topbar{min-height:48px;padding:0 16px;display:flex;align-items:center;gap:14px;flex:none}
       /* 顶栏现在的读法是「导航 → 这一页的状态」：两个一级入口在最左，紧跟着一行说明
          当前这一页的数据是什么，右侧只留刷新。状态行会截断而不是把布局挤宽。 */
       .st-context{min-width:0;flex:1;display:flex;align-items:center;gap:7px;color:var(--st-muted);font-size:12px}
@@ -227,7 +232,12 @@ function installStyles() {
       /* 段头删掉之后页面就没有标题元素了。视觉上按用户的要求去掉，语义上补一个
          只给读屏软件的 h2 —— 「这一页叫什么」不该因为排版调整而消失。 */
       .st-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-      .st-view-switch{display:inline-flex;padding:3px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer-2)}.st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}.st-view-button[aria-pressed="true"]{background:var(--st-layer);color:var(--st-brand);box-shadow:0 1px 2px rgba(20,24,32,.08)}
+      .st-view-switch{display:inline-flex;gap:2px;align-items:center}
+      .st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}
+      /* 2026-10-05 第三轮（用户：「选中的时候不用背景框，没必要，只要那个字体高亮就行」）：
+         选中态从一块 --st-accent-soft 底板改成**纯字色 + 字重**。理由和上一轮去掉容器底板是同一条：
+         这一行里已经有两层底色在互相抵消，把选中态也做成色块，三个选项看起来像三块标签而不是一句话。 */
+      .st-view-button[aria-pressed="true"]{color:var(--st-brand);font-weight:600}
       .st-empty-page,.st-trace-state{height:100%;display:grid;place-items:center;padding:32px;color:var(--st-muted)}.st-empty-page-inner{width:min(100%,420px)}.st-empty-page p{margin:0}.st-trace-state-line{display:inline-flex;align-items:center;gap:9px;font-size:13px}.st-trace-state-dot{width:7px;height:7px;border-radius:50%;background:var(--st-faint)}.st-trace-state[data-kind="loading"] .st-trace-state-dot{background:var(--st-brand);animation:st-pulse 1.2s ease-in-out infinite}@keyframes st-pulse{50%{opacity:.35}}
       [data-plugin="dsh-skill-trace"]{overflow:hidden;max-height:none;height:var(--st-host-h,100%);min-height:0;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.st-trace-state-dot{animation:none!important}}
@@ -237,8 +247,11 @@ function installStyles() {
          按下时轻微下沉，读成"点到了"而不是"没反应"。 */
       /* 过渡：objective 明确要求。preview 没有过渡，但状态切换（hover / 聚焦降权 / 回放）
          若瞬变会读成"画面闪了一下"；160ms 足以让它读成一次状态变化。 */
-      .st-view-switch{border-radius:9px}
       .st-view-button{height:32px;padding:0 11px}
+      /* 插件住在对话面板里，宽度可以窄到 500px 上下：这时导航（约 214px）+ 搜索 + 刷新
+         会挤不下。搜索框是这一行里唯一可以收缩的东西，所以让它在窄屏先让位，而不是
+         把整行顶出去（顶出去的表现是刷新按钮被裁掉，而它恰恰是那一行最后一个动作）。 */
+      @media(max-width:760px){.st-installed-search{flex:0 1 140px}}
 
 
 
@@ -271,15 +284,44 @@ function installStyles() {
          Phase 3 之后的调整不必再去猜流程到底挂在哪个复用类上。 */
       /* v0.6 §7「已安装 Skill」：搜索 + 两列卡片。卡片上只有名称、描述、调用方式与来源 ——
        * 没有学习状态、验证状态或 review queue，那些是 v0.5 的学习工作台，按 §4 从主模型消失。 */
-      .st-installed{padding:22px 24px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto}
-      .st-installed-search{display:flex;align-items:center;gap:8px;max-width:520px;color:var(--st-text-tertiary)}
-      .st-installed-search input{flex:1;height:34px;padding:0 11px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:13px}
+      /* 2026-10-05：顶部内边距 22px → 10px。顶栏自己是 48px 高、里面放一个 30px 的控件，
+         上下各留 9px —— 列表再隔 22px 才开始，顶栏与内容之间就出现了一条谁都不认领的空白带。
+         改成 10px 之后两者读起来是同一块面。（左右与底部不变：那三面没有参考物。） */
+      .st-installed{padding:10px 24px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto}
+      /* 2026-10-05 第二轮（用户：「搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，
+         那搜索框宽度可以再缩小一点」）：搜索框从正文的独立一行挪进顶栏右侧、紧挨刷新按钮。
+         它因此降了一档：高度对齐同一行的两个 30px 控件，宽度从 520px 收到 220px ——
+         搜索是窄输入（名称或描述的几个词），横跨半屏的输入框只会把那一行读成表单。 */
+      .st-installed-search{position:relative;display:flex;align-items:center;flex:0 1 220px;min-width:0}
+      .st-installed-search input{width:100%;height:30px;padding:0 30px 0 10px;border:1px solid var(--st-border);border-radius:7px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:12.5px}
       .st-installed-search input:focus-visible{outline:2px solid var(--st-accent);outline-offset:1px}
+      /* 2026-10-05（用户：「搜索框搜索 Icon 迁移到搜索框的右侧」）：图标从输入框左边挪到框内右端，
+         并且 pointer-events:none —— 它只是个标记，不该抢走点击落点。 */
+      .st-search-icon{position:absolute;right:9px;top:50%;transform:translateY(-50%);display:flex;color:var(--st-text-tertiary);pointer-events:none}
+      /* 刷新按钮此前**一条样式都没有** —— .st-icon-button 只在 JSX 里出现过，样式全来自宿主默认的
+         button，所以它带着一块谁也说不清来历的底板。用户：「如果有必要存在，那块背景就不要了，
+         只要 Icon 就行」。保留它是因为目录是缓存过的，新装 / 删掉 Skill 之后需要一次手动重取；
+         但它的样子现在只有图标本身。 */
+      .st-icon-button{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--st-muted);cursor:pointer}
+      .st-icon-button:hover{background:var(--st-surface-subtle);color:var(--st-text)}
+      .st-icon-button:disabled{background:transparent;color:var(--st-faint);cursor:default}
       .st-installed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
-      .st-installed-card{display:flex;flex-direction:column;gap:7px;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface)}
+      .st-installed-card{display:flex;flex-direction:column;gap:7px;width:100%;text-align:left;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);color:inherit;font:inherit;cursor:pointer;transition:border-color .16s ease}
+      .st-installed-card:hover{border-color:var(--st-border-strong)}
+      .st-installed-card:focus-visible{outline:2px solid var(--st-accent);outline-offset:1px}
       .st-installed-card-name{font-size:14.5px;font-weight:600;color:var(--st-text)}
-      .st-installed-card-desc{margin:0;font-size:12.5px;line-height:1.6;color:var(--st-text-secondary)}
-      .st-installed-card-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--st-text-tertiary)}
+      /* 2026-10-05（用户：「Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行……用户
+         可以点进去查看详情」）：两个列表的描述都截到 4 行。
+         描述是**预览**而不是内容本身 —— 有的 Skill 描述十行八行，卡片被它撑成一个段落，
+         一屏放不下几张。整张卡片就是入口，完整描述在详情页一眼可看，所以这里截断不丢信息。
+         截断是**纯视觉**的：line-clamp 只影响绘制，DOM 文本一字不少，
+         读屏软件仍然读得到完整描述，卡片的可访问名也不受影响。
+         两个列表用同一个上限，免得同一份描述在两页里有两种长度。 */
+      .st-installed-card-desc{margin:0;font-size:12.5px;line-height:1.6;color:var(--st-text-secondary);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;overflow:hidden}
+      /* 元信息行钉在卡片左下角。网格默认把同一行的卡片拉到等高，如果元信息行只跟着描述走，
+         它会停在描述下面、离卡片底边还差一大截 —— 卡片看上去像没写完。
+         margin-top:auto 吃掉的正是那段空白；卡片本身已经给了 7px 的间距，所以不靠这个 margin 撑开。 */
+      .st-installed-card-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--st-text-tertiary);margin-top:auto}
       @media(max-width:980px){.st-installed-grid{grid-template-columns:minmax(0,1fr)}}
       /* ── Skill-first 列表与详情（v0.6 §6 / §7 / §8 / §9）──────────────────────
        *
@@ -288,15 +330,20 @@ function installStyles() {
        * 文档，冲突时以仓库里**有牙的那条**为准（scripts/verify-project.mjs 会真的失败），
        * 并把分歧记在评审文档里，而不是偷偷选一个。
        */
-      .st-page{height:100%;min-height:0;overflow:auto;padding:20px 22px 28px}
+      /* 2026-10-05：两个一级列表必须从**同一个位置**开始。它们共用一条顶栏，读者在这两个
+         入口之间来回点时，第一张卡片的左上角应当原地不动 —— 否则每次切换页面，内容都会
+         横竖各跳一下。所以这一页的 padding 与 .st-installed 逐字相同（10px 24px 28px）。 */
+      .st-page{height:100%;min-height:0;overflow:auto;padding:10px 24px 28px}
       .st-skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
       .st-skill-card{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);color:inherit;cursor:pointer;transition:border-color .16s ease,transform .16s ease}
       .st-skill-card:hover{transform:translateY(-1px);border-color:var(--st-border-strong)}
       .st-skill-card-icon{width:34px;height:34px;border-radius:9px;background:var(--st-accent-soft);color:var(--st-accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 auto}
       .st-skill-card-body{min-width:0;flex:1;display:flex;flex-direction:column}
       .st-skill-card-name{font-weight:700;font-size:14px}
-      .st-skill-card-desc{margin:4px 0 0;color:var(--st-muted);font-size:12px;line-height:1.55}
-      .st-skill-card-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+      .st-skill-card-desc{margin:4px 0 0;color:var(--st-muted);font-size:12px;line-height:1.55;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;overflow:hidden}
+      /* 同上一条：钉在卡片左下角。这里多一个 padding-top —— 这张卡的正文列没有 gap，
+         auto 外边距在「本来就没有多余空间」时会解析成 0，只用 margin 会让元信息行贴到描述上。 */
+      .st-skill-card-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:10px}
       .st-skill-card-go{color:var(--st-faint);font-size:14px;flex:0 0 auto}
       .st-pill{border:1px solid var(--st-border);border-radius:999px;padding:3px 8px;font-size:11px;color:var(--st-muted);background:var(--st-surface-subtle)}
       .st-pill[data-tone="accent"]{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
@@ -469,6 +516,40 @@ function installStyles() {
       .st-translate[disabled]{opacity:.55;cursor:default}
       .st-translate-notice{margin:0;padding:9px 16px;border-bottom:1px solid var(--st-border-soft);background:var(--st-surface-subtle);color:var(--st-muted);font-size:11.5px}
       .st-translate-error{margin:0;padding:9px 16px;border-bottom:1px solid var(--st-border-soft);color:var(--st-warning);font-size:11.5px}
+      .st-translate-saved{margin:0;padding:8px 16px;border-bottom:1px solid var(--st-border-soft);color:var(--st-muted);font-size:11.5px}
+      .st-translate-saved[data-saved="no"]{color:var(--st-warning)}
+      /* v0.7 §九–§十：复刻对话框。紧凑、无大圆角、无营销标题、单一主动作。
+         遮罩用 position:fixed + inset:0 —— 布局合同禁止视口高度单位，这里也不需要。 */
+      .st-clone-open{width:100%;margin-top:10px;padding:7px 12px;border:1px solid var(--st-accent);border-radius:9px;background:var(--st-accent-soft);color:var(--st-accent);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+      .st-clone-open[disabled]{opacity:.55;cursor:default}
+      .st-clone-overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:72px 20px;background:color-mix(in srgb,var(--st-text) 34%,transparent)}
+      .st-clone-dialog{width:560px;max-width:100%;max-height:100%;overflow:auto;border:1px solid var(--st-border-strong);border-radius:12px;background:var(--st-surface);box-shadow:0 12px 32px color-mix(in srgb,var(--st-text) 18%,transparent)}
+      .st-clone-head{padding:14px 18px;border-bottom:1px solid var(--st-border-soft)}
+      .st-clone-head h2{margin:0;font-size:14px;font-weight:650}
+      .st-clone-sub{margin:4px 0 0;color:var(--st-muted);font-size:11.5px}
+      .st-clone-body{padding:14px 18px 0}
+      .st-clone-field{margin:0 0 14px}
+      .st-clone-label{display:block;margin-bottom:5px;color:var(--st-muted);font-size:11px}
+      .st-clone-input{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px}
+      .st-clone-input:focus-visible{outline:2px solid var(--st-accent);outline-offset:1px}
+      .st-clone-radios{display:flex;gap:16px;flex-wrap:wrap}
+      .st-clone-radio{display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer}
+      .st-clone-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px;margin:0 0 14px;padding:9px 0;border-top:1px solid var(--st-border-soft);border-bottom:1px solid var(--st-border-soft);font-size:11.5px}
+      .st-clone-facts dt{margin:0;color:var(--st-muted)}
+      .st-clone-facts dd{margin:0;min-width:0;overflow-wrap:anywhere;color:var(--st-text)}
+      .st-clone-error{margin:0 0 12px;color:var(--st-warning);font-size:11.5px;line-height:1.5}
+      .st-clone-actions{display:flex;justify-content:flex-end;gap:8px;padding:11px 0;border-top:1px solid var(--st-border-soft)}
+      .st-clone-cancel{padding:6px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;cursor:pointer}
+      .st-clone-cancel:hover{border-color:var(--st-border-strong)}
+      .st-clone-submit{min-width:104px}
+      .st-clone-done{margin:0 0 6px;color:var(--st-text);font-size:12.5px;font-weight:650}
+      .st-clone-name{margin:0 0 10px;font-size:12.5px}
+      .st-clone-note{margin:0 0 6px;color:var(--st-muted);font-size:11.5px;line-height:1.55}
+      .st-clone-limits{margin:0 0 12px;padding-left:16px;color:var(--st-faint);font-size:11px;line-height:1.6}
+      .st-clone-invoke{display:flex;align-items:center;gap:8px}
+      .st-clone-invoke code{font-size:12px;color:var(--st-text)}
+      .st-clone-copy{padding:4px 10px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-surface-subtle);color:var(--st-muted);font:inherit;font-size:11px;cursor:pointer}
+      .st-clone-copy:hover{border-color:var(--st-border-strong);color:var(--st-text)}
       .st-detail-doc-body{flex:1;min-height:0;display:grid;grid-template-columns:170px minmax(0,1fr)}
       .st-detail-outline{border-right:1px solid var(--st-border-soft);padding:12px 8px;overflow:auto}
       .st-detail-outline-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 6px;border-radius:6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -690,7 +771,22 @@ function installStyles() {
     'runtime-facts-come-only-from-what-this-session-observed': ['运行事实只来自当前会话观察到的内容。', 'Runtime facts come only from what this session observed.'],
     'runtime-evidence-is-categorical-and-carries-no-argument-text': ['运行证据只有类别与计数，不保留命令、路径或查询原文。', 'Runtime evidence is categorical and keeps no command, path or query text.'],
     'runtime-events-could-not-be-linked-to-this-skill': ['运行时事件无法与这个 Skill 关联，所以能力与证据保持为空。', 'Runtime events could not be linked to this Skill, so capability and evidence stay empty.'],
+    // v0.7 复刻：宿主返回的 limitations 是**代码**，界面必须说人话（§7）。
+    'clone-is-not-attached-to-this-session': ['副本不会自动接到这次对话，需要时在对话里用它的名字调用。', 'The copy is not attached to this conversation; invoke it by name when you need it.'],
+    'bundle-declared-resources-not-copied': ['只复制了 SKILL.md，Skill 声明的资源目录没有一起复制。', 'Only SKILL.md was copied; the resource directories the Skill declares were not.'],
+    'bundle-truncated-by-limit': ['有文件超过了单次复刻的上限，没有被复制。', 'Some files exceeded the per-clone limit and were not copied.'],
+    'bundle-partially-skipped': ['有文件被跳过（例如符号链接或不安全的路径）。', 'Some files were skipped, such as symlinks or unsafe paths.'],
   }
+
+  // 这几条在成功面板里**已经有一句话说过了**（目录刷新、源是否被改动），或者纯粹是
+  // 宿主自己的策略（不外发绝对路径）。在限制列表里再列一遍等于把同一件事说两次，
+  // 而且「限制：绝对路径未提供」读起来像是缺了什么 —— 它不是缺陷，是承诺。
+  const CLONE_LIMITATION_RESTATED = Object.freeze([
+    'absolute-paths-withheld',
+    'catalog-refresh-observed',
+    'catalog-refresh-not-observed',
+    'source-reread-did-not-match',
+  ])
 
   // 复合码（`git-remote-unrecognised-remote`、`frontmatter-repository-empty-remote`）是
   // 「哪条来源 + 哪种拒绝」拼出来的。逐个枚举会随来源增加而漂移，所以按结尾判断。
@@ -1308,6 +1404,153 @@ function installStyles() {
         })))
   }
 
+  /**
+   * v0.7 §七–§二十：复刻 Skill。
+   *
+   * 这是详情页**唯一**的对象级动作 —— 不是编辑、不是创建、不是优化。产品目标是
+   * 「从一个现有 Skill 生成一个独立副本」，所以动词只能是「复刻」。
+   *
+   * 三条不许破的纪律：
+   *   1. 源 Skill 一个字节都不动（宿主复刻完还会重新读一遍源文件回证）。
+   *   2. 目标名冲突默认拒绝 —— 没有"覆盖确认"这条捷径。
+   *   3. 成功态来自宿主的回执（写入 + 回读 + 目录发现），不是"按钮点下去了"。
+   */
+  function SkillCloneDialog({ skillName, sourceSha256, definitionAvailable, onClose, clone: suppliedResult, targetName: suppliedTargetName }) {
+    // `clone` / `targetName` 是与 `InstalledSkillsPage` 的 `installed`、`CurrentSkillPage` 的
+    // `list` 同一种注入缝：渲染烟测的 React 桩不会执行 `useEffect`、也不会更新 `useState`，
+    // 所以"名字不合法"与"宿主回执之后"这两条分支只有注得进去才渲染得出来。
+    const [openTarget, setOpenTarget] = React.useState(() => suppliedTargetName ?? cloneTargetName(skillName))
+    const [scope, setScope] = React.useState('project')
+    const [mode, setMode] = React.useState('bundle')
+    const [phase, setPhase] = React.useState(suppliedResult ? 'done' : 'form')
+    const [result, setResult] = React.useState(suppliedResult ?? null)
+    const [failure, setFailure] = React.useState(null)
+    const [copied, setCopied] = React.useState(false)
+
+    const nameProblem = !openTarget
+      ? localized('请填写 Skill 名称。', 'Enter a Skill name.')
+      : !isSkillName(openTarget)
+        ? localized('名称只能用小写字母、数字和连字符，且以字母或数字开头。', 'Use lowercase letters, digits and hyphens only, starting with a letter or digit.')
+        : openTarget === skillName
+          ? localized('目标名称与源 Skill 相同，请换一个。', 'The target name is the same as the source; pick another.')
+          : ''
+    const canSubmit = !nameProblem && definitionAvailable && !!sourceSha256
+
+    const submit = () => {
+      if (!canSubmit || phase === 'saving') return
+      setPhase('saving')
+      setFailure(null)
+      api('/clone', {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceSkillName: skillName,
+          sourceSha256,
+          targetSkillName: openTarget,
+          targetScope: scope,
+          cloneMode: mode,
+        }),
+      })
+        .then((body) => { setResult(body); setPhase('done') })
+        .catch((reason) => { setFailure(String(reason?.message || 'clone-failed')); setPhase('form') })
+    }
+
+    const copyInvocation = () => {
+      const text = `/${result?.skillName || openTarget}`
+      const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1600) }
+      // 只复制文本：绝不往输入框注入命令、绝不发消息、绝不触发 Agent（§十九）。
+      if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(() => {})
+    }
+
+    const field = (label, body) => h('div', { className: 'st-clone-field' }, h('span', { className: 'st-clone-label' }, raw(label)), body)
+
+    const radio = (group, value, label, checked, onPick) => h('label', { className: 'st-clone-radio', 'data-group': group, 'data-value': value },
+      h('input', { type: 'radio', name: group, value, checked, onChange: () => onPick(value) }),
+      h('span', null, raw(label)))
+
+    const header = h('header', { className: 'st-clone-head' },
+      h('h2', null, localized('复刻 Skill', 'Clone Skill')),
+      h('p', { className: 'st-clone-sub' }, raw(phase === 'done'
+        ? localized(`已从 ${skillName} 复刻出一个新 Skill。`, `A new Skill was cloned from ${skillName}.`)
+        : localized(`从 ${skillName} 创建一个新的 Skill`, `Create a new Skill from ${skillName}`))))
+
+    const form = h('div', { className: 'st-clone-body' },
+      field(localized('Skill 名称', 'Skill name'),
+        h('input', {
+          className: 'st-clone-input',
+          type: 'text',
+          value: openTarget,
+          spellCheck: false,
+          'data-role': 'clone-target-name',
+          onChange: (event) => setOpenTarget(String(event.target.value || '').trim().toLowerCase()),
+        })),
+      field(localized('保存范围', 'Where to save'),
+        h('div', { className: 'st-clone-radios' },
+          radio('scope', 'project', localized('当前项目', 'This project'), scope === 'project', setScope),
+          radio('scope', 'user', localized('我的 Skill', 'My Skills'), scope === 'user', setScope))),
+      field(localized('复刻内容', 'What to copy'),
+        h('div', { className: 'st-clone-radios' },
+          radio('mode', 'bundle', localized('完整 Skill', 'The whole Skill'), mode === 'bundle', setMode),
+          radio('mode', 'skill-md', localized('仅 SKILL.md', 'SKILL.md only'), mode === 'skill-md', setMode))),
+      h('dl', { className: 'st-clone-facts' },
+        h('dt', null, localized('来源', 'Source')), h('dd', null, raw(skillName)),
+        h('dt', null, localized('当前版本', 'Current version')), h('dd', null, h('code', null, raw(shortHash(sourceSha256) || localized('不可用', 'unavailable'))))),
+      // 名字不合法就**当场**说，而不是让用户点下去再被宿主退回（§十四）。
+      nameProblem ? h('p', { className: 'st-clone-error', 'data-role': 'clone-name-error' }, raw(nameProblem)) : null,
+      failure ? h('p', { className: 'st-clone-error', 'data-role': 'clone-error' }, raw(failure)) : null,
+      h('div', { className: 'st-clone-actions' },
+        h('button', { className: 'st-clone-cancel', type: 'button', onClick: onClose }, localized('取消', 'Cancel')),
+        h('button', {
+          className: 'st-translate st-clone-submit',
+          type: 'button',
+          disabled: !canSubmit || phase === 'saving',
+          onClick: submit,
+        }, raw(phase === 'saving' ? localized('正在复刻…', 'Cloning…') : localized('复刻 Skill', 'Clone Skill')))))
+
+    const limitations = (Array.isArray(result?.limitations) ? result.limitations : [])
+      .filter((item) => !CLONE_LIMITATION_RESTATED.includes(item))
+    const cloneFileCount = Number(result?.fileCount) || 0
+    const cloneSkipped = Number(result?.skippedCount) || 0
+    // 「完整 Skill（42 个文件）」在一个 473 个文件的 Skill 上是一句假话 —— 用户要的是
+    // 完整的，我们只拷进去了一部分，就必须在同一行里说出来，而不是塞进下面的小字列表。
+    const copiedLine = result?.mode !== 'bundle'
+      ? localized('复刻内容：仅 SKILL.md', 'Copied: SKILL.md only')
+      : result?.truncated === true
+        ? localized(
+          `复刻内容：完整 Skill 没有拷全（已复制 ${cloneFileCount} 个文件，${cloneSkipped} 个超过单次复刻上限）`,
+          `Copied: the whole Skill, but not in full (${cloneFileCount} file(s) copied, ${cloneSkipped} over the per-clone limit)`,
+        )
+        : localized(`复刻内容：完整 Skill（${cloneFileCount} 个文件）`, `Copied: the whole Skill (${cloneFileCount} file(s))`)
+    // 目录有没有刷新是**观察到的事实**，不是承诺：轮询到就说发现，没轮询到就直说待确认（§十八）。
+    const discoveryLine = result?.discovered === true
+      ? localized('✓ Skill 目录已更新，当前 Agent 可以使用该 Skill。', '✓ The Skill catalog is updated; the current Agent can use this Skill.')
+      : localized('Skill 已写入 Skill 目录，目录刷新状态待确认。重启 DeepSeek Harness 后一定可见。', 'The Skill is written to the Skills directory; whether the catalog has refreshed is not confirmed. It will be visible after restarting DeepSeek Harness.')
+
+    const done = h('div', { className: 'st-clone-body' },
+      h('p', { className: 'st-clone-done', 'data-role': 'clone-done' }, raw(localized('✓ Skill 已创建', '✓ Skill created'))),
+      h('p', { className: 'st-clone-name' }, h('code', null, raw(result?.skillName ?? openTarget))),
+      h('p', { className: 'st-clone-note' }, raw(result?.scope === 'user'
+        ? localized('已写入我的 Skill', 'Written to My Skills')
+        : localized('已写入当前项目 Skill', 'Written to this project\u2019s Skills'))),
+      h('p', { className: 'st-clone-note', 'data-role': 'clone-copied', 'data-truncated': result?.truncated === true ? 'yes' : 'no' }, raw(copiedLine)),
+      h('p', { className: 'st-clone-note' }, raw(discoveryLine)),
+      result?.sourceUnchanged === true
+        ? h('p', { className: 'st-clone-note' }, raw(localized('源 Skill 未被修改。', 'The source Skill was not modified.')))
+        : h('p', { className: 'st-clone-error' }, raw(localized('无法确认源 Skill 是否被改动，请自行核对。', 'Could not confirm whether the source Skill changed; please check it yourself.'))),
+      limitations.length
+        ? h('ul', { className: 'st-clone-limits' }, ...limitations.map((item) => h('li', { key: item }, raw(limitationLabel(item)))))
+        : null,
+      field(localized('调用方式', 'Invocation'),
+        h('div', { className: 'st-clone-invoke' },
+          h('code', null, raw(result?.invocation || `/${openTarget}`)),
+          h('button', { className: 'st-clone-copy', type: 'button', 'data-role': 'clone-copy', onClick: copyInvocation },
+            raw(copied ? localized('已复制', 'Copied') : localized('复制', 'Copy'))))),
+      h('div', { className: 'st-clone-actions' },
+        h('button', { className: 'st-clone-cancel', type: 'button', onClick: onClose }, localized('关闭', 'Close'))))
+
+    return h('div', { className: 'st-clone-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': localized('复刻 Skill', 'Clone Skill') },
+      h('div', { className: 'st-clone-dialog', 'data-phase': phase }, header, phase === 'done' ? done : form))
+  }
+
   function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
@@ -1316,6 +1559,7 @@ function installStyles() {
     const [translation, setTranslation] = React.useState({ state: 'idle', text: '', sha: '', error: '' })
     const [flash, setFlash] = React.useState('')
     const [activeHeading, setActiveHeading] = React.useState('')
+    const [cloneOpen, setCloneOpen] = React.useState(false)
     const docRef = React.useRef(null)
     const scrollRef = React.useRef(null)
     const flashTimer = React.useRef(null)
@@ -1363,10 +1607,41 @@ function installStyles() {
         // 回到一个已经翻好的 Skill，直接把中文摆出来 —— 用户切回来想看的正是它。
         setTranslation(cached)
         setTab('translated')
-        return
+        return undefined
       }
       setTranslation({ state: 'idle', text: '', sha: '', error: '' })
       setTab('original')
+      // 内存里没有就问本机。中文阅读版是**跨会话**资产：退出 DSH 再进来应该还在，
+      // 否则用户每开一次 DSH 都要等一到三分钟重新翻同一份文档（v0.7 §6）。
+      // 指纹对不上的旧译文宿主不会返回 —— 界面因此不可能把上一版的中文配给这一版的原文。
+      if (!sha) return undefined
+      let cancelled = false
+      api(`/translation?skillName=${encodeURIComponent(skillName)}&sourceSha256=${encodeURIComponent(sha)}&targetLanguage=zh-CN`)
+        .then((body) => {
+          if (cancelled) return
+          const record = body?.translation
+          const text = typeof record?.translation === 'string' ? record.translation : ''
+          if (!text) return
+          const stored = {
+            state: 'ready',
+            text,
+            sha,
+            error: '',
+            saved: true,
+            chunkCount: Number(record.chunkCount) || 0,
+            fallbackChunks: Number(record.fallbackChunks) || 0,
+            fallbackReasons: Array.isArray(record.fallbackReasons) ? record.fallbackReasons : [],
+          }
+          // 顺手放进内存缓存：同一次会话里再切回来不必再问一次宿主。
+          writeCachedTranslation(translationCacheKey(sessionId, skillName, sha), stored)
+          setTranslation(stored)
+          setTab('translated')
+        })
+        .catch(() => {
+          // 读不到就是没有中文：不弹错误、不阻塞渲染。对用户来说「没存过」与
+          // 「存过但这次读不出来」是同一件事 —— 现在没有中文，点翻译即可。
+        })
+      return () => { cancelled = true }
     }, [sessionId, skillName, sha])
 
     const flashAnchor = React.useCallback((anchorId) => {
@@ -1413,6 +1688,10 @@ function installStyles() {
             text,
             sha,
             error: '',
+            // 宿主只有在**真的写进本机存储之后**才回 `saved: true`。界面靠这个布尔值
+            // 决定说不说「已保存」—— 凭"我发起了写入"来说，就是 design.md §8.5 里
+            // 那条「点击不等于完成」的错误。
+            saved: body?.saved === true,
             chunkCount: Number(body?.chunkCount) || 0,
             fallbackChunks: Number(body?.fallbackChunks) || 0,
             fallbackReasons: Array.isArray(body?.fallbackReasons) ? body.fallbackReasons : [],
@@ -1464,7 +1743,16 @@ function installStyles() {
         : null,
       h('div', { className: 'st-detail-fact' },
         h('span', null, localized('调用方式', 'Invocation')),
-        h('code', null, raw(invocationLabel(runs[0]?.invocationType)))))
+        h('code', null, raw(invocationLabel(runs[0]?.invocationType)))),
+      // v0.7 §八：详情页上**唯一**的对象级动作。没有编辑、没有创建、没有优化 —— 多摆一个
+      // 竞争动作，用户就得先猜这两个按钮有什么区别，而答案往往是"没有"。
+      h('button', {
+        className: 'st-clone-open',
+        type: 'button',
+        disabled: !sha,
+        title: sha ? undefined : localized('定义读不到指纹，无法复刻。', 'The definition has no fingerprint, so it cannot be cloned.'),
+        onClick: () => setCloneOpen(true),
+      }, raw(localized('复刻 Skill', 'Clone Skill'))))
 
     const sideDefinition = h('section', { className: 'st-detail-card' },
       h('h3', null, localized('Definition', 'Definition')),
@@ -1516,7 +1804,7 @@ function installStyles() {
         type: 'button',
         'data-active': translated,
         onClick: () => { setTab('translated'); if (translation.state !== 'ready') runTranslation() },
-      }, localized('中文预览', 'Chinese preview')))
+      }, localized('中文阅读版', 'Chinese reading version')))
 
     const translateButton = h('button', {
       type: 'button',
@@ -1535,13 +1823,13 @@ function installStyles() {
       translateButton)
 
     const docNotice = h('p', { className: 'st-translate-notice' }, raw(translated
-      ? localized('中文预览只用于当前页面阅读，不会写回 SKILL.md，也不会进入这次对话。在插件里切到别的 Skill 再回来，译文还在；退出 DeepSeek Harness 后不保留。', 'This preview is shown on this page only: it is never written back to SKILL.md and never added to the conversation. It stays while you switch between Skills, and is dropped when DeepSeek Harness exits.')
+      ? localized('中文阅读版只用于当前页面阅读，不会写回 SKILL.md，也不会进入这次对话。它保存在本机，退出 DeepSeek Harness 后再打开同一个 Skill 仍然在。', 'This reading version is shown on this page only: it is never written back to SKILL.md and never added to the conversation. It is kept on this machine, so it is still there the next time you open the same Skill.')
       : localized('原文逐字来自 Skill 定义文件；这里不做任何改写。', 'The original text comes from the Skill definition file verbatim; nothing here rewrites it.')))
 
     const translationState = translation.state === 'loading'
       // 分段翻译后这是一次**多段**调用，比原来的单次调用慢。等待时若不说清楚，用户会
       // 以为界面卡死了 —— 而"以为卡死"的下一个动作通常是刷新，那会把进度全丢掉。
-      ? h('p', { className: 'st-translate-error' }, raw(localized('正在逐段翻译…整份文档会分成若干段依次翻译，可能需要一到三分钟。译文只留在内存里。', 'Translating segment by segment — a long definition is split into several parts and translated in order, which can take one to three minutes. The result is kept in memory only.')))
+      ? h('p', { className: 'st-translate-error' }, raw(localized('正在逐段翻译…整份文档会分成若干段依次翻译，可能需要一到三分钟。翻译完成后会保存在本机。', 'Translating segment by segment — a long definition is split into several parts and translated in order, which can take one to three minutes. The result is saved on this machine.')))
       : translation.state === 'error'
         ? h('p', { className: 'st-translate-error' }, raw(localized('翻译没有完成。可以重试，原文不受影响。', 'Translation did not finish. You can retry; the original is unaffected.')))
         : translation.state === 'ready' && translation.fallbackChunks > 0
@@ -1553,6 +1841,14 @@ function installStyles() {
             `${translation.fallbackChunks} section(s) could not be translated${fallbackReasonSuffixEn(translation.fallbackReasons)} and are shown in the original language; the rest is translated.`,
           )))
           : null
+
+    // 成功态只在**宿主确认写进去了**之后出现。没存上就说没存上，而不是干脆不提 ——
+    // 下次进来发现中文没了，用户需要知道那次是"没保存"还是"被删了"。
+    const translationSaved = translation.state === 'ready'
+      ? h('p', { className: 'st-translate-saved', 'data-saved': translation.saved === true ? 'yes' : 'no' }, raw(translation.saved === true
+        ? localized('✓ 中文阅读版已保存（本地保存）', '✓ Chinese reading version saved (locally)')
+        : localized('中文阅读版没有保存到本机，下次打开需要重新翻译。', 'The reading version was not saved on this machine; you will need to translate again next time.')))
+      : null
 
     // §9.3：Outline 只做文档导航，不再表达"执行流程"。
     const outlineNav = outline.length
@@ -1582,6 +1878,7 @@ function installStyles() {
       // 失败后分段控件会退回「原文」，但**错误本身必须留在屏幕上**：一次静默失败比一次
       // 摆在明面上的失败糟得多 —— 用户点过「中文预览」，他就得知道那一下没成。
       translationState,
+      translationSaved,
       h('div', { className: 'st-detail-doc-body' }, outlineNav, documentScroll))
 
     // 四层分开摆：框架（这个 Skill 由什么组成）→ 运行逻辑（这次会话观察到什么）→ 步骤证据
@@ -1602,7 +1899,15 @@ function installStyles() {
 
     return h('div', { className: 'st-detail' },
       h('div', { className: 'st-detail-body' }, sidePanel,
-        h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)))
+        h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)),
+      cloneOpen
+        ? h(SkillCloneDialog, {
+          skillName,
+          sourceSha256: sha,
+          definitionAvailable: Boolean(definition) && definition.available === true,
+          onClose: () => setCloneOpen(false),
+        })
+        : null)
   }
 
   /**
@@ -1616,9 +1921,10 @@ function installStyles() {
    * （同类事故见 resolveSkillListState 的注释）。整页崩溃更糟：一个页面拿到坏输入就把
    * conversation.view 整个卸载，用户看到的是白屏。
    */
-  function InstalledSkillsPage({ sessionId, query, onQueryChange, reloadSignal, onMeta, onRetry }) {
-    const [state, setState] = React.useState({ loading: true, error: '', installed: null })
+  function InstalledSkillsPage({ sessionId, query, reloadSignal, onMeta, onRetry, onOpen, installed: suppliedInstalled }) {
+    const [state, setState] = React.useState({ loading: !suppliedInstalled, error: '', installed: suppliedInstalled ?? null })
     React.useEffect(() => {
+      if (suppliedInstalled) return undefined
       let cancelled = false
       setState((current) => ({ ...current, loading: true, error: '' }))
       api(`/catalog?sessionId=${encodeURIComponent(sessionId)}`)
@@ -1660,28 +1966,62 @@ function installStyles() {
 
     return h('div', { className: 'st-installed' },
       title,
-      h('div', { className: 'st-installed-search' },
-        h(Icon, { name: 'search', size: 15 }),
-        h('input', {
-          type: 'search',
-          value: query || '',
-          placeholder: localized('按名称或描述搜索 Skill', 'Search Skills by name or description'),
-          'aria-label': localized('搜索已安装 Skill', 'Search installed Skills'),
-          onChange: (event) => onQueryChange(event.target.value),
-        })),
-      visible.length
-        ? h('div', { className: 'st-installed-grid' }, visible.map((skill) => h('article', { key: skill.name, className: 'st-installed-card' },
-          h('div', { className: 'st-installed-card-name' }, skill.name),
-          skill.description ? h('p', { className: 'st-installed-card-desc' }, skill.description) : null,
-          h('div', { className: 'st-installed-card-meta' },
-            h('span', null, skill.invocation.modelInvocable
-              ? localized('模型可调用', 'Model-invocable')
-              : localized('不可由模型调用', 'Not model-invocable')),
-            skill.invocation.userInvocable ? h('span', null, localized('可用 /name 调用', 'Invocable with /name')) : null,
-            skill.provider ? h('span', null, skill.provider) : null))))
-        : h('p', { className: 'st-audit-empty' }, needle
-          ? localized('没有匹配的 Skill。', 'No Skill matches.')
-          : localized('当前环境暂未发现可用的 Skill。', 'No Skill is discoverable in this environment.')))
+      h(InstalledSkillGrid, { skills: visible, needle, onOpen }))
+  }
+
+  /**
+   * 已安装列表的搜索框。2026-10-05 之前它长在正文的第一行；用户要求把它挪到
+   * 「本次 Skill / 已安装 Skill」同一行、靠近刷新按钮，于是它从页面正文搬进顶栏。
+   *
+   * 搬走之后**过滤仍然发生在 InstalledSkillsPage 里**（`matchesInstalledQuery` 是宿主共用的
+   * 那一个谓词，不许在这里另起一套匹配规则）—— 这里只管输入，`query` 由上层持有。
+   */
+  function InstalledSearchBox({ query, onQueryChange }) {
+    return h('div', { className: 'st-installed-search' },
+      h('input', {
+        type: 'search',
+        value: query || '',
+        placeholder: localized('按名称或描述搜索 Skill', 'Search Skills by name or description'),
+        'aria-label': localized('搜索已安装 Skill', 'Search installed Skills'),
+        onChange: (event) => onQueryChange(event.target.value),
+      }),
+      h('span', { className: 'st-search-icon', 'aria-hidden': 'true' }, h(Icon, { name: 'search', size: 15 })))
+  }
+
+  /**
+   * v0.7 §4「已安装 Skill → Skill 详情」的卡片网格。
+   *
+   * 从 InstalledSkillsPage 里拆出来只有一个理由：那个组件的正文由 `useState` 决定，
+   * 而渲染冒烟测试的 React 桩不跑 `useEffect`、状态永不更新，于是网格永远渲染不到。
+   * 拆成纯 props 组件之后，测试可以用真实载荷直接渲染它，断言的是「界面真的写了什么」，
+   * 而不是「源码里有这几个字」。两列栅格、搜索谓词与调用方式文案都沿用 v0.6 §7。
+   */
+  function InstalledSkillGrid({ skills, needle, onOpen }) {
+    if (!skills.length) {
+      return h('p', { className: 'st-audit-empty' }, needle
+        ? localized('没有匹配的 Skill。', 'No Skill matches.')
+        : localized('当前环境暂未发现可用的 Skill。', 'No Skill is discoverable in this environment.'))
+    }
+    return h('div', { className: 'st-installed-grid' }, skills.map((skill) => h('button', {
+      key: skill.name,
+      type: 'button',
+      className: 'st-installed-card',
+      'data-skill': skill.name,
+      // v0.7 §4：整张卡片就是一个入口，复用第一个列表页那个 <button> 卡片的做法。
+      // 卡片里**不再**放一个「查看详情」重复按钮 —— 同一个入口出现两次，读者会以为它们不一样。
+      onClick: () => onOpen?.(skill.name, 'installed'),
+    },
+    h('div', { className: 'st-installed-card-name' }, skill.name),
+    skill.description ? h('p', { className: 'st-installed-card-desc' }, skill.description) : null,
+    h('div', { className: 'st-installed-card-meta' },
+      // 可选链不是装饰：宿主投影（`installed-view.mjs`）一定会把 invocation 补成对象，
+      // 但这个组件是**纯 props** 的，任何调用方都能传一份没归一化的载荷进来。
+      // conversation.view 没有错误边界 —— 在 undefined 上取属性 = 整个标签页空白（§6.11）。
+      h('span', null, skill.invocation?.modelInvocable
+        ? localized('模型可调用', 'Model-invocable')
+        : localized('不可由模型调用', 'Not model-invocable')),
+      skill.invocation?.userInvocable ? h('span', null, localized('可用 /name 调用', 'Invocable with /name')) : null,
+      skill.provider ? h('span', null, skill.provider) : null))))
   }
 
   function Workbench(props) {
@@ -1866,9 +2206,14 @@ function installStyles() {
       ? localized('本次 Skill 读取失败 · 宿主可能仍在运行旧版本', 'Could not read this run’s Skills · the Host may be running an older build')
       : !data
         ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
-        : localized(`${data.workspaceLabel} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
+        : localized(`${data.workspaceLabel || '工作区未连接'} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel || 'No workspace connected'} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
     // 已安装列表的页头只说「这次发现是否完整」与「发现了多少个」。它不引用 receipt，
     // 也不显示学习/验证历史 —— 页头和正文必须说同一件事（见 sessionStatus 的注释）。
+    //
+    // 2026-10-05（用户圈出「DSH_Skill_Trace · 可发现 70 个 Skill」说「需要删除」）：
+    // **一切正常时这一行不再说话**。列表本身就摆着那些卡片，再报一次数字是把列表读成统计。
+    // 但下面四条一句都不能少：它们说的都是**列表说不出的事** —— 正在读、读不到、
+    // 目录不全、目录无法确认。「一切正常」是唯一可以静默的情况，因为那时没有信息可加。
     const catalogStatus = !catalogMeta
       ? localized('正在读取当前环境…', 'Reading this environment…')
       : catalogMeta.error
@@ -1877,7 +2222,11 @@ function installStyles() {
         ? localized('当前目录无法确认 · 只显示已确认的部分', 'Catalog cannot be confirmed · Showing only what was confirmed')
         : catalogMeta.coverage === 'incomplete'
           ? localized(`目录可能不完整 · 已发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `Catalog may be incomplete · ${catalogMeta.totalCount ?? 0} Skill(s) found`)
-          : localized(`${data?.workspaceLabel || '工作区未连接'} · 可发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `${data?.workspaceLabel || 'Workspace not connected'} · ${catalogMeta.totalCount ?? 0} Skill(s) discoverable`)
+          : null
+
+    // 顶栏那一格读的是哪个状态行。已安装页在一切正常时为 null（整格留空），
+    // 本次 Skill 页仍然报它自己的工作区与计数 —— 只有被圈出来的那一句被删掉。
+    const headerStatus = view === 'installed' ? catalogStatus : sessionStatus
 
     // §6：第一屏是这次对话加载过的 Skill 卡片。它自己读 `/skills`，因为「哪些 Skill 被加载过」
     // 与「这次会话的收据里有什么」是两个问题，前者不该等后者的四路投影（context/runtime/…）。
@@ -1905,10 +2254,10 @@ function installStyles() {
       ? h(InstalledSkillsPage, {
         sessionId,
         query: installedQuery,
-        onQueryChange: setInstalledQuery,
         reloadSignal: catalogReload,
         onMeta: setCatalogMeta,
         onRetry: () => setCatalogReload((value) => value + 1),
+        onOpen: (name, from) => setOpenSkill({ name, from }),
       })
       : sessionContent
     const content = detailContent ?? listContent
@@ -1921,9 +2270,10 @@ function installStyles() {
       ...(hostHeight ? { '--st-host-h': `${hostHeight}px` } : null),
     }, 'aria-label': view === 'installed' ? 'DSH Skill Trace 已安装 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
-        // §7：一级导航**只有两个**，而且是顶栏里最左的东西 —— 顶栏的读法现在固定成
-        // 「导航 → 这一页的状态 →（右侧）刷新」。运行流程 / 运行图谱 / Skill 收据在
+        // §7：一级导航**只有两个**，而且是顶栏里最左的东西 —— 顶栏的读法固定成
+        // 「导航 → 这一页的状态 →（右侧）搜索 → 刷新」。运行流程 / 运行图谱 / Skill 收据在
         // v0.6 里不是页面（§4），所以这里既没有「高级」菜单，也没有 Runtime 画布操作。
+        // 搜索只属于已安装列表：它过滤的是目录，在详情页里没有东西可过滤，所以点进详情后收起。
         h('div', { className: 'st-view-switch', role: 'group', 'aria-label': 'Skill 页面' },
           h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'current', onClick: () => chooseView('current') }, h(Icon, { name: 'skill', size: 15 }), localized('本次 Skill', 'Skills in this run')),
           h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'installed', onClick: () => chooseView('installed') }, h(Icon, { name: 'list', size: 15 }), localized('已安装 Skill', 'Installed Skills'))),
@@ -1936,10 +2286,19 @@ function installStyles() {
               backLabel: openSkill.from === 'installed' ? localized('已安装 Skill', 'Installed Skills') : localized('本次 Skill', 'Skills in this run'),
               onBack: () => setOpenSkill(null),
             })
-            : h(React.Fragment, null,
-              h('span', { className: 'st-live', 'data-state': liveState }),
-              h('span', { className: 'st-context-text' }, raw(view === 'installed' ? catalogStatus : sessionStatus)))),
+            // 状态行为 null 时整格留空（连状态点一起）—— 一个孤零零的绿点没有主语，
+            // 读者只会猜它在说什么。寂静只在「一切正常」时发生，见 catalogStatus 的注释。
+            : (headerStatus
+              ? h(React.Fragment, null,
+                h('span', { className: 'st-live', 'data-state': liveState }),
+                h('span', { className: 'st-context-text' }, raw(headerStatus)))
+              : null)),
         h('div', { className: 'st-header-actions' },
+          // 搜索框只在「已安装列表真的读到了」的时候出现：目录读失败时摆一个搜不出东西的输入框，
+          // 等于把一次失败伪装成一个可用功能。
+          view === 'installed' && !openSkill && catalogMeta && !catalogMeta.error
+            ? h(InstalledSearchBox, { query: installedQuery, onQueryChange: setInstalledQuery })
+            : null,
           h('button', { className: 'st-icon-button', type: 'button', onClick: view === 'installed' ? () => setCatalogReload((value) => value + 1) : load, disabled: view === 'current' && loading, title: '刷新', 'aria-label': view === 'installed' ? '刷新已安装 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
       content))
   }
@@ -1963,8 +2322,11 @@ function installStyles() {
   // 证明函数名出现过。
   module.exports.__pure = { resolveSkillListState, alignOutlineToTranslation, invocationLabel, renderSkillMarkdown }
   module.exports.__views = {
-    Workbench, CurrentSkillPage, SkillDetailPage, SkillFramework, DetailBackButton, InstalledSkillsPage, SkillCard, TraceState,
+    Workbench, CurrentSkillPage, SkillDetailPage, SkillFramework, DetailBackButton, InstalledSkillsPage, InstalledSkillGrid, InstalledSearchBox, SkillCard, TraceState,
     // 框架与运行逻辑各自成组件，就能在**没有浏览器**的情况下把它们渲染一遍：措辞风险只有
     // 渲染出来才看得见，而"未执行"这类词在源码里根本搜不到 —— 它是一条不存在的分支。
     FrameworkStructure, DeclaredWorkflow, ProgressiveDisclosure, RuntimeLogic, StepEvidence,
+    // v0.7：复刻对话框与它的成功态也要能在无浏览器的情况下渲染一遍 —— 「✓ 已创建」这句话
+    // 只该出现在宿主的回执之后，而那条分支只有把组件真的渲染出来才会被执行。
+    SkillCloneDialog,
   }

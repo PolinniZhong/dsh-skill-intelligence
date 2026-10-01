@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-已发布版本：**`0.6.1`**（2026-10-01，GitHub Release **与 npm**）。`CHANGELOG.md` 顶部那一段就是它。**下一版发布前，把这里改回「当前待发布版本」并更新下面的起点表。** 发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+当前待发布版本：**`0.7.0`**（Skill 理解与复用）。`CHANGELOG.md` 顶部那一段就是它。已发布版本是 `0.6.1`（2026-10-01，GitHub Release **与 npm**）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
 ---
 
@@ -11,15 +11,17 @@
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | 见 `git log --oneline -1`；本条之后还有文档提交 |
-| `origin/main` | `e0b4a8a docs: 知识库入口写清 v0.6.0 已经推上去了` —— 本地领先 **1** 个提交（`0.6.1` 的客户端修复 + 版本与文档），尚未推送 |
-| 远端最新 tag | `v0.6.0`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.6.0^{}`） |
-| npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`）——落后远端三个版本（`0.5.0` / `0.6.0` / `0.6.1`），见下 |
-| 工作区 | 有未提交改动（`src/dsh/client/client.js` 的一条 CSS 规则、重建的 `dist/`、五张 `docs/images/*.jpg`、README 与 CHANGELOG）——全部属于本次发布 |
+| 本地 `HEAD` | `8808aa4 docs: npm 发布结果写回 CHANGELOG 与发布清单` |
+| `origin/main` | `8808aa4` —— 与本地同名提交，**本次 v0.7.0 的改动全部还没提交** |
+| 远端最新 tag | `v0.6.1`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.6.1^{}` → `b3bc500`） |
+| npm | `beta` 与 `latest` **都指向 `0.6.1`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 工作区 | 21 处未提交改动：12 个已跟踪文件（`AGENTS.md` / `CHANGELOG.md` / `README.md` / `design.md` / `package.json` / `scripts/verify-project.mjs` / `docs/ARCHITECTURE.md` / `docs/PRIVACY.md` / `dist/client.js` + `.map` / `src/dsh/client/client.js` / `src/dsh/host/index.js` / `test/client-render-smoke.test.mjs`）与 8 个新文件（`src/core/skill-clone.mjs` / `src/core/skill-clone-path.mjs` / `src/storage/skill-clone-writer.mjs` / `src/storage/translation-store.mjs` / `test/phase17-skill-clone.test.mjs` / `test/phase18-skill-clone-writer.test.mjs` / `test/phase18-clone-routes.test.mjs` / `test/translation-store.test.mjs`）——全部属于本次发布 |
 
-**第一个要决定的事是版本号 —— 这次是 `0.6.1`。** 改动只有一处客户端布局（`SKILL.md` 面板从 2px 恢复成有高度、内部自己滚动），宿主接口、路由、信息架构都没动，按语义是 patch。理由写在 `CHANGELOG.md` 这一版第一段。落点必须逐字相同：`package.json`、`CHANGELOG.md`、tag 三处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
+**第一个要决定的事是版本号 —— 这次是 `0.7.0`。** 上一版 `0.6.1` 只修了一处布局塌陷，是 patch；这一版加了三条宿主路由、四个新模块、一个对象级动作，并且**改变了译文的生命周期**（从内存搬进本机数据目录），按语义是 minor。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
 
-**第二个要决定的事是 npm —— 这一版仍然只发 GitHub。** `0.5.0`、`0.6.0`、`0.6.1` 都只发 GitHub，所以 npm 上仍是 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指着它。要把 npm 追上来，发布范围就从「一个版本」变成「补四个版本」，`--tag latest` 会跳过全部 v0.5.0 的内容；**本次把 §5 整节当不存在，别执行一半。**
+**第二个要决定的事是 npm —— 这一版发 npm。** npm 上现在是 `0.6.1`，`beta` 与 `latest` 都指向它，所以补上是发布**一个**版本，不是补四个。`0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。
+
+**第三个要决定的事是路由与页面的预算。** 这一版把宿主路由从 7 条加到 10 条，但**没有新增一级或二级页面**：新能力全部落在已有的「已安装 Skill」与「Skill 详情」里。守卫按字面钉住那 10 条，也反向钉住 15 条已删路由——发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是悄悄把一个被删掉的界面带回来了。
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 

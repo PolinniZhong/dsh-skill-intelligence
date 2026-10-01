@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object. After v0.6 it has exactly two first-level pages — **本次 Skill** (which Skills this conversation loaded) and **已安装 Skill** (which Skills this DSH environment can discover) — and one second-level page, **Skill Detail** (`Skill 信息` / `Definition 元信息` / `Repository` / `SKILL.md` 原文 · Outline · 中文预览). It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
+DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object. After v0.6 it has exactly two first-level pages — **本次 Skill** (which Skills this conversation loaded) and **已安装 Skill** (which Skills this DSH environment can discover) — and one second-level page, **Skill Detail** (`Skill 信息` / `Definition 元信息` / `Repository` / `SKILL.md` 原文 · Outline · 中文阅读版), where a Skill can also be cloned into a new directory. It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
 
 ```text
 DSH event stream
@@ -27,7 +27,7 @@ The receipt kept its evidence role and lost its page identity: it is no longer a
 
 ### Host surface
 
-Exactly seven routes remain. All seven are registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
+Ten routes remain. All ten are registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
 
 | Method | Route | Answers |
 | --- | --- | --- |
@@ -36,8 +36,13 @@ Exactly seven routes remain. All seven are registered in `src/dsh/host/index.js`
 | GET | `/skill-trace/skill` | one loaded Skill's detail |
 | GET | `/skill-trace/catalog` | which Skills this DSH environment can discover |
 | GET | `/skill-trace/definition` | the live definition body, outline, repository, and fingerprint comparison |
-| POST | `/skill-trace/translate` | a 中文预览 for one definition at one `sourceSha256` |
+| POST | `/skill-trace/translate` | a 中文阅读版 for one definition at one `sourceSha256`, and whether it was persisted |
+| GET | `/skill-trace/translation` | the reading version already stored for `skillName` + `sourceSha256` + `targetLanguage`, or `null` |
+| DELETE | `/skill-trace/translation` | delete exactly that one stored reading version |
+| POST | `/skill-trace/clone` | copy one Skill into a new directory and verify the copy |
 | POST | `/skill-trace/preferences` | persist the default first-level page |
+
+The v0.7 additions follow three rules the verifier now enforces. `/skill-trace/translation` takes **no `sessionId`**: the reading version is an asset keyed by content, not a product of one conversation, and requiring a session would both invite the session into the key and imply the wrong lifetime. `/skill-trace/translate` reports a `saved` boolean that comes from an actual `translationStore.write()` — a request that started is not a save that finished — and that boolean is the only thing allowed to produce 「✓ 中文阅读版已保存」 in the interface. `/skill-trace/clone` re-reads the Skill and recomputes `sourceSha256` rather than trusting the value the client read earlier, so a body edited between the detail page loading and the clone being requested cannot slip through.
 
 Fifteen further routes were deleted with the screens that consumed them: `/runtime`, `/inspect`, `/catalog`, `/history-note`, `/history-receipt`, `/export`, `GET`+`POST` `/backups`, `/backups/preview`, `/backups/restore`, `POST`+`DELETE` `/outputs`, `/continuity`, `/learning-note`, `/validation-result`, `DELETE /receipt`, and `DELETE /receipts`. The verifier asserts the deleted names cannot come back through the host, because a route with no page left is just a door the old information architecture can walk back in through.
 
@@ -201,15 +206,19 @@ the accident it prevents was never about the canvas.
 1. **A hook after an early return.** `RuntimeView` and `FlowCanvas` placed `React.useMemo` after a `return` that fired on the first (loading) frame. The first frame called one hook fewer than the second, React threw `Minified React error #310`, and the Skill tab went white. The rule is source-level: no `React.use*` may sit after the first early return in the same component. `scripts/verify-project.mjs` (`HOOK_ORDER_OK`) compares those two line numbers, and `test/client-hook-order.test.mjs` exports `scanHookOrder(source)` and asserts zero violations against the real client. Component tests missed it because `test/client-render-smoke.test.mjs` stubs `useState` and only renders the frame where the data has already arrived — #310 needs two frames.
 2. **Throwing on a missing field.** A page that received a malformed payload read `payload.coverage` off `undefined` and threw `Cannot read properties of undefined (reading 'coverage')` — the same blank tab, from a data bug rather than a hook bug. The rule: a missing field must degrade to a visible error state, and "cannot read it" must never be rendered as "there is nothing". A list that cannot be read says so; it does not render as an honest-looking empty list.
 
-## Translation (中文预览)
+## Translation (中文阅读版)
 
 `POST /skill-trace/translate` reads the Skill definition live (`registry.get(name, …)` → `loadSkillDefinition`), builds messages with `buildChunkMessages({skillName, chunkSource, targetLanguage, index, total, attempt})` from `src/core/skill-translation.mjs` and runs the segmented policy with `runSegmentedTranslation({…, ask})`, and calls the user's configured DSH model through `ctx.llm.stream` (`@deepseek-ai/dsh-llm` — provider-neutral, and the official non-session-polluting call pattern: `createUserMessage` → `llm.stream` → `BlockAssembler`, as in `@deepseek-ai/dsh-session-title-llm/lib/index.js:206-235`). `DEFAULT_TRANSLATION_LANGUAGE` is `'zh-CN'`.
 
-Success returns `{ok, skillName, sourceSha256, targetLanguage, model, truncated, translation, preserved}` with `translation` a plain string. Errors are a closed set: `invalid-request`, `skill-not-found`, `definition-changed`, `definition-unavailable`, `model-busy`, `translation-failed`.
+Success returns `{ok, skillName, sourceSha256, targetLanguage, model, truncated, translation, preserved, saved}` with `translation` a plain string. Errors are a closed set: `invalid-request`, `skill-not-found`, `definition-changed`, `definition-unavailable`, `model-busy`, `translation-failed`.
 
 The model is asked to preserve structure, and the answer is checked rather than trusted. `inspectTranslation({source, translation})` returns `{ok, violations, preserved}` with rule names `code-fence` / `heading` / `inline-code` / `url` / `file-path` / `frontmatter`, capped at 20 violations; the preservation targets themselves come from `extractProtected(markdown)`, which yields `{fences, fenceCount, headingLevels, inline, urls, paths, frontmatterKeys}`. A translation that moved a fence or edited a URL is discarded, not shown with a warning beside it — §14 of the spec is a hard rule, not a wish in the prompt. `compareTranslationSource({requestedSha256, currentSha256})` returns the string `'match' | 'mismatch' | 'unavailable'`: one side missing is `unavailable`, never a soft "the content changed".
 
-**Translation is memory-only.** The result lives in the Skill Detail component's state and nowhere else: not the receipt, not a backup, not `localStorage`, `sessionStorage`, `indexedDB`, `navigator.sendBeacon`, or the filesystem, and it is never appended to the user conversation. The definition body itself is only read live and never persisted. The one thing that leaves the machine is the definition text sent to the model provider the user configured — stated plainly here because it is the entire outbound surface of this feature. `docs/PRIVACY.md` carries the same boundary for readers who care about data rather than modules.
+**The reading version is persisted, and only when it is really persisted is the interface allowed to say so.** v0.6 held the translation in component state: leave the page, or restart DSH, and a paid model call was gone. v0.7 writes it through `src/storage/translation-store.mjs` into `<dataRoot>/translations/<sha256(key)>.json` and reads it back on entry, so a definition that has not changed costs nothing the second time.
+
+The key is `skillName` + `sourceSha256` + `targetLanguage` and **does not include `sessionId`** — the reading version is an asset that belongs to a piece of content, not to the conversation that happened to request it, and a session in the key would both make reuse impossible and imply a lifetime the file does not have. `translationStoreKey()` joins the three with `\u0000`; the file name is the sha256 of that string. Because the key carries the content hash, **a body edit invalidates the reading version by construction**: the old file stays on disk (reverting an edit restores it) but is never served as current, and `GET /skill-trace/translation` reports `null` for the new hash, which the interface renders as 原文 plus an invitation to translate again. It never shows a translation of a different revision as if it were current.
+
+`write()` refuses any record containing one of `FORBIDDEN_RECORD_FIELDS` (`sessionId`, `sessionID`, `messages`, `conversation`, `args`, `result`, `toolArguments`, `toolResult`) by throwing, so a future caller cannot quietly start persisting a session id next to a translation. The directory is `0700`, the file `0600`, and the write is a temp-file-plus-`rename`, copying `src/storage/receipt-store.mjs` exactly. `saved` in the translate response is the return of that write: `persistTranslation()` returns `false` on any throw and logs, and the interface's 「✓ 中文阅读版已保存（本地保存）」 is driven by that boolean alone — initiating a request is not evidence that a save happened. Nothing in `src/core/skill-translation.mjs` touches disk (the guard still forbids `receipt` / `localStorage` / `sessionStorage` / `writeFile` / `receiptStore` there); persistence is a host-side step after the text has already been validated. The one thing that leaves the machine is still the definition text sent to the model provider the user configured — stated plainly here because it is the entire outbound surface of this feature. `docs/PRIVACY.md` carries the same boundary for readers who care about data rather than modules.
 
 ## Installed Skill view
 
@@ -257,11 +266,15 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/core/session-log.mjs` | Reads the durable session log from disk as a fallback; the live session is always preferred |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |
 | `src/storage/preference-store.mjs` | Stores the default-view preference, at version 3 |
-| `src/dsh/client/client.js` | Conversation view: 本次 Skill, 已安装 Skill, Skill Detail, and the DSH `ctx.locale` adapter |
+| `src/storage/translation-store.mjs` | Stores 中文阅读版 by `skillName` + `sourceSha256` + `targetLanguage` — deliberately **without** `sessionId` — at `0700`/`0600` with an atomic rename, and refuses to write any record carrying a session, conversation, or tool-argument field |
+| `src/core/skill-clone.mjs` | Pure clone logic: name grammar, frontmatter split/rewrite, `<root>/<name>/SKILL.md` versus `<root>/<name>.md` bundle shape, entry selection with limits and named exclusion reasons, and the seven error codes |
+| `src/core/skill-clone-path.mjs` | Which real directory a clone may land in, in DSH's own rank order, plus the two on-disk shapes that count as a name collision |
+| `src/storage/skill-clone-writer.mjs` | The only module that writes a clone. Plain `node:fs/promises`, **not `ctx.fs`** — see below |
+| `src/dsh/client/client.js` | Conversation view: 本次 Skill, 已安装 Skill, Skill Detail, the clone dialog, and the DSH `ctx.locale` adapter |
 
 ## Client component tree
 
-`src/dsh/client/client.js` is the entire client — about 1500 lines, down from about 3536 before v0.6, with a bundle of about 62 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
+`src/dsh/client/client.js` is the entire client — about 2332 lines, down from about 3536 before v0.6, with a bundle of about 126 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
 ```text
 Workbench                      first-level page switch + host preference
@@ -269,29 +282,48 @@ Workbench                      first-level page switch + host preference
   ├─ Icon
   ├─ CurrentSkillPage          本次 Skill     ← GET /skills, GET /skill
   │    └─ SkillCard            {name, description, meta, onOpen}
-  ├─ InstalledSkillsPage       已安装 Skill   ← GET /installed
-  │    └─ SkillCard
-  └─ SkillDetailPage           Skill Detail   ← GET /definition, POST /translate
+  ├─ InstalledSkillsPage       已安装 Skill   ← GET /catalog
+  │    └─ InstalledSkillGrid   one clickable button per Skill — the whole card is the target
+  └─ SkillDetailPage           Skill Detail   ← GET /definition, POST /translate, GET /translation
+       ├─ sidePanel            facts + the object action (复刻 Skill — the only one)
        ├─ SkillFramework       the Skill's composition, above the document
        │    ├─ FrameworkStructure     sections grouped into eight roles (+ 其它章节, + absent roles)
        │    ├─ DeclaredWorkflow       flow.steps[] + evidence status — a sub-module, not the framework
        │    └─ ProgressiveDisclosure  declared vs loaded resources, with tiers
        ├─ RuntimeLogic         the five observable stages of this session
        ├─ StepEvidence         detail.flow.steps[].evidence, rendered for the first time
-       └─ renderSkillMarkdown  one call site for the original and the translation
+       ├─ renderSkillMarkdown  one call site for the original and the reading version
+       └─ SkillCloneDialog     560px, rendered only while open; POST /clone
 ```
 
 Two rules hold this shape together, and both are enforced by `SKILL_FRAMEWORK_OK` rather than by convention:
 
 - **Declaration and observation render apart.** `SkillFramework` (structure, declared workflow, resources) reads only the definition; `RuntimeLogic` and `StepEvidence` read only the receipt. No path leads from runtime evidence back into the framework — a Skill whose structure was inferred from what happened would describe the run, not the Skill, which is the same mistake the deleted runtime graph made. Runtime data may *annotate* a declared step; it may never add, remove, or reorder one.
 - **The four layers keep their order.** The detail body is `framework, runtimeLogic, stepEvidence, docPanel`; the guard matches that literal order and fails with `the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`. Reversing it is a different product: read the document first, guess the structure second. Putting runtime logic above the framework reads a declaration as an observation.
-- **One renderer, one call site.** The assertion counts `renderSkillMarkdown(` call sites (excluding the definition and the `__pure` export) and requires exactly one. Two call sites would mean the original and the Chinese preview could diverge, and only one of the two behaviours would be tested.
+- **One renderer, one call site.** The assertion counts `renderSkillMarkdown(` call sites (excluding the definition and the `__pure` export) and requires exactly one. Two call sites would mean the original and the Chinese reading version could diverge, and only one of the two behaviours would be tested.
+- **One object action, and no duplicate door.** `InstalledSkillGrid` renders one `button.st-installed-card` per Skill and nothing else, so the installed page's button count equals its card count. Before v0.7 the card was a non-interactive `article`: the list could be read but not entered, and the only way into a Skill you had installed was to load it in a conversation first. Adding a 「查看详情」 button beside a clickable card would have produced two controls for one action, one of which is always redundant.
 
 None of these layers is a canvas: no `elkjs`, no `@xyflow/react`, no `mermaid` — the guard rejects all of them as dependencies. The framework draws roles and sections; the declared workflow draws the chain the definition already describes; the runtime logic draws five stages with no edges between them. That is why the whole thing costs a `grid`, a divider and a `<dl>` rather than a layout engine.
 
 `detail.anchors` is a **shared** map: declared steps and framework sections both resolve to an outline entry id, because the same click handler serves both. A section without an anchor (a synthesised one, whose `anchorId` is `null`) renders as a non-clickable row and is absent from the map entirely — a button that does nothing when clicked is worse than an element that never claimed to be clickable.
 
-The client calls only the seven surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
+The client calls only the ten surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
+
+## The clone write path
+
+`POST /skill-trace/clone` is the only route in the plugin that creates files outside its own data directory, and every decision in it follows from one of four constraints.
+
+**It does not use `ctx.fs`.** The sandboxed filesystem has no `mkdir`, no delete, and no move, and `writeText` is fenced to the workspace root — so it cannot reach `<dshHome>/skills` or `<agentsHome>/skills` at all, which is exactly where a user-scope clone belongs. `src/storage/skill-clone-writer.mjs` therefore uses plain `node:fs/promises`, the same choice the receipt and preference stores already made for their own directories.
+
+**Not overwriting is a filesystem property, not a check.** `writeClone()` calls `mkdir(directory)` **without** `recursive`, so an existing target raises `EEXIST` and is reported as `target-exists`. There is no delete-then-write step anywhere in the path, which means there is no window in which a user's Skill has been removed and not yet replaced. A same-name collision is also probed *before* writing, through the whole catalog plus both on-disk shapes, so the user is told to rename rather than discovering the clash halfway through.
+
+**A half-written Skill is worse than a failed clone.** Every copy failure (a missing declared reference, a permission error, a limit exceeded mid-walk) removes the directory it created and reports `write-failed`. The target directory is created first and populated second, and the caller never sees a partial Skill presented as a success. What the walk did *not* copy is reported too, and reported honestly: a bundle cut off by `CLONE_MAX_BYTES` sets `truncated`, and the interface says 「完整 Skill 没有拷全（已复制 N 个文件，M 个超过单次复刻上限）」 rather than calling a partial copy 完整. The walk also does not *enter* `.git` or `node_modules` and does not count them as skipped — a git-tracked Skill would otherwise report several hundred 「跳过的条目」 that were never content in the first place.
+
+**The copy is read back before success is claimed.** After writing, `readBackClone()` re-parses the copy's frontmatter and compares the name it finds against the name requested; a mismatch removes the directory and fails. Only then does the response carry `verified: true`. The response also re-reads the **source** and compares `readSkillSourceSha256()` against the hash read before the write, so 「源 Skill 未被修改」 is a measurement rather than an assurance — and when the reread cannot be compared, `sourceUnchanged` is `false` and `source-reread-did-not-match` lands in `limitations`.
+
+Two further rules shape what the handler may say. It never returns an absolute path; the caller gets `pathKind` (`project-dsh` / `user-dsh` / `user-agents`) and a sentence naming the scope. And it **polls the registry** for the target name — up to six attempts, 250 ms apart, because the filesystem provider's chokidar watcher needs its own write-stability window before it invalidates — to report `discovered` honestly. The plugin cannot force a rescan (`invalidateCache` is private, and only a provider's own `control.invalidate` is callable), so when the poll does not see the name, the interface says 「Skill 已写入 Skill 目录，目录刷新状态待确认。」 rather than claiming a refresh it did not observe.
+
+**Which root a user-scope clone lands in is measured, not assumed.** `resolveCloneRoot()` answers in two tiers: first an existing root that already **holds Skills**, then an existing root in DSH rank order, then the default `<dshHome>/skills`. Ranking by existence alone was wrong on this very machine — `~/.dsh/skills` exists but is empty while `~/.agents/skills` holds the real user Skills, so a clone landed in a directory DSH can discover but the user does not use (reasons `populated-dsh-user-root` / `populated-agents-user-root` / `existing-dsh-user-root` / `existing-agents-user-root` / `default-dsh-user-root`). `probePopulatedRoots()` and `looksLikeSkillRoot()` decide "holds Skills" from directory contents — a child directory matching the Skill-name grammar that contains `SKILL.md`, or a child file `<name>.md` — never from the path's spelling.
 
 ## Legacy receipt fields
 
@@ -574,7 +606,7 @@ UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → �
 | 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
 | 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
 
-因此客户端从约 3536 行降到约 1500 行，bundle 从 421 KB 降到约 62 KB，只调用留下来的七条路由，
+因此客户端从约 3536 行降到约 2332 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由，
 并且只注册一个 slot（`conversation.view`）。
 
 ### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着

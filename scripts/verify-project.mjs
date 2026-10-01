@@ -72,11 +72,14 @@ for (const requiredText of [
   '注册表不可用',
   '没有找到 git work tree，无法确定仓库来源。',
   '这份 Skill 的定义当前读不到，所以无法抽取声明流程。',
-  // §9/§12：只读、原文来源、译文不落盘 —— 三句话必须在界面上真的出现。
+  // §9/§12：只读、原文来源、中文阅读版存在本机 —— 三句话必须在界面上真的出现。
   '只读展示',
   '原文逐字来自 Skill 定义文件',
-  '中文预览只用于当前页面阅读',
+  '中文阅读版只用于当前页面阅读',
   '翻译没有完成',
+  // v0.7 §6：保存态必须来自一次真的写入，而不是"我发起了写入"。
+  '中文阅读版已保存',
+  '中文阅读版没有保存到本机',
   // 新界面的样式钩子：卡片、已安装网格、文档面板、状态块。
   'st-skill-card',
   'st-installed-grid',
@@ -377,9 +380,61 @@ if (!builder.shippedBundleIsFresh()) {
     if (size < 10.5) throw new Error(`§26 floors auxiliary text at 10.5px; found ${size}px`)
   }
   // §26's structural sizes.
-  // v0.6 §22 的顶栏是 68px（`height:68px`），`design.md` §6.1 只规定 58px 下限。
-  // 这里曾经钉的是 72px —— 一个两份文档都没有的数字，谁也说不清它是从哪抄来的。
-  if (!/\.st-topbar\{[^}]*min-height:68px/.test(css)) throw new Error('§22: the top bar is 68px')
+  // v0.6 §22 的顶栏曾经是 68px（`height:68px`），`design.md` §6.1 只规定 58px 下限。
+  // 这里更早还钉过 72px —— 一个两份文档都没有的数字，谁也说不清它是从哪抄来的。
+  //
+  // 2026-10-05（用户：「（两个一级页面入口那块）这个背景占用太多高度，去掉这个背景后，
+  // 下方数据上移」）：顶栏收到 48px 并去掉底色。48px 是贴着内容的下限 —— 分段控件本身
+  // 36px，上下各留 6px；68px 里有 32px 是纯空白。省下的高度直接给下方列表。
+  if (!/\.st-topbar\{[^}]*min-height:48px/.test(css)) throw new Error('§22: the top bar is 48px')
+  // 同一件事的另一半，而且是用户真正指出来的那一半：顶栏不许再自己画底色。它现在是
+  // 和页面同色的一行。这条守卫是反向的 —— 它守的是「那块底板不许回来」。
+  if (/\.st-topbar\{[^}]*background:/.test(css)) throw new Error('§22: the top bar must not paint its own background')
+  // 2026-10-05 同一次改动（用户：「本次 Skill 跟已安装 Skill 下方那条横线，我觉得也不需要了」）：
+  // 顶栏连分隔线也不画了。它上面是宿主的标签条、下面是页面自己的内容，两边本来就有边界，
+  // 再补一条线只是在给「这里是一块独立的板子」这件事续命。留一条反向守卫，防止它回来。
+  if (/\.st-topbar\{[^}]*border-bottom/.test(css)) throw new Error('§22: the top bar must not draw its own separator')
+  // 2026-10-05（用户：「Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行……用户可以点进去
+  // 查看详情」）：两个列表的卡片描述都截到 4 行。这条守的是**两个**类 —— 只截一个的话，
+  // 同一份描述在两个页面里会有两种长度，而用户要的恰恰是统一。
+  // 截的是绘制，不是文本：DOM 里仍然是完整描述，读屏与卡片可访问名不受影响。
+  for (const cls of ['st-installed-card-desc', 'st-skill-card-desc']) {
+    const rule = new RegExp(`\\.${cls}\\{[^}]*\\}`).exec(css)
+    if (!rule) throw new Error(`§27: missing the ${cls} rule`)
+    if (!/-webkit-line-clamp:4/.test(rule[0])) {
+      throw new Error(`§27: ${cls} must clamp the description to 4 lines`)
+    }
+    if (!/overflow:hidden/.test(rule[0])) {
+      throw new Error(`§27: ${cls} clamps to 4 lines but does not hide the overflow`)
+    }
+  }
+  // 2026-10-05（用户：「模型可调用这块变成固定在左下，没必要根据描述向上响应」）：两个列表卡片的
+  // 元信息行都钉在卡片左下角。网格默认把同一行的卡片拉到等高，元信息行如果只跟着描述走，
+  // 它会停在描述下面、离卡片底边还差一大截 —— 卡片看上去像没写完。
+  // 反向守卫：只靠「描述多长就离多远」正是这条要挡掉的旧行为。
+  if (!/\.st-installed-card-meta\{[^}]*margin-top:auto/.test(css)) {
+    throw new Error('§27: the installed card meta row must be pinned to the bottom of the card')
+  }
+  if (!/\.st-skill-card-meta\{[^}]*margin-top:auto/.test(css)) {
+    throw new Error('§27: the session card meta row must be pinned to the bottom of the card')
+  }
+  // 正文列没有 gap 的那一张必须自带 padding-top：auto 外边距在没有多余空间时解析成 0，
+  // 只写 margin 会让元信息行贴到描述上（这条守的是那次修正本身）。
+  if (!/\.st-skill-card-meta\{[^}]*padding-top:10px/.test(css)) {
+    throw new Error('§27: the session card meta row loses its gap when the card has no spare height')
+  }
+  // 2026-10-05（用户：「下方 Skill 列表向上移，距离搜索框跟搜索顶框高度一致就可以了」）：
+  // 顶栏不画分隔线之后，列表的顶部内边距就是它与顶栏之间唯一的距离。22px 会留出一条
+  // 谁都不认领的空白带；10px 与顶栏自己的垂直节奏（48px 的条里放 30px 控件，上下各 9px）对齐。
+  if (!/\.st-installed\{[^}]*padding:10px 24px 28px/.test(css)) {
+    throw new Error('§22: the installed list must start one top-bar rhythm below the top bar, not 22px')
+  }
+  // 2026-10-05（用户：「本次 Skill 列表跟已安装 Skill 列表应该是平行的」）：两个一级列表
+  // 共用一条顶栏，读者来回点时第一张卡片应当原地不动。两页的内边距必须**逐字相同**——
+  // 一个 20/22、一个 10/24，切换页面时内容会横竖各跳一下。这条同时守住两个值。
+  if (!/\.st-page\{[^}]*padding:10px 24px 28px/.test(css)) {
+    throw new Error('§22: both first-level lists must start at the same place — .st-page padding must match .st-installed')
+  }
   // 2026-10-01：页面标题这一层被删了两次 —— 先是顶栏那块（用户指出它与正文段头重复），
   // 再是正文段头本身（用户：「本次加载的 Skill 就可以删除了」）。页面名现在由顶栏导航的
   // `aria-pressed` 说着，正文里最大的字是 SKILL.md 文档里的 H2。
@@ -604,27 +659,54 @@ console.log('VISUAL_TOKENS_OK')
   console.log('PREFERENCE_VERSION_OK')
 }
 
-// --- v0.6 §12.4：译文只允许活在页面内存里 -----------------------------------
-// 这条约束没有任何自然反馈：往 receipt 里多写一个字段，界面上一切照旧，只有去翻
-// ~/.dsh/skill-trace/receipts/*.json 才会发现 Skill 正文的中文副本躺在了磁盘上。
-// 所以钉两条——翻译路由不碰任何存储，翻译核心根本不认识存储。
+// --- v0.7 §5：中文阅读版落盘，但键里不许有会话，记录里不许有正文以外的东西 --------
+// v0.6 这条断言说的是「译文只活在内存里」。v0.7 把它改成持久化之后，那句话不再成立，
+// 但当初要防的东西一个都没变：Skill 正文的中文副本不该跟着会话走（跟着走就等于
+// 「退出 DSH 就没了」换个写法继续存在），也不该顺带把工具参数、对话正文写进磁盘。
+// 所以这条守卫不是被删掉，而是被换成更细的几条 —— 删掉它等于把当初那起事故的
+// 唯一防线一起删掉。
 {
   const start = host.indexOf("url.pathname === '/skill-trace/translate'")
-  if (start === -1) throw new Error('v0.6 §13: the host must expose POST /skill-trace/translate')
+  if (start === -1) throw new Error('v0.7 §5: the host must expose POST /skill-trace/translate')
   const nextRoute = host.indexOf('url.pathname ===', start + 10)
   const route = host.slice(start, nextRoute === -1 ? undefined : nextRoute)
-  for (const forbidden of ['store.write', 'syncReceipt', 'preferenceStore.write', 'cache.set', '.append(']) {
+  // 翻译这件事本身仍然不许写 receipt、不许碰偏好、不许写 session log。
+  for (const forbidden of ['store.write', 'syncReceipt', 'preferenceStore.write', '.append(']) {
     if (route.includes(forbidden)) {
-      throw new Error(`v0.6 §12.4: a translation must never be persisted, but the route calls ${forbidden}`)
+      throw new Error(`v0.7 §5: a translation must never reach the receipt, but the route calls ${forbidden}`)
     }
   }
+  // 落盘只能走 translationStore，而且响应必须带回「真的存上了」这个事实 ——
+  // 否则界面只能靠"我发起了写入"来猜成功（design.md §8.5）。
+  if (!route.includes('saved: await persistTranslation(')) {
+    throw new Error('v0.7 §6: the translate response must carry a real `saved` fact, not an assumption')
+  }
+  // 翻译核心仍然不认识存储：它只做结构保护与分段。
   const core = await readFile(resolve(root, 'src/core/skill-translation.mjs'), 'utf8')
   for (const forbidden of ['receipt', 'localStorage', 'sessionStorage', 'writeFile', 'receiptStore']) {
     if (core.includes(forbidden)) {
-      throw new Error(`v0.6 §12.4: the translation core must not know about ${forbidden}`)
+      throw new Error(`v0.7 §5: the translation core must not know about ${forbidden}`)
     }
   }
-  console.log('TRANSLATION_MEMORY_ONLY_OK')
+  const store = await readFile(resolve(root, 'src/storage/translation-store.mjs'), 'utf8')
+  for (const expected of ['0o700', '0o600', 'rename(', 'FORBIDDEN_RECORD_FIELDS', 'translationStoreKey']) {
+    if (!store.includes(expected)) throw new Error(`v0.7 §5: the translation store must pin ${expected}`)
+  }
+  // 持久化键里出现 sessionId，整个功能就退回内存缓存了。
+  const keyStart = store.indexOf('export function translationStoreKey')
+  if (keyStart === -1) throw new Error('v0.7 §5: the translation store must expose translationStoreKey()')
+  const keyBody = store.slice(keyStart, store.indexOf('\n}', keyStart))
+  if (/session/i.test(keyBody)) {
+    throw new Error('v0.7 §5: the persistent translation key must not contain a session id')
+  }
+  if (!/persistTranslation\(\{[\s\S]{0,500}?sourceSha256/.test(host)) {
+    throw new Error('v0.7 §5: the persisted record must be keyed by the source hash')
+  }
+  const persistCall = host.slice(host.indexOf('persistTranslation({'), host.indexOf('persistTranslation({') + 600)
+  if (/sessionId/.test(persistCall)) {
+    throw new Error('v0.7 §5: the persisted translation record must not carry a sessionId')
+  }
+  console.log('TRANSLATION_PERSISTENCE_OK')
 
 // --- 翻译必须是分段的，而且必须自己说哪几段没翻成 -------------------------------
 // 0.4.0-beta.69 的翻译在真实应用里**一次都没成功过**，而 341 个测试全绿。原因不是模型，

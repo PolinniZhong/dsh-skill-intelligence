@@ -1008,3 +1008,228 @@ test('a Markdown table becomes a real table, between the blocks around it', () =
   const callSites = source.split('\n').filter((line) => /[^.\w]renderSkillMarkdown\(/.test(line) && !/^\s*function /.test(line))
   assert.equal(callSites.length, 1, 'the original and the Chinese preview must share one renderer call site')
 })
+
+// v0.7 §4：已安装列表的卡片以前是 <article>，整页没有任何入口，只能看。
+// 现在整张卡是 <button>，点它必须调用 onOpen(name, 'installed') —— 返回目标由这个
+// 第二个参数决定（§8.4 的来源感知返回），所以断言的是那次调用的**两个**实参。
+test('an installed Skill card opens the one Skill detail page', () => {
+  const client = mountChineseClient()
+  const installed = {
+    skills: [
+      { name: 'ui-craft', description: 'Use for UI design work', provider: 'filesystem', invocation: { modelInvocable: true, userInvocable: true } },
+      { name: 'find-skills', description: 'Find a Skill', provider: 'filesystem', invocation: { modelInvocable: true, userInvocable: false } },
+    ],
+  }
+
+  const opened = []
+  const page = client.__views.InstalledSkillsPage({
+    sessionId: 'session-render',
+    query: '',
+    onQueryChange() {},
+    installed,
+    onOpen: (name, from) => opened.push([name, from]),
+  })
+  const nodes = collect(page)
+
+  const cards = nodes.filter((node) => node.type === 'button' && node.props.className === 'st-installed-card')
+  assert.equal(cards.length, 2, 'every installed Skill becomes a card')
+  assert.deepEqual(cards.map((card) => card.props['data-skill']), ['ui-craft', 'find-skills'],
+    'the card carries the Skill name it stands for')
+
+  // 整张卡就是入口，所以它内部**不能**再有一个竞争动作：一个入口出现两次，
+  // 读者会以为这两个按钮不一样。全页的 button 数必须等于卡片数。
+  const buttons = nodes.filter((node) => node.type === 'button')
+  assert.equal(buttons.length, 2, 'the card is the only control on it — no duplicate “view detail” button')
+  assert.ok(!nodes.some((node) => /查看详情|View detail/i.test(node.children?.[0] ?? '')),
+    'no nested detail button is introduced')
+
+  cards[0].props.onClick()
+  assert.deepEqual(opened, [['ui-craft', 'installed']],
+    'clicking a card opens that Skill, and says the reader came from the installed list')
+
+  // 搜索过滤走的是宿主共用谓词，不是第二套匹配规则。
+  const filtered = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render', query: 'find', onQueryChange() {}, installed, onOpen() {},
+  }))
+  const filteredCards = filtered.filter((node) => node.props.className === 'st-installed-card')
+  assert.equal(filteredCards.length, 1, 'the search box narrows the grid')
+
+  // 没有可发现的 Skill 时给一句话，不是一张空网格 —— 空网格读起来像加载失败。
+  const empty = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render', query: '', onQueryChange() {}, installed: { skills: [] }, onOpen() {},
+  }))
+  assert.equal(empty.filter((node) => node.type === 'button').length, 0, 'no cards when nothing is discoverable')
+  assert.ok(empty.some((node) => node.type === 'p' && node.props.className === 'st-audit-empty'),
+    'the empty state is a sentence, not a bare grid')
+})
+
+// 2026-10-05（用户：「搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，
+// 那搜索框宽度可以再缩小一点」）：搜索框从正文第一行搬进顶栏右侧。
+//
+// 这一条守的不只是"它现在在哪"，还有"它没有留在原地" —— 搬走之后如果页面里还留着一份，
+// 界面上会出现两个搜索框（一个能用、一个不能），而源码里两次 className 都写着同一个名字，
+// 任何字符串断言都看不出来。所以断言的是**渲染出来的节点数**。
+test('the installed search box lives in one place, with its icon on the right', () => {
+  const client = mountChineseClient()
+
+  const box = collect(client.__views.InstalledSearchBox({ query: 'ui', onQueryChange() {} }))
+  const inputs = box.filter((node) => node.type === 'input')
+  assert.equal(inputs.length, 1, 'the search box is exactly one input')
+  const icons = box.filter((node) => node.props.className === 'st-search-icon')
+  assert.equal(icons.length, 1, 'and exactly one marker icon')
+  assert.equal(box.indexOf(inputs[0]) < box.indexOf(icons[0]), true,
+    'the icon follows the input — it marks the right end of the box, not the left')
+
+  // 输入要原样交给上层：过滤发生在页面里，用的是宿主共用的那一个谓词。
+  const seen = []
+  const typed = collect(client.__views.InstalledSearchBox({ query: '', onQueryChange: (value) => seen.push(value) }))
+  typed.find((node) => node.type === 'input').props.onChange({ target: { value: 'lark' } })
+  assert.deepEqual(seen, ['lark'], 'typing hands the raw value up; the box owns no filter of its own')
+
+  // 反向：页面里不许再有第二个搜索框。
+  const page = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render',
+    query: '',
+    installed: { skills: [{ name: 'ui-craft', description: 'x', provider: 'filesystem' }] },
+    onOpen() {},
+  }))
+  assert.equal(page.filter((node) => node.type === 'input').length, 0,
+    'the page body no longer renders its own search box — one search box, one place')
+})
+
+// v0.7 §7–§20：复刻对话框。它要守住三件事，而三件都只有把组件真的渲染出来才看得见：
+//   1. 详情页上的对象级动作只有一个（多一个竞争动作，用户就得先猜两者有什么区别）；
+//   2. 名字不合法要在**点下去之前**说，而不是让宿主退回来；
+//   3. 「✓ Skill 已创建」只能出现在宿主回执之后，且目录刷新与否必须照着观察结果说。
+test('the clone dialog is the only object action, and it claims nothing the Host has not confirmed', () => {
+  const client = mountChineseClient()
+  const sourceSha256 = `sha256:${'a'.repeat(64)}`
+
+  // 1. 详情页对象区只有一个主动作，且它是「复刻 Skill」。
+  //    这条断言只关心对象区，所以详情载荷就地写一份最小的 —— 上面那份完整夹具声明在别的
+  //    测试函数里，跨作用域引用会让整条测试在渲染之前就抛 ReferenceError。
+  const detailNodes = collect(client.__views.SkillDetailPage({
+    sessionId: 's',
+    skillName: 'code-review',
+    skill: {
+      schemaVersion: 1,
+      skillName: 'code-review',
+      summary: { description: '评审代码变更。' },
+      definition: {
+        available: true,
+        reason: null,
+        content: { sha256: sourceSha256, text: '# Code Review\n\n读一遍变更。\n', truncated: false },
+        outline: [],
+        resourceBase: { kind: 'directory' },
+        limitations: [],
+      },
+      flow: null, anchors: null, framework: null, runtimeLogic: null,
+      runs: [], evidence: null, repository: null, observation: null, limitations: [],
+    },
+  }))
+  const openButtons = detailNodes.filter((node) => node.props.className === 'st-clone-open')
+  assert.equal(openButtons.length, 1, 'the detail page offers exactly one clone entry point')
+  // `h()` 已经把这个位置上的 RAW 包装拆成纯字符串，所以子节点就是文本本身。
+  const ownText = (node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')
+  assert.ok(ownText(openButtons[0]).includes('复刻 Skill'), 'the object action is called 复刻, not 编辑 / 创建 / 优化')
+  for (const competing of ['编辑', '创建', '优化', '收藏']) {
+    assert.ok(!detailNodes.some((node) => ownText(node).includes(competing)),
+      `no competing object action (${competing}) exists next to 复刻`)
+  }
+
+  // 2. 表单：名字是建议出来的，范围与内容各有一对单选，默认项目级 + 完整 Skill。
+  const formNodes = collect(client.__views.SkillCloneDialog({ skillName: 'ui-craft', sourceSha256, definitionAvailable: true, onClose() {} }))
+  const input = formNodes.find((node) => node.props['data-role'] === 'clone-target-name')
+  assert.equal(input?.props.value, 'ui-craft-custom', 'the name field starts from a suggestion')
+  const radios = formNodes.filter((node) => node.type === 'input' && node.props.type === 'radio')
+  assert.deepEqual(radios.map((node) => `${node.props.name}=${node.props.value}`),
+    ['scope=project', 'scope=user', 'mode=bundle', 'mode=skill-md'], 'scope and mode are the only two choices')
+  assert.deepEqual(radios.filter((node) => node.props.checked).map((node) => node.props.value), ['project', 'bundle'],
+    'project scope and the whole Skill are the defaults')
+  const submit = formNodes.find((node) => node.props.className === 'st-translate st-clone-submit')
+  assert.equal(submit?.props.disabled, false, 'a valid name can be submitted')
+  assert.ok(!formNodes.some((node) => typeof node?.text === 'string' && node.text.includes('已创建')),
+    'nothing claims the clone happened before the request is even sent')
+
+  // 3. 名字不合法：当场说，并禁用提交 —— 这是"先放行再被宿主退回"的反面。
+  const badNodes = collect(client.__views.SkillCloneDialog({ skillName: 'ui-craft', sourceSha256, definitionAvailable: true, onClose() {}, targetName: 'UI_Craft' }))
+  assert.ok(badNodes.some((node) => node.props['data-role'] === 'clone-name-error'),
+    'an invalid name is reported next to the field')
+  assert.equal(badNodes.find((node) => node.props.className === 'st-translate st-clone-submit')?.props.disabled, true,
+    'an invalid name cannot be submitted')
+
+  // 4. 宿主回执之后：成功态、范围、内容、调用方式各说各的，且不出现任何绝对路径。
+  const doneNodes = collect(client.__views.SkillCloneDialog({
+    skillName: 'ui-craft',
+    sourceSha256,
+    definitionAvailable: true,
+    onClose() {},
+    clone: {
+      ok: true,
+      skillName: 'ui-craft-custom',
+      scope: 'project',
+      pathKind: 'project-dsh',
+      mode: 'bundle',
+      verified: true,
+      discovered: false,
+      sourceUnchanged: true,
+      fileCount: 12,
+      invocation: '/ui-craft-custom',
+      limitations: ['absolute-paths-withheld'],
+    },
+  }))
+  const doneText = doneNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.ok(doneText.includes('✓ Skill 已创建'), 'the Host receipt is what earns the success sentence')
+  assert.ok(doneText.includes('ui-craft-custom'), 'the created Skill is named')
+  assert.ok(doneText.includes('已写入当前项目 Skill'), 'the scope that was written is named')
+  assert.ok(doneText.includes('完整 Skill'), 'the copy mode is named')
+  assert.ok(doneText.includes('/ui-craft-custom'), 'the invocation is shown as text to copy')
+  assert.ok(doneText.includes('目录刷新状态待确认'),
+    'when the catalog refresh was not observed, the dialog says so instead of promising it')
+  assert.ok(!/\/Users\/|\/home\//.test(doneText), 'no absolute path ever reaches the UI')
+  const copy = doneNodes.find((node) => node.props['data-role'] === 'clone-copy')
+  assert.ok(copy, 'the invocation can be copied as text — and only copied')
+
+  // 5. 真的观察到目录更新时才敢说「可以使用」。
+  const foundNodes = collect(client.__views.SkillCloneDialog({
+    skillName: 'ui-craft', sourceSha256, definitionAvailable: true, onClose() {},
+    clone: { ok: true, skillName: 'ui-craft-custom', scope: 'user', mode: 'skill-md', verified: true, discovered: true, sourceUnchanged: true, fileCount: 1, invocation: '/ui-craft-custom', limitations: [] },
+  }))
+  const foundText = foundNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.ok(foundText.includes('目录已更新'), 'an observed catalog refresh is reported as such')
+  assert.ok(foundText.includes('已写入我的 Skill'), 'user scope reads as 我的 Skill')
+  assert.ok(foundText.includes('仅 SKILL.md'), 'the SKILL.md-only mode is named')
+
+  // 6. 一个 473 个文件的 Skill 只拷进去 42 个时，「完整 Skill（42 个文件）」是句假话 ——
+  //    真机验收就是这么撞上的（character-asset-kit，23 MB 的资源目录）。数字必须
+  //    连同"没拷全"一起出现，而不是把丢掉的 44 个挪到下面的小字里。
+  const truncatedNodes = collect(client.__views.SkillCloneDialog({
+    skillName: 'ui-craft', sourceSha256, definitionAvailable: true, onClose() {},
+    clone: {
+      ok: true, skillName: 'ui-craft-custom', scope: 'project', mode: 'bundle', verified: true,
+      discovered: false, sourceUnchanged: true, fileCount: 42, skippedCount: 44, truncated: true,
+      invocation: '/ui-craft-custom',
+      limitations: ['absolute-paths-withheld', 'catalog-refresh-not-observed', 'bundle-truncated-by-limit'],
+    },
+  }))
+  // `collect` 已经把树摊平了，别再 collect 一次 —— 第二次会把每个节点的祖先也再走一遍。
+  const copiedNode = truncatedNodes.find((node) => node.props['data-role'] === 'clone-copied')
+  assert.ok(copiedNode, 'the copy line has a test hook')
+  assert.equal(copiedNode.props['data-truncated'], 'yes')
+  const copiedText = (copiedNode.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')
+  assert.ok(copiedText.includes('没有拷全'), 'a partial bundle says so in the same line as the counts')
+  assert.ok(copiedText.includes('42') && copiedText.includes('44'), 'both the copied and the dropped counts are stated')
+
+  // 7. limitations 是**代码**，不许原样出现在界面上（§7 的"不许显示裸错误码"）。
+  const limitNodes = truncatedNodes.filter((node) => node.props?.className === 'st-clone-limits')
+  assert.equal(limitNodes.length, 1, 'the content caveats are listed')
+  const limitText = limitNodes[0].children.filter((node) => node.type === 'li')
+    .map((node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join(''))
+  assert.ok(limitText.some((line) => line.includes('超过了单次复刻的上限')),
+    'bundle-truncated-by-limit is rendered as a sentence')
+  for (const code of ['absolute-paths-withheld', 'catalog-refresh-not-observed', 'bundle-truncated-by-limit']) {
+    assert.ok(!limitText.some((line) => line.includes(code)), `the raw code ${code} never reaches the user`)
+  }
+  // 已经有一句话说过的不再重复列一遍（目录刷新、不外发绝对路径）。
+  assert.equal(limitText.length, 1, 'only the caveats that are not already said above are listed')
+})

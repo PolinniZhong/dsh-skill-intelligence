@@ -3,7 +3,7 @@
 > 本文件是 Agent 进入本项目的**第一读物**：只说「怎么在这个项目里干活」和「哪些不能动」。
 > 产品主张 `02-product-thesis.md` · 需求 `04-product-requirements.md` · 视觉与组件规格 `design.md`
 > · 技术设计 `05-technical-design.md` · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md`
-> **最后更新：2026-10-01**
+> **最后更新：2026-10-05**（v0.7 中文阅读版 / 复刻 Skill / 已安装卡片进详情；§1 的数字与它同步）
 
 ---
 
@@ -21,16 +21,17 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`0.6.1`**（`package.json`）· tag `v0.6.1` · 2026-10-01 · **GitHub Release 与 npm 都已发布** · 发布提交 `b3bc500` |
-| 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-trace`（分支 `main`）· `main` 与 `origin/main` 同步 |
-| npm | **`beta` 与 `latest` 都指向 `0.6.1`**（本次已发布）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1` |
-| 测试 | **397 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
+| 插件包版本 | **`0.7.0`**（`package.json`）· 上一版 `0.6.1`（tag `v0.6.1` · 2026-10-01 · GitHub Release 与 npm 都已发布 · 发布提交 `b3bc500`） |
+| 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-trace`（分支 `main`） |
+| npm | **`beta` 与 `latest` 都指向 `0.6.1`**（`0.7.0` 尚未发布）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1` |
+| 测试 | **429 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
 | 静态守卫 | **23 组**（`npm run verify`，见 §6.3） |
-| 客户端 | `src/dsh/client/client.js` **1970 行**，bundle `dist/client.js` **108839 字节** |
-| 宿主机面 | **7 条路由**，全在 `src/dsh/host/index.js`，由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
+| 客户端 | `src/dsh/client/client.js` **2332 行**，bundle `dist/client.js` **129280 字节** |
+| 宿主机面 | **10 条路由**，全在 `src/dsh/host/index.js`，由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
-| 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节） |
+| 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节）。v0.7 **没有新增一级 / 二级页面** |
 | 详情页四层 | 框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md`，顺序由守卫按字面匹配 |
+| v0.7 新能力 | 已安装卡片可点进详情 · 中文阅读版落盘（`GET`/`DELETE /skill-trace/translation`） · 复刻 Skill（`POST /skill-trace/clone`） |
 
 ---
 
@@ -40,8 +41,10 @@
 
 v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一句话，要么来自 `SKILL.md` 的声明，要么来自本次会话确实观察到的事实**，两者不许互相推导。
 
-- 上一轮（`039e275`）：GFM 表格真渲染 + 翻译表格结构校验。
-- 这一轮（`0.6.0`）：**「Skill 框架」不再等于那条 `01 → 02 → 03 → 04`** —— 框架改由 `src/core/skill-framework.mjs` 从正文**确定性**解析出组成结构；`detail.flow` 降级成它的子模块；新增「渐进披露」（声明资源 ≠ 已读取资源）、「本次运行逻辑」（五段只列可观察事实）、「步骤证据」（`detail.flow.steps[].evidence` 第一次被显示）。
+- `039e275`：GFM 表格真渲染 + 翻译表格结构校验。
+- `0.6.0`（已发布）：**「Skill 框架」不再等于那条 `01 → 02 → 03 → 04`** —— 框架改由 `src/core/skill-framework.mjs` 从正文**确定性**解析出组成结构；`detail.flow` 降级成它的子模块；新增「渐进披露」（声明资源 ≠ 已读取资源）、「本次运行逻辑」（五段只列可观察事实）、「步骤证据」（`detail.flow.steps[].evidence` 第一次被显示）。
+- **`0.7.0`（代码已完成，尚未提交、尚未发布）**：三条新能力——已安装卡片整张可点进详情、中文阅读版**落盘为本机资产**（键不含会话）、**复刻 Skill**（详情页唯一的对象级动作）。真机 17 步验收已过（`CHANGELOG.md` `### 九`）。
+- **`0.7.0` 之后的五轮纯界面收口**（`CHANGELOG.md` `### 十`–`### 十三`）：顶栏 68 → 48px 且不画底色与分隔线、状态行只在有话要说时出现、搜索框搬进顶栏、分段控件选中态只留字色与字重、卡片描述统一截到 4 行、元信息行钉在卡片左下角、两个一级列表从同一个位置开始。**信息架构一次没动。**
 
 **下次动手前的判据**：如果一个新的展示元素需要模型调用来「总结」Skill 的结构，**就不要做**（§6.8）。如果它需要在界面上说「已执行 / 已完成 / 已加载 / 已读取」，**就不要做**（§6.7）。
 
@@ -51,14 +54,14 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 
 1. **本文件**
 2. `README.md` §「当前状态」 —— 对外口径的现状（发版后必须同步，见 §9.1）
-3. `docs/ARCHITECTURE.md` —— 模块职责、宿主 7 路由、证据模型、布局合同
+3. `docs/ARCHITECTURE.md` —— 模块职责、宿主路由、证据模型、布局合同
 4. `CHANGELOG.md` 顶部那一段 —— 这一版到底改了什么、为什么
 5. 按任务类型再读一份：
    - 改界面 → `design.md`（视觉规格与组件表）+ `04-product-requirements.md` 的 `FR-UI-*`
    - 改证据 / 对齐 → `docs/ARCHITECTURE.md` §Evidence model、§Correlation and provenance
    - 要发版 → `docs/RELEASE.md`（**照做，不要凭记忆**）
 
-> 只改代码的话，最少读 **1 → 5**。改之前先 `npm test`（**397 项**，必须全绿）。
+> 只改代码的话，最少读 **1 → 5**。改之前先 `npm test`（**429 项**，必须全绿）。
 
 ---
 
@@ -141,7 +144,7 @@ node --check src/dsh/client/client.js   # 改完 CSS 第一件事
 - **颜色只能来自 token。** `--st-*` 变量优先映射宿主 `--dsw-alias-*`，实现值只作回退。样式里出现字面色值（`#fff8d8`、`rgba(…)`）会被 `VISUAL_TOKENS_OK` 拒绝 —— 那样暗色主题就跟着坏。
 - **§26 字号带**：页面标题 ≤ 18px，辅助文字 ≥ 10.5px，小节标题 14–16px，卡片标题 13–15px。
 - **§27 圆角/分隔比**：`border-radius` 声明数 ÷ `border-bottom:1px solid` 声明数 ≤ **5.5**，且分隔线 ≥ 3。**结构靠分隔线，圆角是例外。** 曾经把上限用满到 70 条而比值仍是 1.8 —— 守卫量的是**比例**。
-- **§22 顶栏高度固定 68px**，**§8.2 详情事实列 280px**，**§9.3 文档目录 170px**：`grid-template-columns` 是按字面匹配的。
+- **§22 顶栏高度固定 48px，且既不画自己的底色、也不画自己的分隔线**（2026-10-05 由 68px 收到 48px；见 `design.md` §6.1），**§8.2 详情事实列 280px**，**§9.3 文档目录 170px**：`grid-template-columns` 是按字面匹配的。
 
 ### 6.6 客户端只能 `require` 这几支 core 模块
 
@@ -197,7 +200,8 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 ### 6.9 只读边界与隐私字段
 
 - **不写盘的定义正文。** `SKILL.md` 现读现返，永不落盘（`docs/PRIVACY.md`）。
-- **译文只在内存。** `src/core/translation-cache.mjs` 的进程内 Map，不落盘、不进对话、不进 `localStorage` / `sessionStorage` / `indexedDB` / `sendBeacon`。`TRANSLATION_MEMORY_ONLY_OK` 钉住这一点——退出 DSH 后还能看到译文是**事故**，比功能没做更严重。
+- **译文存本机，但只与它对应的那一版正文绑定。** v0.7 起中文阅读版落盘在 `<dataRoot>/translations/<sha256(key)>.json`（`0700`/`0600` + 原子 rename），键是 `skillName + sourceSha256 + targetLanguage`——**不含 `sessionId`**，因为它是资产而不是这次会话的产物。`sourceSha256` 一变旧译文就不再显示（界面回原文、允许重译）。`TRANSLATION_PERSISTENCE_OK` 钉住的是**哪些东西不许落盘**：`translationStoreKey` 的实现体里不得出现 `session`，`persistTranslation({…})` 头 600 字符里不得出现 `sessionId`，且 `src/core/skill-translation.mjs` **一个字都不许落盘**（`receipt` / `localStorage` / `sessionStorage` / `writeFile` / `receiptStore` 依旧禁用）。界面的 `✓ 中文阅读版已保存` 只能由响应里的 `saved` 布尔驱动——发起请求不等于保存成功。
+- **复刻只读源、只写新目录。** `mkdir` 不带 `recursive`（EEXIST 即冲突），没有「先删再写」这条路，目标已存在一律提示改名。副本的 frontmatter `name:` 必须改写成目标名——DSH 认 frontmatter 不认目录名。**不执行** Skill 里的 `scripts/`、不跑 bash / Python、不触发 Agent。完成后必须 read-back + registry 观察，观察不到目录刷新就写「待确认」。
 - **不读工具参数与结果内容。** `runtime-evidence.mjs` 是唯一接缝；守卫拒绝任何开始读 `args` / `result` 内容的改动。
 - **不外发绝对路径。** 「已安装」投影里只允许 `{name, description, provider, invocation}`。
 - **收据里的 `learningNotes[]` / `validationResults[]` 是遗留数据**：只读、不迁移、不派生状态，当前产品没有任何写入入口。
@@ -230,7 +234,7 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 默认答案是**不加**。
 
 - **新依赖**：`dependencies` 必须保持为空。画布类（`elkjs` / `@xyflow/react` / `mermaid`）由守卫直接拒绝——框架画的是角色与小节，不是图。
-- **新路由**：宿主只有 7 条，由守卫按字面钉住；15 条已删路由同样被反向钉住。
+- **新路由**：宿主只有 **10** 条，由守卫按字面钉住；15 条已删路由同样被反向钉住。
 - **新页面**：一级页面只有两个。要加页面，先改 §4 的权威文件，再改代码。
 
 ---
@@ -301,7 +305,7 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 cd "/Users/zhongwentuo/DeepSeek Harness Native/10_DSH_Skill_Trace"
 
 node --check src/dsh/client/client.js   # 改过 CSS/客户端源码先过这一关
-npm test                                # 必须 397 全绿（pretest 会重建 dist）
+npm test                                # 必须 429 全绿（pretest 会重建 dist）
 npm run verify                          # 必须 23 组 OK
 ```
 
@@ -371,14 +375,14 @@ npm run verify                          # 必须 23 组 OK
 │   └── RELEASE.md            ← 可执行的发布清单
 ├── src/
 │   ├── core/                 ← 纯函数层（框架、运行逻辑、对齐、表格、翻译…）
-│   ├── dsh/host/index.js     ← 宿主半边：7 条路由、事件观察、持久化
+│   ├── dsh/host/index.js     ← 宿主半边：10 条路由、事件观察、持久化
 │   ├── dsh/client/client.js  ← 整个客户端（一个工厂闭包）
 │   └── storage/              ← 收据与偏好
 ├── dist/client.js            ← 构建产物，**提交进仓库**
 ├── scripts/
 │   ├── build-client.mjs      ← esbuild 打包
 │   └── verify-project.mjs    ← 23 组守卫
-├── test/                     ← 397 项
+├── test/                     ← 429 项
 └── 01_重构方案/              ← 本地过程目录，**.gitignore 排除，不发布**
 ```
 

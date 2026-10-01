@@ -216,7 +216,7 @@ stateDiagram-v2
 - **允许字段**：会话标识、Turn/Step、Skill 名、状态、事件序号、覆盖声明、SHA-256、安全来源标签、候选步骤、工作区相对输出引用，以及旧 Schema 的兼容字段。
 - **禁止字段**：Prompt、Assistant 正文、**Skill 正文**、Tool 输出、Token、Cookie、绝对路径、项目正文。
 - **定义正文永不落盘、永不进收据**：只在当前会话上现读现返。
-- **译文只在内存**：`src/core/translation-cache.mjs` 上限 8 条，切 Skill 保留、退出即消失，不写 localStorage、不写文件。
+- **译文只在内存**：`src/core/translation-cache.mjs` 上限 8 条，切 Skill 保留、退出即消失，不写 localStorage、不写文件。**（v0.7 已取代本节这一条）** 译文现在落盘在 `<dataRoot>/translations/`，键为「Skill 名 + 正文指纹 + 语言」且不含会话；`translation-cache.mjs` 降为页面内的第一层缓存。见 `FR-UI-060`。
 - 插件卸载与收据删除**分离**，防止包管理动作静默删除用户记录。
 - 没有任何 Trace 的会话不会持久化成"零数据收据"，Host 启动时清理这类空文件。
 

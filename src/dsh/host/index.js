@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import {
   buildViewModels,
@@ -23,8 +24,28 @@ import {
   TRANSLATION_ERROR,
 } from '../../core/skill-translation.mjs'
 import { buildSessionSkillList, buildSkillDetail } from '../../core/skill-view-model.mjs'
+import {
+  CLONE_ERROR,
+  describeCloneResult,
+  isSkillName as isCloneSkillName,
+  planCloneSource,
+  rewriteSkillName,
+} from '../../core/skill-clone.mjs'
+import { resolveCloneRoot } from '../../core/skill-clone-path.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
 import { createPreferenceStore } from '../../storage/preference-store.mjs'
+import { createTranslationStore } from '../../storage/translation-store.mjs'
+import {
+  cloneTargetTaken,
+  findProjectRoot,
+  probeExistingRoots,
+  probePopulatedRoots,
+  readBackClone,
+  readSkillSource,
+  readSkillSourceSha256,
+  removeClone,
+  writeClone,
+} from '../../storage/skill-clone-writer.mjs'
 
 export const name = 'dsh-skill-trace'
 
@@ -138,6 +159,21 @@ function requiredSessionId(value) {
 function requiredSkillName(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/.test(value.trim())) throw new Error('skillName 无效')
   return value.trim()
+}
+
+/**
+ * 指纹的形状是固定的（`sha256:` + 64 位小写十六进制）。校验形状而不是只检查非空，
+ * 是因为这两个字段直接参与持久化键：一个手抖的空格会变成一份永远读不到的中文阅读版。
+ */
+function requiredSourceSha256(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!/^sha256:[a-f0-9]{64}$/.test(text)) throw new Error('sourceSha256 无效')
+  return text
+}
+
+function optionalTargetLanguage(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return text ? text.slice(0, 40) : DEFAULT_TRANSLATION_LANGUAGE
 }
 
 function optionalEntryId(value) {
@@ -336,6 +372,8 @@ export function apply(ctx, config = {}) {
     const dataRoot = typeof config.dataRoot === 'string' && config.dataRoot.trim() ? config.dataRoot.trim() : null
     const store = createReceiptStore(dataRoot ? join(dataRoot, 'receipts') : undefined)
     const preferenceStore = createPreferenceStore(dataRoot || undefined)
+    // v0.7 §5：中文阅读版落盘。位置跟着 dataRoot 走，与 receipts/preferences 同一套根目录约定。
+    const translationStore = createTranslationStore(dataRoot ? join(dataRoot, 'translations') : undefined)
     const cache = new Map()
     const { queues, enqueue, runMaintenance } = createSessionMutationQueue()
     const pruneTask = store.prune(shouldPersistReceipt).then((removed) => {
@@ -356,6 +394,235 @@ export function apply(ctx, config = {}) {
       const registry = (liveAgent ? agentPresets?.serviceFor(liveAgent, 'skills') : undefined) ?? webCtx.get('skills')
       const session = webCtx.sessions.get(sessionId)
       return { registry, liveAgent, session, cwd: session?.header?.cwd }
+    }
+
+    /**
+     * 把中文阅读版落盘，并返回**真的存上了**这个事实。
+     *
+     * 界面靠这个布尔值决定说「中文阅读版已保存」还是什么都不说 —— 只报"我调用了写函数"
+     * 会在磁盘满、目录只读的时候给出一个假的成功态（design.md §8.5）。
+     */
+    async function persistTranslation(record) {
+      try {
+        await translationStore.write(record)
+        // 同一个 Skill、同一种语言只留最近两份：旧指纹那一份永远不会被读到，
+        // 留着它的唯一后果是磁盘慢慢变大。
+        void translationStore.pruneVersions({ keepPerSkill: 2 }).catch(() => {})
+        return true
+      } catch (error) {
+        console.error('[dsh-skill-trace] translation persist failed', error)
+        return false
+      }
+    }
+
+    /**
+     * 复刻：读源 → 校验指纹 → 写副本 → 回读 → 问 catalog。
+     *
+     * 返回 `{status, body}` 而不是直接写响应，是为了让每条失败路径都带自己的状态码和
+     * 自己的中文说明 —— §29 要求错误必须写清「发生了什么、怎么恢复」，而 catch-all
+     * 只会把认不出的消息一律当 500。
+     *
+     * 绝对路径在这条路上没有任何出口：响应里只有范围、落点类型与文件数量。
+     * 这是产品里唯一会写盘的动作，也是唯一会让界面说出「已创建」的动作，
+     * 所以它只在这一层拿到回读与 catalog 的答案之后才敢说成功。
+     */
+    async function handleClone(body) {
+      const payload = body && typeof body === 'object' ? body : {}
+      const fail = (status, code, error, extra) => ({ status, body: { ok: false, code, error, ...extra } })
+      const sourceSkillName = typeof payload.sourceSkillName === 'string' ? payload.sourceSkillName.trim() : ''
+      const targetSkillName = typeof payload.targetSkillName === 'string' ? payload.targetSkillName.trim() : ''
+      const sourceSha256 = typeof payload.sourceSha256 === 'string' ? payload.sourceSha256.trim() : ''
+      const targetScope = payload.targetScope === 'user' || payload.targetScope === 'project' ? payload.targetScope : ''
+      const cloneMode = payload.cloneMode === 'bundle' || payload.cloneMode === 'skill-md' ? payload.cloneMode : ''
+
+      // 名字用 DSH 自己的语法（小写 kebab-case），而不是宿主其它路由那条更宽的规则：
+      // 宽规则允许大写与斜杠，写进目录就是一个 DSH 永远不会发现的 Skill。
+      if (!isCloneSkillName(sourceSkillName) || !isCloneSkillName(targetSkillName)) {
+        return fail(400, CLONE_ERROR.INVALID_REQUEST, 'Skill 名只能用小写字母、数字和连字符，并以字母或数字开头（例如 my-skill-custom）。请修改后重试。')
+      }
+      if (targetSkillName === sourceSkillName) {
+        return fail(400, CLONE_ERROR.INVALID_REQUEST, '目标名称不能与来源相同，请换一个名称。')
+      }
+      if (!targetScope) return fail(400, CLONE_ERROR.INVALID_REQUEST, '保存范围必须是「当前项目」或「我的 Skill」。')
+      if (!cloneMode) return fail(400, CLONE_ERROR.INVALID_REQUEST, '复刻内容必须是「完整 Skill」或「仅 SKILL.md」。')
+      if (!/^sha256:[a-f0-9]{64}$/.test(sourceSha256)) {
+        return fail(400, CLONE_ERROR.INVALID_REQUEST, '缺少来源版本指纹，请刷新页面后重试。')
+      }
+
+      let sessionId
+      try {
+        sessionId = requiredSessionId(payload.sessionId)
+      } catch (error) {
+        return fail(400, CLONE_ERROR.INVALID_REQUEST, error.message)
+      }
+
+      const { registry, liveAgent, cwd } = registryContext(sessionId)
+      if (!registry) {
+        return fail(500, CLONE_ERROR.WRITE_FAILED, '复刻失败：当前宿主没有挂载 Skill 注册表，无法读写 Skill 目录。请重启 DSH 后重试。')
+      }
+
+      try {
+        const definition = await buildSkillDefinitionView(registry, sourceSkillName, { cwd, scope: liveAgent, now: Date.now() })
+        if (!definition.available) {
+          return fail(
+            422,
+            CLONE_ERROR.DEFINITION_UNAVAILABLE,
+            definition.reason === 'unknown-skill'
+              ? `找不到 Skill「${sourceSkillName}」，它可能已经被删除或改名。`
+              : '这个 Skill 的定义当前不可读取，因此无法复刻。请稍后重试。',
+            { reason: definition.reason },
+          )
+        }
+        // 前端提交的是它**读到过**的那份正文的指纹。源在这期间改过，就说明它读的那份
+        // 已经过时；此时照写就是把一个混合体落进目录，宁可让它重来一次。
+        if (definition.content.sha256 !== sourceSha256) {
+          return fail(409, CLONE_ERROR.SOURCE_CHANGED, '来源 Skill 已经变化，请重新打开详情页再复刻。', { currentSha256: definition.content.sha256 })
+        }
+
+        const raw = await registry.get(sourceSkillName, { cwd, scope: liveAgent })
+        if (!raw) {
+          return fail(422, CLONE_ERROR.DEFINITION_UNAVAILABLE, `找不到 Skill「${sourceSkillName}」的原始定义，无法复刻。`)
+        }
+        const plan = planCloneSource({
+          sourceName: sourceSkillName,
+          definitionName: raw.name,
+          definitionAvailable: true,
+          resourceBasePath: raw.resourceBase?.path ?? null,
+        })
+        if (!plan.ok) {
+          return fail(
+            plan.code === CLONE_ERROR.SKILL_NOT_FOUND ? 422 : 400,
+            plan.code,
+            plan.code === CLONE_ERROR.SKILL_NOT_FOUND
+              ? '这个 Skill 的目录名与它自己声明的名字对不上，无法可靠复刻。'
+              : '无法解析这个 Skill 的来源，请刷新页面后重试。',
+          )
+        }
+        const wantsBundle = cloneMode === 'bundle'
+        // 要整包、但这一层判不出可靠的资源目录时明说，不假装拷全了（§十二）。
+        if (wantsBundle && plan.mode !== 'bundle') {
+          return fail(422, CLONE_ERROR.BUNDLE_UNREADABLE, '当前无法确认完整资源目录，因此无法复刻完整 Skill。可以改选「仅 SKILL.md」。', { availableMode: 'skill-md' })
+        }
+        const mode = wantsBundle ? 'bundle' : 'skill-md'
+
+        const source = await readSkillSource({ skillFile: raw.path, directory: plan.directory, mode, limits: {} })
+        if (!source.ok) {
+          return fail(422, CLONE_ERROR.DEFINITION_UNAVAILABLE, '读取来源 Skill 的文件失败，因此无法复刻。请稍后重试。', { reason: source.reason })
+        }
+        // 读盘之后指纹又对一次：前面的校验查的是 registry 里的定义，这一次查的是
+        // 刚才真正读到的字节。两次之间目录仍然可能被改。
+        if (source.sha256 !== sourceSha256) {
+          return fail(409, CLONE_ERROR.SOURCE_CHANGED, '来源 Skill 在复刻过程中发生了变化，请重新打开详情页再复刻。')
+        }
+
+        const projectRoot = await findProjectRoot(cwd ?? process.cwd())
+        const dshHome = process.env.DSH_HOME && process.env.DSH_HOME.trim() ? process.env.DSH_HOME.trim() : join(homedir(), '.dsh')
+        const agentsHome = process.env.DSH_AGENTS_HOME && process.env.DSH_AGENTS_HOME.trim() ? process.env.DSH_AGENTS_HOME.trim() : join(homedir(), '.agents')
+        const candidates = [
+          join(projectRoot, '.dsh', 'skills'),
+          join(projectRoot, '.agents', 'skills'),
+          join(dshHome, 'skills'),
+          join(agentsHome, 'skills'),
+        ]
+        const existing = await probeExistingRoots(candidates)
+        // 用户级有两个根，而且两个都可能存在。只按 rank 选会把复刻写进那个空的
+        // `~/.dsh/skills`，而用户二十多个 Skill 都在 `~/.agents/skills`。
+        const populated = await probePopulatedRoots(existing)
+        const root = resolveCloneRoot({ scope: targetScope, projectRoot, dshHome, agentsHome, existing, populated })
+        if (!root.path) {
+          return fail(500, CLONE_ERROR.WRITE_FAILED, '找不到可以写入的 Skill 目录，无法复刻。请确认 DSH_HOME 或项目目录可用后重试。')
+        }
+
+        const taken = await cloneTargetTaken({ registry, targetName: targetSkillName, cwd, scope: liveAgent, root: root.path })
+        if (taken.taken) {
+          return fail(409, CLONE_ERROR.TARGET_EXISTS, 'Skill 名称已存在，请更换名称。', { where: taken.where })
+        }
+
+        const rewritten = rewriteSkillName(source.text, targetSkillName)
+        if (!rewritten.ok) {
+          return fail(422, CLONE_ERROR.DEFINITION_UNAVAILABLE, '来源 Skill 的 frontmatter 无法改写，因此无法复刻。', { reason: rewritten.reason })
+        }
+
+        const written = await writeClone({
+          root: root.path,
+          targetName: targetSkillName,
+          skillMd: rewritten.text,
+          plan: source.plan,
+          sourceDirectory: plan.directory,
+          mode,
+        })
+        if (!written.ok) {
+          // 目录已存在是并发或竞态，状态码与前面那次冲突保持一致。
+          if (written.reason === 'target-exists') return fail(409, CLONE_ERROR.TARGET_EXISTS, 'Skill 名称已存在，请更换名称。')
+          return fail(500, CLONE_ERROR.WRITE_FAILED, '写入 Skill 目录失败，没有产生任何副本。请检查磁盘空间与目录权限后重试。')
+        }
+
+        // 写完必须回读：目录里真的躺着一份名字正确的 SKILL.md，才算数。
+        const back = await readBackClone({ root: root.path, targetName: targetSkillName })
+        if (!back.ok) {
+          await removeClone({ root: root.path, targetName: targetSkillName })
+          return fail(500, CLONE_ERROR.WRITE_FAILED, '副本写入后没有通过回读校验，已回滚。请稍后重试。', { reason: back.reason })
+        }
+
+        // catalog 是另一回事：文件在磁盘上不等于 DSH 已经看见它。watcher 有约 200ms
+        // 的写入稳定期，所以这里等一会儿再问，问不到就说问不到（§十八）。
+        let discovered = false
+        let discoveryAttempts = 0
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          discoveryAttempts = attempt + 1
+          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 250))
+          const found = await registry.get(targetSkillName, { cwd, scope: liveAgent })
+          if (found) {
+            discovered = true
+            break
+          }
+        }
+
+        // 源一个字节都没动，这是 §十三 的承诺，也是可以当场验证的事实。
+        const reread = await readSkillSourceSha256({ skillFile: raw.path })
+        const sourceUnchanged = reread !== null && reread === sourceSha256
+
+        const limitations = ['absolute-paths-withheld', 'clone-is-not-attached-to-this-session']
+        if (!discovered) limitations.push('catalog-refresh-not-observed')
+        else limitations.push('catalog-refresh-observed')
+        if (!sourceUnchanged) limitations.push('source-reread-did-not-match')
+        if (mode === 'skill-md') limitations.push('bundle-declared-resources-not-copied')
+        if (source.plan.truncated) limitations.push('bundle-truncated-by-limit')
+        else if (source.plan.skipped.length > 0) limitations.push('bundle-partially-skipped')
+
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            skillName: targetSkillName,
+            sourceSkillName,
+            scope: targetScope,
+            pathKind: root.kind,
+            mode,
+            verified: true,
+            discovered,
+            discoveryAttempts,
+            sourceUnchanged,
+            fileCount: source.plan.files.length,
+            skippedCount: source.plan.skipped.length,
+            truncated: source.plan.truncated === true,
+            invocation: `/${targetSkillName}`,
+            summary: describeCloneResult({
+              skillName: targetSkillName,
+              scope: targetScope,
+              mode,
+              fileCount: source.plan.files.length,
+              skippedCount: source.plan.skipped.length,
+              truncated: source.plan.truncated === true,
+            }),
+            limitations,
+          },
+        }
+      } catch (error) {
+        // 兜底文案里不能出现任何路径：异常消息可能带着绝对路径。
+        console.error('[dsh-skill-trace] clone failed', error)
+        return fail(500, CLONE_ERROR.WRITE_FAILED, '复刻失败，没有产生任何副本。请稍后重试；若持续失败，请检查 Skill 目录权限。')
+      }
     }
 
     /**
@@ -658,6 +925,19 @@ export function apply(ctx, config = {}) {
               // 只说**为什么**，规则名是我自己的词表（heading / placeholder / empty），
               // 不带模型名、不带路径、不带段落原文。
               fallbackReasons: result.fallbackReasons.map((entry) => entry.rule),
+              // v0.7 §6：界面只有在**真的落盘了**之后才允许说「中文阅读版已保存」。
+              // 存不下不影响这次阅读（译文已经在响应里），但也不能假装存上了。
+              saved: await persistTranslation({
+                skillName: definition.skillName,
+                sourceSha256: definition.content.sha256,
+                targetLanguage,
+                translation,
+                chunkCount: result.chunkCount,
+                fallbackChunks: result.fallbackChunks,
+                fallbackReasons: result.fallbackReasons.map((entry) => entry.rule),
+                model: `${selection.provider}/${selection.model}`,
+                truncated: definition.content.truncated === true,
+              }),
             })
             return
           }
@@ -749,6 +1029,57 @@ export function apply(ctx, config = {}) {
 
 
 
+
+          // v0.7 §28：中文阅读版的读与删。
+          //
+          // 这一对路由**不要求 sessionId**：中文阅读版是跨会话的资产，键是
+          // skillName + sourceSha256 + targetLanguage，让会话出现在请求里只会暗示
+          // 它跟会话有关 —— 而"退出 DSH 就没了"正是这一版要修掉的事。
+          // 访问边界仍然是函数开头那条：只允许本机。
+          if (method === 'GET' && url.pathname === '/skill-trace/translation') {
+            const skillName = requiredSkillName(url.searchParams.get('skillName'))
+            const sourceSha256 = requiredSourceSha256(url.searchParams.get('sourceSha256'))
+            const targetLanguage = optionalTargetLanguage(url.searchParams.get('targetLanguage'))
+            const record = await translationStore.read({ skillName, sourceSha256, targetLanguage })
+            sendJson(res, 200, {
+              ok: true,
+              skillName,
+              sourceSha256,
+              targetLanguage,
+              // 指纹对不上就是**没有**，不回一份"旧了一点"的译文。
+              translation: record ? {
+                translation: record.translation,
+                chunkCount: record.chunkCount,
+                fallbackChunks: record.fallbackChunks,
+                fallbackReasons: record.fallbackReasons,
+                model: record.model,
+                truncated: record.truncated === true,
+                savedAt: record.updatedAt,
+              } : null,
+            })
+            return
+          }
+
+          if (method === 'DELETE' && url.pathname === '/skill-trace/translation') {
+            const skillName = requiredSkillName(url.searchParams.get('skillName'))
+            const sourceSha256 = requiredSourceSha256(url.searchParams.get('sourceSha256'))
+            const targetLanguage = optionalTargetLanguage(url.searchParams.get('targetLanguage'))
+            const existing = await translationStore.read({ skillName, sourceSha256, targetLanguage })
+            // 精确到三个字段：没有"清空这个 Skill 的所有译文"这种模糊删除。
+            await translationStore.delete({ skillName, sourceSha256, targetLanguage })
+            sendJson(res, 200, { ok: true, skillName, sourceSha256, targetLanguage, deleted: Boolean(existing) })
+            return
+          }
+
+          // v0.7 §15 / §17：复刻。
+          //
+          // 整个产品里唯一会写盘的动作，所以规矩最多：只读源、只写副本、不覆盖、写完回读、
+          // 再问 registry 这个新 Skill 到底有没有被看见。任何一步对不上都不算成功。
+          if (method === 'POST' && url.pathname === '/skill-trace/clone') {
+            const outcome = await handleClone(await readBody(req))
+            sendJson(res, outcome.status, outcome.body)
+            return
+          }
 
           sendJson(res, 404, { ok: false, error: 'not found' })
         } catch (error) {

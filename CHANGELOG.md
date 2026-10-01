@@ -1,5 +1,224 @@
 # Changelog
 
+## 0.7.0 — 2026-10-01 · Skill 理解与复用：读得懂、存得住、复刻得走
+
+**一次功能版。** 信息架构一个字没动：一级页面仍是「本次 Skill」「已安装 Skill」，二级页面仍是唯一的 Skill 详情，四层顺序仍是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。这一版把产品从「观察 Skill → 理解 Skill」推进到「观察 → 理解 → **阅读** → **复刻** → 让当前 DSH Agent 继续使用」。
+
+### 一、已安装 Skill 的卡片整张可点
+
+此前「已安装 Skill」列表里的卡片是一个 `<article>`，**没有任何进入详情的入口**——详情页只对「本次 Skill」可达。现在卡片本身就是按钮：`hover` 轻微边框强调，`click` / `Enter` / `Space` 进入**同一个** `SkillDetailPage`（没有第二套详情页），返回沿用来源感知：从「本次 Skill」进的回本次 Skill，从「已安装 Skill」进的回已安装 Skill。
+
+卡片里**没有**再加一个「查看详情」按钮——两个入口指向同一个动作，其中一个必然显得多余。渲染烟测里有一条断言直接钉住这件事：这个页面的 `button` 总数恰好等于卡片数。
+
+### 二、中文阅读版：从「临时」变成「资产」
+
+`0.6` 之前译文只活在页面内存里，退出 DSH 即消失。现在三层取用：
+
+```text
+页面内存（进程内 Map，按 sessionId）
+      ↓ miss
+本机译文库 <dataRoot>/translations/<sha256(key)>.json
+      ↓ miss
+调用宿主模型翻译 → 写回本机译文库 → 写回内存
+```
+
+- **持久化键是 `skillName + sourceSha256 + targetLanguage`，不含 `sessionId`。** 中文阅读版是资产，不是这次会话的产物——跨会话、跨 DSH 重启复用。
+- **`sourceSha256` 变化即失配。** 换了版本的旧译文**不显示**，界面退回原文并允许重新翻译；旧文件按 `keepPerSkill: 2` 修剪，但**界面只展示与当前指纹一致的那一份**。
+- **保存态必须来自一次真的写入。** `/translate` 的响应里多了一个 `saved` 布尔，界面据它说「✓ 中文阅读版已保存（本地保存）」或「中文阅读版没有保存到本机，下次打开需要重新翻译。」——发起请求、返回 200 都不等于保存成功。
+- 目录权限 `0700`、文件 `0600`、临时文件 + `rename` 原子落盘，写法与既有的收据 / 偏好存储一致。**不写** sessionId、工具参数、工具结果、对话正文、绝对路径。
+
+新增两条路由：`GET /skill-trace/translation`（只返回与当前指纹一致的那一份）与 `DELETE`（精确到三个字段的删除，不做模糊删除）。**这两条路由刻意不接受 `sessionId`**——要求它就等于暗示这份资产属于某次会话。
+
+### 三、复刻 Skill：从一个现有 Skill 创建独立副本
+
+详情页左栏对象区多了一个按钮，**是详情页唯一的对象级动作**（没有并排的 编辑 / 创建 / 优化 / 收藏 / 学习）。点开是一个 560px 的紧凑 Dialog：目标名称、保存范围（当前项目 / 我的 Skill）、复刻内容（完整 Skill / 仅 SKILL.md）、来源与当前指纹。
+
+四条硬规则：
+
+1. **源 Skill 永不修改。** 只读源、只写新目录。`mkdir` **不带 `recursive`**，EEXIST 即冲突——不存在「先删再写」这条路，所以「不覆盖」是文件系统的性质，不是一段记得住的判断。
+2. **`sourceSha256` 必须随请求提交，宿主重新读源再校验。** 前端把读过的旧正文直接交给宿主写入是被禁止的。不一致 → `409 source-changed`，界面说「来源 Skill 已经变化，请重新打开详情页再复刻。」
+3. **目标已存在时不覆盖**，提示「Skill 名称已存在，请更换名称。」，由用户改名；不自动编号，也没有绕过保护的覆盖确认。
+4. **只做 `read` / `copy` / `write` / `verify`。** 不执行 Skill 里的 `scripts/`，不跑 bash / Python，不触发 Skill，不触发 Agent，不动 workspace 里的其它文件。
+
+副本的 frontmatter `name:` 会被改写成目标名。这不是可选步骤：DSH 认的是 frontmatter 而不是目录名（`parseSkillFile`），不改这一行，副本会以源名字注册，两个同名 Skill 在 registry 里打架；`SkillRegistry.get` 甚至会在加载到的名字与候选名不符时直接返回 `undefined`。
+
+**完成后必须 read-back 再报成功。** 顺序是 `write → read-back → registry 校验 → success`，点击成功、Toast、200 响应都不算。成功面板给的是：写到哪个范围、文件数、目录刷新状态、来源是否被改动（**重新读源比对哈希**，不靠断言）、`limitations`、以及 `调用方式 /<name>` + 一个只写剪贴板的复制按钮。目录刷新是**观察**出来的——插件拿不到 provider 的 `invalidate`，只能轮询 registry；观察不到就写「Skill 已写入 Skill 目录，目录刷新状态待确认。重启 DeepSeek Harness 后一定可见。」**不返回、不显示任何本地绝对路径。**
+
+新增 `POST /skill-trace/clone`，错误码按状态分档：`400` 参数 / 名字不合法、`404` 源不存在、`409` 指纹不一致或目标已存在、`422` 定义读不出或 bundle 不可靠、`500` 写入失败。**每一条错误都写清发生了什么、怎么恢复**，没有一句 `Clone failed`。
+
+### 四、复刻落到哪个目录：读出来的，不是假定的
+
+目录体系直接对齐 `@deepseek-ai/dsh-skill-filesystem` 的真实实现顺序：`<projectRoot>/.dsh/skills`（100）→ `<projectRoot>/.agents/skills`（200）→ `customSkillDirs`（300）→ `<dshHome>/skills`（400，`skipSystem`）→ `<agentsHome>/skills`（500）→ bundled（600）。`projectRoot` 是最近的含 `.git` 的祖先，不是 cwd。
+
+- **项目级**写 `<projectRoot>/.dsh/skills`。
+- **用户级优先写用户已经在用的那个根**：本机 `~/.agents/skills` 里有真实的用户 Skill 而 `~/.dsh/skills` 是空的，所以用户级复刻落在 `~/.agents/skills` 旁边，而不是另起一个没人看的目录。两个都不存在时用 `<dshHome>/skills`。
+- **扁平文件形态必须识破。** Skill 可以是 `<root>/<name>.md`，此时 `resourceBase.path` 指的是 **skills 根目录本身**——把它当成 bundle 会把别的 Skill 一起复制走。判据是 `basename(resourceBase.path) === <skill name>` 且该目录下有 `SKILL.md`；不成立时选「完整 Skill」会被拒，并明确说「当前无法确认完整资源目录，因此无法复刻完整 Skill。可以改选「仅 SKILL.md」。」
+- **符号链接不跟进副本**，被跳过并在 `limitations` 里记录原因。
+
+### 五、为什么不用 `ctx.fs` 写
+
+`ctx.fs` 的抽象面上**没有 `mkdir`**，而且 `workspace-write` 只允许写 `workspaceRoot` / `/tmp` / `tmpdir()` 之下——用户级 Skill 目录在它之外。所以复刻写入用的是 `node:fs/promises`，与仓库里既有的收据 / 偏好存储同一条路。
+
+### 六、工程数字
+
+| 项 | 值 |
+|---|---|
+| 测试 | **429 项全绿**（原 397，+32） |
+| 静态守卫 | **23 组**（数量不变；`TRANSLATION_MEMORY_ONLY_OK` 改写成 `TRANSLATION_PERSISTENCE_OK`） |
+| 宿主路由 | **7 → 10 条**（新增 `GET`/`DELETE /skill-trace/translation`、`POST /skill-trace/clone`） |
+| 客户端源码 | `src/dsh/client/client.js` **1970 → 2332 行** |
+| 宿主源码 | `src/dsh/host/index.js` **775 → 1106 行** |
+| bundle | `dist/client.js` **108839 → 129280 字节** |
+| 新增模块 | `src/storage/translation-store.mjs` 208 行 · `src/core/skill-clone.mjs` 213 行 · `src/core/skill-clone-path.mjs` 70 行 · `src/storage/skill-clone-writer.mjs` 297 行 |
+| 运行时依赖 | **仍然为空** |
+
+### 七、守卫改名而不是删除
+
+`TRANSLATION_MEMORY_ONLY_OK` 原本钉住「译文落盘即违规」。这一版**故意推翻了那条规则**，所以守卫必须跟着改写——但改的是**它守什么**，不是把它删掉。新的 `TRANSLATION_PERSISTENCE_OK` 允许写，钉住的是**哪些东西不许写进去**：
+
+- `translationStoreKey` 的实现体里不得出现 `session`；
+- `persistTranslation({…})` 的头 600 字符里不得出现 `sessionId`；
+- 持久化模块里必须有 `0o700` / `0o600` / `rename(` / `FORBIDDEN_RECORD_FIELDS`；
+- `/skill-trace/translate` 的响应路径上必须真的出现 `saved: await persistTranslation(`；
+- 而 `src/core/skill-translation.mjs` **一个字都不许落盘**（`receipt` / `localStorage` / `sessionStorage` / `writeFile` / `receiptStore` 依旧禁用）。
+
+守卫数量保持在 23 —— 删掉一条守卫等于删掉一次真实事故的教训。
+
+### 八、真机验收推翻的三件事
+
+单元测试全绿并不能证明复刻在真实 Skill 上说得对。拿**真实目录**里的 `character-asset-kit`（473 个文件 / 23 MB，自己带一个 `.git`）走一遍完整复刻，29 项检查里有 3 项暴露了「测试测不到、只有真数据才会出现」的缺陷：
+
+- **`.git` 内部被当成了「被跳过的内容」。** `walkBundle` 会走进 `.git`，387 个条目逐个被记成 `excluded-directory`，`skippedCount` 一路传到界面——一个正常的 git 仓库里的 Skill 会显示「跳过 431 个条目」。修法是在遍历的第一行就 `if (CLONE_SKIPPED_DIRECTORIES.includes(child.name)) continue`：`.git` / `node_modules` **不进也不记**，它们不是这个 Skill 的内容，不该出现在「跳过了多少」这句话里。`selectCloneEntries` 自己的 `excluded-directory` 判据保留，因为调用方仍可能递进来一份原始清单。
+- **没拷全的整包被说成了完整整包。** 16 MB 上限砍掉了 44 个文件，而界面写的是「复刻内容：完整 Skill（42 个文件）」，`bundle-truncated-by-limit` 只在小字 `limitations` 里。现在这一行由 `truncated` 决定，截断时改说「完整 Skill 没有拷全（已复制 N 个文件，M 个超过单次复刻上限）」——**一句「完整」在文件没拷全的时候是假话**。
+- **同一段小字里在给用户看裸错误码。** `limitations` 之前是直接把 `bundle-truncated-by-limit` 这类字符串渲染出来的，违反「不许显示裸错误码」。四个复刻相关的 code 补进了 `SKILL_LIMITATION_TEXT`；另有一组 `CLONE_LIMITATION_RESTATED`（`absolute-paths-withheld` / `catalog-refresh-observed` / `catalog-refresh-not-observed` / `source-reread-did-not-match`）被过滤掉，因为上面正文已经把它们说成人话了——同一件事说两遍会把一句话读成两句话。
+
+顺带修掉一个只在**这台机器**上才暴露的选择错误：`resolveCloneRoot` 原本只按 DSH 的排名挑**存在**的根，而 `~/.dsh/skills` 存在但是空的、`~/.agents/skills` 里躺着二十多个真 Skill，于是用户级复刻落进了那个空目录——DSH 能发现它，但不在用户 Skill 待的地方。现在分两级：**先挑真的有 Skill 的根**（`populated-dsh-user-root` / `populated-agents-user-root`），再退到「存在但空」（`existing-…`），最后才用默认路径。判据由新增的 `looksLikeSkillRoot()` / `probePopulatedRoots()` 从目录内容实测出来，不是按路径名猜的。
+
+这一节修完：测试 428 项全绿，守卫 23 组不变，真机脚本 29/29。
+
+### 九、重启 DSH 之后的十七步真机验收
+
+上面那轮是拿真实数据喂**真宿主模块**；这一轮是打**真在跑的进程**（`http://127.0.0.1:3080`），不 mock、不打桩。宿主缓存的是模块不是版本，所以重启前 `/skill-trace/translation` 与 `/skill-trace/clone` 都是 404——**重启是这一步的前置条件，不是可选项**。
+
+源用 `~/.agents/skills/character-asset-kit`（473 个文件、自带 `.git`），落在 user scope，跑完自己清掉。结果：
+
+- **三道新门都开了**：`GET /skill-trace/translation` 200、`POST /skill-trace/clone` 对空体回 400（`GET /clone` 仍 404——它是 POST-only，这是对的）。
+- **参数校验四连全是 400 而不是 500**：大写名字 / 目标名等于源名 / 非法 `targetScope` / 非法 `sourceSha256`。
+- **指纹过期 → 409**，响应带 `currentSha256`，消息是「来源 Skill 已经变化，请重新打开详情页再复刻。」——说清了发生什么和怎么恢复。
+- **真实复刻一次成功**：`verified:true`（来自回读，不是来自点击）、`fileCount` 是真实数字、`pathKind` 是 `user-agents`（两级根规则在真机上确实挑中了真有 Skill 的那个根）、`invocation` 是 `/character-asset-kit-probe`、`sourceUnchanged:true`、响应里**没有任何绝对路径**。
+- **落盘核对**：副本 `SKILL.md` 真的在、frontmatter 的 `name:` 已改成目标名、**正文与源逐字一致**、`references/` 跟过来了、`.git` 没被拷进来。
+- **源 473 个文件逐个哈希比对，一个都没变**。
+- **同名第二次 → 409**「Skill 名称已存在，请更换名称。」，原副本**一个字节都没变**（没有先删后写），目标只存在一次。
+- **目录发现**：复刻后 `catalog` 里真的出现了新名字，且源的定义指纹没变；`/skill-trace/skills` 没被新路由打破。
+- **中文阅读版走了一遍完整往返**（用 454 字节的 `lark-vc`，一次真实模型调用，7.3 秒）：翻译前 GET → `null`；`POST /translate` → `saved:true`；GET 读回同一份译文；落盘目录自动创建且权限 `0700`、文件 `0600`；**换个指纹读回 `null`**（旧译文绝不当作当前译文）；换语言删是 `deleted:false` 而 zh-CN 不动；精确三字段删 → `deleted:true`，删完再读 → `null`。
+- **落盘记录的键恰好是** `schemaVersion, skillName, sourceSha256, targetLanguage, translation, chunkCount, fallbackChunks, fallbackReasons, model, truncated, createdAt, updatedAt`——**没有 `sessionId`、没有源正文、没有 `args`/`result`/`messages`/`conversation`**。这是「键里不含会话」那句话在磁盘上的样子。
+
+两个当场没过的断言，复查后都是**验收脚本自己写窄了**，不是产品缺陷：其一把 409 消息的匹配正则限定成「指纹 / 版本 / 不一致」，而实际文案是「来源 Skill 已经变化……」（更好的那句话）；其二无条件去 `stat` 译文目录，而它只在第一次真实写入时才创建——`DATA_ROOT` 本身（`~/.dsh/skill-trace`）一直是 `0700`。两条都已按实际情况改判。
+
+一个操作层面的教训：真机复刻留下的副本位于**工作区之外**的用户 Skill 目录，沙箱会拒绝删除它（`EPERM`），必须单独放行才能清掉——而只要它还在，它就会出现在真实的 Skill 列表里。验收脚本一定要显式清理，并且清理本身要被验证。
+
+### 十、顶栏收薄：去掉底板与分隔线，高度 68px → 48px
+
+用户看真机截图时指着「本次 Skill / 已安装 Skill」那一行说：「这个背景占用太多高度，去掉这个背景后下方数据上移，这样就能多一些垂直空间出来。」随后在同一轮里又补了四件事，其中一件是「本次 Skill 跟已安装 Skill 下方那条横线，我觉得也不需要了」。
+
+那句话里有两件事，第二件才是重点：**顶栏原来是一块自己画底色的横条**（`background:var(--st-layer)`），底色的边界让这一行读起来像一块独立的板子；而它真正占的高度（68px）里，分段控件只用了 36px，**剩下 32px 是纯空白**。
+
+改法是两件一起做：去掉 `background`，高度由 68px 收到 **48px**（36px 控件 + 上下各 6px），水平内边距按 `design.md` §6.1 从 18px 回到 16px。同一轮里连 `border-bottom` 也去掉了——**顶栏现在就是一行浮在页面上的内容，既没有底板也没有分隔线**。它上面是宿主的标签条、下面是页面自己的内容，两边本来就有边界，这条线是多余的。
+
+守卫跟着改了两条、加了一条，加的那两条都是**反向**的：
+
+- `§22: the top bar is 48px` —— 原来钉 68px。这个数字的历史本身就是教训：它更早被钉成 72px（两份文档都没有的数字），后来才对齐到 v0.6 设计文档的 68px。
+- `§22: the top bar must not paint its own background` —— 守的是「那块底板不许回来」。
+- `§22: the top bar must not draw its own separator` —— 守的是「那条线也不许回来」。用户的要求是去掉，那么「有没有」就该由守卫说，而不是靠下次改动时的自觉。
+
+**同一轮里的另外四件事：**
+
+- **搜索图标移到搜索框右侧、框内。** 输入框改成 `padding:0 34px 0 11px` 把右侧让出来，图标用绝对定位放进 `.st-search-icon`，并加了 `pointer-events:none` —— 一个只做标记的图标不该抢走点击。
+- **状态行只在有话要说时出现。** 已安装列表**在一切正常时整格留空**（连状态点一起）：删掉的「可发现 N 个 Skill」和下面的卡片说的是同一件事，再报一次是把列表读成统计。但**失败与不确定一句都没删**——「正在读取当前环境…」「已安装 Skill 读取失败 · 宿主可能仍在运行旧版本」「当前目录无法确认 · 只显示已确认的部分」「目录可能不完整 · 已发现 N 个 Skill」全部保留。**「一切正常」是唯一可以静默的情况，因为那时没有信息可加。**
+- **刷新按钮保留，但只留图标。** 目录是带缓存的，装完 / 删完 Skill 需要一个手动重取的入口，所以按钮不能删；删的是它自己画的底板。这里牵出一个真问题：**`.st-icon-button` 此前一条 CSS 规则都没有**——它只出现在 JSX 的 `className` 里，整套外观都来自宿主对 `button` 的默认样式。现在补齐了宽高、居中、透明底、悬停与禁用态。
+- **分段控件不再有容器底色与描边，只有选中项有底。** 容器的灰底会把两个选项一起压灰，去掉之后 `--st-accent-soft` 的选中态才亮得起来。这里有一处**不改就会立刻坏**的连带：选中态原本用 `--st-layer`，而它映射到宿主 `--dsw-alias-bg-layer-1`，**与页面底色是同一个颜色**——容器底板一去掉，原来的选中块就彻底看不见了。
+
+**守卫红了一条，改的是代码不是守卫。** `npm run verify` 报 `Error: client contract missing (outside the dictionary): 工作区未连接`：契约钉住的那句话只活在刚被删掉的那一行里。**没有删断言，而是把兜底挪到活下来的那一行** —— 顺带修掉一个潜伏的缺陷：`sessionStatus` 一直在没有兜底地插值 `data.workspaceLabel`，字段缺失时会渲染出 `undefined · N 个 Skill · M 次加载`。
+
+`design.md` §6.1 的「最小高度 58px」随之修订为 **48px**，并新增一条「**状态行只在有话要说时出现**」把上面四句不可省的状态写死；「与下方内容的分界是一条 `1px` 分隔线」那句旧描述已被本轮推翻。`AGENTS.md` §6.5 的那条数值约束同步为「顶栏高度固定 48px，且既不画自己的底色、也不画自己的分隔线」。
+
+工程数字：客户端 `src/dsh/client/client.js` **2261 → 2284 行**，bundle `dist/client.js` **124506 → 125485 字节**；测试 428 项、守卫 23 组不变。
+
+### 十一、搜索进顶栏，选中态只留字
+
+用户接着提了两条：「**搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，那搜索框宽度可以再缩小一点，不需要这么长**」「**本次 Skill 跟已安装 Skill 选中的时候不用背景框，没必要，只要那个字体高亮就行，这样整个就鲜亮一点**」。
+
+**搜索框从正文第一行搬进顶栏右侧**，位置在刷新按钮左边。查询状态本来就在 `Workbench` 里（`installedQuery`），所以这次只搬了输入框、没有搬状态：`InstalledSkillsPage` 的签名去掉 `onQueryChange`，它不再渲染搜索框，但 `query` 仍然驱动页面里的过滤——**过滤留在页面里，输入框只负责把字符串交上去**。
+
+它**只在已安装列表出现**（`view === 'installed' && !openSkill && catalogMeta && !catalogMeta.error`）：详情页收起，目录读不到时也不出现。理由与上一轮删状态行是同一条——**一个过滤不了任何东西的输入框，会把一次失效伪装成一个功能**。
+
+宽度 `520px → 220px`，高度对齐同一行的两个 `30px` 控件：搜索是「名称或描述的几个词」的窄输入，横跨半屏只会把那一行读成一张表单。窄屏（`≤760px`）再让位到 `140px`——这一行里只有它可以让，让不动的话被裁掉的是刷新按钮，而刷新是那一行最后一个动作。
+
+**选中态从色块改成纯字色 + 字重**：`--st-accent-soft` 底板换成 `--st-brand` + `font-weight:600`。这一行里已经有两层底色在互相抵消（顶栏与页面），给选中态再加一块色会让两个入口看起来像一排标签而不是一句话；去掉之后选中项自己亮得起来。
+
+**顺带修掉一个潜伏的崩溃。** 新写的渲染测试传了一份没有 `invocation` 的载荷，`InstalledSkillGrid` 直接在 `undefined` 上取属性抛 `TypeError: Cannot read properties of undefined (reading 'modelInvocable')`。宿主投影（`installed-view.mjs`）总会把 `invocation` 归一化成对象，所以**任何真载荷都碰不到它**——但这个组件是纯 props 的，而 `conversation.view` **没有错误边界**，一次抛错就是整个标签页空白（`AGENTS.md` §6.11）。改成 `skill.invocation?.modelInvocable` / `skill.invocation?.userInvocable`。
+
+**新增一条反向测试**（`test/client-render-smoke.test.mjs`）：断言搜索框只有一个输入框、`st-search-icon` 只有一个且在输入框**之后**、`onChange` 把值原样交给 `onQueryChange`；并断言 `InstalledSkillsPage` 渲染出的输入框数为 **0**。最后这条是这条测试真正的价值——搬走之后如果原地还留着一份，界面上会有两个搜索框（一个能用、一个不能），而源码里两处 `className` 完全同名，**任何字符串断言都看不出来**。
+
+工程数字：客户端 `src/dsh/client/client.js` **2284 → 2314 行**，bundle `dist/client.js` **125485 → 126947 字节**；测试 **428 → 429**，守卫 23 组不变；§27 圆角/分隔比 3.10。
+
+### 十二、卡片描述截到 4 行
+
+用户第四条：「**Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行。描述介绍，现在有些是多的，十行八行都有，这没必要显示那么多，用户可以点进去，进行一看，查看详情**」。
+
+`.st-installed-card-desc` 与 `.st-skill-card-desc` 一起拿到同一个四行上限（`display:-webkit-box` + `-webkit-box-orient:vertical` + `-webkit-line-clamp:4` + `line-clamp:4` + `overflow:hidden`）。**两个列表都截**，因为用户说的判据是「统一」——只截一个，同一份描述在两页里会有两种长度，读者会以为是两份不同的描述。
+
+这条截断**不丢信息，也不是「少显示」**，理由是它截的位置：
+
+- **描述是预览，不是内容。** 有的 Skill 描述十行八行，卡片被它撑成一整个段落，一屏放不下几张卡；而**整张卡片就是详情页的入口**，完整描述点进去一眼可看。截断没有藏起任何读者过不去的地方。
+- **它是纯视觉的。** `-webkit-line-clamp` 只影响绘制，DOM 里的文本一个字不少——读屏软件读到的仍是完整描述，卡片的可访问名也不受影响。这是它和「渲染前把描述切成 200 字」的根本区别：后者是真的丢字。
+- **只截描述。** 卡片标题（Skill 名）与元信息行不截——名称被切掉一半，读者会以为那个 Skill 就叫这个名字。
+
+**新增守卫**（`scripts/verify-project.mjs`，紧跟在顶栏分隔线那条反向守卫之后）：对两个类名各自断言规则存在、`-webkit-line-clamp:4` 存在、`overflow:hidden` 存在，三句错误分别是「missing the … rule」「must clamp the description to 4 lines」「clamps to 4 lines but does not hide the overflow」。不写成一条正则，是因为**「截到 4 行」和「截了但溢出还露在外面」是两种坏法**，分开报才能一眼看出是哪种。守卫组数不变（23 组，加在既有组内）。
+
+**踩回一个已经写进 `AGENTS.md` §6.4 的坑。** 第一版 CSS 注释里为了说明机制，把属性名放进了反引号（「`` `-webkit-line-clamp` `` 只影响绘制」）。`installStyles()` 是模板字面量，**那个反引号直接把整份样式表提前结束了**，后面的中文被当成 JavaScript 解析，运行时抛 `ReferenceError: webkit is not defined at installStyles`，**13 个测试同时红**（整族 `client-render-smoke`）。`node --check` **没有**拦住它——那份源码是语法合法的 JavaScript，错的是字符串的边界。修法是把注释里的反引号去掉。§6.4 早就写着这一条，这次是「知道规则但没把规则当成改注释时也要执行的动作」。
+
+工程数字：客户端 `src/dsh/client/client.js` **2314 → 2321 行**，bundle `dist/client.js` **126947 → 127888 字节**；测试 **429**，守卫 23 组不变；§27 圆角/分隔比仍为 3.10。
+
+### 十三、卡片元信息行钉底，列表贴近顶栏
+
+用户第五条：「**下方 Skill 列表向上移，距离搜索框跟搜索顶框高度一致就可以了**」「**模型可调用这块变成固定在左下，没必要根据描述向上响应**」。
+
+**① 列表与顶栏之间不再留第二条空白带。** 顶栏自己是 `48px` 高、里面放一个 `30px` 的控件，上下各余 `9px`。列表再隔 `22px` 才开始，两者之间就出现一条**谁都不认领的空白**——它既不属于顶栏，也不属于内容，只是把整页往下推。已安装列表的顶部内边距 `22px → 10px`（左右与底部没动：那三面没有参考物可比）。
+
+**② 元信息行（模型可调用 / 可用 /name 调用 / filesystem）钉在卡片左下角。** 网格默认把同一行的卡片拉到等高，元信息行原来只跟着描述走，于是它停在描述下面、离卡片底边还差一大截：**描述短的卡片看上去像没写完，而且同一行两张卡的「模型可调用」还不在同一条水平线上**——读者扫一列卡片时找不到可以对齐的东西。`margin-top:auto` 吃掉的正是那段空白。
+
+两个列表都改（判据同上一轮的「统一」）。本次 Skill 列表那张卡多一处细节：它的正文列**没有 `gap`**，而 `auto` 外边距在**没有多余空间时会解析成 0**，只写 `margin-top:auto` 会让元信息行贴到描述上，所以同时给了 `padding-top:10px`——间距不能只靠一个「有富余时才生效」的值撑着。
+
+**③ 新增三条守卫**（`scripts/verify-project.mjs`，紧随描述截断那组之后）：两个元信息行各有 `margin-top:auto`，本次 Skill 那张另有 `padding-top:10px`；外加一条钉住列表顶部内边距的 `padding:10px 24px 28px`。**守卫守的是「旧行为不许回来」**——后两条守的都是这次修正本身，防止下一次改样式时把「描述多长就离多远」改回去。
+
+**④ 两个一级列表从此从同一个位置开始。** 用户接着指出：「**本次 Skill 列表跟已安装 Skill 列表应该是平行的，也就是本次 skill 现在太低了，要参考已安装 Skill 列表的高度向上移一点**」。上一轮只把已安装列表收到 `10px`，本次 Skill 那一页还是旧的 `padding:20px 22px 28px` —— 两个入口共用同一条顶栏，来回点时第一张卡片却横竖各跳一下（纵向 10px、横向 2px）。现在 `.st-page` 与 `.st-installed` 的内边距**逐字相同**（`10px 24px 28px`），并新增第四条守卫钉住这个相等关系：**「两页对齐」不是两个各自合适的值碰巧相等，而是一条要守的合同**——只改一页就会红。
+
+工程数字：客户端 `src/dsh/client/client.js` **2321 → 2332 行**，bundle `dist/client.js` **127888 → 129280 字节**；测试 **429**，守卫 23 组（加在既有组内）；§27 圆角/分隔比仍为 3.10。
+
+### 十四、知识库对齐（**没有产品改动**）
+
+`0.7.0` 收口时做了一遍知识与实现对账。**这一节记录的不是功能，而是「文档说的」与「代码做的」之间被抹平的差距**——列在这里是为了让后来的人知道 `README.md` / `04-product-requirements.md` / `docs/ARCHITECTURE.md` / `05-technical-design.md` 在这一天被动过，以及**为什么动它不算改需求**。测试数、守卫数、bundle 字节、行数与上一节完全相同。
+
+**① 四处「现在有多大」还停在上一个数量级。** 状态类数字最容易被漏掉，因为它们散在正文里而不是标题旁边：
+
+| 位置 | 原值 | 现值 |
+|---|---|---|
+| `README.md:173` | 客户端源码 2233 行，bundle 123123 字节 | **2332 行 / 129280 字节** |
+| `README.md:270`（`0.7.0` 版本史） | 客户端 1970 → 2233 行 | **1970 → 2332 行** |
+| `docs/ARCHITECTURE.md:277` | about 2233 lines… about 123 KB | **about 2332 lines… about 126 KB** |
+| `docs/ARCHITECTURE.md:609` | 约 2233 行、约 123 KB | **约 2332 行、约 126 KB** |
+
+`04-product-requirements.md` §12.3 的「客户端预算」还停在 `**当前 1962 行**，bundle 421 KB → **106 KB**`、`397 项自动化测试`——它是**预算**却写着两版以前的实测值，等于没有基准，已同步为 **2332 行 / 129280 字节（约 126 KB）/ 429 项**。
+
+**② 「译文只在内存」在五处仍然读起来像现行规则。** v0.7 把中文阅读版从临时结果改成落盘资产（`FR-UI-047` → `FR-UI-060`），但这条旧规则的本体还活在别的地方。**做法是加日期标记、不重写历史句**：`FR-UI-033`（唯一的落盘例外）、§8.2 中文预览段、V0.2 流程图注、§17.1（「禁止任何形式的暂存或落盘」——这一条已被推翻，不是被放宽），以及 `05-technical-design.md:219`。`05-technical-design.md` 按 `AGENTS.md` §5 的约定是**历史各节不回写**，只加「（v0.7 已取代本节这一条）」，并说明 `translation-cache.mjs` 降级成页面内的第一层缓存。
+
+> 判据：**被取代的规则要留下痕迹，不能消失。** 直接删掉它，后来的人就看不出「这里曾经立过一条相反的规矩、又被什么推翻了」——那正是 `FR-UI-047` 标题里那句「v0.7 部分取代」想保住的信息。
+
+**③ `AGENTS.md` 的「现在在做什么」补到四段。** 原来只有 `039e275` 与 `0.6.0` 两条，`0.7.0` 的五轮界面收口只在 `CHANGELOG.md` 里，入口文件读起来像这个版本没发生过事。头部「最后更新」由 `2026-10-01` 改为 `2026-10-05`，§1 的数字（`0.7.0` / 429 项 / 23 组 / 2332 行 / 129280 字节 / 10 条路由）**本来就对，没有改**。
+
+**故意没动的地方**：`04-product-requirements.md` §18 的 `0.20`–`0.26` 修订行、`docs/RELEASE.md` 的 `0.6.1` 发布表、`README.md` 里 `beta.69` / `0.6.0` / `0.6.1` 的版本史——**它们是各自那一轮的准确记录，改掉才是错。**
+
 ## 0.6.1 — 2026-10-01 · `SKILL.md` 面板不再被框架层压成 2px
 
 **一次客户端补丁。** 信息架构、宿主接口、路由数量都没动：一级页面仍是「本次 Skill」「已安装 Skill」，二级页面仍是唯一的 Skill 详情，四层顺序仍是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。发布范围与 `0.5.0` / `0.6.0` 不同：**GitHub 与 npm 同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.6.1`。中间那两版只在 GitHub，所以 npm 的版本号是从 `0.4.0-beta.66` 直接跳过来的。
