@@ -132,7 +132,21 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
-### 6.0 本次 `v0.6.0` 的实际结果（2026-10-01 已执行）
+### 6.0 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
+
+| 项 | 结果 |
+|---|---|
+| 发布提交 | `b3bc500 release: v0.6.1 — SKILL.md 面板不再被框架层压成 2px`（`package.json` `0.6.1`） |
+| `origin/main` | `b3bc500744dc1ced6365c31fe87f1bc19f8c000d` —— 与本地 `main` **0 领先 / 0 落后** |
+| tag | `v0.6.1` → 注释对象 `dee6a27926abab3fc1deb91dcc263893c9a3fd63`，解引用到 `b3bc500`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-trace/releases/tag/v0.6.1>（`Latest`，`prerelease=false`、`draft=false`），正文取 `CHANGELOG.md` 的 29 行 `## 0.6.1` 段 |
+| npm | `beta` 与 `latest` **仍都是 `0.4.0-beta.66`** —— §5 整节按计划跳过，这是**已知状态**不是漂移 |
+| 本地门槛 | 397 项测试全绿；全部守卫 OK（含 `RELEASE_ASSETS_IN_SYNC_OK`——它先抓到了 README 安装示例还写着 `#v0.6.0`）；重建后 `dist/client.js` 108839 字节（source hash `88295843d1d2553e`） |
+| 活体验证 | 运行中的宿主在 `http://127.0.0.1:3080/plugins/?…dsh-skill-trace/client.js…` 返回的合并 bundle（200、5.59 MB）里 grep 到 `flex:0 0 auto;height:min(72vh,640px)`——**这一版是纯客户端改动，这条规则就是它的指纹**。注意客户端 bundle 由 DSH 插件加载器读取，插件自己**不**暴露 client 路由：`/skill-trace/client.js` 与 `/plugins/dsh-skill-trace/client.js` 都是 404，别拿它们当探针；宿主路由 `/skill-trace/context` 与 `/skill-trace/catalog` 都是 200 |
+| 渲染台实测 | `.st-detail-doc` 高度 **2px → 640px**，内部滚动区 clientHeight **24 → 539** / scrollHeight 4233；主内容区 scrollHeight 3399 |
+| README 五张截图 | 用 Chrome for Testing 以真实 1600×1050 视口重拍后转 jpg：`skill-list.jpg` 69384B / `installed-skills.jpg` 334705B / `skill-detail.jpg` 266250B / `skill-detail-table.jpg` 289567B / `skill-detail-zh.jpg` 335350B |
+
+### 6.0.1 上一版 `v0.6.0` 的实际结果（2026-10-01）
 
 | 项 | 结果 |
 |---|---|

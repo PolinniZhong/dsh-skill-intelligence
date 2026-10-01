@@ -21,12 +21,12 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`0.6.0`**（`package.json`）· tag `v0.6.0` · 2026-10-01 · **只发 GitHub** · 已推送并建 Release（发布提交 `9e9e6b3`） |
+| 插件包版本 | **`0.6.1`**（`package.json`）· tag `v0.6.1` · 2026-10-01 · **只发 GitHub** · 已推送并建 Release（发布提交 `b3bc500`） |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-trace`（分支 `main`）· `main` 与 `origin/main` 同步 |
-| npm | **停在 `0.4.0-beta.66`**（`beta` 与 `latest` 都指向它）。`0.5.0` 与 `0.6.0` **都只发 GitHub**，所以「npm 落后」是**已知状态，不是漂移** |
+| npm | **停在 `0.4.0-beta.66`**（`beta` 与 `latest` 都指向它）。`0.5.0`、`0.6.0` 与 `0.6.1` **都只发 GitHub**，所以「npm 落后」是**已知状态，不是漂移** |
 | 测试 | **397 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
 | 静态守卫 | **23 组**（`npm run verify`，见 §6.3） |
-| 客户端 | `src/dsh/client/client.js` **1967 行**，bundle `dist/client.js` **108468 字节** |
+| 客户端 | `src/dsh/client/client.js` **1970 行**，bundle `dist/client.js` **108839 字节** |
 | 宿主机面 | **7 条路由**，全在 `src/dsh/host/index.js`，由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
 | 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节） |
@@ -423,7 +423,7 @@ git rev-parse origin/main && git ls-remote origin refs/tags/vX.Y.Z
 ```
 
 - **`RELEASE_ASSETS_IN_SYNC_OK` 会钉住** README 的「当前公开版为 `x`」与 `github:` 安装示例的 `#vx` 锚点。曾经 README 落后 49 个版本。
-- **npm 安装示例锚定的是 npm 上真实存在的版本**（`0.4.0-beta.66`），不是最新版——因为 `0.5.0` / `0.6.0` 都只发了 GitHub。
+- **npm 安装示例锚定的是 npm 上真实存在的版本**（`0.4.0-beta.66`），不是最新版——因为 `0.5.0` / `0.6.0` / `0.6.1` 都只发了 GitHub。
 - **`npm publish` 从本地 `git HEAD` 读 `gitHead`。** 先发后推、或用 Git-data API 推（会生成不同 sha）会留下**永远 404** 的 commit 链接。**顺序是硬规则：先推成功 → 确认本地/远端对齐 → 最后才 publish。**
 - **tag 打在发布提交上**（推送时 `main` 的顶端）。历史上 `bc78e53` 的 tag 落在 `HEAD` 之前 9 个提交处，照 commit message 找位置会漏掉之后 9 个提交。
 - GitHub Release 的正文**直接从 CHANGELOG 取**，不要另写一份——两份说明一定会漂移。
