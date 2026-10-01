@@ -963,6 +963,29 @@ console.log('VISUAL_TOKENS_OK')
   console.log('PREFERENCE_VERSION_OK')
 }
 
+// --- v0.6 §12.4：译文只允许活在页面内存里 -----------------------------------
+// 这条约束没有任何自然反馈：往 receipt 里多写一个字段，界面上一切照旧，只有去翻
+// ~/.dsh/skill-trace/receipts/*.json 才会发现 Skill 正文的中文副本躺在了磁盘上。
+// 所以钉两条——翻译路由不碰任何存储，翻译核心根本不认识存储。
+{
+  const start = host.indexOf("url.pathname === '/skill-trace/translate'")
+  if (start === -1) throw new Error('v0.6 §13: the host must expose POST /skill-trace/translate')
+  const nextRoute = host.indexOf('url.pathname ===', start + 10)
+  const route = host.slice(start, nextRoute === -1 ? undefined : nextRoute)
+  for (const forbidden of ['store.write', 'syncReceipt', 'preferenceStore.write', 'cache.set', '.append(']) {
+    if (route.includes(forbidden)) {
+      throw new Error(`v0.6 §12.4: a translation must never be persisted, but the route calls ${forbidden}`)
+    }
+  }
+  const core = await readFile(resolve(root, 'src/core/skill-translation.mjs'), 'utf8')
+  for (const forbidden of ['receipt', 'localStorage', 'sessionStorage', 'writeFile', 'receiptStore']) {
+    if (core.includes(forbidden)) {
+      throw new Error(`v0.6 §12.4: the translation core must not know about ${forbidden}`)
+    }
+  }
+  console.log('TRANSLATION_MEMORY_ONLY_OK')
+}
+
 // --- 发布资产的版本一致性 ---------------------------------------------------
 // README 是**发布资产**，不是随手笔记：它的"当前版本"与安装示例会直接被人复制。
 // 实测漂移过一次——`package.json` 已到 0.4.0-beta.52，README 还写着"当前公开预发布版为

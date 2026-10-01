@@ -27,6 +27,13 @@ import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
 import { buildFingerprintReservation } from '../../core/runtime-fingerprint.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
 import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
+import {
+  buildTranslationMessages,
+  compareTranslationSource,
+  DEFAULT_TRANSLATION_LANGUAGE,
+  inspectTranslation,
+  TRANSLATION_ERROR,
+} from '../../core/skill-translation.mjs'
 import { buildSessionSkillList, buildSkillDetail } from '../../core/skill-view-model.mjs'
 import { createBackupStore } from '../../storage/backup-store.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
@@ -419,6 +426,40 @@ export function skillEvidenceSignature(receipt) {
   return `${traces.length}|${settled}|${receipt?.catalogPublicationCount ?? 0}|${receipt?.catalogPublished?.seq ?? ''}`
 }
 
+/**
+ * §12.5：一次辅助模型调用，用于生成当前页面的临时中文预览。
+ *
+ * 照 `@deepseek-ai/dsh-session-title-llm` 的官方模式自己造 messages 并消费
+ * `ctx.llm.stream`。区别是**什么都不写回会话**：它把请求追加进 session log
+ * （`session/title-llm-request`），而 §12.4 要求译文只活在页面内存里，所以这里既不传
+ * `sessionId` 给路由、也不 append 任何 session 事件，更不会往用户对话里插一条消息。
+ *
+ * `@deepseek-ai/dsh-llm` 用动态 import：解析失败只会让翻译不可用，不会让整个宿主插件
+ * 起不来 —— 它是一个能力，不是一个启动依赖。
+ */
+async function translateSkillDefinition({ llm, selection, skillName, definitionText, targetLanguage }) {
+  const { BlockAssembler, createUserMessage } = await import('@deepseek-ai/dsh-llm')
+  const built = buildTranslationMessages({ skillName, definitionText, targetLanguage })
+  const messages = [createUserMessage({
+    content: [{ type: 'text', text: built.messages[0].content }],
+    source: { kind: 'dsh-skill-trace-translate' },
+  })]
+  const request = {
+    provider: selection.provider,
+    model: selection.model,
+    messages,
+    system: built.system,
+    maxTokens: 8192,
+  }
+  if (selection.reasoningEffort) request.reasoningEffort = selection.reasoningEffort
+  const assembler = new BlockAssembler()
+  for await (const chunk of llm.stream(request)) assembler.push(chunk)
+  const blocks = assembler.blocks()
+  // 只取文本块。模型若返回 tool-call，那段内容不属于译文，忽略即可 —— 后面的结构校验
+  // 会因为段落缺失而拒绝这份结果。
+  return blocks.filter((block) => block.type === 'text').map((block) => block.text).join('')
+}
+
 export function apply(ctx, config = {}) {
   ctx.inject(['webServer', 'sessions', 'agents'], (webCtx) => {
     const dataRoot = typeof config.dataRoot === 'string' && config.dataRoot.trim() ? config.dataRoot.trim() : null
@@ -760,6 +801,78 @@ export function apply(ctx, config = {}) {
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
               definition,
               observation: compareDefinitionToRun(receipt, skillName, definition),
+            })
+            return
+          }
+
+          // v0.6 §13：翻译。整条路径只读定义、只回一次结果。
+          //
+          // 这里刻意**不**落盘、不写 receipt、不动偏好文件：§12.4 要求译文只存在页面运行时
+          // 内存里，退出插件即消失。所以响应之后宿主不再持有它，客户端刷新页面也就没有了。
+          if (method === 'POST' && url.pathname === '/skill-trace/translate') {
+            const body = await readBody(req)
+            const sessionId = requiredSessionId(body.sessionId)
+            const skillName = requiredSkillName(body.skillName)
+            const sourceSha256 = typeof body.sourceSha256 === 'string' ? body.sourceSha256.trim() : ''
+            if (!sourceSha256) throw new Error('sourceSha256 必填')
+            const targetLanguage = typeof body.targetLanguage === 'string' && body.targetLanguage.trim()
+              ? body.targetLanguage.trim().slice(0, 40)
+              : DEFAULT_TRANSLATION_LANGUAGE
+            const { registry, liveAgent, cwd } = registryContext(sessionId)
+            const definition = await buildSkillDefinitionView(registry, skillName, { cwd, scope: liveAgent, now: Date.now() })
+            if (!definition.available) {
+              sendJson(res, 422, { ok: false, code: TRANSLATION_ERROR.DEFINITION_UNAVAILABLE, error: '无法读取这个 Skill 的定义。' })
+              return
+            }
+            // §15：请求必须带指纹，且必须和当前正文对得上。正文过长时客户端可能拿到的是
+            // 截断后那一段的 hash，两个都认，但绝不接受"没有 hash 就当同一个"。
+            const sameAsFull = compareTranslationSource({ requestedSha256: sourceSha256, currentSha256: definition.content.sha256 }) === 'match'
+            const sameAsReturned = definition.content.truncated === true && sourceSha256 === definition.content.returnedSha256
+            if (!sameAsFull && !sameAsReturned) {
+              sendJson(res, 409, { ok: false, code: TRANSLATION_ERROR.DEFINITION_CHANGED, error: 'Skill 内容已变化，请重新翻译。' })
+              return
+            }
+            const llm = webCtx.get('llm')
+            const selection = webCtx.get('agentDefaultModel')?.currentSelection?.()
+            if (!llm || typeof llm.stream !== 'function' || typeof selection?.provider !== 'string' || typeof selection?.model !== 'string') {
+              sendJson(res, 429, { ok: false, code: TRANSLATION_ERROR.MODEL_BUSY, error: '当前没有可用的模型服务，稍后再试。' })
+              return
+            }
+            let translation = ''
+            try {
+              translation = await translateSkillDefinition({
+                llm,
+                selection,
+                skillName: definition.skillName,
+                definitionText: definition.content.text,
+                targetLanguage,
+              })
+            } catch {
+              sendJson(res, 500, { ok: false, code: TRANSLATION_ERROR.TRANSLATION_FAILED, error: '翻译失败，可以重试。' })
+              return
+            }
+            // §14 是硬规则，不是提示词里的愿望。模型改动了围栏、URL、路径或标题层级时，
+            // 宁可返回失败也不能把一份改坏结构的文档当成"中文预览"交给用户。
+            const check = inspectTranslation({ source: definition.content.text, translation })
+            if (!check.ok) {
+              sendJson(res, 502, {
+                ok: false,
+                code: TRANSLATION_ERROR.TRANSLATION_FAILED,
+                error: '这份翻译改动了文档结构，已丢弃。可以重试。',
+                violations: check.violations.map((violation) => violation.rule),
+              })
+              return
+            }
+            sendJson(res, 200, {
+              ok: true,
+              skillName: definition.skillName,
+              sourceSha256: definition.content.sha256,
+              targetLanguage,
+              model: `${selection.provider}/${selection.model}`,
+              // 正文被截断时译文也只覆盖可见部分，必须让界面说清楚。
+              truncated: definition.content.truncated === true,
+              translation,
+              preserved: check.preserved,
             })
             return
           }
