@@ -430,6 +430,25 @@ export function compareTranslationSource({ requestedSha256, currentSha256 } = {}
 }
 
 /**
+ * 每一段译文的**首尾空白按原文还原**。
+ *
+ * 这一条是 2026-10-01 的真实故障换来的：段与段之间的空行在 `chunkMasked` 里算作上一段的
+ * 尾随空白，而模型几乎总会把它的输出 trim 掉。八段拼起来时，上一段的正文与下一段的
+ * `## 标题` 粘成一行 —— `^#{1,6}\s` 不再匹配，**28 个标题变成 21 个**，最后那道整篇
+ * 校验报 `heading`，用户看到的还是「这份翻译改动了文档结构，已丢弃。可以重试。」。
+ *
+ * 段级校验抓不到它：**每一段单独看都是对的，坏的是接头**。
+ */
+export function reanchorChunk({ source, translation } = {}) {
+  const original = text(source)
+  const produced = text(translation)
+  if (!original.trim() || !produced.trim()) return original
+  const lead = (original.match(/^\s*/) || [''])[0]
+  const trail = (original.match(/\s*$/) || [''])[0]
+  return lead + produced.replace(/^\s+/, '').replace(/\s+$/, '') + trail
+}
+
+/**
  * 分段翻译的**策略**部分，与 DSH 无关：`ask` 是注入的，所以真实的 `llm.stream` 与
  * 一个说假话的假模型走的是同一段代码。
  *
@@ -444,15 +463,21 @@ export async function runSegmentedTranslation({
   targetLanguage = DEFAULT_TARGET_LANGUAGE,
   ask,
   attempts = 2,
+  chunkBudget = CHUNK_CHAR_BUDGET,
 } = {}) {
   if (typeof ask !== 'function') throw new Error('ask 必须是函数')
   const { masked, tokens } = maskProtected(definitionText)
-  const chunks = chunkMasked(masked)
+  const chunks = chunkMasked(masked, chunkBudget)
   const pieces = []
   const fallbackIndexes = []
 
+  const fallbackReasons = []
+
   for (const chunk of chunks) {
     let accepted = null
+    // 为什么这一段最后回退了。界面要能说出原因 —— 「有 3 段没翻成」而不说为什么，
+    // 用户只能靠猜；上一次真实故障就是被这一句话盖住的。
+    let lastRule = 'empty'
     for (let attempt = 0; attempt < attempts && accepted === null; attempt += 1) {
       let produced = ''
       try {
@@ -462,13 +487,15 @@ export async function runSegmentedTranslation({
       }
       const verdict = checkChunk({ source: chunk.source, translation: produced, tokens })
       if (verdict.ok) accepted = produced
+      else lastRule = verdict.rule
     }
     if (accepted === null) {
       // 回退的是**掩码态**原文，稍后与其它段一起还原，所以围栏与路径仍然是逐字的。
       fallbackIndexes.push(chunk.index)
+      fallbackReasons.push({ index: chunk.index, rule: lastRule })
       pieces.push(chunk.source)
     } else {
-      pieces.push(accepted)
+      pieces.push(reanchorChunk({ source: chunk.source, translation: accepted }))
     }
   }
 
@@ -477,6 +504,7 @@ export async function runSegmentedTranslation({
     chunkCount: chunks.length,
     fallbackChunks: fallbackIndexes.length,
     fallbackIndexes,
+    fallbackReasons,
   }
 }
 

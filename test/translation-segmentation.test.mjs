@@ -8,14 +8,20 @@ import {
   buildChunkMessages,
   checkChunk,
   chunkMasked,
+  headingLevelsOf,
   inspectTranslation,
   maskProtected,
+  reanchorChunk,
   restoreProtected,
   runSegmentedTranslation,
 } from '../src/core/skill-translation.mjs'
 
 /**
  * 这组用例守的是 0.4.0-beta.69 的一个真实故障：翻译在真实应用里**一次都没成功过**。
+ *
+ * 2026-10-01 又加了一条：**接头**也会丢结构。段与段之间的空行在 `chunkMasked` 里算作
+ * 上一段的尾随空白，模型几乎总会 trim 掉它，于是上一段的正文与下一段的 `## 标题` 粘成
+ * 一行 —— 28 个标题变 21 个，整篇校验报 `heading`，而每一段单看都是对的。
  *
  * 原因不是模型、不是 `ctx.llm`、也不是网络 —— 是这一层把 §12.4「不得修改结构」实现成了
  * 「整篇必须完美」：31174 字符、336 行、28 个标题的定义一次性翻译，模型必然会动到标题层级、
@@ -238,4 +244,64 @@ test('a model that eats every placeholder cannot corrupt a code fence', async ()
   assert.ok(result.translation.includes('node scripts/build-client.mjs'), 'the command is still verbatim')
   assert.ok(result.translation.includes('this line must never be translated'), 'the comment inside the fence too')
   assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
+})
+
+test('a trimmed segment cannot glue two lines together', () => {
+  // 这一段单独看完全合法：标题层级不变、占位符一个不少。它毁掉的是**接头**。
+  const source = '## Motion\n\nUse prefers-reduced-motion.\n\n'
+  const trimmed = '## 动效\n\n使用 prefers-reduced-motion。'
+  const anchored = reanchorChunk({ source, translation: trimmed })
+  assert.ok(anchored.endsWith('\n\n'), 'the blank line that separates segments comes back')
+  assert.deepEqual(headingLevelsOf(anchored), headingLevelsOf(source))
+
+  // 反过来：模型原地返回（只 trim 过）时，拼接结果必须逐字节等于原文。
+  const glued = reanchorChunk({ source, translation: source.trim() })
+  assert.equal(glued, source)
+})
+
+test('the junctions survive a model that trims every segment', async () => {
+  // 模型 trim 输出是常态而不是异常；把预算压小，这样 fixture 会长出真正的接头。
+  const budget = 90
+  const ask = async ({ chunk }) => chunk.source.trim()
+  const result = await runSegmentedTranslation({
+    definitionText: DEFINITION,
+    skillName: 'ui-craft',
+    ask,
+    chunkBudget: budget,
+  })
+  assert.ok(result.chunkCount > 1, 'the fixture has to actually be split, or this proves nothing')
+  assert.equal(result.fallbackChunks, 0, 'trimming is not a reason to fall back')
+  assert.deepEqual(
+    headingLevelsOf(result.translation),
+    headingLevelsOf(DEFINITION),
+    'a trimmed segment must not swallow the heading that starts the next one',
+  )
+  assert.ok(
+    inspectTranslation({ source: DEFINITION, translation: result.translation }).ok,
+    'and the whole document still passes the last gate',
+  )
+})
+
+test('a fallback says which rule it failed, not just that it failed', async () => {
+  // 「有 3 段没翻成」不解释原因，等于把诊断推给用户 —— 上一次真实故障就是这么被盖住的。
+  const headingBreaker = async ({ chunk }) => chunk.source.replace(/^## /m, '### ')
+  const broken = await runSegmentedTranslation({
+    definitionText: DEFINITION,
+    skillName: 'ui-craft',
+    ask: headingBreaker,
+    chunkBudget: 90,
+  })
+  assert.ok(broken.fallbackChunks > 0)
+  assert.deepEqual([...new Set(broken.fallbackReasons.map((entry) => entry.rule))], ['heading'])
+  assert.equal(broken.fallbackReasons.length, broken.fallbackChunks, 'every fallback has exactly one reason')
+
+  // 抛错的段没有「规则」可报，只能报 empty —— 不能说成是模型改坏了结构。
+  const thrower = async () => { throw new Error('model exploded') }
+  const gone = await runSegmentedTranslation({
+    definitionText: DEFINITION,
+    skillName: 'ui-craft',
+    ask: thrower,
+    chunkBudget: 90,
+  })
+  assert.deepEqual([...new Set(gone.fallbackReasons.map((entry) => entry.rule))], ['empty'])
 })

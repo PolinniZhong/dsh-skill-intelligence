@@ -655,6 +655,9 @@ export function apply(ctx, config = {}) {
               // 比看到「翻译失败」更糟 —— 那是在无声地骗他。
               chunkCount: result.chunkCount,
               fallbackChunks: result.fallbackChunks,
+              // 只说**为什么**，规则名是我自己的词表（heading / placeholder / empty），
+              // 不带模型名、不带路径、不带段落原文。
+              fallbackReasons: result.fallbackReasons.map((entry) => entry.rule),
             })
             return
           }

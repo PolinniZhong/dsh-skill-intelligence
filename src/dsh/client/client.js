@@ -94,7 +94,32 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     return h('svg', props, ...(paths[name] || paths.info))
   }
 
-  function installStyles() {
+  // 回退原因的词表很小，而且是**我自己的**分类，不是模型的自我描述。未知规则不加括号，
+// 宁可少说也不猜。
+function fallbackReasonSuffix(rules) {
+  const words = [...new Set((Array.isArray(rules) ? rules : []).map((rule) => TRANSLATION_RULE_TEXT[rule]).filter(Boolean))]
+  return words.length ? `（${words.join('、')}）` : ''
+}
+
+function fallbackReasonSuffixEn(rules) {
+  const words = [...new Set((Array.isArray(rules) ? rules : []).map((rule) => TRANSLATION_RULE_TEXT_EN[rule]).filter(Boolean))]
+  return words.length ? ` (${words.join(', ')})` : ''
+}
+
+/** 段级校验的三个规则名到人话。 */
+const TRANSLATION_RULE_TEXT = {
+  heading: '标题层级被改动',
+  placeholder: '受保护的片段被改动',
+  empty: '模型没有返回内容',
+}
+
+const TRANSLATION_RULE_TEXT_EN = {
+  heading: 'a heading level changed',
+  placeholder: 'a protected span changed',
+  empty: 'the model returned nothing',
+}
+
+function installStyles() {
     const previous = document.getElementById(STYLE_ID)
     const style = document.createElement('style')
     style.id = STYLE_ID
@@ -777,6 +802,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
             error: '',
             chunkCount: Number(body?.chunkCount) || 0,
             fallbackChunks: Number(body?.fallbackChunks) || 0,
+            fallbackReasons: Array.isArray(body?.fallbackReasons) ? body.fallbackReasons : [],
           })
         })
         .catch((reason) => {
@@ -905,9 +931,11 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
         ? h('p', { className: 'st-translate-error' }, raw(localized('翻译没有完成。可以重试，原文不受影响。', 'Translation did not finish. You can retry; the original is unaffected.')))
         : translation.state === 'ready' && translation.fallbackChunks > 0
           // 部分成功也要说清楚，并给出段数：用户能自己数出哪几段还是英文。
+          // 2026-10-01 起还要说**为什么** —— 上一次真实故障只报「有几段没成功」，
+          // 原因只能靠事后跑探针才看出来，那是把诊断成本推给了用户。
           ? h('p', { className: 'st-translate-error' }, raw(localized(
-            `有 ${translation.fallbackChunks} 段没有翻译成功，那几段显示的是原文。其余已翻译。`,
-            `${translation.fallbackChunks} section(s) could not be translated and are shown in the original language; the rest is translated.`,
+            `有 ${translation.fallbackChunks} 段没有翻译成功${fallbackReasonSuffix(translation.fallbackReasons)}，那几段显示的是原文。其余已翻译。`,
+            `${translation.fallbackChunks} section(s) could not be translated${fallbackReasonSuffixEn(translation.fallbackReasons)} and are shown in the original language; the rest is translated.`,
           )))
           : null
 

@@ -634,12 +634,18 @@ console.log('VISUAL_TOKENS_OK')
 // 界面真的有那句话。
 {
   const core = await readFile(resolve(root, 'src/core/skill-translation.mjs'), 'utf8')
-  for (const expected of ['runSegmentedTranslation', 'maskProtected', 'restoreProtected', 'checkChunk', 'PLACEHOLDER_OPEN']) {
+  for (const expected of ['runSegmentedTranslation', 'maskProtected', 'restoreProtected', 'checkChunk', 'reanchorChunk', 'PLACEHOLDER_OPEN']) {
     if (!core.includes(expected)) throw new Error(`the translation core must export ${expected}`)
   }
   // 定义存在不等于用上了：掩码必须真的在策略入口处被调用。
   if (!/runSegmentedTranslation[\s\S]{0,600}maskProtected\(definitionText\)/.test(core)) {
     throw new Error('runSegmentedTranslation must mask the definition before it asks the model anything')
+  }
+  // 2026-10-01 的第二次真实故障在**接头**上：模型 trim 掉段尾空行之后，上一段的正文与
+  // 下一段的 `## 标题` 粘成一行，28 个标题变 21 个，整篇校验报 `heading`。段级校验看不见它，
+  // 因为每一段单看都是对的。所以这里要求拼接时按原文还原首尾空白。
+  if (!/reanchorChunk\(\{ source: chunk\.source, translation: accepted \}\)/.test(core)) {
+    throw new Error('a segment must be re-anchored to its own blank lines before it is joined, or the headings stick together')
   }
   const route = host.slice(host.indexOf("url.pathname === '/skill-trace/translate'"))
   for (const expected of ['result.fallbackChunks', 'chunkCount']) {
@@ -647,6 +653,14 @@ console.log('VISUAL_TOKENS_OK')
   }
   if (!clientCode.includes('fallbackChunks')) {
     throw new Error('the client must say how many segments fell back to the original')
+  }
+  // 只说「有几段没成功」而不说为什么，等于把诊断成本推给用户：上一次真实故障里，
+  // 界面上那句话与真正的原因（接头吞掉了空行）之间隔着一整轮探针。
+  for (const expected of ['result.fallbackReasons', 'fallbackReasons']) {
+    if (!route.includes(expected)) throw new Error(`the translation route must report ${expected}`)
+  }
+  if (!clientCode.includes('fallbackReasonSuffix') || !/TRANSLATION_RULE_TEXT\s*=\s*\{/.test(clientCode)) {
+    throw new Error('the client must translate a fallback rule into a reason the user can read')
   }
   console.log('TRANSLATION_SEGMENTED_OK')
 }
