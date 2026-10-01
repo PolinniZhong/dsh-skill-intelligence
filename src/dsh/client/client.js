@@ -16,18 +16,18 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
   const EN = {
-    '当前会话': 'Current session', '我的 Skill': 'My Skills',
-    '本次 Skill 使用记录': 'Skill usage this session', 'Skill 收据': 'Skill receipt',
+    '当前会话': 'Current session',
+    '本次 Skill 使用记录': 'Skill usage this session',
     'Skill 追踪': 'Skill Trace', '刷新': 'Refresh',
     '工作区未连接': 'No workspace connected', '正在读取当前会话…': 'Reading current session…',
     '当前目录无法确认': 'Current catalog cannot be confirmed', '目录可能不完整': 'Catalog may be incomplete',
     '返回 Skill 列表': 'Back to Skill list', 'Skill 列表': 'Skill list',
     '搜索 Skill': 'Search Skills', '重试': 'Retry',
-    '删除': 'Delete', '保存': 'Save',
+    '保存': 'Save',
     '当前对话暂未加载可追踪的 Skill。': 'No traceable Skill has been loaded in this conversation yet.', '正在读取当前对话的 Skill 使用情况…': 'Reading Skill usage in this conversation…',
     '当前视图没有可用的会话 ID': 'No session ID is available for this view.', '本次 Skill': 'Skills in this run',
-    '本次加载的 Skill': 'Skills loaded in this run', '高级': 'Advanced',
-    '运行图谱': 'Runtime graph', '定义可用': 'Definition available',
+    '本次加载的 Skill': 'Skills loaded in this run',
+    '定义可用': 'Definition available',
     '未找到定义': 'No definition found', '注册表不可用': 'Registry unavailable',
     '定义状态未知': 'Definition status unknown', '指令指纹比对': 'Instruction fingerprint',
     '无法比对': 'Cannot be compared', '一致': 'Match',
@@ -987,33 +987,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
           : localized('当前环境暂未发现可用的 Skill。', 'No Skill is discoverable in this environment.')))
   }
 
-  /** §15: the tabs offered depend on what is selected, not one shape for everything. */
-  const INSPECTOR_TAB_LABELS = {
-    evidence: '运行证据',
-    relations: '关联关系',
-    declaration: '声明 ↔ 实际',
-    relation: '关系证据',
-    // §15/§38：学习与验证是 Skill Inspector 的第三个 Tab。**此前这个键不存在**，
-    // 于是 `raw(INSPECTOR_TAB_LABELS['learning'])` 得到 undefined——那个 Tab
-    // 渲染成空标签：面板有内容，用户却看不到入口叫什么。
-    learning: '学习验证',
-  }
-
-  /** §16: what a declaration note means, in the only vocabulary allowed here. */
-  /**
-   * 声明 ↔ 实际 (§16).
-   *
-   * The whole point is what is *not* here: no compliance rate, no percentage, no
-   * skill score. Only the evidence state of each declared step, and the sentence
-   * saying what that state does and does not mean.
-   */
-  /**
-   * §14: a contextual inspector.
-   *
-   * What it shows follows the selection — an edge is evidence for a relation, a
-   * Skill carries its declaration, anything else carries its relations. Nothing is
-   * fixed to the side of the page while the user is reading a run.
-   */
   function Workbench(props) {
     React.useSyncExternalStore(
       (listener) => localeService.subscribe(listener),

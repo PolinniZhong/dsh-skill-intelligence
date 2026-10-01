@@ -492,6 +492,20 @@ if (!client.includes('body?.list ?? null')) throw new Error('the client must unw
   }
 }
 
+// --- 文案必须有人读：字典里的每个键都要在字典之外被真用上 --------------------------
+// 这是同一种失败的第三种形态。第 5 步之后 `EN` 字典里留着五个界面早就不再渲染的词
+// （`我的 Skill`、`Skill 收据`、`高级`、`运行图谱`、`删除`），而它们之所以看起来还活着，
+// 只是因为**注释里提到了它们** —— 注释不是消费者。第 5 步删掉 `正在读取当前目录…` 那句时
+// 已经踩过一次：那条断言之所以一直通过，全靠死键还留在字典里（`client.includes()` 一样命中）。
+// 一条靠死文案维持的断言，和一个没有断言的 marker，是同一种失败：输出说「检查过了」，其实没有。
+const dictKeys = [...client.slice(dictStart, dictEnd).matchAll(/'((?:[^'\\]|\\.)+)':\s*'/g)].map((m) => m[1])
+const clientCodeOnly = clientCode
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^[ \t]*\/\/.*$/gm, '')
+  .replace(/(?<!:)\/\/[^\n'"]*$/gm, '')
+const unreadCopy = dictKeys.filter((key) => !clientCodeOnly.includes(key))
+if (unreadCopy.length) throw new Error(`client dictionary keys no code reads (comments are not consumers): ${unreadCopy.join(', ')}`)
+
 // 这一行一行都是**结论**，不是清单。每个 marker 都必须有上面一段仍然存在的断言撑着：
 // 一个没有断言的 marker 会在输出里说「这条契约成立」，而实际上没有人检查过它。
 // 第 5 步删页面时就踩过一次——断言块随页面删掉了，marker 却留了下来，
@@ -501,6 +515,7 @@ if (!client.includes('body?.list ?? null')) throw new Error('the client must unw
 // 而它们守的界面早就不存在了。**删断言块时，同一次改动里删掉它的 marker。**
 console.log('PROJECT_STRUCTURE_OK')
 console.log('CLIENT_CONTRACT_OK')
+console.log('CLIENT_COPY_LIVE_OK')
 console.log('SOURCE_PRIVACY_FIELDS_OK')
 console.log('LEGACY_LEARNING_FIELDS_OK')
 console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')
