@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**`0.6.0`**（`CHANGELOG.md` 的标题已是 `0.6.0 — 2026-10-01 · Skill 详情拆成四层`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+当前待发布版本：**`0.6.1`**（`CHANGELOG.md` 的标题已是 `0.6.1 — 2026-10-01 · SKILL.md 面板不再被框架层压成 2px`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
 
 ---
 
@@ -12,18 +12,18 @@
 | 项 | 值 |
 |---|---|
 | 本地 `HEAD` | 见 `git log --oneline -1`；本条之后还有文档提交 |
-| `origin/main` | `fd950fe docs: the project described three products, and only one of them exists` —— 本地领先 **4** 个提交，尚未推送 |
-| 远端最新 tag | `v0.5.0`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.5.0^{}`） |
-| npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`）——落后远端两个版本，见下 |
-| 工作区 | 有未提交改动（客户端、核心模块、文档、`dist/`）——全部属于本次发布 |
+| `origin/main` | `e0b4a8a docs: 知识库入口写清 v0.6.0 已经推上去了` —— 本地领先 **1** 个提交（`0.6.1` 的客户端修复 + 版本与文档），尚未推送 |
+| 远端最新 tag | `v0.6.0`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.6.0^{}`） |
+| npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`）——落后远端三个版本（`0.5.0` / `0.6.0` / `0.6.1`），见下 |
+| 工作区 | 有未提交改动（`src/dsh/client/client.js` 的一条 CSS 规则、重建的 `dist/`、五张 `docs/images/*.jpg`、README 与 CHANGELOG）——全部属于本次发布 |
 
-**第一个要决定的事是版本号，不是命令 —— 这次已经定下来了：`0.6.0`。** 这一版是 `0.5.0` 之后的功能增强（Skill 详情重做成四层——「Skill 框架」不再是那条声明流程，另加「本次运行逻辑」与「步骤证据」；Markdown 渲染新增 GFM 表格），按语义该进 minor。代价是 **`0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格的版本）撞车**——两者同时出现在一句话里会互相吞掉。当时另一个候选 `v0.5.1` 读起来不冲突，代价是把一个新增能力放进 patch。**这次选了 `0.6.0`，是显式决策**（理由写在 `CHANGELOG.md` 这一版的第二段）。落点必须逐字相同：`package.json`、`CHANGELOG.md`、tag 三处。
+**第一个要决定的事是版本号 —— 这次是 `0.6.1`。** 改动只有一处客户端布局（`SKILL.md` 面板从 2px 恢复成有高度、内部自己滚动），宿主接口、路由、信息架构都没动，按语义是 patch。理由写在 `CHANGELOG.md` 这一版第一段。落点必须逐字相同：`package.json`、`CHANGELOG.md`、tag 三处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
 
-**第二个要决定的事是 npm —— 这次仍然只发 GitHub。** `v0.5.0` 当时也只发了 GitHub，所以 npm 上仍是 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指着它。要把 npm 追上来，发布范围就从「一个版本」变成「补三个版本」（v0.5.0、v0.6.0 与它们中间的 `beta.67`–`.69`），`--tag latest` 会跳过全部 v0.5.0 的内容；**本次把 §5 整节当不存在，别执行一半。**
+**第二个要决定的事是 npm —— 这一版仍然只发 GitHub。** `0.5.0`、`0.6.0`、`0.6.1` 都只发 GitHub，所以 npm 上仍是 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指着它。要把 npm 追上来，发布范围就从「一个版本」变成「补四个版本」，`--tag latest` 会跳过全部 v0.5.0 的内容；**本次把 §5 整节当不存在，别执行一半。**
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 
-`CHANGELOG.md` 的 `Unreleased` 段已经把新增能力、证据词表的设计理由与工程数字都写进去了，GitHub Release 的 notes 直接取它，**不要另写一份**；发布时把标题里的 `Unreleased` 换成版本号与日期即可——`v0.6.0` 已按此执行（标题现为 `## 0.6.0 — 2026-10-01 · Skill 详情拆成四层…`，Release 正文就是它的前 69 行）。
+`CHANGELOG.md` 的新版本段已经把症状、改法、实测数字与发布范围都写进去了，GitHub Release 的 notes 直接取它，**不要另写一份**；发布时把标题里的内容原样带过去即可。
 
 ---
 
@@ -61,8 +61,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.6.0 — Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格"
-git tag -a v0.6.0 -m "v0.6.0"
+git commit -m "release: v0.6.1 — SKILL.md 面板不再被框架层压成 2px"
+git tag -a v0.6.1 -m "v0.6.1"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -73,7 +73,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.6.0
+git push origin v0.6.1
 ```
 
 推送曾经失败过一次——`fatal: unable to access '…': Error in the HTTP2 framing layer`。当时可用的做法是
@@ -81,19 +81,19 @@ git push origin v0.6.0
 
 ```bash
 git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.6.0
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.6.1
 ```
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.6.0`。
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.6.1`。
 
 ---
 
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.6.0 \
-  --title "v0.6.0 — Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格" \
-  --notes-file <(sed -n '/^## 0.6.0/,/^## 0.5.0/p' CHANGELOG.md | sed '$d')
+gh release create v0.6.1 \
+  --title "v0.6.1 — SKILL.md 面板不再被框架层压成 2px" \
+  --notes-file <(sed -n '/^## 0.6.1/,/^## 0.6.0/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。
@@ -103,14 +103,14 @@ gh release create v0.6.0 \
 
 ## 5. npm 发布
 
-**本次跳过**：`0.5.0` 与 `0.6.0` 都只发布到 GitHub。npm 上的 `dsh-skill-trace` 停在 `0.4.0-beta.66`，
-`beta` 与 `latest` 两个标签都指向它——README 已经照实这么写，所以「npm 落后两版」是**已知状态**，不是漂移。
+**本次跳过**：`0.5.0`、`0.6.0`、`0.6.1` 都只发布到 GitHub。npm 上的 `dsh-skill-trace` 停在 `0.4.0-beta.66`，
+`beta` 与 `latest` 两个标签都指向它——README 已经照实这么写，所以「npm 落后三版」是**已知状态**，不是漂移。
 
 将来要补发这一版时：
 
 ```bash
 npm publish --tag latest                        # 该版本从未发布过时
-npm dist-tag add dsh-skill-trace@0.6.0 latest   # 版本已发布、只想挪标签时
+npm dist-tag add dsh-skill-trace@0.6.1 latest   # 版本已发布、只想挪标签时
 ```
 
 **不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未
@@ -159,8 +159,8 @@ lsof -p "$(cat ~/.dsh/.harness.pid)" | grep -o '\.dsh/profiles/[a-z0-9-]*' | sor
 ### 6.2 往**上一步查到的** profile 安装
 
 ```bash
-# 0.5.0 不在 npm 上，所以用 github: 写法（与 README 的安装示例一致）
-dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.6.0&path:/"
+# 0.5.0 及之后都没有发布到 npm，所以用 github: 写法（与 README 的安装示例一致）
+dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.6.1&path:/"
 ```
 
 ### 6.3 版本一致

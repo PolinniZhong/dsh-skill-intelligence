@@ -454,7 +454,10 @@ function installStyles() {
       .st-detail-fact span{color:var(--st-muted)}
       .st-detail-fact code{font-size:11.5px;color:var(--st-text)}
       .st-detail-repo-link{display:inline-block;margin-top:2px;color:var(--st-accent);font-size:12px;font-weight:600}
-      .st-detail-doc{min-width:0;flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);overflow:hidden}
+      /* v0.6.1：文档面板不再用 flex:1 去抢"剩余高度"。框架层长到 1811px 之后剩余高度是负数，
+       * 面板被压成 2px —— 中文预览、GFM 表格都在这个面板里，等于整层看不到。
+       * 改成面板自己留高度（视口内取 72vh，封顶 640px），内部的目录与正文各自滚动。 */
+      .st-detail-doc{min-width:0;flex:0 0 auto;height:min(72vh,640px);display:flex;flex-direction:column;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);overflow:hidden}
       .st-detail-doc-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--st-border)}
       .st-detail-doc-title{min-width:0;flex:1}
       .st-detail-doc-title strong{font-size:13px}
