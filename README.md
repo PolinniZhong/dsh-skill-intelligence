@@ -286,12 +286,23 @@ npm pack --dry-run
 
 ## 相关文档
 
-- [Design system](design.md) — Skill Trace 后续 UI 的视觉、交互与验收权威
-- [Architecture](docs/ARCHITECTURE.md) — 事件、收据和目录的实现边界
-- [Privacy](docs/PRIVACY.md) — 本地数据边界与报告注意事项
-- [Release checklist](docs/RELEASE.md) — 发版、发布后校验与「我装好了 ≠ 它在跑」
+**要改这个插件，先读这三份，顺序不要换：**
+
+1. [产品需求](04-product-requirements.md) — 产品语义的**唯一权威**：目标、业务对象、状态语义、范围与验收标准。产品上说不清的，都该在这里先写清楚
+2. [技术设计 §0](05-technical-design.md) — **当前架构**（模块分层、客户端结构、两条硬约束）。第 1 节往后是 V0.1–V0.5 的历史，带着 §0 的时效性表读
+3. [Architecture](docs/ARCHITECTURE.md) — 运行时那条链：事件 → 收据 → 定义视图，以及每一步的边界
+
+**动手前后各看一眼：**
+
+- [Design system](design.md) — 视觉、交互与验收权威。改样式前必读
+- [设计系统](design.md) — 视觉、组件合同与验收权威
+- [Release checklist](docs/RELEASE.md) — 发版与发布后校验，特别是「我装好了 ≠ 它在跑」
+- [Privacy](docs/PRIVACY.md) / [Security policy](SECURITY.md) — 本地数据边界与报告方式
 - [Changelog](CHANGELOG.md) — 版本变化
-- [Security policy](SECURITY.md) — 非敏感问题报告方式
+
+**验证只有一条命令**：`npm run verify`（377 项测试 + 23 道静态契约守卫）。它不替代真实 DSH Desktop 的人眼走查——那是一份本地清单（`01_重构方案/发布会话验收清单.md`，不随仓库发布）。
+
+> **关于 `01_重构方案/`**：本地规格与验收材料，不随仓库发布。2026-10-02 做过一次清理——描述已删除对象（运行流程 / 运行图谱 / 检查器 / 回放 / 学习工作台）的文档全部移除，索引见其 `README.md`。
 
 ## License
 

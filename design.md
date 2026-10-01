@@ -1,10 +1,10 @@
 ---
 artifact: design-system
 product: dsh-skill-trace
-version: "2.1"
-updated: 2026-09-29
+version: "2.2"
+updated: 2026-10-02
 status: current-authority
-supersedes: "1.5"
+supersedes: "2.1"
 ---
 
 # DSH Skill Trace Design System
@@ -26,15 +26,17 @@ supersedes: "1.5"
 - 运行时事件语义、收据结构、隐私边界与用户验证语义——这些属于 `docs/ARCHITECTURE.md` 与 `docs/PRIVACY.md`，UI 只做投影，不得改动；
 - 具体实现文件结构。
 
-**v2.0 的来源**：`01_重构方案/dsh-skill-trace-Design-Refactor-Governance.md`（46 节实现治理文档）已完成开发并通过验收，其中的稳定规则合并回本文。该治理文档保留为本次治理的历史记录。
+**v2.0 的来源**：一份 46 节的实现治理文档，其稳定规则已合并回本文。该治理文档**已在 2026-10-02 的文档清理中移除**（它描述的是 Runtime Flow 方向）——要查原文用 `git log -p -- design.md`。
 
-**v2.0 的主视觉变化**：界面的第一视觉从 **Skill 收据数据块**转移到 **Runtime Flow（运行流程）**。收据仍然存在，但降为同一批证据的另一种阅读方式。
+**v2.0 的主视觉变化（已废弃）**：界面的第一视觉曾从 **Skill 收据数据块**转移到 **Runtime Flow（运行流程）**。**这个方向在 v0.6 被整体删除**：运行流程 / 运行图谱 / 上下文检查器 / 回放全部移除，`elkjs` 与 `@xyflow/react` 一并卸载。保留这条记录是因为它是下面 v3.0 之所以必要的原因。
 
 **v3.0 的主视觉变化（Skill-first IA）**：界面的第一视觉从 **Runtime Flow** 转移到 **本次使用的 Skill**。Skill 由此成为产品的一级对象：它有自己的定义、声明流程、运行记录、证据与来源。运行流程 / 运行图谱 / Skill 收据降级为 **Advanced** 中的技术视图，不再是第一视觉中心。
 
 这条变化是必要的，因为 v2.0 虽然实现了 Definition Viewer，却把它挂在「本次运行 → 定义视图」之下——用户仍然必须先理解 Turn / Step / Invocation / Runtime Graph / Scope / Edge，才能理解一个 Skill。判定标准：如果用户必须先理解运行模型才能理解 Skill，则 Skill-first 尚未完成。
 
-完整架构与验收见 **`docs/ARCHITECTURE.md` §V5.0 — Skill-first Information Architecture**（公开、随仓库发布）；需求侧见 `04-product-requirements.md`。过程 SDD（`01_重构方案/DSH-Skill-Trace-SDD-Skill-First-IA.md`）留作本地规划记录，**不随仓库发布**，不要当成可点击的来源。
+**v4.0（当前）**：Skill 详情页内部增强——声明流程以「Skill 框架」的形式出现在 `SKILL.md` **之前**，Markdown 表格按 GFM 渲染成真表格。一级 / 二级页面结构不变。
+
+完整架构与验收见 **`docs/ARCHITECTURE.md`**；需求侧见 `04-product-requirements.md`；技术侧见 `05-technical-design.md` §0。当前有效的规格与视觉契约在 `01_重构方案/`（**不随仓库发布，不要当成可点击的来源**）。
 
 ## 2. 设计目标
 
@@ -317,19 +319,17 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 | FilterChip | 短标签 | 横向可滚动，不形成多行按钮墙 |
 | SkillCard | 名称、摘要、最少状态信号 | 一张卡只表达一个 Skill |
 | **ReceiptSection** | 标题、可选计数、可选注解、内容 | **可折叠；不使用编号圆** |
-| **RuntimeCanvas** | 节点、连线、坐标舞台 | 只读；两种密度共用一个渲染器 |
-| **RuntimeNode** | 类型标签、标题、副标题、状态（图标+文字+色） | 位置来自布局，不来自 UI 推断 |
-| **RuntimeInspector** | 标题、含义、**边界**、证据 | 标签页随对象类型变化；关系必须同时说明「不表示什么」。**⚠️ 实现为 Skill → `[运行证据][声明 ↔ 实际][关联关系]`，而治理 §15 要求 `[运行证据][声明 ↔ 实际][学习验证]`，待统一** |
-| **ReplayControls** | 时间范围、步进计数、回放/暂停/上一步/下一步 | **只读**；不得写入收据；不得做成自动播放动画 |
 | **FilterBar** | 类型、主路径、失败/重试、显示全部 | 只做减法；隐藏数量必须显示 |
 | **FingerprintSection** | 六个 Pattern 的位置与来源 | **预留结构**；必须写明「尚未派生」，且区分「未派生」与「未发现」 |
 | InspectorBlock | 标题、说明、局部表单 | 只编辑当前对象 |
 | Notice | 中性底色、边框、解释 | 用于边界，不代替错误 |
 | InlineConfirm | 影响说明、确认、取消 | 优先于 WebView 原生 `window.confirm` |
 | ContinuationCard | 原收据时间、候选步骤、用户记录、人工判断 | 确定性整理；不调用模型、不自动执行 |
-| LocalDataTools | 创建备份、备份历史、打开位置、恢复、清空、结果状态 | 低频折叠；清空前必须形成可验证的安全备份 |
 | LearningGuide | 一句产品价值、文字化步骤、合并后的证据边界 | 仅未选择条目时显示；无编号圆；不使用示例收据 |
 | EmptyState | 准确原因、可选单一动作 | 区分无数据、无匹配、不可读取 |
+| **SkillFramework** | 标题 + 步数、来源副标题、免责说明、`01 → 02 → …` 声明步骤链 | **只标注、不构造**：只读 `flow.steps` 与 `anchors`，不得读 `runs` / `invocations` / `observedNodeIds`。单列、无拖拽、无自动布局 |
+| **FrameworkStep** | 序号、标题、类型胶囊、证据状态 | 状态来自五档词表；`insufficient` 逐字是「暂无足够证据」。标题用 `evidence.limitation` 作 `title` |
+| **MarkdownTable** | 表头 + 数据行 | 表头行与分隔行同时成立才算表；对齐走 `text-align`；外层横向可滚动，长 URL 不撑破容器 |
 
 ## 8. 交互规则
 
@@ -610,19 +610,21 @@ Status 继续满足「**颜色不是唯一信息**」。
 - 中性工具表面 + 内容素材承担视觉丰富度；
 - 候选 / 待确认 / 正式 / 冲突的准确状态表达；
 - 页面内二次确认、列表→详情与随选择出现的 Inspector 模式；
-- **只读运行时画布的实践**：宿主产出视图模型、客户端只做投影、筛选只做减法并报数。
+- **只读投影的实践**：宿主产出视图模型、客户端只做投影、筛选只做减法并报数。（原先还包含"只读运行时画布"，该画布已在 v0.6 删除，这条实践本身仍然成立。）
 
 共享设计系统不等于共享页面布局或业务状态机。
 
 ## 16. 当前实现与证据
 
-- 实现入口：`src/dsh/client/client.js`（客户端）、`src/dsh/host/index.js`（宿主）；
-- Runtime 投影：`src/core/runtime-graph.mjs`、`runtime-layout.mjs`、`runtime-inspector.mjs`、`runtime-replay.mjs`、`runtime-alignment.mjs`、`runtime-fingerprint.mjs`；
-- 产品语义与版本边界：`README.md`；
+- 实现入口：`src/dsh/client/client.js`（客户端，1500 行）、`src/dsh/host/index.js`（宿主，7 条路由）；
+- 定义侧：`src/core/skill-definition.mjs`、`skill-flow.mjs`、`definition-outline.mjs`、`repository-resolver.mjs`、`markdown-table.mjs`、`step-kind.mjs`；
+- 运行时侧：`src/core/runtime-events.mjs`、`runtime-graph.mjs`、`runtime-evidence.mjs`、`runtime-fingerprint.mjs`、`skill-runtime-scope.mjs`、`source-snapshot.mjs`、`session-log.mjs`、`trace-reducer.mjs`；
+- 组合侧：`src/core/skill-view-model.mjs`、`runtime-alignment.mjs`、`flow-evidence.mjs`、`installed-view.mjs`、`skill-translation.mjs`、`translation-cache.mjs`；
+- 产品语义与版本边界：`README.md`；技术设计：`05-technical-design.md` §0；
 - 技术合同：`docs/ARCHITECTURE.md`；
 - 隐私与本地数据边界：`docs/PRIVACY.md`；
 - 版本变化：`CHANGELOG.md`；
-- 本次治理的历史记录：`01_重构方案/dsh-skill-trace-Design-Refactor-Governance.md`。
+- 文档包索引（`01_重构方案/` 里每份文档算不算数）：`01_重构方案/README.md`。
 
 本文描述当前设计合同，不代表所有状态已完成系统级无障碍、真实小屏或全部主题验收。实际验证范围以 README 当前状态和每轮交付说明为准。
 
@@ -630,7 +632,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 
 ## 17. 需求修订记录（2026-09-28）
 
-本轮为**需求修订**，无代码变更。依据 `01_重构方案/preview.html` 复核治理文档，结果见其 **§47**。对本文件的影响：
+本轮为**需求修订**，无代码变更。（当时依据的治理文档与原型已在 2026-10-02 的文档清理中移除。）对本文件的影响：
 
 **已修正**
 
@@ -657,8 +659,12 @@ Status 继续满足「**颜色不是唯一信息**」。
 ```text
 旧：Session ├ Skill Receipt ├ Runtime Flow ├ Runtime Graph ├ Definition └ My Skills
 新：Skill   ├ Definition ├ Declared Flow ├ Runs ├ Evidence └ Repository
-     └ Advanced：Runtime Flow / Runtime Graph / Skill Receipt   └ My Skills
 ```
+
+（`0.4.0-beta.67` 当时把运行流程 / 运行图谱 / 收据降级进 `Advanced`、并把「我的 Skill」留在原处。
+**两个星期后的 v0.6 把这一整层删掉了**——`Advanced`、运行流程、运行图谱、收据页、跨会话学习工作台
+全部移除，`elkjs` 与 `@xyflow/react` 一并卸载。上面那行"新"描述的是 09-30 的中间态，不是当前状态；
+当前状态见 §20。）
 
 **对本文件的实质影响**
 
@@ -669,13 +675,13 @@ Status 继续满足「**颜色不是唯一信息**」。
 **保持不变（本轮刻意不动的边界）**
 
 - 只读观察、不评分、不做因果推断、不持久化 Prompt / Skill 正文 / Tool 输出 / Token / Cookie / 绝对路径 / 项目正文。
-- 运行流程 / 运行图谱 / Skill 收据**不删除**，只降级；画布与布局合同不变。
+- ~~运行流程 / 运行图谱 / Skill 收据不删除，只降级；画布与布局合同不变。~~ **这一条已被 v0.6 推翻**：它们后来被整体删除，见 §20。
 - 声明步骤来源于 Skill 指令结构、不等于 Agent 执行轨迹——这条从 v1.0 起就在，本轮把它上升为架构方向（`Definition → Declared Flow → Evidence`，不可逆）。
 
-完整的架构、路由契约与验收标准见 `docs/ARCHITECTURE.md` §V5.0 与 `docs/RELEASE.md` §7.2；
-过程 SDD 在本地 `01_重构方案/`（不随仓库发布）。
+完整的架构、路由契约与验收标准见 `docs/ARCHITECTURE.md` 与 `docs/RELEASE.md`；
+有效规格在本地 `01_重构方案/`（不随仓库发布）。
 
-**验收范围的更正**：此前的验收覆盖功能与数据层，**不包含视觉工艺**。视觉观感（布局 / 配色 / 密度 / 字体层次）经人工查看后评价为「一般」，尚未达到治理文档 §43 的最终视觉目标。本文件不再宣称该轮已完成视觉验收。
+**验收范围的更正**：此前的验收覆盖功能与数据层，**不包含视觉工艺**。视觉观感（布局 / 配色 / 密度 / 字体层次）经人工查看后评价为「一般」，尚未达到最终视觉目标。本文件不再宣称该轮已完成视觉验收。
 
 ---
 
@@ -704,3 +710,63 @@ React 抛 #310，整个 Skill 标签页消失。
 它同时是一条渲染合同——loading / empty / error 这三条提前 return 路径，
 **不能让后面的 hook 数量与就绪态不同**。守卫见 `docs/RELEASE.md` §7.2 与
 `scripts/verify-project.mjs` 的 `HOOK_ORDER_OK`。
+
+---
+
+## 20. 需求修订记录（2026-10-02）· Skill 框架与 GFM 表格
+
+两处**详情页内部**的增强，一级 / 二级页面结构完全不变。
+
+**一、声明流程升为「Skill 框架」，放在正文之前**
+
+`detail.flow.steps[]` 自 v0.6 起就在视图模型里，客户端从未读过它。现在它是详情页主内容区的第一块：
+竖排 `01 → 02 → 03 → 04`，每步给序号、标题、类型胶囊与**证据状态**。
+
+对本文的实质影响（组件合同已加进 §7 的通用组件表）：
+
+- **状态词只陈述观察**。五档 `observed / partial / intent / insufficient / unknown` 与
+  `ALIGNMENT_RELATIONSHIPS` 一一对应，由 `src/core/flow-evidence.mjs` 冻结。八个结论性词
+  （已执行 / 未执行 / 已完成 / 未完成 / 执行成功 / 执行失败 / 已运行 / 未运行）**不得出现在界面里**，
+  由 `FLOW_EVIDENCE_FORBIDDEN` 列出、由守卫禁止。**`insufficient` 的说法是「暂无足够证据」，不是「未执行」。**
+- **视觉层级要更像"摘要"而不是"画布"**：单列、无拖拽、无缩放、无自动布局。
+  这不是取舍，是**禁止**——`SKILL_FRAMEWORK_OK` 会拒掉 `mermaid` / `@xyflow/react` / `elkjs` / `d3` 等依赖。
+- 点击一步 → 滚动到 `SKILL.md` 对应章节并高亮 700ms（复用已有锚点机制，不新增交互）。
+- 四种空态各有各的话：无声明流程 / 定义不可用 / 单步无证据 / 正文被截断。**不得从运行证据临时造一个流程出来。**
+
+**二、Markdown 表格按 GFM 渲染**
+
+此前 `ui-craft/SKILL.md` 里 101 行以 `|` 开头的内容退化成一串竖线。现在渲染成真 `<table>`（表头 + 分隔行才算表，
+支持左/中/右对齐、单元格内行内代码与链接）。
+
+- **一个渲染器，一个调用点**：原文与中文预览共用 `renderSkillMarkdown`，守卫数调用点数，必须恰好 1。
+- **一个解析器，两个读者**：`src/core/markdown-table.mjs` 同时供渲染与翻译校验使用。
+- 表格样式沿用既有 token（`--st-border-soft` 边框、`--st-layer-2` 表头底、11.5px），未新增语义 token。
+
+**不变**：只读观察、不评分、不做因果推断、不持久化 Prompt / Skill 正文 / Tool 输出 / Token / Cookie / 绝对路径 / 项目正文。
+
+---
+
+## 21. 缺陷修订记录（2026-10-02）· "提示成功，但用户看到的是英文"
+
+中文预览从上线起连败五次，每一次的原因都不同，而**前四次都被判成"成功"**。记在这里，
+因为它给本文加了一条比视觉规则更硬的约束。
+
+**第五次的根因**：`checkChunk` 只校验结构（占位符、标题层级、表格形状），**不校验语言**。
+模型把整段原文原样返回时，结构与原文逐字相同，于是每一道校验都通过，界面显示"已翻译"。
+
+```text
+源文（英文） ──► 模型原样返回 ──► 结构校验全过 ──► 界面："已翻译" ──► 用户看到英文
+```
+
+**已实现的三件事**：①`looksUntranslated()` 让"原样返回"成为一条失败规则；
+②`alignHeadingLevels()` 把标题层级钉回原文，数量对不上才算失败；③失败段递归劈开重试。
+
+**对本文的约束（新增）**：**一个状态词必须能被界面上的内容证实。** "已翻译"只有在用户真的看到
+译文时才成立；说不出"我怎么知道它做到了"的状态词，不许显示。这条比"用词准确"更靠前——
+它要求每个正面状态都有一个可观察的判据，而不是一个可读的字符串。
+
+### 21.1 译文寿命
+
+译文只活在内存里：在插件内切换 Skill 再回来仍在，退出 DeepSeek Harness 即消失。
+切走再回来是**同一份译文**，不会重新请求模型。`FR-UI-047` 由 `TRANSLATION_MEMORY_ONLY_OK` 守着——
+译文落盘即违规，按事故处理。
