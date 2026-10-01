@@ -372,28 +372,61 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
        * theme without changing what they mean.
        */
       color-scheme: light dark;
-      --st-brand:var(--dsw-alias-brand-primary,#2f6fed);
-      --st-brand-soft:var(--dsw-alias-interactive-bg-hover,#eef4ff);
-      /* §11.9: the "jump to this section" highlight must not be a literal colour. Mixing the
-       * warning hue into whatever the current layer is keeps it legible on either theme, so the
-       * audit view needs no body[data-ds-dark-theme] override of its own. */
-      --st-highlight:color-mix(in srgb,var(--st-warning) 22%,var(--st-layer));
-      --st-bg:var(--dsw-alias-bg-base,#f6f7f9);
-      --st-layer:var(--dsw-alias-bg-layer-1,#fff);
-      --st-layer-2:var(--dsw-alias-bg-layer-2,#fbfcfd);
-      --st-border:var(--dsw-alias-border-l2,#e4e7ec);
+      /* v0.6 semantic layer — design §5.1 的落地版。
+       *
+       * design 里用来兜底的 17 个 --dsw-alias-* 名字在 DSH 中全部不存在
+       * （-bg / -surface / -text / -border / -accent / -success / -code-bg …），
+       * 照抄会让每一个 fallback 永远生效、插件永远跟不动宿主主题。这里按真实 alias 重写。
+       *
+       * 两个语义陷阱：
+       *   - --dsw-alias-brand-primary 是 #0f1115 的「主按钮对比色」，不是蓝色强调色。
+       *     蓝色强调色是 --dsw-alias-link（deepseek-500，暗色 deepseek-400）。
+       *     早先这里把它当 accent 用，暗色下 background + color:white 会白底白字。
+       *   - --dsw-alias-markdown-code-block 是浅底，不是原型里的 #0e1116 深底。
+       *     代码块跟随宿主 token，否则亮色模式里会突兀地出现一块黑。
+       *
+       * 暗色不写任何覆盖，也不写 prefers-color-scheme 媒体查询：DSH 用
+       * body[data-ds-dark-theme] 重定义整套 alias，消费 alias 就自动跟随；
+       * 自建媒体查询会在「系统暗色 + 用户显式选亮色」时与宿主相反。
+       * 软色一律用 color-mix 从强调色与当前 surface 派生，避免再造一套固定色值。
+       */
+      --st-bg:var(--dsw-alias-bg-base,#f5f7fa);
+      --st-surface:var(--dsw-alias-bg-layer-1,#fff);
+      --st-surface-subtle:var(--dsw-alias-bg-layer-2,#f0f3f7);
+      --st-surface-raised:var(--dsw-alias-bg-layer-3,#fff);
+      --st-text:var(--dsw-alias-label-primary,#17191d);
+      --st-text-secondary:var(--dsw-alias-label-secondary,#6f7682);
+      --st-text-tertiary:var(--dsw-alias-label-tertiary,#9aa1ad);
+      --st-border:var(--dsw-alias-border-l2,#e6e9ee);
       --st-border-soft:var(--dsw-alias-border-l1,#edf0f3);
-      --st-grid:var(--dsw-alias-border-l1,#eef1f5);
-      --st-text:var(--dsw-alias-label-primary,#16181d);
-      --st-muted:var(--dsw-alias-label-secondary,#7a818c);
-      --st-faint:var(--dsw-alias-label-tertiary,#9aa1aa);
-      --st-success:var(--dsw-alias-state-success-primary,#258b63);
-      --st-warning:var(--dsw-alias-state-warn-primary,#b7791f);
-      --st-error:var(--dsw-alias-state-error-primary,#c9444f);
+      --st-border-strong:var(--dsw-alias-border-l3,#cfd6e0);
+      --st-accent:var(--dsw-alias-link,#1f6feb);
+      --st-accent-soft:color-mix(in srgb,var(--st-accent) 12%,var(--st-surface));
+      --st-success:var(--dsw-alias-state-success-primary,#18864b);
+      --st-warning:var(--dsw-alias-state-warn-primary,#9a6700);
+      --st-danger:var(--dsw-alias-state-error-primary,#c73a3a);
+      --st-success-soft:color-mix(in srgb,var(--st-success) 12%,var(--st-surface));
+      --st-warning-soft:color-mix(in srgb,var(--st-warning) 12%,var(--st-surface));
+      --st-danger-soft:color-mix(in srgb,var(--st-danger) 12%,var(--st-surface));
+      --st-code-bg:var(--dsw-alias-markdown-code-block,#f3f5f8);
+      --st-code-text:var(--st-text);
+      /* §11.9: the "jump to this section" highlight must not be a literal colour. Mixing the
+       * warning hue into whatever the current surface is keeps it legible on either theme, so the
+       * audit view needs no body[data-ds-dark-theme] override of its own. */
+      --st-highlight:color-mix(in srgb,var(--st-warning) 22%,var(--st-surface));
+      /* v0.5 遗留名字，暂时作为别名保留，随 Runtime 视图一起删除。 */
+      --st-brand:var(--st-accent);
+      --st-brand-soft:var(--st-accent-soft);
+      --st-layer:var(--st-surface);
+      --st-layer-2:var(--st-surface-subtle);
+      --st-muted:var(--st-text-secondary);
+      --st-faint:var(--st-text-tertiary);
+      --st-error:var(--st-danger);
+      --st-grid:var(--st-border-soft);
+      --st-edge:var(--st-border-strong);
+      --st-subagent:var(--st-warning);
       --st-node-color:#dfe3e9;
       --st-node-width:190px;
-      --st-edge:var(--dsw-alias-border-strong,#a9b1bd);
-      --st-subagent:var(--dsw-alias-warning,#c2410c);
     }
       [data-plugin="dsh-skill-trace"].st-host{height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px));max-height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px))}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}

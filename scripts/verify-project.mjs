@@ -830,6 +830,49 @@ for (const source of [client, host]) {
 if (!host.includes('list: buildSessionSkillList(')) throw new Error('the skills endpoint must nest its payload under `list`')
 if (!client.includes('setList(body?.list ?? null)')) throw new Error('the client must unwrap the skills payload from `list`')
 
+// DSH 主题 alias 白名单 -------------------------------------------------------------------
+// `--dsw-alias-*` 由宿主注入。名字拼错不会有任何报错：CSS 自定义属性未定义时静默失效，
+// `var(--x, fallback)` 会永远走 fallback，于是插件在渲染台（不加载宿主 CSS，所有 alias 都
+// 落到 fallback）里看起来完全正常，只在真实 DSH 里跟不动主题。
+// 已经踩过三次：`--dsw-alias-border-strong` 与 `--dsw-alias-warning` 根本不存在；
+// 而 `--dsw-alias-brand-primary` 存在但语义不同 —— 它是 #0f1115 的「主按钮对比色」，
+// 不是蓝色强调色，暗色下变近白，配 `color:white` 就是白底白字。
+//
+// 下面的白名单是 2026-10-01 从 `@deepseek-ai/dsh-client-ui-theme/lib/client.js` 的
+// `body{...}` 与 `body[data-ds-dark-theme]{...}` 两块里逐字核对过的名字（该文件共 111 个
+// `--dsw-alias-*`）。新增引用前必须先确认它在宿主里真实存在，再登记到这里。
+{
+  const allowed = new Set([
+    '--dsw-alias-bg-base',
+    '--dsw-alias-bg-layer-1',
+    '--dsw-alias-bg-layer-2',
+    '--dsw-alias-bg-layer-3',
+    '--dsw-alias-border-l1',
+    '--dsw-alias-border-l2',
+    '--dsw-alias-border-l3',
+    '--dsw-alias-interactive-bg-hover',
+    '--dsw-alias-interactive-bg-hover-accent',
+    '--dsw-alias-label-primary',
+    '--dsw-alias-label-secondary',
+    '--dsw-alias-label-tertiary',
+    '--dsw-alias-link',
+    '--dsw-alias-markdown-code-block',
+    '--dsw-alias-state-business-primary',
+    '--dsw-alias-state-error-primary',
+    '--dsw-alias-state-success-primary',
+    '--dsw-alias-state-warn-primary'
+  ])
+  const used = [...client.matchAll(/var\(\s*(--dsw-alias-[a-z0-9-]+)/g)].map((match) => match[1])
+  if (!used.length) {
+    throw new Error('the client must read DSH theme aliases instead of literal colours')
+  }
+  for (const name of new Set(used)) {
+    if (!allowed.has(name)) {
+      throw new Error(`unknown DSH theme alias \`${name}\`: it does not exist in @deepseek-ai/dsh-client-ui-theme, so \`var(${name})\` would silently fall back forever`)
+    }
+  }
+}
+
 console.log('PROJECT_STRUCTURE_OK')
 console.log('CLIENT_DUAL_VIEW_CONTRACT_OK')
 console.log('SOURCE_PRIVACY_FIELDS_OK')
