@@ -170,8 +170,15 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       /* v0.6 §22 顶栏：品牌 + 两个一级页面入口 + 刷新。高度取设计文档的 68px，
         高于 design.md §6.1 的 58px 下限。曾经这里有第二条规则把它覆写成 72px ——
         那个数字来自哪个文档都说不清，就成了「样式表里的一句口口相传」。 */
-      .st-topbar{min-height:68px;padding:0 18px;display:flex;align-items:center;gap:18px;flex:none;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
-      .st-heading{min-width:0;flex:1;display:flex;align-items:center}.st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
+      .st-topbar{min-height:68px;padding:0 18px;display:flex;align-items:center;gap:14px;flex:none;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
+      /* 顶栏现在的读法是「导航 → 这一页的状态」：两个一级入口在最左，紧跟着一行说明
+         当前这一页的数据是什么，右侧只留刷新。状态行会截断而不是把布局挤宽。 */
+      .st-context{min-width:0;flex:1;display:flex;align-items:center;gap:7px;color:var(--st-muted);font-size:12px}
+      .st-context-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
+      /* 段头删掉之后页面就没有标题元素了。视觉上按用户的要求去掉，语义上补一个
+         只给读屏软件的 h2 —— 「这一页叫什么」不该因为排版调整而消失。 */
+      .st-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
       .st-view-switch{display:inline-flex;padding:3px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer-2)}.st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}.st-view-button[aria-pressed="true"]{background:var(--st-layer);color:var(--st-brand);box-shadow:0 1px 2px rgba(20,24,32,.08)}
       .st-empty-page,.st-trace-state{height:100%;display:grid;place-items:center;padding:32px;color:var(--st-muted)}.st-empty-page-inner{width:min(100%,420px)}.st-empty-page p{margin:0}.st-trace-state-line{display:inline-flex;align-items:center;gap:9px;font-size:13px}.st-trace-state-dot{width:7px;height:7px;border-radius:50%;background:var(--st-faint)}.st-trace-state[data-kind="loading"] .st-trace-state-dot{background:var(--st-brand);animation:st-pulse 1.2s ease-in-out infinite}@keyframes st-pulse{50%{opacity:.35}}
       [data-plugin="dsh-skill-trace"]{overflow:hidden;max-height:none;height:var(--st-host-h,100%);min-height:0;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
@@ -234,10 +241,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
        * 并把分歧记在评审文档里，而不是偷偷选一个。
        */
       .st-page{height:100%;min-height:0;overflow:auto;padding:20px 22px 28px}
-      .st-page-head{margin-bottom:14px}
-      .st-page-head h2{margin:0;font-size:16px}
-      .st-page-status{display:flex;align-items:center;gap:7px;margin:5px 0 0;color:var(--st-muted);font-size:12px}
-      .st-page-head p{margin:5px 0 0;color:var(--st-muted);font-size:12px}
       .st-skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
       .st-skill-card{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);color:inherit;cursor:pointer;transition:border-color .16s ease,transform .16s ease}
       .st-skill-card:hover{transform:translateY(-1px);border-color:var(--st-border-strong)}
@@ -599,7 +602,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
    * `list` 是渲染冒烟测试的注入口（那个测试的 react stub 不跑 useEffect，fetch 永远不会发生，
    * 于是卡片、`resolveSkillListState` 的每一条分支都执行不到），平时由这里的 fetch 填。
    */
-  function CurrentSkillPage({ sessionId, onOpen, loadedSkillCount = 0, onMeta, onRetry, reloadSignal, status = '', liveState = 'unknown', list: suppliedList }) {
+  function CurrentSkillPage({ sessionId, onOpen, loadedSkillCount = 0, onMeta, onRetry, reloadSignal, list: suppliedList }) {
     const [fetchedList, setFetchedList] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedList)
     const [listError, setListError] = React.useState('')
@@ -625,22 +628,18 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       onMeta?.({ error: Boolean(listError && !skills.length), skillCount: skills.length })
     }, [listError, skills.length, onMeta])
 
-    // 状态行从顶栏搬到这里：顶栏那行「本次 Skill / DSH_Skill_Trace · 1 个 Skill · 1 次加载」
-    // 和这个段头说的是同一件事，只留一处。信息没丢 —— workspace 标签、计数、以及
-    // 「宿主可能仍在运行旧版本」这类警告，全都跟着这一行走。
-    const head = h('header', { className: 'st-page-head' },
-      h('h2', null, localized('本次加载的 Skill', 'Skills loaded in this run')),
-      h('p', { className: 'st-page-status' },
-        h('span', { className: 'st-live', 'data-state': liveState }),
-        raw(status || localized(`这次对话加载过 ${skills.length} 个 Skill。`, `${skills.length} Skill(s) were loaded in this conversation.`))))
+    // 这一页在正文里不再有标题：2026-10-01 用户指出「本次加载的 Skill」是多余的，
+    // 页面名由顶栏那两个入口用 `aria-pressed` 说着，状态行也搬回了顶栏。
+    // 视觉上删掉，语义上补一个只给读屏软件的 h2。
+    const title = h('h2', { className: 'st-sr' }, localized('本次加载的 Skill', 'Skills loaded in this run'))
 
     if (state) {
-      return h('div', { className: 'st-page' }, head,
+      return h('div', { className: 'st-page' }, title,
         h(TraceState, { kind: state.kind, message: state.message, onRetry: state.kind === 'error' ? onRetry : undefined }))
     }
 
     return h('div', { className: 'st-page' },
-      head,
+      title,
       h('div', { className: 'st-skill-grid' }, ...skills.map((entry) => h(SkillCard, {
         key: entry.name,
         name: entry.name,
@@ -957,7 +956,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
    * （同类事故见 resolveSkillListState 的注释）。整页崩溃更糟：一个页面拿到坏输入就把
    * conversation.view 整个卸载，用户看到的是白屏。
    */
-  function InstalledSkillsPage({ sessionId, query, onQueryChange, reloadSignal, onMeta, onRetry, status = '', liveState = 'unknown' }) {
+  function InstalledSkillsPage({ sessionId, query, onQueryChange, reloadSignal, onMeta, onRetry }) {
     const [state, setState] = React.useState({ loading: true, error: '', installed: null })
     React.useEffect(() => {
       let cancelled = false
@@ -979,24 +978,19 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       return () => { cancelled = true }
     }, [sessionId, reloadSignal, onMeta])
 
-    // 段头在**每一个**分支里都渲染。删掉顶栏那行标题之后，它是这一页唯一的身份 ——
-    // 出错时让它跟着正文一起消失，用户看到的就是一屏没有标题、没有页名的报错，
-    // 而「这一页是什么」本来不该由请求成不成功来决定。
-    const head = h('header', { className: 'st-page-head' },
-      h('h2', null, localized('已安装的 Skill', 'Installed Skills')),
-      h('p', { className: 'st-page-status' },
-        h('span', { className: 'st-live', 'data-state': liveState }),
-        raw(status)))
+    // 同上：正文里没有标题了，页面名由顶栏的入口和状态行走着，这里只留语义。
+    // 它在**每一个**分支里都渲染 ——「这一页是什么」不该由请求成不成功决定。
+    const title = h('h2', { className: 'st-sr' }, localized('已安装的 Skill', 'Installed Skills'))
 
     if (state.error) {
-      return h('div', { className: 'st-installed' }, head, h(TraceState, {
+      return h('div', { className: 'st-installed' }, title, h(TraceState, {
         kind: 'error',
         message: '暂时无法读取已安装 Skill。宿主可能仍在运行旧版本，重启 DSH 后再试。',
         onRetry: onRetry,
       }))
     }
     if (state.loading && !state.installed) {
-      return h('div', { className: 'st-installed' }, head,
+      return h('div', { className: 'st-installed' }, title,
         h(TraceState, { kind: 'loading', message: '正在读取当前环境的 Skill 目录…' }))
     }
 
@@ -1005,7 +999,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     const visible = needle ? skills.filter((skill) => matchesInstalledQuery(skill, needle)) : skills
 
     return h('div', { className: 'st-installed' },
-      head,
+      title,
       h('div', { className: 'st-installed-search' },
         h(Icon, { name: 'search', size: 15 }),
         h('input', {
@@ -1229,8 +1223,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     // 与「这次会话的收据里有什么」是两个问题，前者不该等后者的四路投影（context/runtime/…）。
     const sessionContent = h(CurrentSkillPage, {
       sessionId,
-      status: sessionStatus,
-      liveState,
       loadedSkillCount,
       reloadSignal: sessionReload,
       onMeta: setCurrentMeta,
@@ -1252,8 +1244,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     const listContent = view === 'installed'
       ? h(InstalledSkillsPage, {
         sessionId,
-        status: catalogStatus,
-        liveState,
         query: installedQuery,
         onQueryChange: setInstalledQuery,
         reloadSignal: catalogReload,
@@ -1271,21 +1261,24 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       ...(hostHeight ? { '--st-host-h': `${hostHeight}px` } : null),
     }, 'aria-label': view === 'installed' ? 'DSH Skill Trace 已安装 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
-        // 顶栏不再重复页面标题。原先这里是「本次 Skill / DSH_Skill_Trace · 1 个 Skill · 1 次加载」，
-        // 而正文紧接着又写「本次加载的 Skill / 这次对话加载过 1 个 Skill」——同一屏上同一件事说了
-        // 两遍，两处还各自带一份计数。留下的这个位置归二级页的返回键。
-        h('div', { className: 'st-heading' },
+        // §7：一级导航**只有两个**，而且是顶栏里最左的东西 —— 顶栏的读法现在固定成
+        // 「导航 → 这一页的状态 →（右侧）刷新」。运行流程 / 运行图谱 / Skill 收据在
+        // v0.6 里不是页面（§4），所以这里既没有「高级」菜单，也没有 Runtime 画布操作。
+        h('div', { className: 'st-view-switch', role: 'group', 'aria-label': 'Skill 页面' },
+          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'current', onClick: () => chooseView('current') }, h(Icon, { name: 'skill', size: 15 }), localized('本次 Skill', 'Skills in this run')),
+          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'installed', onClick: () => chooseView('installed') }, h(Icon, { name: 'list', size: 15 }), localized('已安装 Skill', 'Installed Skills'))),
+        // 导航后面这一格说的是「你正在看的这堆数据是什么」。在两个列表页上它是状态行
+        // （workspace 标签、计数，以及「宿主可能仍在运行旧版本」这类警告）；进了二级页
+        // 它就换成返回键 —— 位置固定，内容跟着层级走。
+        h('div', { className: 'st-context' },
           openSkill
             ? h(DetailBackButton, {
               backLabel: openSkill.from === 'installed' ? localized('已安装 Skill', 'Installed Skills') : localized('本次 Skill', 'Skills in this run'),
               onBack: () => setOpenSkill(null),
             })
-            : null),
-        // §7：一级导航**只有两个**。运行流程 / 运行图谱 / Skill 收据在 v0.6 里不是页面（§4），
-        // 所以这里既没有「高级」菜单，也没有任何 Runtime 画布操作（显示全部 / 适配画布 / 回放）。
-        h('div', { className: 'st-view-switch', role: 'group', 'aria-label': 'Skill 页面' },
-          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'current', onClick: () => chooseView('current') }, h(Icon, { name: 'skill', size: 15 }), localized('本次 Skill', 'Skills in this run')),
-          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'installed', onClick: () => chooseView('installed') }, h(Icon, { name: 'list', size: 15 }), localized('已安装 Skill', 'Installed Skills'))),
+            : h(React.Fragment, null,
+              h('span', { className: 'st-live', 'data-state': liveState }),
+              h('span', { className: 'st-context-text' }, raw(view === 'installed' ? catalogStatus : sessionStatus)))),
         h('div', { className: 'st-header-actions' },
           h('button', { className: 'st-icon-button', type: 'button', onClick: view === 'installed' ? () => setCatalogReload((value) => value + 1) : load, disabled: view === 'current' && loading, title: '刷新', 'aria-label': view === 'installed' ? '刷新已安装 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
       content))

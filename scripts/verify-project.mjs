@@ -380,9 +380,14 @@ if (!builder.shippedBundleIsFresh()) {
   // v0.6 §22 的顶栏是 68px（`height:68px`），`design.md` §6.1 只规定 58px 下限。
   // 这里曾经钉的是 72px —— 一个两份文档都没有的数字，谁也说不清它是从哪抄来的。
   if (!/\.st-topbar\{[^}]*min-height:68px/.test(css)) throw new Error('§22: the top bar is 68px')
-  // 2026-10-01：顶栏那行「本次 Skill / DSH_Skill_Trace · …」和正文段头说的是同一件事，
-  // 删掉之后**页面标题就是段头**，16px 的档位跟着它一起搬了过来（原本钉的是 `.st-heading h1`）。
-  if (!/\.st-page-head h2\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
+  // 2026-10-01：页面标题这一层被删了两次 —— 先是顶栏那块（用户指出它与正文段头重复），
+  // 再是正文段头本身（用户：「本次加载的 Skill 就可以删除了」）。页面名现在由顶栏导航的
+  // `aria-pressed` 说着，正文里最大的字是 SKILL.md 文档里的 H2。
+  //
+  // 所以这条断言不再问「有没有一个 16px 的页面标题」—— 那个说法已经没有主语了，留着它
+  // 只会逼着一个被删掉的元素复活。它改问**字阶的顶端还在不在**：文档标题占住 v0.6 设计
+  // §5.1 的 "Section title: 14–16px"。上面那段数值扫描仍然守着 10.5–18px 的硬性边界。
+  if (!/\.st-audit-doc h2\.st-audit-doc-heading\{font-size:(1[4-6])px\}/.test(css)) throw new Error('§26: the section title sits at 14-16px')
   // v0.6 §8.2/§9.3 replaced the three-column workbench with one detail page: a 280px
   // fact column, and a 170px outline strip inside the SKILL.md panel. The old
   // assertions described a page that no longer exists, so they moved with it.

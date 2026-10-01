@@ -8,7 +8,7 @@ status: v0.6-two-level-ia-desktop-eyeball-pending
 # DSH Skill Trace 概览 PRD
 
 > 产品版本：V0.6 两级信息架构重构版  
-> 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。当前为 346 项自动化测试、22 项静态契约守卫，Client 源码 3536 → 1309 行、Client bundle 421 KB → 51 KB  
+> 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。当前为 346 项自动化测试、22 项静态契约守卫，Client 源码 3536 → 1302 行、Client bundle 421 KB → 51 KB  
 > 工程发布候选：`dsh-skill-trace 0.4.0-beta.69`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面），已发布到 npm 与 GitHub，`beta` 与 `latest` 两个标签都指向该版本；本轮唯一未完成项是 **DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），清单见 `docs/RELEASE.md` §7.2
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
@@ -631,7 +631,7 @@ Alignment **只读取 Scope 内的事件**。Scope 内的每一个事件都必�
 
 **仍不可逆的两个方向**：`Declared`（定义正文）/ `Observed`（运行时）/ `Inferred`。声明步骤只能来自定义正文；运行时证据只能标注，不能增删改序。产品不评分、不给百分比、不做排名、不使用“未观测到执行”一类词汇。
 
-**当前工程数字**：346 项自动化测试、22 项静态契约守卫、client 源码 3536 → 1309 行、client bundle 421 KB → 51 KB。
+**当前工程数字**：346 项自动化测试、22 项静态契约守卫、client 源码 3536 → 1302 行、client bundle 421 KB → 51 KB。
 
 ## 7. 功能需求
 
@@ -961,7 +961,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 ### 12.3 客户端预算（v0.6 实测）
 
-- client 源码 3536 → 1309 行；client bundle 421 KB → 51 KB；
+- client 源码 3536 → 1302 行；client bundle 421 KB → 51 KB；
 - 346 项自动化测试、22 项静态契约守卫；
 - 列表首屏不读 `SKILL.md` 全文，进入详情才读；
 - 翻译只由用户点击触发，结果只在内存。
@@ -1015,7 +1015,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 | M8 V0.4 P0 只读技术 Spike | Registry 完整度、历史收据枚举与身份关联报告 | M7 范围确认 | 已通过：会话作用域 Registry 3/3 字段完整，4 份正式收据可安全枚举；旧收据缺历史来源身份并已降级为候选 |
 | M9 V0.4 P0 本地实现 | 我的 Skill 目录、证据分级历史、会话理解回看与 Desktop 复验 | M8 通过、用户单独授权编码 | 已完成：Schema 4、只读接口、三层详情、40 项测试与 Desktop 当前目录/搜索/历史展开复验通过 |
 | M10 V0.5 P0 真实使用工程验收 | 3 个熟悉度代理梯度 Skill、真实收据、个人重述、本地回读与反方结论 | M9 通过、用户授权真实调度 | 工程闭环已通过；用户本人理解与 24 小时迁移复测仍待完成，不进入 P1 |
-| M11 V0.6 两级信息架构收敛 | 「本次 Skill」/「已安装 Skill」两个一级页面、唯一 Skill 详情（Definition 事实 / Repository / 逐字 `SKILL.md` / Outline）、只读仅内存的中文预览、偏好 v3 迁移与 7 条 Host 路由 | M10 工程闭环、SDD v0.6 与设计系统 v0.6 确认 | 工程完成：346 项自动化测试、22 项静态契约守卫、client 源码 3536 → 1309 行、bundle 421 → 51 KB；剩余**真实 DSH Desktop WebView 人眼走查**（亮 / 暗、1180 / 980 断点） |
+| M11 V0.6 两级信息架构收敛 | 「本次 Skill」/「已安装 Skill」两个一级页面、唯一 Skill 详情（Definition 事实 / Repository / 逐字 `SKILL.md` / Outline）、只读仅内存的中文预览、偏好 v3 迁移与 7 条 Host 路由 | M10 工程闭环、SDD v0.6 与设计系统 v0.6 确认 | 工程完成：346 项自动化测试、22 项静态契约守卫、client 源码 3536 → 1302 行、bundle 421 → 51 KB；剩余**真实 DSH Desktop WebView 人眼走查**（亮 / 暗、1180 / 980 断点） |
 
 **V0.4 P0 顺序：** 范围确认 → 只读技术 Spike → 同步技术设计 → 单独编码授权 → 实现 → DSH Desktop 验证。该链路已完成；下一 Gate 是用户实际使用验证，不自动进入 P1。
 
@@ -1131,7 +1131,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 ### 16.6 V0.6 两级信息架构 Gate（工程通过，人眼走查待完成）
 
 - `npm run verify` 通过：346 项自动化测试、22 项静态契约守卫全绿；
-- client 源码 3536 → 1309 行、bundle 421 KB → 51 KB；
+- client 源码 3536 → 1302 行、bundle 421 KB → 51 KB；
 - Host 路由只有 7 条：`/context`、`/skills`、`/skill`、`/installed`、`/definition`、`/translate`、`/preferences`；
 - 一级页面只有两个；不存在任何 `Advanced` 组、折叠区或“更多”菜单能到达已删除页面；
 - 从「本次 Skill」和「已安装 Skill」各进入同一个 Skill 详情，返回按钮分别显示“返回 Skill 列表（本次 Skill）”与“返回 Skill 列表（已安装 Skill）”，并确实回到来源列表；
