@@ -21,8 +21,8 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`0.6.0`**（`package.json`）· tag `v0.6.0` · 2026-10-01 · **只发 GitHub** |
-| 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-trace`（分支 `main`） |
+| 插件包版本 | **`0.6.0`**（`package.json`）· tag `v0.6.0` · 2026-10-01 · **只发 GitHub** · 已推送并建 Release（发布提交 `9e9e6b3`） |
+| 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-trace`（分支 `main`）· `main` 与 `origin/main` 同步 |
 | npm | **停在 `0.4.0-beta.66`**（`beta` 与 `latest` 都指向它）。`0.5.0` 与 `0.6.0` **都只发 GitHub**，所以「npm 落后」是**已知状态，不是漂移** |
 | 测试 | **397 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
 | 静态守卫 | **23 组**（`npm run verify`，见 §6.3） |
