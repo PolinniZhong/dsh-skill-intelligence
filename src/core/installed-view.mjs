@@ -23,7 +23,8 @@ export function projectInstalledSkill(summary) {
     name,
     description: safeText(summary?.description),
     provider: safeText(summary?.provider) || null,
-    sourceFingerprint: safeText(summary?.sourceFingerprint) || null,
+    // 这里**没有** `sourceFingerprint`：卡片不显示它，搜索也不过滤它。一个没人读的
+    // 哈希留在出站投影里，早晚会被下一个人当成有含义的状态来用（§7.4）。
     invocation: {
       modelInvocable: invocation.modelInvocable === true,
       userInvocable: invocation.userInvocable === true,

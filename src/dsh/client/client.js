@@ -166,11 +166,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       --st-muted:var(--st-text-secondary);
       --st-faint:var(--st-text-tertiary);
       --st-error:var(--st-danger);
-      --st-grid:var(--st-border-soft);
-      --st-edge:var(--st-border-strong);
-      --st-subagent:var(--st-warning);
-      --st-node-color:#dfe3e9;
-      --st-node-width:190px;
     }
       [data-plugin="dsh-skill-trace"].st-host{height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px));max-height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px))}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}

@@ -19,7 +19,7 @@ test('the installed list is metadata only and never carries an absolute path', (
   const view = buildInstalledView({ catalogSnapshot: snapshot([{ ...UI_CRAFT, path: '/Users/someone/secret-skills/ui-craft/SKILL.md' }]) })
   assert.equal(view.skills.length, 1)
   const skill = view.skills[0]
-  assert.deepEqual(Object.keys(skill).sort(), ['description', 'invocation', 'name', 'provider', 'sourceFingerprint'])
+  assert.deepEqual(Object.keys(skill).sort(), ['description', 'invocation', 'name', 'provider'])
   assert.equal(JSON.stringify(view).includes('/Users/'), false)
 })
 
