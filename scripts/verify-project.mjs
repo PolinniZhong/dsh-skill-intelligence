@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const required = [
@@ -735,6 +735,114 @@ console.log('VISUAL_TOKENS_OK')
     throw new Error('v0.6 §8.4: the detail page must not hard-code which list it returns to')
   }
   console.log('SKILL_FIRST_DETAIL_OK')
+}
+
+// v0.5 Skill Detail 增强：声明流程 + GFM 表格 ------------------------------------------
+//
+// 这两件事有一个共同的失败模式：**看起来做完了，其实什么都没变**。流程图可以从运行证据里
+// 现编一张（那就把这次重构拿掉的"运行优先"又装回去了），表格可以解析成功但渲染成一行竖线
+// （那就是没做）。所以这里钉的是关系，不是函数名是否存在。
+{
+  const flowEvidence = await readFile(resolve(root, 'src/core/flow-evidence.mjs'), 'utf8')
+  const markdownTable = await readFile(resolve(root, 'src/core/markdown-table.mjs'), 'utf8')
+
+  // 1. 状态词表：五档、逐句、以及**禁用词**。
+  for (const expected of ['FLOW_EVIDENCE_STATES', 'FLOW_EVIDENCE_FORBIDDEN', 'FLOW_DECLARATION_NOTE', 'flowEvidenceLabel', 'flowKindLabel']) {
+    if (!flowEvidence.includes(expected)) throw new Error(`the flow vocabulary must carry ${expected}`)
+  }
+  // 状态说的是"观察到了什么"，不是"Agent 做了什么"。`未执行` 是这一层最危险的词：
+  // 它把"没看到证据"写成"没做过"，而前者推不出后者。
+  //
+  // 查的是**解析出来的标签**，不是源码里的字面量。二者的区别是一次真实漏检：把
+  // `zh: '暂无足够证据'` 改成 `zh: '未执行'` 时，按字面量搜的守卫一声不响 —— 因为
+  // `FLOW_EVIDENCE_FORBIDDEN` 这行自己就含那个词，搜到了它，于是放行。词表的用途
+  // 正是被禁止的词，所以只能在**取值处**验。
+  const { FLOW_EVIDENCE_STATES, FLOW_EVIDENCE_FORBIDDEN } = await import(
+    pathToFileURL(resolve(root, 'src/core/flow-evidence.mjs')).href
+  )
+  for (const [relationship, state] of Object.entries(FLOW_EVIDENCE_STATES)) {
+    for (const forbidden of FLOW_EVIDENCE_FORBIDDEN) {
+      if (state.zh.includes(forbidden) || state.en.includes(forbidden)) {
+        throw new Error(`Skill Framework 不能把「${forbidden}」当作 ${relationship} 的说法：我们只观察到证据，没观察到执行`)
+      }
+    }
+  }
+  for (const forbidden of FLOW_EVIDENCE_FORBIDDEN) {
+    if (client.includes(`'${forbidden}'`)) {
+      throw new Error(`Skill Framework 不能把「${forbidden}」写在界面里：我们只观察到证据，没观察到执行`)
+    }
+  }
+  if (!client.includes('FLOW_DECLARATION_NOTE')) {
+    throw new Error('the framework must render the shared disclaimer, not its own paraphrase of one')
+  }
+  // `intent-supported` 必须有自己的说法：模型 description 与步骤对得上，那是意图不是运行事实。
+  // 与 `partial` 合并会让用户把"模型说它要做"读成"运行动过"。
+  if (FLOW_EVIDENCE_STATES['intent-supported'].zh === FLOW_EVIDENCE_STATES.partial.zh) {
+    throw new Error('an intent statement must not be filed under partial evidence')
+  }
+
+  // 2. 步骤只来自定义。`SkillFramework` 的整个函数体里不许出现运行时数据源 ——
+  //    这条断言的意义在于：一旦有人为了"多显示点东西"把 runs 接进来，步骤数就会随运行变化，
+  //    而声明流程的条数是**定义**的性质。
+  const frameworkStart = client.indexOf('function SkillFramework(')
+  if (frameworkStart === -1) throw new Error('the client must define SkillFramework')
+  const frameworkEnd = client.indexOf('\n  function ', frameworkStart + 10)
+  const framework = client.slice(frameworkStart, frameworkEnd === -1 ? undefined : frameworkEnd)
+  if (!framework.includes('flow?.steps')) throw new Error('the framework must read its steps from the declared flow')
+  for (const forbidden of ['runs', 'invocations', 'observedNodeIds', 'evidenceIds', 'runtimeEvidence']) {
+    if (framework.includes(forbidden)) {
+      throw new Error(`the declared flow may only be annotated by evidence, never built from ${forbidden}`)
+    }
+  }
+  // 点击 = 定位，不是跳转：复用文档已有的 flashAnchor，不新开页面、不打开运行图。
+  if (!/onStepClick: flashAnchor/.test(client)) {
+    throw new Error('clicking a declared step must reuse the document anchor mechanism')
+  }
+  for (const forbidden of ['ReactFlow', 'window.open', 'location.href']) {
+    if (framework.includes(forbidden)) throw new Error(`a step click must stay inside this page, but the framework touches ${forbidden}`)
+  }
+  // 顺序：声明流程在 SKILL.md **之前**。位置反过来就是另一种产品（先读文档、再猜结构）。
+  if (!/className: 'st-detail-main' \}, framework, docPanel/.test(client)) {
+    throw new Error('the declared flow must sit above SKILL.md inside the detail body')
+  }
+
+  // 3. 表格：一个解析器，两个读者。渲染器和翻译校验共用它，否则"画得出来"与"校验得过"
+  //    会在"什么算一张表"上分家。
+  for (const expected of ['parseTableAt', 'tableSignature']) {
+    if (!markdownTable.includes(`export function ${expected}`)) throw new Error(`the table parser must export ${expected}`)
+  }
+  if (!client.includes('markdown-table.mjs') || !client.includes('st-audit-table')) {
+    throw new Error('the client must render tables with the shared parser')
+  }
+  if (!/import \{ tableSignature \} from '\.\/markdown-table\.mjs'/.test(core)) {
+    throw new Error('the translation check must read the same table definition the renderer draws')
+  }
+  if (!/return \{ ok: false, rule: 'table', missing: \[\] \}/.test(core)) {
+    throw new Error('a translation that changes a table\'s shape must fail, not be reported as done')
+  }
+  if (!client.includes('table:')) {
+    throw new Error('the client must be able to say that a table structure changed')
+  }
+
+  // 4. 原文与中文预览共用**同一个**渲染器调用点。两个调用点意味着两套行为，
+  //    而两套行为里必有一套没人测。
+  const rendererCalls = client
+    .split('\n')
+    .filter((line) => line.includes('renderSkillMarkdown(')
+      && !/function renderSkillMarkdown\(/.test(line)
+      && !/__pure/.test(line))
+  if (rendererCalls.length !== 1) {
+    throw new Error(`the original and the Chinese preview must share one renderer call site, found ${rendererCalls.length}`)
+  }
+
+  // 5. 没有为这两件事引入任何重依赖。流程图与表格都是几十行纯函数，装一个库就意味着
+  //    往客户端 bundle 里塞进一个我们控制不了、也测不到的解析器。
+  const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
+  const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) }
+  for (const heavy of ['mermaid', 'marked', 'markdown-it', 'remark', 'rehype', 'reactflow', '@xyflow/react', 'elkjs', 'd3']) {
+    if (deps[heavy]) throw new Error(`the framework and the table renderer must stay hand-written, but ${heavy} is a dependency`)
+  }
+  console.log('SKILL_FRAMEWORK_OK')
 }
 }
 

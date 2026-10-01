@@ -26,13 +26,19 @@ const source = readFileSync(join(CLIENT_DIR, 'client.js'), 'utf8')
  */
 /**
  * The smoke harness evaluates modules as CommonJS, but `src/core/*.mjs` are ESM.
- * esbuild rewrites them for the real bundle; this lowers the one export shape the
- * client actually imports — named `export function` declarations — and fails loudly
- * on anything else so a new export form cannot be lowered silently.
+ * esbuild rewrites them for the real bundle; this lowers the export shapes the
+ * client actually imports — named `export function` declarations and `export const`
+ * tables — and fails loudly on anything else so a new export form cannot be
+ * lowered silently.
+ *
+ * `export const` arrived with the flow-evidence vocabulary: those frozen tables are
+ * data the client reads directly, and rewriting them into accessor functions purely
+ * to please a test harness would be the tail wagging the dog. The guarantee that
+ * matters is unchanged — an unrecognised form still throws instead of being skipped.
  */
 function lowerEsmToCjs(code, target) {
-  const names = [...code.matchAll(/^export function (\w+)/gm)].map((match) => match[1])
-  const stripped = code.replace(/^export function (\w+)/gm, 'function $1')
+  const names = [...code.matchAll(/^export (?:function|const|let|class) (\w+)/gm)].map((match) => match[1])
+  const stripped = code.replace(/^export (function|const|let|class) /gm, '$1 ')
   if (/^export /m.test(stripped)) {
     throw new Error(`client-modules: ${target} uses an export form this harness cannot lower`)
   }
@@ -602,4 +608,208 @@ test('a rendered view survives every payload shape the Host can send', () => {
     assert.ok(copy.views.receipt.runtime !== undefined, `${label}: runtime must exist`)
     assert.ok(Array.isArray(copy.views.receipt.runtime.alignments), `${label}: alignments must be an array`)
   }
+})
+
+// ── Skill 框架 ────────────────────────────────────────────────────────────────
+//
+// 这一块的全部风险都在措辞上，而措辞只有渲染出来才看得见。源码里搜「未执行」搜不到任何东西，
+// 因为那句话本来就不该存在于源码 —— 它是一条**不存在的分支**，只能靠把四种证据状态都渲染一遍
+// 来证明它没有出现。
+
+const frameFlow = {
+  schemaVersion: 1,
+  source: 'definition',
+  steps: [
+    {
+      id: 'declared:1', order: 1, title: '读取变更', kind: 'inspect', line: 3, evidenceType: 'heading',
+      evidence: { relationship: 'runtime-supported', limitation: null, matchCount: 1 },
+    },
+    {
+      id: 'declared:2', order: 2, title: '运行测试', kind: 'execute', line: 8, evidenceType: 'heading',
+      evidence: { relationship: 'partial', limitation: '只观察到部分相关证据。', matchCount: 1 },
+    },
+    {
+      id: 'declared:3', order: 3, title: '写报告', kind: 'produce', line: 14, evidenceType: 'heading',
+      evidence: { relationship: 'insufficient', limitation: '证据不足不等于 Agent 没有执行该步骤。', matchCount: 0 },
+    },
+    // 第四次：没有 evidence 字段，也没有锚点。两件事同时缺，是真实载荷里最常见的一步。
+    { id: 'declared:4', order: 4, title: '未知步骤', kind: 'mystery', line: 20, evidenceType: 'heading' },
+  ],
+  truncated: false, stepCount: 4,
+}
+
+function mountChineseClient() {
+  const client = loadClient()
+  client.apply({
+    effect(setup) { return setup?.() },
+    locale: {
+      bind: () => (value) => value,
+      register: () => () => {},
+      getSnapshot: () => ({ active: 'zh', lang: 'zh' }),
+      subscribe: () => () => {},
+    },
+    workspaces: { getSnapshot: () => ({ active: null }), subscribe: () => () => {} },
+    slots: { inject(_name, run) { run() }, register() {} },
+  })
+  return client
+}
+
+test('the declared flow renders as a flow, and evidence only annotates it', () => {
+  const client = mountChineseClient()
+  const texts = (nodes) => nodes.filter((node) => node.type === '#text').map((node) => node.text)
+
+  const clicked = []
+  const nodes = collect(client.__views.SkillFramework({
+    flow: frameFlow,
+    anchors: { 'declared:1': 'a1', 'declared:2': 'a2', 'declared:3': 'a3' },
+    definitionAvailable: true,
+    flash: null,
+    onStepClick: (id) => clicked.push(id),
+  }))
+  const text = texts(nodes).join('\n')
+
+  // 1. 四步都在，顺序就是定义里的顺序 —— 运行时不许重排。
+  const steps = nodes.filter((node) => node.props.className === 'st-framework-step')
+  assert.equal(steps.length, 4, 'every declared step gets a node')
+  assert.deepEqual(steps.map((node) => node.children[1]?.children?.[0]), ['读取变更', '运行测试', '写报告', '未知步骤'],
+    'the order comes from the declaration, and nothing else may change it')
+
+  // 2. 序号、类型、状态各占一格 —— 类型与状态不能合成一句话。
+  assert.deepEqual(texts(nodes).filter((value) => /^0\d$/.test(value)), ['01', '02', '03', '04'])
+  assert.ok(text.includes('查阅') && text.includes('运行') && text.includes('产出'), 'the kind column names the category')
+  assert.ok(text.includes('其它'), 'an unrecognised kind degrades to 其它 instead of being dropped')
+
+  // 3. 四种证据状态各自的说法。
+  assert.ok(text.includes('有相关运行证据'), 'runtime-supported reads as an observation')
+  assert.ok(text.includes('部分相关证据'), 'partial reads as an observation')
+  assert.ok(text.includes('暂无足够证据'), 'insufficient reads as "not enough", never as "not executed"')
+  assert.ok(text.includes('无法判断'), 'a missing relationship reads as unknown, not as absent')
+
+  // 4. 这一条是整个功能的底线：任何一句都不能是结论。
+  for (const forbidden of ['已执行', '未执行', '已完成', '未完成', '执行成功', '执行失败']) {
+    assert.ok(!text.includes(forbidden), `the framework must never say ${forbidden}`)
+  }
+
+  // 5. 免责句逐字在标题下面，不是 tooltip、不是折叠区。
+  assert.ok(text.includes('流程来自 SKILL.md 的声明；运行证据仅用于标注当前会话中的相关观察，不代表 Agent 内部推理过程。'),
+    'the disclaimer is rendered with the flow, not hidden behind it')
+
+  // 6. 有锚点的步骤是可点的按钮，没锚点的是不可点的元素 —— 不能给一个点了没反应的按钮。
+  const buttons = steps.filter((node) => node.type === 'button')
+  const statics = steps.filter((node) => node.type === 'div' && node.props['data-static'] === 'true')
+  assert.equal(buttons.length, 3, 'three steps have an anchor in the document')
+  assert.equal(statics.length, 1, 'the step with no anchor is rendered as static, not as a dead button')
+
+  buttons[1].props.onClick()
+  assert.deepEqual(clicked, ['a2'], 'clicking a step asks the document to jump to its anchor')
+
+  // 7. 状态色只是旁证，tone 跟着关系走。
+  assert.deepEqual(steps.map((node) => node.props['data-state']), ['observed', 'partial', 'none', 'unknown'])
+
+  // 8. 悬停展开的那句限制来自核心层，不是界面自己编的。
+  const limited = steps[2].children[3]
+  assert.equal(limited.props.title, '证据不足不等于 Agent 没有执行该步骤。',
+    'the tooltip carries the core layer\'s own sentence about what this state means')
+
+  // 9. 箭头只在段与段之间。
+  assert.equal(nodes.filter((node) => node.props.className === 'st-framework-arrow').length, 3,
+    'n steps have n-1 arrows: a trailing arrow would point at nothing')
+})
+
+test('the framework states its own emptiness instead of inventing a flow', () => {
+  const client = mountChineseClient()
+  const textOf = (element) => collect(element)
+    .filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  // 定义读不到：不画伪流程。空数组 + 「读不到」两句话是**不同**的两句。
+  const unavailable = textOf(client.__views.SkillFramework({
+    flow: { steps: [], truncated: false }, anchors: {}, definitionAvailable: false, flash: null, onStepClick() {},
+  }))
+  assert.ok(unavailable.includes('这份 Skill 的定义当前读不到'), 'an unreadable definition says so')
+  assert.ok(!unavailable.includes('没有可抽取的声明流程'), 'an unreadable definition is not the same as an empty one')
+  assert.equal(collect(client.__views.SkillFramework({
+    flow: { steps: [], truncated: false }, anchors: {}, definitionAvailable: false, flash: null, onStepClick() {},
+  })).filter((node) => node.props.className === 'st-framework-step').length, 0,
+  'no step may be synthesised from anything other than the definition')
+
+  // 定义读得到、但抽不出步骤。
+  const empty = textOf(client.__views.SkillFramework({
+    flow: { steps: [], truncated: false }, anchors: {}, definitionAvailable: true, flash: null, onStepClick() {},
+  }))
+  assert.ok(empty.includes('当前 Skill 没有可抽取的声明流程。'), 'the empty state speaks about extraction')
+
+  // flow 整个是 null（宿主还没答）时不能抛。
+  assert.ok(textOf(client.__views.SkillFramework({ flow: null, anchors: null, definitionAvailable: true, flash: null, onStepClick() {} }))
+    .includes('没有可抽取'), 'a missing flow renders the empty state rather than throwing')
+
+  // 截断：流程可能不完整这件事必须说出来，而不是安静地少几步。
+  const truncated = textOf(client.__views.SkillFramework({
+    flow: { ...frameFlow, truncated: true }, anchors: {}, definitionAvailable: true, flash: null, onStepClick() {},
+  }))
+  assert.ok(truncated.includes('当前定义正文被截断，声明流程可能不完整。'), 'a truncated body warns that the flow may be incomplete')
+
+  // 高亮跟着锚点走：点到哪一步，哪一步亮。
+  const active = collect(client.__views.SkillFramework({
+    flow: frameFlow, anchors: { 'declared:2': 'workflow' }, definitionAvailable: true, flash: 'workflow', onStepClick() {},
+  })).filter((node) => node.props.className === 'st-framework-step')
+  assert.deepEqual(active.map((node) => node.props['data-active']), [undefined, 'true', undefined, undefined],
+    'the step whose anchor is being flashed is the only one marked active')
+})
+
+// ── Markdown 表格 ─────────────────────────────────────────────────────────────
+//
+// 表格以前会退化成一行竖线串。渲染器和翻译校验共用同一份解析器，所以这里测的是渲染那一半：
+// 表头进 `<th>`、数据进 `<td>`、对齐变成 style。**原文与中文预览走同一个函数**，所以这些
+// 断言对两边同时成立。
+
+test('a Markdown table becomes a real table, between the blocks around it', () => {
+  const client = mountChineseClient()
+  const render = client.__pure.renderSkillMarkdown
+  assert.equal(typeof render, 'function', 'the renderer must be reachable from the smoke test')
+
+  const markdown = [
+    '# 参数',
+    '',
+    '| 参数 | 类型 | 说明 |',
+    '| :--- | :---: | ---: |',
+    '| `name` | string | [Skill 名称](https://example.com) |',
+    '| path | string | 文件路径 |',
+    '',
+    '表格之后是一段正文。',
+  ].join('\n')
+  const nodes = collect(render(markdown, [], null, null))
+
+  const tables = nodes.filter((node) => node.props.className === 'st-audit-table')
+  assert.equal(tables.length, 1, 'exactly one table is rendered')
+  const rows = nodes.filter((node) => node.type === 'tr')
+  assert.equal(rows.length, 3, 'a header row plus two data rows')
+  const headers = nodes.filter((node) => node.type === 'th')
+  assert.deepEqual(headers.map((node) => node.children?.[0]), ['参数', '类型', '说明'], 'the header cells keep their order')
+  const cells = nodes.filter((node) => node.type === 'td')
+  assert.equal(cells.length, 6, 'two rows of three cells')
+
+  // 对齐来自分隔行，落在 style 上。
+  assert.deepEqual(headers.map((node) => node.props.style?.textAlign), ['left', 'center', 'right'],
+    'the delimiter row decides alignment, per column')
+
+  // 单元格里的行内标记仍然由同一个行内渲染器处理：代码是代码，链接是链接。
+  assert.ok(cells.some((node) => (node.children ?? []).some((child) => child?.type === 'code')),
+    'an inline code span inside a cell is rendered as code')
+  assert.ok(cells.some((node) => (node.children ?? []).some((child) => child?.type === 'a')),
+    'a link inside a cell is rendered as a link')
+
+  // 表格不能吞掉邻居：标题还是标题，后面的段落还是段落。
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.ok(nodes.some((node) => node.type === 'h2' && (node.children ?? []).includes('参数')), 'the heading above the table survives')
+  assert.ok(text.includes('表格之后是一段正文。'), 'the paragraph after the table survives')
+  // 竖线串不能再出现在正文里 —— 那正是这次要修掉的观感。
+  assert.ok(!text.includes('| --- |'), 'the delimiter row is not printed as text')
+
+  // 一张表也不认的时候（没有分隔行）就还是段落，绝不能凭空画出表格。
+  const prose = collect(render('| 这不是表 |\n| 只是带竖线的正文 |', [], null, null))
+  assert.equal(prose.filter((node) => node.type === 'table').length, 0, 'a pipe without a delimiter is still prose')
+
+  // 原文与中文预览共用这次调用：只有一处 `renderSkillMarkdown(` 调用点。
+  const callSites = source.split('\n').filter((line) => /[^.\w]renderSkillMarkdown\(/.test(line) && !/^\s*function /.test(line))
+  assert.equal(callSites.length, 1, 'the original and the Chinese preview must share one renderer call site')
 })

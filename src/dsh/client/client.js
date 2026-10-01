@@ -15,6 +15,15 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
 // 译文的寿命定在核心层：它是纯数据、没有 I/O，所以能单独测 —— 而不是埋在组件里，
 // 只能靠人眼在真实应用里切来切去地试。
 const { readCachedTranslation, translationCacheKey, writeCachedTranslation } = require('../../core/translation-cache.mjs')
+// 表格的解析规则只有一份：翻译校验拿它判「形状有没有被改坏」，渲染器拿它画 HTML 表格。
+// 两边各扫一遍行的话，迟早会在「什么算一张表」上分家，而分家时两道防线会同时失效。
+const { parseTableAt } = require('../../core/markdown-table.mjs')
+// 声明流程的状态词表来自核心层：它和 runtime-alignment 的五个关系一一对应，写在这里
+// 是为了让「界面说的」和「模型算的」是同一套词。
+const {
+  FLOW_DECLARATION_NOTE, FLOW_EMPTY_TEXT, FLOW_TRUNCATED_TEXT, FLOW_UNAVAILABLE_TEXT,
+  flowEvidenceLabel, flowEvidenceState, flowKindLabel,
+} = require('../../core/flow-evidence.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -114,6 +123,7 @@ const TRANSLATION_RULE_TEXT = {
   heading: '标题层级被改动',
   placeholder: '受保护的片段被改动',
   untranslated: '模型把原文原样返回了',
+  table: '表格的行列结构被改动',
   empty: '模型没有返回内容',
 }
 
@@ -121,6 +131,7 @@ const TRANSLATION_RULE_TEXT_EN = {
   heading: 'a heading level changed',
   placeholder: 'a protected span changed',
   untranslated: 'the model returned the source unchanged',
+  table: 'the table structure changed',
   empty: 'the model returned nothing',
 }
 
@@ -286,6 +297,45 @@ function installStyles() {
       .st-detail-back{align-self:center;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 0;cursor:pointer;white-space:nowrap}
       .st-detail-back:hover{color:var(--st-text)}
       .st-detail-body{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:12px 22px 18px}
+      /* 主内容列：声明流程在最上，SKILL.md 占满剩下的高度。流程卡是摘要，所以
+         flex 取 0 0 auto —— 它永远不会把文档挤到看不见，步骤多了在卡内滚动。 */
+      .st-detail-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px}
+      .st-framework{flex:0 0 auto;min-width:0;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:12px 14px}
+      .st-framework-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+      .st-framework-title-row h3{margin:0;font-size:13px}
+      .st-framework-count{color:var(--st-faint);font-size:11px;white-space:nowrap}
+      .st-framework-sub{margin:2px 0 0;color:var(--st-muted);font-size:11.5px}
+      /* 这句是这一整块的免责声明，不是脚注：它必须和流程图同时进入视野，所以紧贴标题、
+         用左侧竖线标出边界，而不是塞进折叠区或 tooltip。 */
+      .st-framework-note{margin:8px 0 0;padding:6px 9px;border-left:2px solid var(--st-border-strong);border-radius:0 6px 6px 0;background:var(--st-layer-2);color:var(--st-muted);font-size:11px;line-height:1.5}
+      .st-framework-empty{margin:10px 0 0;color:var(--st-muted);font-size:12px}
+      /* 12 步的上限仍然可能比半屏高，所以给一个上限再滚：摘要不该长成一张画布。 */
+      .st-framework-steps{list-style:none;margin:10px 0 0;padding:0;max-height:238px;overflow:auto;display:flex;flex-direction:column}
+      .st-framework-item{display:flex;flex-direction:column;min-width:0}
+      .st-framework-step{display:grid;grid-template-columns:26px minmax(0,1fr) auto auto;align-items:center;gap:8px;width:100%;margin:0;padding:6px 9px;border:1px solid var(--st-border-soft);border-radius:8px;background:var(--st-layer);color:var(--st-text);text-align:left;font:inherit;cursor:pointer;transition:border-color .16s ease,background-color .16s ease}
+      .st-framework-step:hover{border-color:var(--st-border-strong)}
+      .st-framework-step[data-static="true"]{cursor:default}
+      .st-framework-step[data-static="true"]:hover{border-color:var(--st-border-soft)}
+      .st-framework-step[data-active="true"]{border-color:var(--st-accent);background:var(--st-highlight)}
+      .st-framework-num{color:var(--st-faint);font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+      .st-framework-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+      .st-framework-kind{padding:1px 7px;border:1px solid var(--st-border-soft);border-radius:999px;color:var(--st-faint);font-size:10.5px;white-space:nowrap}
+      .st-framework-state{font-size:11px;white-space:nowrap}
+      /* 颜色只是旁证：句子本身已经说清"观察到了什么"。删掉样式表也不会让界面说谎。 */
+      .st-framework-step[data-state="observed"] .st-framework-state{color:var(--st-success)}
+      .st-framework-step[data-state="partial"] .st-framework-state{color:var(--st-warning)}
+      .st-framework-step[data-state="intent"] .st-framework-state{color:var(--st-warning)}
+      .st-framework-step[data-state="none"] .st-framework-state{color:var(--st-muted)}
+      .st-framework-step[data-state="unknown"] .st-framework-state{color:var(--st-faint)}
+      .st-framework-arrow{padding:2px 0 2px 12px;color:var(--st-faint);font-size:11px;line-height:1}
+      .st-framework-truncated{margin:8px 0 0;color:var(--st-warning);font-size:11px}
+      /* 表格：Skill 定义里最常被读错的一类内容，退化成竖线串就等于没渲染。窄的时候整张表
+         横滚，而不是把列压到读不出来。 */
+      .st-audit-table-scroll{margin:10px 0;overflow-x:auto}
+      .st-audit-table{border-collapse:collapse;width:100%;font-size:11.5px}
+      .st-audit-table th,.st-audit-table td{padding:5px 9px;border:1px solid var(--st-border-soft);text-align:left;vertical-align:top}
+      .st-audit-table th{background:var(--st-layer-2);color:var(--st-text);font-weight:650}
+      .st-audit-table td{color:var(--st-text)}
       .st-detail-side{min-width:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
       .st-detail-card{border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:14px}
       .st-detail-card h3{margin:0 0 8px;font-size:13px}
@@ -295,7 +345,7 @@ function installStyles() {
       .st-detail-fact span{color:var(--st-muted)}
       .st-detail-fact code{font-size:11.5px;color:var(--st-text)}
       .st-detail-repo-link{display:inline-block;margin-top:2px;color:var(--st-accent);font-size:12px;font-weight:600}
-      .st-detail-doc{min-width:0;display:flex;flex-direction:column;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);overflow:hidden}
+      .st-detail-doc{min-width:0;flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);overflow:hidden}
       .st-detail-doc-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--st-border)}
       .st-detail-doc-title{min-width:0;flex:1}
       .st-detail-doc-title strong{font-size:13px}
@@ -424,6 +474,25 @@ function installStyles() {
         continue
       }
       if (!line.trim()) { index += 1; continue }
+      // 表格必须在段落之前认出来：`| 参数 | 类型 |` 与它下面那行 `| --- |` 都长得像普通正文，
+      // 认晚了整张表会被当作一个段落，读成一串竖线 —— 这正是补上表格渲染之前的现象。
+      const table = parseTableAt(lines, index)
+      if (table) {
+        const alignOf = (column) => (table.align[column] ? { textAlign: table.align[column] } : undefined)
+        // 列数一律以表头为准：某一行多写一格就丢掉多的那格，少写一格就空着。渲染层**不修正**
+        // 文档，只是不因为一行写坏而让整张表变形 —— 结构对不对由翻译校验和作者负责。
+        blocks.push(h('div', { key: `tw${key++}`, className: 'st-audit-table-scroll' },
+          h('table', { className: 'st-audit-table' },
+            h('thead', null, h('tr', null, ...table.header.map((value, column) => h('th', {
+              key: column, style: alignOf(column),
+            }, ...renderInlineMarkup(value))))),
+            h('tbody', null, ...table.rows.map((row, rowIndex) => h('tr', { key: rowIndex },
+              ...table.header.map((_, column) => h('td', {
+                key: column, style: alignOf(column),
+              }, ...renderInlineMarkup(row[column] ?? '')))))))))
+        index = table.end
+        continue
+      }
       const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
       if (heading) {
         // 面板自身已有层级，正文档降一级，避免出现第二个 `<h1>`。
@@ -456,7 +525,7 @@ function installStyles() {
       }
       const paragraph = [line.trim()]
       index += 1
-      while (index < lines.length && lines[index].trim() && !blockStart.test(lines[index])) {
+      while (index < lines.length && lines[index].trim() && !blockStart.test(lines[index]) && !parseTableAt(lines, index)) {
         paragraph.push(lines[index].trim())
         index += 1
       }
@@ -706,6 +775,77 @@ function installStyles() {
   function DetailBackButton({ backLabel, onBack }) {
     return h('button', { type: 'button', className: 'st-detail-back', onClick: onBack },
       raw(`← ${localized('返回 Skill 列表', 'Back to the Skill list')}${backLabel ? localized(`（${backLabel}）`, ` (${backLabel})`) : ''}`))
+  }
+
+  /**
+   * Skill 框架 —— 把 `detail.flow.steps[]` 画成一张**声明**流程图。
+   *
+   * 三条不能松的边界：
+   *
+   *   1. **步骤只来自定义正文。** 这个组件只读 `flow.steps[]`，一个字都不从 `runs` /
+   *      `evidence` 里取。证据能做的唯一一件事，是给已经存在的步骤标一个状态；
+   *      它不能新增、删除、改名或重排步骤——那正是这次重构要拿掉的运行优先反转。
+   *   2. **「暂无足够证据」不是「未执行」。** 状态词表在 `core/flow-evidence.mjs`，那里
+   *      同时列着禁用词。这一步没有留下可对齐的工具调用，只说明我们没看到，不说明 Agent 没做。
+   *   3. **点击 = 定位，不是跳转。** 走的是 SKILL.md 已有的 `flashAnchor`，不新开页面、
+   *      不打开任何运行图。没有锚点的步骤渲染成不可点的元素，而不是一个点了没反应的按钮。
+   */
+  function SkillFramework({ flow, anchors, definitionAvailable, flash, onStepClick }) {
+    const language = isEnglish() ? 'en' : 'zh'
+    const steps = Array.isArray(flow?.steps) ? flow.steps : []
+    const mapping = anchors && typeof anchors === 'object' ? anchors : {}
+    const truncated = flow?.truncated === true
+
+    // 每一步的四个格子：序号 · 标题 · 类型 · 观察状态。类型与状态是两件事，所以永远
+    // 分成两列 —— 合成一句"运行：有证据"会让"声明成运行"读成"运行过"。
+    const cellsOf = (step) => {
+      const relationship = step?.evidence?.relationship
+      const state = flowEvidenceState(relationship)
+      const limitation = typeof step?.evidence?.limitation === 'string' ? step.evidence.limitation : ''
+      return [
+        h('span', { key: 'n', className: 'st-framework-num' }, raw(String(step?.order ?? '').padStart(2, '0'))),
+        h('span', { key: 't', className: 'st-framework-title' }, raw(step?.title ?? '')),
+        h('span', { key: 'k', className: 'st-framework-kind' }, raw(flowKindLabel(step?.kind, language))),
+        // 状态的 title 用核心层那句限制原文：它是"为什么只能这么说"的完整解释，
+        // 悬停才展开，不占版面。
+        h('span', {
+          key: 's', className: 'st-framework-state', title: limitation || undefined,
+        }, raw(flowEvidenceLabel(relationship, language))),
+      ]
+    }
+
+    const body = !definitionAvailable
+      ? h('p', { className: 'st-framework-empty' }, raw(localized(FLOW_UNAVAILABLE_TEXT.zh, FLOW_UNAVAILABLE_TEXT.en)))
+      : steps.length === 0
+        ? h('p', { className: 'st-framework-empty' }, raw(localized(FLOW_EMPTY_TEXT.zh, FLOW_EMPTY_TEXT.en)))
+        : h('ol', { className: 'st-framework-steps' },
+          ...steps.map((step, position) => {
+            const anchorId = typeof mapping[step?.id] === 'string' ? mapping[step.id] : ''
+            const props = {
+              className: 'st-framework-step',
+              'data-state': flowEvidenceState(step?.evidence?.relationship).tone,
+              'data-active': anchorId && flash === anchorId ? 'true' : undefined,
+            }
+            return h('li', { key: step?.id ?? position, className: 'st-framework-item' },
+              anchorId
+                ? h('button', { ...props, type: 'button', onClick: () => onStepClick(anchorId) }, ...cellsOf(step))
+                : h('div', { ...props, 'data-static': 'true' }, ...cellsOf(step)),
+              position < steps.length - 1
+                ? h('span', { key: 'a', className: 'st-framework-arrow', 'aria-hidden': 'true' }, raw('↓'))
+                : null)
+          }))
+
+    return h('section', { className: 'st-framework' },
+      h('div', { className: 'st-framework-head' },
+        h('div', { className: 'st-framework-title-row' },
+          h('h3', null, localized('Skill 框架', 'Skill Framework')),
+          steps.length ? h('span', { className: 'st-framework-count' }, raw(localized(`共 ${steps.length} 步`, `${steps.length} steps`))) : null),
+        h('p', { className: 'st-framework-sub' }, localized('来自 SKILL.md 的声明流程', 'The declared flow from SKILL.md')),
+        h('p', { className: 'st-framework-note' }, raw(localized(FLOW_DECLARATION_NOTE.zh, FLOW_DECLARATION_NOTE.en)))),
+      body,
+      truncated && steps.length
+        ? h('p', { className: 'st-framework-truncated' }, raw(localized(FLOW_TRUNCATED_TEXT.zh, FLOW_TRUNCATED_TEXT.en)))
+        : null)
   }
 
   function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill }) {
@@ -984,8 +1124,20 @@ function installStyles() {
       translationState,
       h('div', { className: 'st-detail-doc-body' }, outlineNav, documentScroll))
 
+    // 声明流程在 SKILL.md 之前 —— 用户第一眼要回答的是「这个 Skill 大致分几步」，
+    // 然后才是逐字读定义。定义读不到时不画伪流程：空流程是诚实的，从运行证据里
+    // 现编一个流程正是这次重构要拿掉的那件事。
+    const framework = h(SkillFramework, {
+      flow: detail?.flow ?? null,
+      anchors: detail?.anchors ?? null,
+      definitionAvailable: Boolean(definition) && definition.available === true,
+      flash,
+      onStepClick: flashAnchor,
+    })
+
     return h('div', { className: 'st-detail' },
-      h('div', { className: 'st-detail-body' }, sidePanel, docPanel))
+      h('div', { className: 'st-detail-body' }, sidePanel,
+        h('div', { className: 'st-detail-main' }, framework, docPanel)))
   }
 
   /**
@@ -1341,5 +1493,8 @@ function installStyles() {
   // render smoke test execute each one against a real payload. Source assertions cannot
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
-  module.exports.__pure = { resolveSkillListState, alignOutlineToTranslation, invocationLabel }
-  module.exports.__views = { Workbench, CurrentSkillPage, SkillDetailPage, DetailBackButton, InstalledSkillsPage, SkillCard, TraceState }
+  // `renderSkillMarkdown` 也放进来：它是**唯一**的 Markdown 渲染入口（原文与中文预览
+  // 共用同一次调用），而"表格有没有被画成表格"只有渲染出节点才验得了 —— 源码断言只能
+  // 证明函数名出现过。
+  module.exports.__pure = { resolveSkillListState, alignOutlineToTranslation, invocationLabel, renderSkillMarkdown }
+  module.exports.__views = { Workbench, CurrentSkillPage, SkillDetailPage, SkillFramework, DetailBackButton, InstalledSkillsPage, SkillCard, TraceState }

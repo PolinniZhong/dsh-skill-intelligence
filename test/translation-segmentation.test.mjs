@@ -380,3 +380,147 @@ test('a fallback says which rule it failed, not just that it failed', async () =
   })
   assert.deepEqual([...new Set(gone.fallbackReasons.map((entry) => entry.rule))], ['empty'])
 })
+
+// ── 表格 ──────────────────────────────────────────────────────────────────────
+//
+// 表格的结构校验与渲染器共用 `markdown-table.mjs`。这里测的是**判定**：单元格里的自然语言
+// 随便翻，形状一格都不能动。少一列不会报错、只会画出一张缺列的表，而人眼几乎不可能发现
+// 少的是哪一列 —— 所以这一层必须自己发现。
+
+const TABLE_SOURCE = [
+  '## 参数',
+  '',
+  '| Parameter | Type | Description |',
+  '| :--- | :---: | ---: |',
+  '| name | string | Skill name |',
+  '| path | string | File path |',
+  '',
+  '表后一段正文。',
+].join('\n')
+
+const TABLE_TRANSLATED = [
+  '## 参数',
+  '',
+  '| 参数 | 类型 | 描述 |',
+  '| :--- | :---: | ---: |',
+  '| name | string | Skill 名称 |',
+  '| path | string | 文件路径 |',
+  '',
+  '表后一段正文。',
+].join('\n')
+
+test('a table may be translated cell by cell, and only cell by cell', () => {
+  // 单元格翻成中文、`|` 与分隔行逐字保留 —— 这是唯一被接受的形态。
+  const ok = checkChunk({ source: TABLE_SOURCE, translation: TABLE_TRANSLATED })
+  assert.equal(ok.ok, true, ok.rule ?? '')
+  assert.equal(ok.rule, null)
+
+  // 完全没翻的那一份要被 `untranslated` 拦下，而不是被表格规则拦下 —— 两条规则的顺序
+  // 决定了报给用户的原因。原文是英文、译文一个字没动，"模型把原文原样返回了"才是实情。
+  assert.equal(checkChunk({ source: TABLE_SOURCE, translation: TABLE_SOURCE }).rule, 'untranslated')
+})
+
+test('a table that lost its shape fails, whatever the cells say', () => {
+  // 表头少一列（三列变两列）—— 单元格全都"翻译好了"，但表已经不成立了。
+  const droppedColumn = [
+    '| 参数 | 类型 |',
+    '| :--- | :---: |',
+    '| name | string | Skill 名称 |',
+    '| path | string | 文件路径 |',
+  ].join('\n')
+  const dropped = checkChunk({ source: TABLE_SOURCE, translation: droppedColumn })
+  assert.equal(dropped.ok, false)
+  assert.equal(dropped.rule, 'table', 'the cells were translated, so the language check passes; the damage is structural')
+
+  // 行数不变、列数不变，但某一行的格数少了一个。这一种最阴 —— 表头仍然三列，
+  // 渲染出来只是有一行塌了一格。
+  const droppedCell = [
+    '| 参数 | 类型 | 描述 |',
+    '| :--- | :---: | ---: |',
+    '| name | string |',
+    '| path | string | 文件路径 |',
+  ].join('\n')
+  assert.equal(checkChunk({ source: TABLE_SOURCE, translation: droppedCell }).rule, 'table')
+})
+
+test('a spliced table fails even when it happens to keep the same row count', () => {
+  // 两张三列表被模型粘成一张：行数、列数、甚至对齐都还能凑出来，但格数分布变了。
+  const source = [
+    '| a | b | c |',
+    '| --- | --- | --- |',
+    '| 1 | 2 | 3 |',
+    '',
+    '中间一段。',
+    '',
+    '| d | e | f |',
+    '| --- | --- | --- |',
+    '| 4 | 5 | 6 |',
+  ].join('\n')
+  const spliced = [
+    '| 甲 | 乙 | 丙 |',
+    '| --- | --- | --- |',
+    '| 1 | 2 | 3 |',
+    '| 丁 | 戊 | 己 |',
+    '| --- | --- | --- |',
+    '| 4 | 5 | 6 |',
+  ].join('\n')
+  assert.equal(checkChunk({ source, translation: spliced }).rule, 'table')
+
+  // 分隔行被模型"顺手整理"掉：表不再是表，形状从一张变成零张。
+  const delimiterEaten = [
+    '| 甲 | 乙 | 丙 |',
+    '| 1 | 2 | 3 |',
+  ].join('\n')
+  assert.equal(checkChunk({ source, translation: delimiterEaten }).rule, 'table')
+})
+
+test('protecting a table never costs us the protection of what is inside it', () => {
+  // 单元格里同时有行内代码、URL 与文件路径。表格规则**不该**替它们做判定 ——
+  // 占位符规则先跑，而且它必须仍然跑得到。
+  const source = [
+    '| 命令 | 说明 |',
+    '| --- | --- |',
+    '| `node scripts/build-client.mjs` | 打包 dist/client.js |',
+    '| https://example.com/docs | 文档 |',
+  ].join('\n')
+  const { masked, tokens } = maskProtected(source)
+  assert.ok(tokens.length >= 2, 'the code span and the URL are both protected')
+
+  // 模型把掩码态原样返回 → 占位符还在 → 表格形状也没变。这一条通过是**对的**：
+  // 掩码态原样返回会被 `untranslated` 或上层命中，而不是在这里被表格规则误报。
+  const verdict = checkChunk({ source: masked, translation: masked, tokens })
+  assert.notEqual(verdict.rule, 'table', 'returning the masked source unchanged is not a table-structure failure')
+
+  // 真正该被抓住的：模型把受保护的那一格也"顺手翻好"了，于是占位符消失。
+  // 这一条必须报 `placeholder`，**不能**报 `table` —— 列没变、格数没变，
+  // 表格规则在这里一个字都不该说；说错了会让用户去改一张没坏的表。
+  const droppedToken = masked.replace(/\uE000\d+\uE001/, 'node scripts/build-client.mjs')
+  assert.notEqual(droppedToken, masked, 'the placeholder was really removed')
+  assert.equal(checkChunk({ source: masked, translation: droppedToken, tokens }).rule, 'placeholder')
+
+  // 原始定义永远不被改写：`checkChunk` 是纯函数。
+  assert.equal(source.includes('`node scripts/build-client.mjs`'), true)
+})
+
+test('inspecting a whole document reports the table rule when a table breaks', () => {
+  const report = inspectTranslation({
+    source: TABLE_SOURCE,
+    translation: [
+      '## 参数',
+      '',
+      '| 参数 | 类型 | 描述 |',
+      '| :--- | :---: | ---: |',
+      '| name | string |',
+      '| path | string | 文件路径 |',
+      '',
+      '表后一段正文。',
+    ].join('\n'),
+  })
+  assert.equal(report.ok, false)
+  const rules = report.violations.map((violation) => violation.rule)
+  assert.ok(rules.includes('table'), `expected a table violation, got ${rules.join(',')}`)
+  // 说明里必须带上形状本身，否则用户只知道"表格坏了"，不知道坏在哪。
+  const detail = report.violations.find((violation) => violation.rule === 'table').detail
+  assert.ok(detail.includes('3|lcr|3,3') && detail.includes('3|lcr|2,3'),
+    `the detail must show both shapes, row by row: ${detail}`)
+})

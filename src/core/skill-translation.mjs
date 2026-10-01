@@ -30,6 +30,8 @@
  * 这一层**不负责**决定译文好坏：它只能证明「结构没被破坏」。语言质量不在校验范围。
  */
 
+import { tableSignature } from './markdown-table.mjs'
+
 export const TRANSLATION_ERROR = Object.freeze({
   INVALID_REQUEST: 'invalid-request',
   SKILL_NOT_FOUND: 'skill-not-found',
@@ -219,6 +221,13 @@ export function inspectTranslation({ source, translation } = {}) {
   if (!sameMultiset(original.frontmatterKeys, translated.frontmatterKeys)) {
     push('frontmatter', 'frontmatter 字段名被翻译或改写')
   }
+  // 表格和标题一样是**结构**：单元格里的字该翻，行列不该动。整篇校验与分段校验用同一份
+  // 解析器，所以「一段里画的表」和「整篇里画的表」是同一张表。
+  const wantTables = tableSignature(source)
+  const gotTables = tableSignature(translation)
+  if (wantTables.length !== gotTables.length || wantTables.some((shape, index) => shape !== gotTables[index])) {
+    push('table', `表格结构被改动（原文 ${wantTables.length} 张：${wantTables.join(' / ')}，译文 ${gotTables.length} 张：${gotTables.join(' / ')}）`)
+  }
 
   return {
     ok: violations.length === 0,
@@ -392,6 +401,16 @@ export function checkChunk({ source, translation, tokens = [], targetLanguage = 
     return { ok: false, rule: 'untranslated', missing: [] }
   }
 
+  // 表格：单元格里的自然语言随便翻，**形状一格都不能动**。表头少一列、某行少一格、
+  // 分隔行被模型"顺手整理"掉，都是结构损坏 —— 界面上会画出一张缺列的表，而人眼很难
+  // 发现少的是哪一列。判定用的是和渲染器同一份解析器，所以"画得出来"与"校验得过"
+  // 用的是同一张表的定义。
+  const wantTables = tableSignature(original)
+  const gotTables = tableSignature(translated)
+  if (wantTables.length !== gotTables.length || wantTables.some((shape, index) => shape !== gotTables[index])) {
+    return { ok: false, rule: 'table', missing: [] }
+  }
+
   const want = headingLevelsOf(original)
   const got = headingLevelsOf(translated)
   // 数量对不上不能修：那意味着模型把标题吃成了段落，或者凭空造了一个。
@@ -449,8 +468,9 @@ export function buildChunkSystemPrompt({ skillName, targetLanguage = DEFAULT_TAR
     `1. 文中的 ${PLACEHOLDER_OPEN}0${PLACEHOLDER_CLOSE}、${PLACEHOLDER_OPEN}1${PLACEHOLDER_CLOSE} 这类记号是**已保护的片段**（代码块、行内代码、URL、文件路径）。必须逐字原样保留、数量不变、位置不乱，一个都不能丢，也不要翻译或改动它们。`,
     '2. 只翻译自然语言。不增加、不删除、不合并、不拆分任何段落。',
     '3. 不改变任何标题的层级与数量（# 的个数必须和原文一致）。',
-    '4. 不添加解释、前言、后记，也不要把结果包进代码块。',
-    '5. 只输出翻译后的 Markdown 本身。',
+    '4. Markdown 表格只翻译单元格里的文字：`|`、分隔行（`| --- |`）、列数、行数、每行的格数都必须逐字保持原样。',
+    '5. 不添加解释、前言、后记，也不要把结果包进代码块。',
+    '6. 只输出翻译后的 Markdown 本身。',
   ]
   if (attempt > 0) {
     // 重试必须说清楚上次错在哪，否则就是把同一句话再问一遍。真实故障里，
@@ -459,7 +479,7 @@ export function buildChunkSystemPrompt({ skillName, targetLanguage = DEFAULT_TAR
       '',
       '注意：上一次的回答没有通过校验。请重新翻译这一段的全部自然语言，',
       `必须输出 ${targetLanguage} 的译文，不要把原文原样返回；`,
-      '同时逐字保留所有占位符、保持每一行的标题层级不变。'
+      '同时逐字保留所有占位符、保持每一行的标题层级不变、表格的行列结构不变。'
     )
   }
   return rules.join('\n')
@@ -491,8 +511,9 @@ export function buildTranslationMessages({ skillName, definitionText, targetLang
     `1. 只翻译自然语言。${PLACEHOLDER_OPEN}0${PLACEHOLDER_CLOSE} 这类记号是已保护的片段（代码块、行内代码、URL、文件路径），必须逐字原样保留、数量不变、位置不乱。`,
     '2. 不增加、不删除、不合并、不拆分任何段落。',
     '3. 不改变任何标题的层级与数量。',
-    '4. 不添加解释、前言、后记，也不要把结果包进代码块。',
-    '5. 只输出翻译后的 Markdown 本身。',
+    '4. Markdown 表格只翻译单元格里的文字：`|`、分隔行（`| --- |`）、列数、行数、每行的格数都必须逐字保持原样。',
+    '5. 不添加解释、前言、后记，也不要把结果包进代码块。',
+    '6. 只输出翻译后的 Markdown 本身。',
   ].join('\n')
   return {
     system,
