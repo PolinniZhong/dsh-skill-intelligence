@@ -3,11 +3,11 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**当前没有待发布版本**：`0.7.0`（Skill 理解与复用）已于 2026-10-01 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`），下一版从它开始。`CHANGELOG.md` 顶部那一段仍是刚发出去的那一版。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**当前没有待发布版本**：`0.7.0`（Skill 理解与复用）已于 2026-10-02 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`），下一版从它开始。`CHANGELOG.md` 顶部那一段仍是刚发出去的那一版。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
 ---
 
-## 本次发布的起点（2026-10-01 实测，发布会话照此核对）
+## 本次发布的起点（2026-10-02 实测，发布会话照此核对）
 
 | 项 | 值 |
 |---|---|
@@ -150,7 +150,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
-### 6.0 本次 `v0.7.0` 的实际结果（2026-10-01 已执行）
+### 6.0 本次 `v0.7.0` 的实际结果（2026-10-02 已执行）
 
 | 项 | 结果 |
 |---|---|

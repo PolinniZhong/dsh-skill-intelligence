@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 — 2026-10-01 · Skill 理解与复用：读得懂、存得住、复刻得走
+## 0.7.0 — 2026-10-02 · Skill 理解与复用：读得懂、存得住、复刻得走
 
 **一次功能版。** 信息架构一个字没动：一级页面仍是「本次 Skill」「已安装 Skill」，二级页面仍是唯一的 Skill 详情，四层顺序仍是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。这一版把产品从「观察 Skill → 理解 Skill」推进到「观察 → 理解 → **阅读** → **复刻** → 让当前 DSH Agent 继续使用」。
 
@@ -276,6 +276,10 @@
 - npm：`npm publish --tag latest --cache=/tmp/npm-cache-dsh` → `dsh-skill-trace@0.7.0`（37 个文件 / 346.6 kB / 解包 1070413 字节 / shasum `015bbf75aee07c5dd921fdc093727e2795c1d155`），再用 `npm dist-tag add dsh-skill-trace@0.7.0 beta` 补第二个标签（同一个版本不能发布两次）。
 - **注册表约 3.5 分钟后才对上**：写操作返回的是「being processed」，`23:25:17` 才读到 `{ beta: '0.7.0', latest: '0.7.0' }`。读的是注册表 packument（带时间戳破缓存），不是 `npm view`。
 - 净室验证：空目录 `npm i dsh-skill-trace@0.7.0` → 版本 `0.7.0`、包内 `dist/client.js` 带 `min(72vh,640px)`、包内 README 写着 `dsh-skill-trace@0.7.0`、宿主入口可 import（`apply` / `createSessionMutationQueue` / `name` / `sessionEventLog` / `shouldPersistReceipt` / `skillEvidenceSignature`）。包页 README（21586 字符）含安装命令与「当前公开版为 `0.7.0`」，**不含**「尚未发布」。
+
+**发布日期的更正。** 这一节的初稿把发布日期写成 `2026-10-01`，与本版标题一致；实际 `v0.7.0` 的发布提交 `5fac5d9` 的提交时间是 **2026-10-02 07:21 +0800**（`git log -1 --format=%ad v0.7.0`）。按 `AGENTS.md` §5 那条「发版时以 `git log` 的时间戳为准」，`CHANGELOG.md` 标题、`AGENTS.md` §1、`spec/PRD.md` 头部与 `docs/RELEASE.md` 三处都已改为 **`2026-10-02`**。
+
+参照系是既有的四条：`v0.6.1` / `v0.6.0` / `v0.5.0` / `v0.4.0-beta.66` 的 tag 分别落在 `2026-10-01` / `2026-10-01` / `2026-10-01` / `2026-09-30`，`CHANGELOG` 标题与它们逐字一致——**版本标题的日期就是这个版本 tag 的提交日期**，不是「这天开始做」也不是「这天写完」。`0.7.0` 是唯一一条跨过午夜的：功能提交 `a9a6959` 在 `10-02 07:06`，发布提交在 `07:21`。
 
 ## 0.6.1 — 2026-10-01 · `SKILL.md` 面板不再被框架层压成 2px
 

@@ -6,7 +6,7 @@
 >
 > **一句话职责**：把「这次对话加载了哪些 Skill」与「这台机器上有哪些 Skill」变成两个可读页面，点进唯一的详情页，看这个 Skill **声明了什么**，以及本次会话**观察到了什么**。它是**只读观察者**。
 >
-> **版本与实测状态**：插件包 `dsh-skill-trace` **`0.7.0`**（2026-10-01 已发布：GitHub Release 与 npm 是同一份构建，npm 的 `beta` 与 `latest` 均指向它）· 自动化测试 **429 项**（`npm test`）· 静态契约守卫 **23 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **2332 行** · bundle `dist/client.js` **129280 字节** · 宿主路由 **10 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。
+> **版本与实测状态**：插件包 `dsh-skill-trace` **`0.7.0`**（2026-10-02 已发布：GitHub Release 与 npm 是同一份构建，npm 的 `beta` 与 `latest` 均指向它）· 自动化测试 **429 项**（`npm test`）· 静态契约守卫 **23 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **2332 行** · bundle `dist/client.js` **129280 字节** · 宿主路由 **10 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。
 >
 > **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **692 行 / 70330 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
 
