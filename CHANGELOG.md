@@ -27,6 +27,20 @@
 | 客户端源码 | `src/dsh/client/client.js` **1970 行**（+3，全是那条 CSS 的注释） |
 | bundle | `dist/client.js` **108839 字节**（+371） |
 
+### 五、npm 发布结果
+
+这一版**同时发布到了 npm**（`0.5.0` 与 `0.6.0` 当时只在 GitHub，所以 npm 的版本号是从 `0.4.0-beta.66` 直接跳过来的）：
+
+| 项 | 值 |
+|---|---|
+| 发布产物 | `dsh-skill-trace@0.6.1`，33 个文件，293.8 kB（解包 912.3 kB） |
+| shasum | `bc3088886d1cd9f6e83bd34d28ca715a62cd2b4b`（与本地 `npm pack` 的产物逐字节一致） |
+| `gitHead` | `c27da14a04f2564d530c85f0a1ba0f57753533bf`（发布前先推成功并核对本地 == 远端，避免 package 页上的 commit 链接 404） |
+| dist-tags | `beta` 与 `latest` **都指向 `0.6.1`**；第二个标签只能用 `npm dist-tag add` 加 |
+| npm 版本表 | `0.4.0-beta.64` → `0.4.0-beta.66` → **`0.6.1`**（中间两版不在 npm 上） |
+| 净室安装 | `npm i dsh-skill-trace@0.6.1` 后，产物里的 `dist/client.js` 能 grep 到 `min(72vh,640px)`，宿主入口导出 `apply` / `name`；包内 README 就是这一版的 README |
+| 注册表时延 | `npm publish` 返回 **202**（"being processed"），`latest` 真正指向 `0.6.1` 大约晚了 **6 分钟**——`npm view` 在这段时间里一直报旧版本 |
+
 ---
 
 ## 0.6.0 — 2026-10-01 · Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格
