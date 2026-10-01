@@ -49,6 +49,10 @@ export const PLACEHOLDER_CLOSE = '\uE001'
 /** 每次模型调用的掩码后正文上限。6000 字符的输入配 4096 maxTokens 足够，也不会截断。 */
 export const CHUNK_CHAR_BUDGET = 6000
 
+// 一段连续失败时最多劈几层。2 层把 3302 字符压到约 800 字符 —— 代价可控（多几次调用），
+// 换来的是失败不再等于「整段英文」。
+export const MAX_SPLIT_DEPTH = 2
+
 function text(value) {
   return typeof value === 'string' ? value : ''
 }
@@ -106,6 +110,28 @@ function frontmatterKeys(markdown) {
     if (match) keys.push(match[1])
   }
   return keys
+}
+
+const CJK_PATTERN = /[\u3400-\u9FFF]/
+const ASCII_LETTER = /[A-Za-z]/g
+
+function letterCount(value) {
+  return (text(value).match(ASCII_LETTER) || []).length
+}
+
+/**
+ * 「没翻」也是一种失败，而且是最坏的一种：它看起来像成功。
+ *
+ * 第五次故障的根因就在这里。模型把整段原样返回，而 `checkChunk` 只看结构 —— 结构完好，
+ * 于是整段英文被判成「翻译成功」，界面说「其余已翻译」，用户看到满屏英文。
+ * 结构对不等于翻过。
+ */
+function looksUntranslated(original, produced, targetLanguage) {
+  const letters = letterCount(produced)
+  if (original === produced) return letters >= 24
+  if (!String(targetLanguage || '').toLowerCase().startsWith('zh')) return false
+  // 目标是中文：整段没有一个汉字、却有成篇的拉丁字母，那就是没翻。
+  return letters >= 24 && !CJK_PATTERN.test(produced)
 }
 
 function multiset(values) {
@@ -337,12 +363,17 @@ export function chunkMasked(masked, budget = CHUNK_CHAR_BUDGET) {
 }
 
 /**
- * 段级校验：占位符一个不少、标题层级一个不差。
+ * 段级校验：占位符一个不少、标题一个不多不少，层级由原文钉回去。
  *
  * 围栏、URL、路径、行内代码在这个阶段已经不可能出问题（它们没发给模型），
- * 所以这里只查两件模型仍可能做错的事。
+ * 所以这里只查模型仍可能做错的两件事。
+ *
+ * 标题层级**不再是失败条件**。模型看到 `##` 之后直接跳 `####`，容易认为那是笔误、
+ * "顺手修正"成 `###` —— 那是善意，而且层级本来不是它的活。§12.4 说结构来自原文，
+ * 所以这里按顺序把层级还原成原文的，而不是为了一个 `#` 丢掉整段译文：
+ * 一次真实故障里，一个 `####` 让 3302 字符（全文 79%）整段退回英文。
  */
-export function checkChunk({ source, translation, tokens = [] } = {}) {
+export function checkChunk({ source, translation, tokens = [], targetLanguage = DEFAULT_TARGET_LANGUAGE } = {}) {
   const original = text(source)
   const translated = text(translation)
   if (!translated.trim()) return { ok: false, rule: 'empty', missing: [] }
@@ -356,21 +387,62 @@ export function checkChunk({ source, translation, tokens = [] } = {}) {
   }
   if (missing.length) return { ok: false, rule: 'placeholder', missing }
 
-  const before = headingLevelsOf(original)
-  const after = headingLevelsOf(translated)
-  if (before.length !== after.length || before.some((level, index) => level !== after[index])) {
-    return { ok: false, rule: 'heading', missing: [] }
+  // 结构没坏，但一个字都没翻 —— 这一条以前不存在，于是"原样返回"拿了满分。
+  if (looksUntranslated(original.trim(), translated.trim(), targetLanguage)) {
+    return { ok: false, rule: 'untranslated', missing: [] }
   }
 
-  return { ok: true, rule: null, missing: [] }
+  const want = headingLevelsOf(original)
+  const got = headingLevelsOf(translated)
+  // 数量对不上不能修：那意味着模型把标题吃成了段落，或者凭空造了一个。
+  if (want.length !== got.length) return { ok: false, rule: 'heading', missing: [] }
+
+  const aligned = alignHeadingLevels(translated, want)
+  return { ok: true, rule: null, missing: [], translation: aligned, realigned: aligned !== translated }
+}
+
+/**
+ * 按顺序把每个标题的 `#` 换成原文的层级。只动 `#`，不动标题文字 —— 文字是模型的活，
+ * 层级不是。行数与标题数已经相等（调用方保证），所以按下标一一对上。
+ */
+export function alignHeadingLevels(markdown, levels = []) {
+  let seen = 0
+  return text(markdown).split('\n').map((line) => {
+    const match = line.match(/^(#{1,6})(\s+)(\S.*)$/)
+    if (!match) return line
+    const level = levels[seen]
+    seen += 1
+    if (!level || level === match[1].length) return line
+    return '#'.repeat(level) + match[2] + match[3]
+  }).join('\n')
+}
+
+/**
+ * 把一段切成两半，**保证 `left + right === source` 逐字节相等**。
+ *
+ * 只在空行上断：段落和标题都从行首开始，断在空行上就不会把一句话劈成两半，
+ * 而空行本身留在左半边的尾巴上，`reanchorChunk` 会把它原样还回去。
+ */
+export function splitChunkSource(source) {
+  const original = text(source)
+  if (original.trim().length < 2) return null
+  const middle = Math.floor(original.length / 2)
+  let cut = original.indexOf('\n\n', middle)
+  if (cut === -1) cut = original.lastIndexOf('\n\n', middle)
+  if (cut === -1) return null
+  cut += 2
+  const left = original.slice(0, cut)
+  const right = original.slice(cut)
+  if (!left.trim() || !right.trim()) return null
+  return [left, right]
 }
 
 /**
  * 段级提示词。与整篇版本的两处差别：明确告诉模型占位符是什么、要求原样放回原位。
  */
-export function buildChunkSystemPrompt({ skillName, targetLanguage = DEFAULT_TARGET_LANGUAGE, index, total } = {}) {
+export function buildChunkSystemPrompt({ skillName, targetLanguage = DEFAULT_TARGET_LANGUAGE, index, total, attempt = 0 } = {}) {
   const name = text(skillName).trim()
-  return [
+  const rules = [
     `你是 Markdown 结构保持翻译器。把下面这段 Skill 定义（${name}）的第 ${index + 1}/${total} 段翻译成 ${targetLanguage}。`,
     '',
     '硬规则：',
@@ -379,14 +451,25 @@ export function buildChunkSystemPrompt({ skillName, targetLanguage = DEFAULT_TAR
     '3. 不改变任何标题的层级与数量（# 的个数必须和原文一致）。',
     '4. 不添加解释、前言、后记，也不要把结果包进代码块。',
     '5. 只输出翻译后的 Markdown 本身。',
-  ].join('\n')
+  ]
+  if (attempt > 0) {
+    // 重试必须说清楚上次错在哪，否则就是把同一句话再问一遍。真实故障里，
+    // 模型把整段原样返回、结构完好，于是被判成"翻译成功"——第二次必须点名这件事。
+    rules.push(
+      '',
+      '注意：上一次的回答没有通过校验。请重新翻译这一段的全部自然语言，',
+      `必须输出 ${targetLanguage} 的译文，不要把原文原样返回；`,
+      '同时逐字保留所有占位符、保持每一行的标题层级不变。'
+    )
+  }
+  return rules.join('\n')
 }
 
-export function buildChunkMessages({ skillName, chunkSource, targetLanguage = DEFAULT_TARGET_LANGUAGE, index = 0, total = 1 } = {}) {
+export function buildChunkMessages({ skillName, chunkSource, targetLanguage = DEFAULT_TARGET_LANGUAGE, index = 0, total = 1, attempt = 0 } = {}) {
   const body = text(chunkSource)
   if (!body.trim()) throw new Error('chunk 正文为空，无法翻译')
   return {
-    system: buildChunkSystemPrompt({ skillName, targetLanguage, index, total }),
+    system: buildChunkSystemPrompt({ skillName, targetLanguage, index, total, attempt }),
     // §20：翻译上下文只有定义正文。会话消息、工具输出、凭据都不进来。
     messages: [{ role: 'user', content: body }],
     targetLanguage,
@@ -464,38 +547,62 @@ export async function runSegmentedTranslation({
   ask,
   attempts = 2,
   chunkBudget = CHUNK_CHAR_BUDGET,
+  maxSplitDepth = MAX_SPLIT_DEPTH,
 } = {}) {
   if (typeof ask !== 'function') throw new Error('ask 必须是函数')
   const { masked, tokens } = maskProtected(definitionText)
   const chunks = chunkMasked(masked, chunkBudget)
-  const pieces = []
-  const fallbackIndexes = []
+  const stats = { realignedChunks: 0 }
 
-  const fallbackReasons = []
-
-  for (const chunk of chunks) {
-    let accepted = null
+  const translateLeaf = async (source, index, total, depth) => {
     // 为什么这一段最后回退了。界面要能说出原因 —— 「有 3 段没翻成」而不说为什么，
-    // 用户只能靠猜；上一次真实故障就是被这一句话盖住的。
+    // 用户只能靠猜；一次真实故障就是被这一句话盖住的。
     let lastRule = 'empty'
-    for (let attempt = 0; attempt < attempts && accepted === null; attempt += 1) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       let produced = ''
       try {
-        produced = await ask({ chunk, index: chunk.index, total: chunks.length, attempt })
+        produced = await ask({ chunk: { index, source }, index, total, attempt })
       } catch {
         produced = ''
       }
-      const verdict = checkChunk({ source: chunk.source, translation: produced, tokens })
-      if (verdict.ok) accepted = produced
-      else lastRule = verdict.rule
+      const verdict = checkChunk({ source, translation: produced, tokens, targetLanguage })
+      if (verdict.ok) {
+        if (verdict.realigned) stats.realignedChunks += 1
+        return { text: reanchorChunk({ source, translation: verdict.translation }), failed: false, rule: null }
+      }
+      lastRule = verdict.rule
     }
-    if (accepted === null) {
-      // 回退的是**掩码态**原文，稍后与其它段一起还原，所以围栏与路径仍然是逐字的。
+
+    // 这一段落败了。整段退回英文太贵：一次真实故障里，一个 `####` 让 3302 字符（全文 79%）
+    // 退回英文，而它旁边那段 610 字符是好的。所以先劈成两半再试 —— 坏的那半继续往下劈，
+    // 好的那半把译文留住。用户看到的是「有几处还是英文」，而不是「整篇没翻」。
+    if (depth < maxSplitDepth) {
+      const halves = splitChunkSource(source)
+      if (halves) {
+        const left = await translateLeaf(halves[0], index, total, depth + 1)
+        const right = await translateLeaf(halves[1], index, total, depth + 1)
+        return {
+          text: left.text + right.text,
+          failed: left.failed || right.failed,
+          rule: left.failed ? left.rule : right.rule,
+        }
+      }
+    }
+
+    // 回退的是**掩码态**原文，稍后与其它段一起还原，所以围栏与路径仍然是逐字的。
+    return { text: source, failed: true, rule: lastRule }
+  }
+
+  const pieces = []
+  const fallbackIndexes = []
+  const fallbackReasons = []
+
+  for (const chunk of chunks) {
+    const leaf = await translateLeaf(chunk.source, chunk.index, chunks.length, 0)
+    pieces.push(leaf.text)
+    if (leaf.failed) {
       fallbackIndexes.push(chunk.index)
-      fallbackReasons.push({ index: chunk.index, rule: lastRule })
-      pieces.push(chunk.source)
-    } else {
-      pieces.push(reanchorChunk({ source: chunk.source, translation: accepted }))
+      fallbackReasons.push({ index: chunk.index, rule: leaf.rule })
     }
   }
 
@@ -505,6 +612,10 @@ export async function runSegmentedTranslation({
     fallbackChunks: fallbackIndexes.length,
     fallbackIndexes,
     fallbackReasons,
+    realignedChunks: stats.realignedChunks,
+    // 只算**最终**回退且原因是"没翻"的段落。重试过一次但后来翻好了的不算 ——
+    // 这个数字是给人和探针看的诊断，不是重试计数。
+    untouchedChunks: fallbackReasons.filter((entry) => entry.rule === 'untranslated').length,
   }
 }
 

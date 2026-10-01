@@ -6,6 +6,7 @@ import {
   PLACEHOLDER_CLOSE,
   PLACEHOLDER_OPEN,
   buildChunkMessages,
+  alignHeadingLevels,
   checkChunk,
   chunkMasked,
   headingLevelsOf,
@@ -14,6 +15,7 @@ import {
   reanchorChunk,
   restoreProtected,
   runSegmentedTranslation,
+  splitChunkSource,
 } from '../src/core/skill-translation.mjs'
 
 /**
@@ -115,18 +117,53 @@ test('a code fence is never split across chunks', () => {
 test('a faithful segment is accepted, and a dropped placeholder is not', () => {
   const { masked, tokens } = maskProtected(DEFINITION)
   const [chunk] = chunkMasked(masked, CHUNK_CHAR_BUDGET)
-  assert.equal(checkChunk({ source: chunk.source, translation: chunk.source, tokens }).ok, true)
+  assert.equal(checkChunk({ source: chunk.source, translation: translatedFixture(chunk.source), tokens }).ok, true)
   assert.equal(checkChunk({ source: chunk.source, translation: '', tokens }).rule, 'empty')
   const dropped = chunk.source.replace(new RegExp(`${PLACEHOLDER_OPEN}\\s*0\\s*${PLACEHOLDER_CLOSE}`), '')
   assert.equal(checkChunk({ source: chunk.source, translation: dropped, tokens }).rule, 'placeholder')
 })
 
-test('a changed heading level inside a segment is caught', () => {
+test('an answer that translated nothing is not a success', () => {
+  // 第五次故障的根因：模型把整段原样返回，结构完好，于是被判成"翻译成功"。
+  // 界面说「其余已翻译」，用户看到满屏英文。结构对不等于翻过。
   const { masked, tokens } = maskProtected(DEFINITION)
   const [chunk] = chunkMasked(masked, CHUNK_CHAR_BUDGET)
-  const demoted = chunk.source.replace('## Knobs', '### Knobs')
-  assert.notEqual(demoted, chunk.source, 'the fixture really has that heading')
-  assert.equal(checkChunk({ source: chunk.source, translation: demoted, tokens }).rule, 'heading')
+  assert.equal(checkChunk({ source: chunk.source, translation: chunk.source, tokens }).rule, 'untranslated')
+
+  // 中文译文里应该有汉字；没有一个汉字、却有成篇拉丁字母的，判为没翻。
+  const latinOnly = chunk.source.replace(/[A-Za-z]{2,}/g, 'lorem')
+  assert.equal(checkChunk({ source: chunk.source, translation: latinOnly, tokens }).rule, 'untranslated')
+
+  // 反过来，只要有一个汉字，就不再怀疑它。
+  assert.equal(checkChunk({ source: chunk.source, translation: `${latinOnly} 译`, tokens }).ok, true)
+})
+
+test('a changed heading level is repaired from the source, not thrown away', () => {
+  // 模型看到 `##` 直接跳 `####`，会认为那是笔误、顺手改成 `###`。那是善意，而且层级
+  // 本来不是它的活。一次真实故障里，一个 `####` 让 3302 字符（全文 79%）整段退回英文。
+  const { masked, tokens } = maskProtected(DEFINITION)
+  const [chunk] = chunkMasked(masked, CHUNK_CHAR_BUDGET)
+  // 翻过一遍（因此有汉字），但层级被"顺手修正"了。
+  const demoted = chunk.source.replace('## Knobs', '### Knobs').replace('Set ', '设置 ')
+  assert.ok(demoted.includes('### Knobs'), 'the fixture really has that heading')
+  const verdict = checkChunk({ source: chunk.source, translation: demoted, tokens })
+  assert.equal(verdict.ok, true, 'a level is not worth losing the whole segment over')
+  assert.equal(verdict.realigned, true)
+  assert.deepEqual(headingLevelsOf(verdict.translation), headingLevelsOf(chunk.source))
+  assert.ok(!verdict.translation.includes('### Knobs'), 'the level was put back')
+  assert.ok(verdict.translation.includes('## Knobs'), 'and the text was left alone')
+
+  // 数量对不上就不能修了：那是标题被吃成了段落。
+  const eaten = chunk.source.replace(/^## Knobs$/m, '**Knobs**').replace('Set ', '设置 ')
+  assert.equal(checkChunk({ source: chunk.source, translation: eaten, tokens }).rule, 'heading')
+})
+
+test('heading levels are pinned in order, one per heading', () => {
+  const source = '# a\n\n## b\n\n#### c\n'
+  assert.equal(alignHeadingLevels('# a\n\n### b\n\n## c\n', headingLevelsOf(source)), source)
+  // 行内出现 # 不算标题，不许被动到。
+  assert.equal(alignHeadingLevels('# a\n\n## b\n\n#### c\n', headingLevelsOf(source)), source)
+  assert.equal(alignHeadingLevels('# a # not a heading\n', [2]), '## a # not a heading\n')
 })
 
 test('the gate accepts a translation produced the way the host produces one', () => {
@@ -178,6 +215,11 @@ test('translation context is the definition only', () => {
 // 是正确的。下面这些用例把失败模式搬进测试：模型改坏标题、模型丢掉占位符、模型整段
 // 报错。它们全都必须在毫秒内复现，而不是等用户点三次才发现。
 
+/** 一段"翻过了"的文本：ASCII 词换成汉字，结构不动。 */
+function translatedFixture(source) {
+  return String(source).replace(/[A-Za-z]{2,}/g, '译文')
+}
+
 /** 一个"会翻译"的假模型：把 ASCII 词换成中文，结构原样返回。 */
 function fakeTranslate(source) {
   return source.replace(/[A-Za-z][A-Za-z'-]*/g, (word) => `译${word.length}`)
@@ -203,16 +245,45 @@ test('a well-behaved model translates the document and nothing falls back', asyn
   assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
 })
 
-test('a model that breaks one segment retries it and then falls back alone', async () => {
-  // 每段都降一级标题 —— 这正是真实模型对长文档做的事。
+test('a model that demotes every heading still delivers a translated document', async () => {
+  // 每段都降一级标题 —— 这正是真实模型对长文档做的事。以前这会让整段退回英文。
   const ask = recorder((source) => fakeTranslate(source).replace(/^## /m, '### '))
   const result = await runSegmentedTranslation({ definitionText: DEFINITION, skillName: 'ui-craft', ask, attempts: 2 })
-  assert.ok(result.fallbackChunks >= 1, 'the broken segments fall back')
-  assert.equal(result.chunkCount, ask.calls.length / 2, 'each failed segment was asked exactly twice')
-  // 关键断言：整篇**仍然**是结构完好的，而不是像 beta.69 那样被整体丢弃。
+  assert.equal(result.fallbackChunks, 0, 'a level is repaired, not thrown away')
+  assert.ok(result.realignedChunks >= 1, 'and we can say it happened')
+  assert.equal(result.untouchedChunks, 0)
   assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
-  // 回退的段保留原文，而不是留空。
-  assert.ok(result.translation.includes('# ui-craft'), 'the fallen-back heading is still there in English')
+  assert.notEqual(result.translation, DEFINITION, 'the document really is translated')
+  assert.equal(ask.calls.length, result.chunkCount, 'no retry was even needed')
+})
+
+test('a chunk that keeps failing is split, so the damage stays small', async () => {
+  // 真实模型对**长**输入才改坏结构。以前一段失败 = 整段（3302 字符）退回英文；
+  // 现在失败的那段会被劈开重试，坏的范围跟着缩小。
+  const ask = recorder((source) => (source.length > 60 ? source : fakeTranslate(source)))
+  const result = await runSegmentedTranslation({
+    definitionText: DEFINITION,
+    skillName: 'ui-craft',
+    ask,
+    chunkBudget: 120,
+    attempts: 1,
+  })
+  assert.ok(ask.calls.length > result.chunkCount, 'the long segments were asked more than once')
+  assert.equal(result.fallbackChunks, 0, 'splitting recovered every segment')
+  assert.equal(result.untouchedChunks, 0)
+  assert.equal(inspectTranslation({ source: DEFINITION, translation: result.translation }).ok, true)
+  assert.match(result.translation, /译\d/, 'the prose came out translated')
+})
+
+test('splitting a segment loses no bytes', () => {
+  const source = 'a\n\nb\n\nc\n\nd\n\ne\n\n'
+  const halves = splitChunkSource(source)
+  assert.ok(halves, 'this text can be split')
+  assert.equal(halves[0] + halves[1], source)
+  assert.ok(halves[0].length > 0 && halves[1].length > 0)
+  // 没有空行可断的时候宁可不断，也不要把一句话劈成两半。
+  assert.equal(splitChunkSource('one line only'), null)
+  assert.equal(splitChunkSource(''), null)
 })
 
 test('a model that always throws yields the original document, not an error', async () => {
@@ -287,7 +358,8 @@ test('the junctions survive a model that trims every segment', async () => {
 
 test('a fallback says which rule it failed, not just that it failed', async () => {
   // 「有 3 段没翻成」不解释原因，等于把诊断推给用户 —— 上一次真实故障就是这么被盖住的。
-  const headingBreaker = async ({ chunk }) => chunk.source.replace(/^## /m, '### ')
+  // 这里用的是**修不好**的那种破坏：标题被吃成粗体段落，数量对不上。
+  const headingBreaker = async ({ chunk }) => fakeTranslate(chunk.source).replace(/^## (.*)$/m, '**$1**')
   const broken = await runSegmentedTranslation({
     definitionText: DEFINITION,
     skillName: 'ui-craft',

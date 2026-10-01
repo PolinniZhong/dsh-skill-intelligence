@@ -203,7 +203,7 @@ the accident it prevents was never about the canvas.
 
 ## Translation (中文预览)
 
-`POST /skill-trace/translate` reads the Skill definition live (`registry.get(name, …)` → `loadSkillDefinition`), builds messages with `buildTranslationMessages({skillName, definitionText, targetLanguage})` from `src/core/skill-translation.mjs`, and calls the user's configured DSH model through `ctx.llm.stream` (`@deepseek-ai/dsh-llm` — provider-neutral, and the official non-session-polluting call pattern: `createUserMessage` → `llm.stream` → `BlockAssembler`, as in `@deepseek-ai/dsh-session-title-llm/lib/index.js:206-235`). `DEFAULT_TRANSLATION_LANGUAGE` is `'zh-CN'`.
+`POST /skill-trace/translate` reads the Skill definition live (`registry.get(name, …)` → `loadSkillDefinition`), builds messages with `buildChunkMessages({skillName, chunkSource, targetLanguage, index, total, attempt})` from `src/core/skill-translation.mjs` and runs the segmented policy with `runSegmentedTranslation({…, ask})`, and calls the user's configured DSH model through `ctx.llm.stream` (`@deepseek-ai/dsh-llm` — provider-neutral, and the official non-session-polluting call pattern: `createUserMessage` → `llm.stream` → `BlockAssembler`, as in `@deepseek-ai/dsh-session-title-llm/lib/index.js:206-235`). `DEFAULT_TRANSLATION_LANGUAGE` is `'zh-CN'`.
 
 Success returns `{ok, skillName, sourceSha256, targetLanguage, model, truncated, translation, preserved}` with `translation` a plain string. Errors are a closed set: `invalid-request`, `skill-not-found`, `definition-changed`, `definition-unavailable`, `model-busy`, `translation-failed`.
 
@@ -244,7 +244,9 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/core/definition-outline.mjs` | Markdown outline plus declared-step anchors; pure, and does not interpret the Skill |
 | `src/core/repository-resolver.mjs` | Resolves the repository a definition points at; never derives it from Skill identity, because DSH has no repository field |
 | `src/core/installed-view.mjs` | Projects the catalog snapshot into the installed-skills view; never reads the receipt |
-| `src/core/skill-translation.mjs` | Pure translation prompt builder, protected-structure extraction, and violation inspection; the model call itself lives in the host |
+| `src/core/skill-translation.mjs` | Pure translation policy: protected-span masking, blank-line chunking, the per-segment prompt, `checkChunk` (structure **and** "did a translation actually happen"), `alignHeadingLevels` (repair a level the model "helpfully" changed), `splitChunkSource` (cut a failing segment in half instead of losing it whole), and violation inspection; the model call itself is injected as `ask` |
+| `src/core/translation-cache.mjs` | Where a finished translation lives: an in-process `Map`, keyed by `sessionId` + skill + `sourceSha256`, capped at 8 entries, LRU. No storage, no filesystem, no IPC — the plugin unloading is what clears it |
+| `src/core/installed-view.mjs` | The installed-catalog search predicate, shared by the host and the client so "found it" cannot depend on which end answered |
 | `src/core/runtime-evidence.mjs` | Seam between raw tool arguments and the evidence model |
 | `src/core/step-kind.mjs` | Shared step vocabulary; alignment compares only at kind level |
 | `src/core/source-snapshot.mjs` | Safe source identity and snapshot metadata (sha256 plus provider sanitizing) |
@@ -255,7 +257,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 ## Client component tree
 
-`src/dsh/client/client.js` is the entire client — about 1330 lines after v0.6, down from about 3536, with a bundle of about 52 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
+`src/dsh/client/client.js` is the entire client — about 1345 lines after v0.6, down from about 3536, with a bundle of about 52 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
 ```text
 Workbench                      first-level page switch + host preference
@@ -551,7 +553,7 @@ UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → �
 | 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
 | 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
 
-因此客户端从约 3536 行降到约 1330 行，bundle 从 421 KB 降到约 52 KB，只调用留下来的七条路由，
+因此客户端从约 3536 行降到约 1345 行，bundle 从 421 KB 降到约 52 KB，只调用留下来的七条路由，
 并且只注册一个 slot（`conversation.view`）。
 
 ### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着

@@ -12,6 +12,9 @@
 // 纯函数、无 node 内置依赖，所以能被内联进客户端。搜索必须和宿主用同一个谓词，
 // 否则「搜得到」会随请求发往哪一端而变化。
 const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
+// 译文的寿命定在核心层：它是纯数据、没有 I/O，所以能单独测 —— 而不是埋在组件里，
+// 只能靠人眼在真实应用里切来切去地试。
+const { readCachedTranslation, translationCacheKey, writeCachedTranslation } = require('../../core/translation-cache.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -106,16 +109,18 @@ function fallbackReasonSuffixEn(rules) {
   return words.length ? ` (${words.join(', ')})` : ''
 }
 
-/** 段级校验的三个规则名到人话。 */
+/** 段级校验的规则名到人话。 */
 const TRANSLATION_RULE_TEXT = {
   heading: '标题层级被改动',
   placeholder: '受保护的片段被改动',
+  untranslated: '模型把原文原样返回了',
   empty: '模型没有返回内容',
 }
 
 const TRANSLATION_RULE_TEXT_EN = {
   heading: 'a heading level changed',
   placeholder: 'a protected span changed',
+  untranslated: 'the model returned the source unchanged',
   empty: 'the model returned nothing',
 }
 
@@ -687,9 +692,9 @@ function installStyles() {
    *
    * §8.4：返回的是**进入前的那个列表**，所以 `onBack` 由调用方给，这里不写死任何一个。
    *
-   * §12.4：译文只活在这个组件的 state 里 —— 不写 localStorage、不写 sessionStorage、不进
-   * 会话、不落盘。切换 Skill 或定义指纹变了就丢弃（`alignOutlineToTranslation` 的注释说明
-   * 为什么「结构没被破坏」是上游保证的）。
+   * §12.4：译文只活在内存里 —— 不写 localStorage、不写 sessionStorage、不进会话、不落盘。
+   * 定义指纹变了就换一份（`alignOutlineToTranslation` 的注释说明为什么「结构没被破坏」是
+   * 上游保证的）；指纹没变、只是切到别的 Skill 再切回来，则从模块级缓存里取回，不再重译。
    */
   /**
    * 二级页的返回键。它现在住在顶栏里 —— 顶栏原先那行「本次 Skill / DSH_Skill_Trace · …」
@@ -749,12 +754,20 @@ function installStyles() {
     const matchState = snapshot?.match || observation?.match || 'unavailable'
     const sha = content?.sha256 ?? ''
 
-    // 定义换了（重新加载、切 Skill）就丢弃译文：一份对不上屏幕正文的译文比没有译文更糟。
+    // 定义换了（重新加载、切 Skill）就换一份译文：一份对不上屏幕正文的译文比没有译文更糟。
     // 依赖是 `skillName` + 指纹，不是 `detail` 对象 —— 同一个定义的两次读取不该清掉译文。
+    // 先看内存里有没有：翻译要跑一到三分钟，切走再切回来重跑一遍是浪费用户的等待。
     React.useEffect(() => {
+      const cached = sha ? readCachedTranslation(translationCacheKey(sessionId, skillName, sha)) : null
+      if (cached) {
+        // 回到一个已经翻好的 Skill，直接把中文摆出来 —— 用户切回来想看的正是它。
+        setTranslation(cached)
+        setTab('translated')
+        return
+      }
       setTranslation({ state: 'idle', text: '', sha: '', error: '' })
       setTab('original')
-    }, [skillName, sha])
+    }, [sessionId, skillName, sha])
 
     const flashAnchor = React.useCallback((anchorId) => {
       if (!anchorId) return
@@ -795,7 +808,7 @@ function installStyles() {
           }
           // 宿主逐段翻译，有段落回退到原文时**必须说出来**：界面若声称「已翻译」
           // 而正文里躺着一段英文，那是在无声地骗用户。
-          setTranslation({
+          const settled = {
             state: 'ready',
             text,
             sha,
@@ -803,7 +816,9 @@ function installStyles() {
             chunkCount: Number(body?.chunkCount) || 0,
             fallbackChunks: Number(body?.fallbackChunks) || 0,
             fallbackReasons: Array.isArray(body?.fallbackReasons) ? body.fallbackReasons : [],
-          })
+          }
+          writeCachedTranslation(translationCacheKey(sessionId, skillName, sha), settled)
+          setTranslation(settled)
         })
         .catch((reason) => {
           setTranslation({ state: 'error', text: '', sha, error: String(reason?.message || 'translation-failed') })
@@ -920,7 +935,7 @@ function installStyles() {
       translateButton)
 
     const docNotice = h('p', { className: 'st-translate-notice' }, raw(translated
-      ? localized('中文预览只用于当前页面阅读，不会写回 SKILL.md，也不会进入这次对话；退出插件后不保留。', 'This preview is shown on this page only: it is never written back to SKILL.md, never added to the conversation, and is discarded when you leave.')
+      ? localized('中文预览只用于当前页面阅读，不会写回 SKILL.md，也不会进入这次对话。在插件里切到别的 Skill 再回来，译文还在；退出 DeepSeek Harness 后不保留。', 'This preview is shown on this page only: it is never written back to SKILL.md and never added to the conversation. It stays while you switch between Skills, and is dropped when DeepSeek Harness exits.')
       : localized('原文逐字来自 Skill 定义文件；这里不做任何改写。', 'The original text comes from the Skill definition file verbatim; nothing here rewrites it.')))
 
     const translationState = translation.state === 'loading'

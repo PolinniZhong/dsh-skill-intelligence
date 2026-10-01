@@ -644,7 +644,7 @@ console.log('VISUAL_TOKENS_OK')
   // 2026-10-01 的第二次真实故障在**接头**上：模型 trim 掉段尾空行之后，上一段的正文与
   // 下一段的 `## 标题` 粘成一行，28 个标题变 21 个，整篇校验报 `heading`。段级校验看不见它，
   // 因为每一段单看都是对的。所以这里要求拼接时按原文还原首尾空白。
-  if (!/reanchorChunk\(\{ source: chunk\.source, translation: accepted \}\)/.test(core)) {
+  if (!/reanchorChunk\(\{ source, translation: verdict\.translation \}\)/.test(core)) {
     throw new Error('a segment must be re-anchored to its own blank lines before it is joined, or the headings stick together')
   }
   const route = host.slice(host.indexOf("url.pathname === '/skill-trace/translate'"))
@@ -661,6 +661,49 @@ console.log('VISUAL_TOKENS_OK')
   }
   if (!clientCode.includes('fallbackReasonSuffix') || !/TRANSLATION_RULE_TEXT\s*=\s*\{/.test(clientCode)) {
     throw new Error('the client must translate a fallback rule into a reason the user can read')
+  }
+  // 2026-10-01 的第三次真实故障最贵：模型把 3302 字符**原样返回英文**，而当时的 `checkChunk`
+  // 只查结构 —— "结构完好"被判成"翻译成功"，界面于是说「其余已翻译」，用户看到满屏英文。
+  // 用户的原话是「宏观你那是提示成功，但是我没有看到」。一个不看语言的判定，配上"一段不过
+  // 就整段退回"，就是这句话的全部成因。所以钉三件：判定要看语言、层级能修就修、修不了就拆小。
+  for (const expected of ['looksUntranslated', 'alignHeadingLevels', 'splitChunkSource']) {
+    if (!core.includes(expected)) throw new Error(`the translation core must handle ${expected}`)
+  }
+  // 「含这个词」不等于「真的用了它」—— 把调用改成 `if (false && looksUntranslated(...))`
+  // 这种写法仍然能骗过按词匹配的守卫，所以这里连**它必须导致的失败**一起钉住。
+  if (!/if \(looksUntranslated\(original\.trim\(\), translated\.trim\(\), targetLanguage\)\) \{\s*return \{ ok: false, rule: 'untranslated'/.test(core)) {
+    throw new Error('checkChunk must notice when the model handed the source back untranslated')
+  }
+  if (!/const halves = splitChunkSource\(source\)/.test(core)) {
+    throw new Error('a segment that keeps failing must be split, not thrown away whole')
+  }
+  if (!clientCode.includes('untranslated')) {
+    throw new Error('the client must be able to say that the model returned the source unchanged')
+  }
+  // 译文要活得比"一次页面访问"久（切到别的 Skill 再回来还在），但**不能**比插件久。
+  // 前半句靠核心那个 Map，后半句靠"它只在这个模块里" —— 插件卸载，模块一起消失。
+  const cacheModule = await readFile(resolve(root, 'src/core/translation-cache.mjs'), 'utf8')
+  for (const expected of ['translationCacheKey', 'readCachedTranslation', 'writeCachedTranslation']) {
+    if (!cacheModule.includes(`export function ${expected}`)) {
+      throw new Error(`the translation cache must export ${expected}`)
+    }
+  }
+  // 查的是**调用**，不是词：注释里解释"没有 localStorage"是这个模块该说的话，
+  // 一个按词匹配的守卫会逼着注释不许提到它 —— 那是让文档迁就工具。
+  for (const forbidden of ['localStorage.', 'sessionStorage.', 'writeFile(', 'node:fs', 'receipt']) {
+    if (cacheModule.includes(forbidden)) {
+      throw new Error(`a translation must not outlive the plugin, but the cache knows about ${forbidden}`)
+    }
+  }
+  if (!clientCode.includes('translation-cache.mjs')) {
+    throw new Error('the client must read through the shared translation cache')
+  }
+  // 定义存在不等于用上了：详情页必须**真的**先读缓存、成功后再写缓存。
+  if (!/readCachedTranslation\(translationCacheKey\(/.test(clientCode)) {
+    throw new Error('the detail page must look in the cache before it translates again')
+  }
+  if (!/writeCachedTranslation\(translationCacheKey\(/.test(clientCode)) {
+    throw new Error('a finished translation must be cached, or switching Skills starts over')
   }
   console.log('TRANSLATION_SEGMENTED_OK')
 }

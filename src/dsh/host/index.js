@@ -325,8 +325,8 @@ async function translateSkillDefinition({ llm, selection, skillName, definitionT
     skillName,
     targetLanguage,
     attempts: TRANSLATION_ATTEMPTS_PER_CHUNK,
-    ask: ({ chunk, index, total }) => {
-      const built = buildChunkMessages({ skillName, chunkSource: chunk.source, targetLanguage, index, total })
+    ask: ({ chunk, index, total, attempt }) => {
+      const built = buildChunkMessages({ skillName, chunkSource: chunk.source, targetLanguage, index, total, attempt })
       return askModel(built.system, built.messages[0].content)
     },
   })
