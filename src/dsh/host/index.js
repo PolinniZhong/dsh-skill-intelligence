@@ -277,7 +277,10 @@ export function skillEvidenceSignature(receipt) {
  */
 // 每次模型调用的输出上限。分段之后每段输入 ≤ 6000 字符，4096 的输出预算足够，
 // 也不会再出现「整篇译文被 maxTokens 截断」这种看不出来的失败。
-const TRANSLATION_MAX_TOKENS = 4096
+// 8192，不是 4096。旧值 4096 是这条路上第二个没说出口的失败源：31174 字符的定义一次性
+// 翻译，即使模型没有动标题，4096 个输出 token 也装不下它的中文 —— 输出会在半路被截断，
+// 后半篇的标题因此对不上，报出来的正是 `heading`。分段之后每段只有几千字符，8192 有富余。
+const TRANSLATION_MAX_TOKENS = 8192
 // 每段最多问两次。第二次仍不听话就**回退这一段**（显示原文），而不是丢掉整篇 ——
 // 用户宁可看到一段英文加一句说明，也不该看到「翻译失败」而一个字都没有。
 const TRANSLATION_ATTEMPTS_PER_CHUNK = 2

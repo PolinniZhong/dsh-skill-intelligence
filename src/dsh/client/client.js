@@ -887,7 +887,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     const translationState = translation.state === 'loading'
       // 分段翻译后这是一次**多段**调用，比原来的单次调用慢。等待时若不说清楚，用户会
       // 以为界面卡死了 —— 而"以为卡死"的下一个动作通常是刷新，那会把进度全丢掉。
-      ? h('p', { className: 'st-translate-error' }, raw(localized('正在逐段翻译…整份文档会分成若干段依次翻译，可能需要一两分钟。译文只留在内存里。', 'Translating segment by segment — a long definition is split into several parts and translated in order, which can take a minute or two. The result is kept in memory only.')))
+      ? h('p', { className: 'st-translate-error' }, raw(localized('正在逐段翻译…整份文档会分成若干段依次翻译，可能需要一到三分钟。译文只留在内存里。', 'Translating segment by segment — a long definition is split into several parts and translated in order, which can take one to three minutes. The result is kept in memory only.')))
       : translation.state === 'error'
         ? h('p', { className: 'st-translate-error' }, raw(localized('翻译没有完成。可以重试，原文不受影响。', 'Translation did not finish. You can retry; the original is unaffected.')))
         : translation.state === 'ready' && translation.fallbackChunks > 0
