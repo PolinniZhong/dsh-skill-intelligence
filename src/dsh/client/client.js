@@ -782,14 +782,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
        * 三栏沿用上面的 .st-audit 栅格，这里只补清单条目与 Advanced 下拉。 */
       .st-skill-col,.st-skill-center,.st-skill-right{min-width:0}
       .st-skill-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;flex:none}
-      .st-skill-item{display:flex;flex-direction:column;gap:3px;padding:9px 12px;border:0;border-left:2px solid transparent;border-bottom:1px solid var(--st-border-soft);background:transparent;color:var(--st-text);font:inherit;text-align:left;cursor:pointer}
-      .st-skill-item:hover{background:var(--st-layer-2)}
-      .st-skill-item[data-active="true"]{border-left-color:var(--st-brand);background:var(--st-brand-soft);color:var(--st-brand)}
-      .st-skill-item-name{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .st-skill-item[data-active="true"] .st-skill-item-name{font-weight:620}
-      .st-skill-item-desc{margin:0;color:var(--st-muted);font-size:11px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-      .st-skill-item[data-active="true"] .st-skill-item-desc,.st-skill-item[data-active="true"] .st-skill-item-meta{color:inherit;opacity:.8}
-      .st-skill-item-meta{color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums}
       .st-skill-toolbar-desc{margin:2px 0 0;color:var(--st-muted);font-size:11.5px;line-height:1.5}
       /* 声明流程的语义容器：布局仍由 .st-audit-canvas 承担，这里只留一个稳定的样式钩子，
          Phase 3 之后的调整不必再去猜流程到底挂在哪个复用类上。 */
@@ -813,6 +805,64 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       .st-installed-card-desc{margin:0;font-size:12.5px;line-height:1.6;color:var(--st-text-secondary)}
       .st-installed-card-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--st-text-tertiary)}
       @media(max-width:980px){.st-installed-grid{grid-template-columns:minmax(0,1fr)}}
+      /* ── Skill-first 列表与详情（v0.6 §6 / §7 / §8 / §9）──────────────────────
+       *
+       * 圆角在这里刻意比原型小：原型的卡片是 18px（--radius），而本仓库的 §25.2 守卫禁止
+       * 14px 以上的卡片圆角，理由是「圆角是例外，结构主要靠分隔线」。两边的取值都写进过
+       * 文档，冲突时以仓库里**有牙的那条**为准（scripts/verify-project.mjs 会真的失败），
+       * 并把分歧记在评审文档里，而不是偷偷选一个。
+       */
+      .st-page{height:100%;min-height:0;overflow:auto;padding:20px 22px 28px}
+      .st-page-head{margin-bottom:14px}
+      .st-page-head h2{margin:0;font-size:15px}
+      .st-page-head p{margin:5px 0 0;color:var(--st-muted);font-size:12px}
+      .st-skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
+      .st-skill-card{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);color:inherit;cursor:pointer;transition:border-color .16s ease,transform .16s ease}
+      .st-skill-card:hover{transform:translateY(-1px);border-color:var(--st-border-strong)}
+      .st-skill-card-icon{width:34px;height:34px;border-radius:9px;background:var(--st-accent-soft);color:var(--st-accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 auto}
+      .st-skill-card-body{min-width:0;flex:1;display:flex;flex-direction:column}
+      .st-skill-card-name{font-weight:700;font-size:14px}
+      .st-skill-card-desc{margin:4px 0 0;color:var(--st-muted);font-size:12px;line-height:1.55}
+      .st-skill-card-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+      .st-skill-card-go{color:var(--st-faint);font-size:14px;flex:0 0 auto}
+      .st-pill{border:1px solid var(--st-border);border-radius:999px;padding:3px 8px;font-size:11px;color:var(--st-muted);background:var(--st-surface-subtle)}
+      .st-pill[data-tone="accent"]{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
+      .st-detail{height:100%;min-height:0;display:flex;flex-direction:column}
+      .st-detail-back{align-self:flex-start;margin:14px 22px 0;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 0;cursor:pointer}
+      .st-detail-back:hover{color:var(--st-text)}
+      .st-detail-body{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:12px 22px 18px}
+      .st-detail-side{min-width:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
+      .st-detail-card{border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:14px}
+      .st-detail-card h3{margin:0 0 8px;font-size:13px}
+      .st-detail-side-desc{margin:0 0 8px;color:var(--st-muted);font-size:12px;line-height:1.55}
+      .st-detail-side-note{margin:8px 0 0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-detail-fact{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--st-border-soft);font-size:12px}
+      .st-detail-fact span{color:var(--st-muted)}
+      .st-detail-fact code{font-size:11.5px;color:var(--st-text)}
+      .st-detail-repo-link{display:inline-block;margin-top:2px;color:var(--st-accent);font-size:12px;font-weight:600}
+      .st-detail-doc{min-width:0;display:flex;flex-direction:column;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);overflow:hidden}
+      .st-detail-doc-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--st-border)}
+      .st-detail-doc-title{min-width:0;flex:1}
+      .st-detail-doc-title strong{font-size:13px}
+      .st-detail-doc-title p{margin:3px 0 0;color:var(--st-muted);font-size:11.5px}
+      .st-seg{display:flex;gap:2px;background:var(--st-surface-subtle);border-radius:9px;padding:3px}
+      .st-seg button{border:0;background:transparent;color:var(--st-muted);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer}
+      .st-seg button[data-active="true"]{background:var(--st-surface);color:var(--st-text);font-weight:600}
+      .st-translate{border:1px solid var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);border-radius:9px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer}
+      .st-translate[disabled]{opacity:.55;cursor:default}
+      .st-translate-notice{margin:0;padding:9px 16px;border-bottom:1px solid var(--st-border-soft);background:var(--st-surface-subtle);color:var(--st-muted);font-size:11.5px}
+      .st-translate-error{margin:0;padding:9px 16px;border-bottom:1px solid var(--st-border-soft);color:var(--st-warning);font-size:11.5px}
+      .st-detail-doc-body{flex:1;min-height:0;display:grid;grid-template-columns:170px minmax(0,1fr)}
+      .st-detail-outline{border-right:1px solid var(--st-border-soft);padding:12px 8px;overflow:auto}
+      .st-detail-outline-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 6px;border-radius:6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .st-detail-outline-item[data-level="2"]{padding-left:14px}
+      .st-detail-outline-item[data-level="3"]{padding-left:24px;font-size:11.5px}
+      .st-detail-outline-item:hover{background:var(--st-surface-subtle);color:var(--st-text)}
+      .st-detail-outline-item[data-active="true"]{background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
+      .st-detail-doc-scroll{min-width:0;overflow:auto}
+      .st-detail-doc-inner{padding:8px 18px 24px}
+      @media(max-width:1180px){.st-detail-body{grid-template-columns:230px minmax(0,1fr)}}
+      @media(max-width:980px){.st-skill-grid{grid-template-columns:minmax(0,1fr)}.st-detail-body{grid-template-columns:minmax(0,1fr)}.st-detail-doc-body{grid-template-columns:minmax(0,1fr)}.st-detail-outline{display:none}}
       /* §11 断点：1180 收窄左右栏，980 收起证据栏（与 Demo 一致）。
        * 再窄时连定义目录一起收起，只留声明流程——总比三栏互相压成一列可读性更差要强。 */
       @media(max-width:1180px){.st-audit{grid-template-columns:250px minmax(0,1fr) 350px}}
@@ -1800,6 +1850,25 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     return localized('未知来源', 'unknown source')
   }
 
+  /**
+   * v0.6 §6.3「调用方式」这一个字段的**唯一**措辞来源（卡片、左栏、页头都用它）。
+   *
+   * 它和 `runSourceLabel` 分开是因为两者回答的问题不同：那个问「这次加载是怎么发起的」，
+   * 未知时只能说「未知来源」；这个问「这个 Skill 是怎么被调用的」，没有加载记录时正确的
+   * 说法是「未使用」——把「没有记录」写成「未知」会让人以为发生过一次查不清的调用。
+   */
+  function invocationLabel(invocationType) {
+    if (invocationType === 'user-explicit') return '/name'
+    if (invocationType === 'model-invoked') return 'model'
+    if (invocationType && typeof invocationType === 'object') {
+      if (invocationType.modelInvocable && invocationType.userInvocable) return 'model / /name'
+      if (invocationType.userInvocable) return '/name'
+      if (invocationType.modelInvocable) return 'model'
+      return localized('不可调用', 'not invocable')
+    }
+    return localized('未使用', 'not used')
+  }
+
   function formatRunTime(value) {
     if (!Number.isFinite(value)) return ''
     const date = new Date(value)
@@ -1877,396 +1946,396 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
   }
 
   /**
-   * Skill Workbench：本次加载的 Skill → Skill 定义 → 声明流程 → 运行证据。
+   * v0.6 §10.2 的锚点对齐：把译文里的标题按**顺序**对回原文 outline 的 id。
    *
-   * 三栏（Skill 清单 / 声明流程 / SKILL.md 与证据）都长在插件自己的容器里——DSH 的
-   * `sidebar` / `rightbar` 插槽是 single 的且已被占用，所以不能再往外挂第二根侧栏。
+   * 为什么顺序对齐是成立的：`buildTranslationMessages` 的硬规则 2/3 要求「不增加、不删除、
+   * 不合并、不拆分任何段落」「不改变任何标题的层级与数量」，`inspectTranslation` 也会逐条
+   * 检查标题数量与层级。所以译文第 i 个标题就是原文第 i 个标题，这是被上游保证过的对应关系，
+   * 不是猜的。
    *
-   * 第一屏必须是**本次真的加载过的 Skill 清单**，而不是运行图：这一页要回答的是「我这次
-   * 用了哪些 Skill、它们声明了什么、本次运行留下了什么证据」。底层 Tool/MCP/CLI 拓扑在
-   * Advanced 里的「运行流程」「运行图谱」，两者混在一张画布上正是这个产品要避免的事。
-   *
-   * `list` / `skill` 两个 prop 是渲染冒烟测试的注入口：那个测试的 react stub 不执行
-   * `useEffect`，fetch 永远不会发生，于是三栏——包括整个 Markdown 渲染器与证据面板——
-   * 在没有这个口子的情况下**一行都执行不到**。
+   * 但对应关系一旦不成立（数量或层级对不上），这里**必须返回空数组**：宁可让目录点不动，
+   * 也不能把 id 错位地挂到别的段落上 —— 那会让用户点「Workflow」跳到「Examples」。
    */
-  function SkillWorkbench({ sessionId, data, loading, error, onRetry, loadedSkillCount = 0, list: suppliedList, skill: suppliedSkill }) {
-    const [skillName, setSkillName] = React.useState('')
-    const [runKey, setRunKey] = React.useState('')
-    const [tab, setTab] = React.useState('doc')
-    const [stepId, setStepId] = React.useState('')
-    const [flash, setFlash] = React.useState('')
-    const [fetchedList, setList] = React.useState(null)
-    const [fetchedDetail, setDetail] = React.useState(null)
-    const [listLoading, setListLoading] = React.useState(false)
-    // 「宿主没给我列表」和「宿主给了我一个空列表」是两件事。前者在升级窗口里必然发生
-    // （新的客户端先落地，旧的宿主进程还在跑，`/skills` 直接 404），如果把它渲染成
-    // 「暂未加载可追踪的 Skill」，页头（读数来自收据）和正文就会在同一屏上互相打脸。
+  function alignOutlineToTranslation(text, outline) {
+    const entries = Array.isArray(outline) ? outline : []
+    if (!entries.length) return []
+    const lines = String(text ?? '').split(/\r?\n/)
+    const seen = []
+    let open = null
+    for (const line of lines) {
+      const fence = /^\s*(```+|~~~+)(.*)$/.exec(line)
+      if (open) {
+        const closes = fence && fence[1][0] === open[0] && fence[1].length >= open.length && fence[2].trim() === ''
+        if (closes) open = null
+        continue
+      }
+      if (fence) { open = fence[1]; continue }
+      const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
+      if (heading) seen.push(heading[1].length)
+    }
+    if (seen.length !== entries.length) return []
+    const levels = entries.map((entry) => Number(entry?.level) || 0)
+    // 层级也要一一对应：`##` 变成 `###` 说明结构被改过，此时顺序相同也不可信。
+    if (levels.some((level, index) => level && level !== seen[index])) return []
+    return entries.map((entry) => ({ id: entry.id, level: entry.level, line: entry.line, title: entry.title }))
+  }
+
+  /** CSS.escape 不存在时的保守替代：只转义选择器里有特殊含义的字符。 */
+  function escapeSelector(value) {
+    if (typeof CSS !== 'undefined' && CSS.escape) return CSS.escape(String(value))
+    return String(value).replace(/["\\#.:[\]]/g, '\\$&')
+  }
+
+  /**
+   * v0.6 §6/§7 的 Skill Card，两个列表页共用。
+   *
+   * §6.3：主体只说四件事 —— 名称、描述、已加载次数、调用方式。SHA、来源、定义状态这类辅助
+   * 事实进 pill；Runtime 节点、MCP、CLI 链路**不进卡片主体**（§6.3 末句）。
+   * 卡片整体是一个 `<button>`：§6.4 要求点它就直接进 Skill Detail，不进入任何 Runtime 画布。
+   */
+  function SkillCard({ name, description, meta = [], onOpen }) {
+    return h('button', {
+      type: 'button',
+      className: 'st-skill-card',
+      'data-skill': name,
+      onClick: onOpen,
+    },
+    h('span', { className: 'st-skill-card-icon', 'aria-hidden': 'true' }, 'S'),
+    h('span', { className: 'st-skill-card-body' },
+      h('span', { className: 'st-skill-card-name' }, raw(name)),
+      description ? h('span', { className: 'st-skill-card-desc' }, raw(description)) : null,
+      meta.length
+        ? h('span', { className: 'st-skill-card-meta' }, ...meta.map((pill, position) => h('span', {
+          key: `${position}:${pill.label}`,
+          className: 'st-pill',
+          'data-tone': pill.tone || 'muted',
+        }, raw(pill.label))))
+        : null),
+    h('span', { className: 'st-skill-card-go', 'aria-hidden': 'true' }, '›'))
+  }
+
+  /**
+   * v0.6 §6「本次 Skill」：第一屏是**这次对话真的加载过的 Skill 卡片**。
+   *
+   * 它不是运行视图：没有画布、没有节点/边计数，空的时候也不显示 Runtime 图谱占位（§6.5）。
+   * `list` 是渲染冒烟测试的注入口（那个测试的 react stub 不跑 useEffect，fetch 永远不会发生，
+   * 于是卡片、`resolveSkillListState` 的每一条分支都执行不到），平时由这里的 fetch 填。
+   */
+  function CurrentSkillPage({ sessionId, onOpen, loadedSkillCount = 0, onMeta, onRetry, reloadSignal, list: suppliedList }) {
+    const [fetchedList, setFetchedList] = React.useState(null)
+    const [loading, setLoading] = React.useState(!suppliedList)
     const [listError, setListError] = React.useState('')
-    const [detailLoading, setDetailLoading] = React.useState(false)
-    const [detailError, setDetailError] = React.useState('')
-    const [copiedClone, setCopiedClone] = React.useState(false)
-    const docRef = React.useRef(null)
-    const flashTimer = React.useRef(null)
-    const copyTimer = React.useRef(null)
-
-    const list = suppliedList ?? fetchedList
-    const detail = suppliedSkill ?? fetchedDetail
-    const skills = React.useMemo(() => (Array.isArray(list?.skills) ? list.skills : []), [list])
-    // Host 已按 `lastLoadedAt` 倒序排好，所以第一个就是「最后一次加载的 Skill」——那正是
-    // 用户刚看完的那次运行。
-    const activeName = skillName || skills[0]?.name || detail?.skillName || ''
-    const activeEntry = skills.find((entry) => entry.name === activeName) ?? null
-    // 详情与选中的 Skill 必须同名：切换清单条目后、新详情还没回来之前，右栏宁可空着，
-    // 也不能把上一个 Skill 的定义挂在新的名字下面。
-    const activeDetail = detail && detail.skillName === activeName ? detail : null
-
-    const runs = Array.isArray(activeDetail?.runs) ? activeDetail.runs : []
-    const activeRun = runs.find((run) => run.runKey === runKey) ?? runs[0] ?? null
-    // 中栏只画**声明流程**（来自定义正文），证据不能增删或重排它：`flow.source` 恒为
-    // `'definition'`，定义读不到时 `steps` 就是空数组，不由运行时调用反推。
-    const steps = Array.isArray(activeDetail?.flow?.steps) ? activeDetail.flow.steps : []
-    const activeStep = steps.find((step) => step.id === stepId) ?? steps[0] ?? null
-    const anchors = activeDetail?.anchors && typeof activeDetail.anchors === 'object' ? activeDetail.anchors : {}
-    const outline = Array.isArray(activeDetail?.definition?.outline) ? activeDetail.definition.outline : []
-    const content = activeDetail?.definition?.content ?? null
-    const summary = activeDetail?.summary ?? null
-    const repository = activeDetail?.repository ?? activeDetail?.definition?.repository ?? null
-    const observation = activeDetail?.observation ?? null
-    const definitionUnavailable = Boolean(activeDetail?.definition) && activeDetail.definition.available !== true
-    const definitionReason = activeDetail?.definition?.reason ?? 'unknown'
-
-    const snapshot = activeRun?.definitionSnapshot ?? null
-    const observedHash = snapshot?.observedInstructionSha256 ?? observation?.observedInstructionSha256 ?? null
-    const currentHash = snapshot?.currentInstructionSha256 ?? observation?.currentInstructionSha256 ?? null
-    // 三个状态里 `unavailable` 是**第一等公民**：没有哈希就是「无法比对」，既不能写成
-    // mismatch，也不能写成「Skill 已失效」——那是从缺失推出的结论。
-    const matchState = snapshot?.match || observation?.match || 'unavailable'
-
-    // 步骤 → 正文锚点用 Host 给的 `anchors`（`stepId → outlineEntryId`）。客户端不重算：
-    // 二次推导出的锚点一旦和 outline 的行号规则不一致，就会锚到别的段落。
-    const stepByAnchor = React.useMemo(() => {
-      const map = new Map()
-      for (const step of steps) {
-        const anchor = anchors[step?.id]
-        if (anchor) map.set(anchor, step)
-      }
-      return map
-    }, [steps, anchors])
-
-    // §16 D：那次注入发生时目录里的候选清单。`data.receipt.catalogPublished` 早已带着它，
-    // 所以这里只做投影，不再多打一次接口；上限 `AUDIT_CATALOG_LIMIT` 条，因为它是旁证，
-    // 不是主视图。
-    const catalog = React.useMemo(() => {
-      const published = data?.receipt?.catalogPublished
-      const entries = Array.isArray(published?.entries) ? published.entries : []
-      const declared = Number(observation?.catalogPublication?.entryCount)
-      return {
-        entries,
-        total: Math.max(entries.length, Number.isFinite(declared) ? declared : 0),
-        digest: published?.entriesDigest ?? observation?.catalogPublication?.entriesDigest ?? null,
-      }
-    }, [data, observation])
-
-    const copyClone = React.useCallback((text) => {
-      const settle = (ok) => {
-        setCopiedClone(ok)
-        if (copyTimer.current) clearTimeout(copyTimer.current)
-        copyTimer.current = setTimeout(() => setCopiedClone(false), 1600)
-      }
-      writeClipboard(text).then(() => settle(true), () => settle(false))
-    }, [])
-
-    React.useEffect(() => () => {
-      if (flashTimer.current) clearTimeout(flashTimer.current)
-      if (copyTimer.current) clearTimeout(copyTimer.current)
-    }, [])
 
     React.useEffect(() => {
       if (suppliedList) return undefined
       let cancelled = false
-      setListLoading(true)
+      setLoading(true)
       setListError('')
       api(`/skills?sessionId=${encodeURIComponent(sessionId)}`)
-        // 宿主把列表套在 `list` 里和 `sessionId`/`workspaceLabel` 一起返回
-        // （`/skill` 同样把详情套在 `skill` 里），所以要显式解包；直接把整个信封塞进
-        // 状态会让 `list.skills` 永远是 undefined，第一屏永远空。
-        .then((body) => { if (!cancelled) { setList(body?.list ?? null); setListError(''); setListLoading(false) } })
-        // 拉不到 ≠ 没有。宿主进程比客户端旧时 `/skills` 直接 404，`api()` 抛 'not found'；
-        // 这个原因必须留下来，否则正文会写成「暂未加载」，而页头正在数收据里的 Skill。
-        .catch((reason) => { if (!cancelled) { setList(null); setListError(String(reason?.message || 'unavailable')); setListLoading(false) } })
+        .then((body) => { if (!cancelled) { setFetchedList(body?.list ?? null); setLoading(false) } })
+        .catch((reason) => { if (!cancelled) { setListError(String(reason?.message || 'unavailable')); setLoading(false) } })
       return () => { cancelled = true }
-    }, [sessionId, suppliedList])
+    }, [sessionId, suppliedList, reloadSignal])
+
+    const list = suppliedList ?? fetchedList
+    const skills = React.useMemo(() => (Array.isArray(list?.skills) ? list.skills : []), [list])
+    const state = resolveSkillListState({ hasSkills: skills.length > 0, hasDetail: false, loading, listError, loadedSkillCount })
+
+    // 页头必须和正文说同一件事：正文说"读不到"的时候，页头不能还在说"正在读取"。
+    // 「读不到」和「没有」是两种相反的事实，所以这里报的是错误，不是 0 个 Skill。
+    React.useEffect(() => {
+      onMeta?.({ error: Boolean(listError && !skills.length), skillCount: skills.length })
+    }, [listError, skills.length, onMeta])
+
+    if (state) {
+      return h('div', { className: 'st-page' },
+        h(TraceState, { kind: state.kind, message: state.message, onRetry: state.kind === 'error' ? onRetry : undefined }))
+    }
+
+    return h('div', { className: 'st-page' },
+      h('header', { className: 'st-page-head' },
+        h('h2', null, localized('本次加载的 Skill', 'Skills loaded in this run')),
+        h('p', null, localized(
+          `这次对话加载过 ${skills.length} 个 Skill。点开一个，读它的 SKILL.md。`,
+          `${skills.length} Skill(s) were loaded in this conversation. Open one to read its SKILL.md.`))),
+      h('div', { className: 'st-skill-grid' }, ...skills.map((entry) => h(SkillCard, {
+        key: entry.name,
+        name: entry.name,
+        description: entry.description,
+        meta: [
+          { label: localized(`已加载 ${entry.runCount ?? 0} 次`, `Loaded ${entry.runCount ?? 0}×`), tone: 'accent' },
+          { label: invocationLabel(entry.lastInvocationType) },
+          { label: definitionStatusText(entry.definitionStatus) },
+        ],
+        onOpen: () => onOpen(entry.name, 'current'),
+      }))))
+  }
+
+  /**
+   * v0.6 §8 Skill Detail —— 插件里**唯一的二级页面**。
+   *
+   * §9.1：SKILL.md 是这一页的主体，**不是**某个证据面板里的一个 Tab。所以右栏整块是文档，
+   * 切换轴只有「原文 / 中文预览」一条（§12），左栏只回答「这是哪个 Skill、它的定义是什么、
+   * 它从哪来」（§8.2 / §10.2）——左栏不是第二个导航系统。
+   *
+   * §8.4：返回的是**进入前的那个列表**，所以 `onBack` 由调用方给，这里不写死任何一个。
+   *
+   * §12.4：译文只活在这个组件的 state 里 —— 不写 localStorage、不写 sessionStorage、不进
+   * 会话、不落盘。切换 Skill 或定义指纹变了就丢弃（`alignOutlineToTranslation` 的注释说明
+   * 为什么「结构没被破坏」是上游保证的）。
+   */
+  function SkillDetailPage({ sessionId, skillName, onBack, backLabel, skill: suppliedSkill }) {
+    const [fetched, setFetched] = React.useState(null)
+    const [loading, setLoading] = React.useState(!suppliedSkill)
+    const [error, setError] = React.useState('')
+    const [tab, setTab] = React.useState('original')
+    const [translation, setTranslation] = React.useState({ state: 'idle', text: '', sha: '', error: '' })
+    const [flash, setFlash] = React.useState('')
+    const [activeHeading, setActiveHeading] = React.useState('')
+    const docRef = React.useRef(null)
+    const scrollRef = React.useRef(null)
+    const flashTimer = React.useRef(null)
 
     React.useEffect(() => {
       if (suppliedSkill) return undefined
-      if (!activeName) { setDetail(null); return undefined }
       let cancelled = false
-      setDetailLoading(true)
-      setDetailError('')
-      api(`/skill?sessionId=${encodeURIComponent(sessionId)}&skillName=${encodeURIComponent(activeName)}`)
-        .then((body) => { if (!cancelled) { setDetail(body?.skill ?? null); setDetailLoading(false) } })
-        .catch((reason) => { if (!cancelled) { setDetailError(reason.message); setDetailLoading(false) } })
+      setLoading(true)
+      setError('')
+      setTab('original')
+      api(`/skill?sessionId=${encodeURIComponent(sessionId)}&skillName=${encodeURIComponent(skillName)}`)
+        .then((body) => { if (!cancelled) { setFetched(body?.skill ?? null); setLoading(false) } })
+        .catch((reason) => { if (!cancelled) { setError(String(reason?.message || 'unavailable')); setLoading(false) } })
       return () => { cancelled = true }
-    }, [sessionId, activeName, suppliedSkill])
+    }, [sessionId, skillName, suppliedSkill])
 
-    React.useEffect(() => { setStepId('') }, [activeName])
+    const detail = suppliedSkill ?? fetched
+    const definition = detail?.definition ?? null
+    const outline = React.useMemo(() => (Array.isArray(definition?.outline) ? definition.outline : []), [definition])
+    const content = definition?.content ?? null
+    const translatedOutline = React.useMemo(
+      () => (tab === 'translated' ? alignOutlineToTranslation(translation.text, outline) : null),
+      [tab, translation.text, outline],
+    )
+    const summary = detail?.summary ?? null
+    const repository = detail?.repository ?? definition?.repository ?? null
+    const runs = Array.isArray(detail?.runs) ? detail.runs : []
+    const observation = detail?.observation ?? null
+    const definitionUnavailable = Boolean(definition) && definition.available !== true
+    const definitionReason = definition?.reason ?? 'unknown'
+    const snapshot = runs[0]?.definitionSnapshot ?? null
+    const observedHash = snapshot?.observedInstructionSha256 ?? observation?.observedInstructionSha256 ?? null
+    const currentHash = snapshot?.currentInstructionSha256 ?? observation?.currentInstructionSha256 ?? null
+    // 三个状态里 `unavailable` 是第一等公民：缺一半哈希就是「无法比对」，既不能写成 mismatch，
+    // 也不能写成「Skill 已失效」——那是从缺失推出的结论（§10）。
+    const matchState = snapshot?.match || observation?.match || 'unavailable'
+    const sha = content?.sha256 ?? ''
 
-    function flashAnchor(anchorId) {
+    // 定义换了（重新加载、切 Skill）就丢弃译文：一份对不上屏幕正文的译文比没有译文更糟。
+    // 依赖是 `skillName` + 指纹，不是 `detail` 对象 —— 同一个定义的两次读取不该清掉译文。
+    React.useEffect(() => {
+      setTranslation({ state: 'idle', text: '', sha: '', error: '' })
+      setTab('original')
+    }, [skillName, sha])
+
+    const flashAnchor = React.useCallback((anchorId) => {
       if (!anchorId) return
       if (flashTimer.current) clearTimeout(flashTimer.current)
       setFlash(anchorId)
       flashTimer.current = setTimeout(() => setFlash(''), DOC_FLASH_MS)
       // `scrollIntoView` 要等这一轮渲染落下节点，所以放到下一帧。
       requestAnimationFrame(() => {
-        const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(anchorId) : String(anchorId).replace(/["\\]/g, '\\$&')
-        const node = docRef.current?.querySelector(`#st-audit-doc-${escaped}`)
+        const node = docRef.current?.querySelector(`#st-audit-doc-${escapeSelector(anchorId)}`)
         node?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
       })
-    }
+    }, [])
 
-    // §24 双向定位。点流程步骤：选中它 + 切到「证据」+ 把 SKILL.md 滚到锚点并闪一下。
-    function selectStep(step) {
-      setStepId(step.id)
-      setTab('evidence')
-      if (anchors[step.id]) flashAnchor(anchors[step.id])
-    }
+    const runTranslation = React.useCallback(() => {
+      if (!sessionId || !skillName || !sha) return
+      setTranslation({ state: 'loading', text: '', sha, error: '' })
+      api('/translate', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, skillName, sourceSha256: sha, targetLanguage: 'zh-CN' }),
+      })
+        .then((body) => {
+          // 宿主的线格式是 `{translation: string, sourceSha256: string}` —— 译文是字符串，
+          // 指纹在顶层，不在译文对象里。这里按实测形状读，别按想象读。
+          const text = typeof body?.translation === 'string' ? body.translation : ''
+          // 宿主在翻译期间复查过指纹；它说变了就是变了，这份译文作废（§10 / §12.4）。
+          // 失败时把分段控件退回「原文」：屏幕上显示的是原文，控件就该说原文。留一个亮着的
+          // 「中文预览」配一段英文正文，是同一屏上两个互相矛盾的说法 —— 错误提示已经说明
+          // 发生了什么，重新点「中文预览」就会重试。
+          if (!text) {
+            setTranslation({ state: 'error', text: '', sha, error: 'empty-translation' })
+            setTab('original')
+            return
+          }
+          if (body?.sourceSha256 && body.sourceSha256 !== sha) {
+            setTranslation({ state: 'error', text: '', sha, error: 'definition-changed' })
+            setTab('original')
+            return
+          }
+          setTranslation({ state: 'ready', text, sha, error: '' })
+        })
+        .catch((reason) => {
+          setTranslation({ state: 'error', text: '', sha, error: String(reason?.message || 'translation-failed') })
+          setTab('original')
+        })
+    }, [sessionId, skillName, sha])
 
-    // 反向：点正文标题，高亮挂在它上面的流程步骤。方向相反，所以不切 Tab——用户正看着
-    // 正文，把面板切走才是打断。
-    function selectHeading(entryId) {
-      const step = stepByAnchor.get(entryId)
-      if (step) setStepId(step.id)
-    }
+    // §9.3：目录要「当前章节高亮」。用滚动位置算，而不是用事件监听器猜。
+    const handleDocScroll = React.useCallback(() => {
+      const node = scrollRef.current
+      if (!node) return
+      const top = node.scrollTop + 24
+      let active = ''
+      for (const entry of outline) {
+        const element = node.querySelector(`#st-audit-doc-${escapeSelector(entry.id)}`)
+        if (element && element.offsetTop - node.offsetTop <= top) active = entry.id
+      }
+      setActiveHeading(active)
+    }, [outline])
 
-    if (loading && !list && !detail) return h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
-    if (error && !list && !detail) return h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry })
-    const listState = resolveSkillListState({
-      hasSkills: Boolean(skills.length),
-      hasDetail: Boolean(detail),
-      loading: listLoading,
-      listError,
-      loadedSkillCount,
-    })
-    if (listState) return h(TraceState, { ...listState, onRetry: listState.kind === 'error' ? onRetry : undefined })
+    React.useEffect(() => {
+      const node = scrollRef.current
+      if (!node) return undefined
+      node.addEventListener('scroll', handleDocScroll, { passive: true })
+      handleDocScroll()
+      return () => node.removeEventListener('scroll', handleDocScroll)
+    }, [handleDocScroll, tab])
 
-    const invocationType = activeEntry?.lastInvocationType ?? runs[0]?.invocationType ?? ''
-    const startLabel = invocationType === 'user-explicit'
-      ? localized('Skill 已加载 · 用户 /name 调用', 'Skill loaded · user /name invocation')
-      : localized('Skill 已加载 · 模型调用', 'Skill loaded · model invocation')
+    if (loading && !detail) return h(TraceState, { kind: 'loading', message: '正在读取这个 Skill 的定义…' })
+    if (error && !detail) return h(TraceState, { kind: 'error', message: '暂时无法读取这个 Skill 的定义。', onRetry: () => setError('') })
 
-    return h('div', { className: 'st-audit', 'data-selected': activeStep ? 'true' : undefined },
-      // ── 左栏：Skill 清单 / 运行记录 / 仓库来源 ──────────────────────────────
-      h('aside', { className: 'st-audit-col st-audit-left st-skill-col' },
-        h('section', { className: 'st-audit-card' },
-          h('h2', { className: 'st-audit-card-title' }, localized('本次加载的 Skill', 'Skills loaded in this run')),
-          skills.length
-            ? h('ul', { className: 'st-skill-list' }, ...skills.map((entry) => h('li', { key: entry.name },
-              h('button', {
-                type: 'button',
-                className: 'st-skill-item',
-                'data-active': entry.name === activeName ? 'true' : undefined,
-                onClick: () => setSkillName(entry.name),
-              },
-              h('strong', { className: 'st-skill-item-name' }, raw(entry.name)),
-              entry.description ? h('p', { className: 'st-skill-item-desc' }, raw(entry.description)) : null,
-              h('span', { className: 'st-skill-item-meta' }, raw([
-                localized(`${entry.runCount ?? 0} 次加载`, `${entry.runCount ?? 0} loads`),
-                formatRunTime(entry.lastLoadedAt),
-                definitionStatusText(entry.definitionStatus),
-              ].filter(Boolean).join(' · ')))))))
-            : h('p', { className: 'st-audit-empty' }, listError
-              ? localized('列表暂时读不到，宿主可能仍在运行旧版本。', 'The list is unavailable; the host may still be running an older build.')
-              : localized('当前对话暂未加载可追踪的 Skill。', 'No traceable Skill was loaded in this conversation.'))),
+    const translated = tab === 'translated'
+    const documentText = translated && translation.state === 'ready' ? translation.text : content?.text
+    const documentOutline = translated && translatedOutline ? translatedOutline : outline
+    const matchLabel = matchState === 'match' ? localized('一致', 'Match')
+      : matchState === 'mismatch' ? localized('文件已改变', 'The file has changed')
+        : localized('无法比对', 'Cannot be compared')
 
-        h('section', { className: 'st-audit-card' },
-          h('h2', { className: 'st-audit-card-title' }, localized('运行记录', 'Runs')),
-          runs.length
-            ? h('ul', { className: 'st-audit-runs' }, ...runs.map((run, position) => h('li', { key: run.runKey ?? run.eventId ?? position },
-              h('button', {
-                type: 'button',
-                className: 'st-audit-run',
-                'data-active': activeRun === run ? 'true' : undefined,
-                onClick: () => setRunKey(run.runKey),
-              },
-              h('span', { className: 'st-audit-run-head' }, raw(`Run #${run.turn ?? position + 1}`)),
-              h('span', { className: 'st-audit-run-meta' }, raw([
-                formatRunTime(run.requestedAt),
-                runSourceLabel(run.invocationType),
-                run.evidenceFingerprint?.value ? shortHash(run.evidenceFingerprint.value) : '',
-              ].filter(Boolean).join(' · ')))))))
-            : h('p', { className: 'st-audit-empty' }, localized('这次对话没有加载记录。', 'No load was recorded in this conversation.'))),
+    const backButton = h('button', { type: 'button', className: 'st-detail-back', onClick: onBack },
+      raw(`← ${localized('返回 Skill 列表', 'Back to the Skill list')}${backLabel ? localized(`（${backLabel}）`, ` (${backLabel})`) : ''}`))
 
-        h('section', { className: 'st-audit-card' },
-          h('h2', { className: 'st-audit-card-title' }, localized('仓库来源', 'Repository Source')),
-          repository?.status === 'resolved' && repository.label
-            ? h('div', { className: 'st-audit-repo' },
-              h('div', { className: 'st-audit-repo-head' },
-                h('span', { className: 'st-audit-repo-label' }, raw(repository.label)),
-                repository.cloneCommand ? h('a', { className: 'st-audit-open', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开仓库 ↗', 'Open repository ↗')) : null),
-              repository.relativePath ? h('p', { className: 'st-audit-repo-meta' }, raw(`${localized('路径：', 'Path: ')}${repository.relativePath}`)) : null,
-              repository.cloneCommand ? h('pre', { className: 'st-audit-clone' },
-                h('code', null, raw(`git clone ${repository.cloneCommand}`)),
-                h('button', {
-                  type: 'button',
-                  className: 'st-audit-copy',
-                  onClick: () => copyClone(`git clone ${repository.cloneCommand}`),
-                }, copiedClone ? localized('已复制', 'Copied') : localized('复制', 'Copy'))) : null)
-            // 未解析就只留结论与理由：不放链接、不放按钮、也不放一个点不动的占位——
-            // 「查不到」本身就是这条信息，给它配一个禁用的控件只会让人以为还能点。
-            : h('div', { className: 'st-audit-repo' },
-              h('p', { className: 'st-audit-empty' }, localized('仓库 · 未解析', 'Repository · Not available')),
-              h('p', { className: 'st-audit-repo-meta' }, raw(
-                (Array.isArray(repository?.limitations) && repository.limitations.length ? limitationLabel(repository.limitations[0]) : '')
-                || localized('没有找到 git work tree，无法确定仓库来源。', 'No git work tree was found, so the repository source cannot be established.')))))),
+    const sideIdentity = h('section', { className: 'st-detail-card' },
+      h('h3', null, raw(skillName)),
+      summary?.description
+        ? h('p', { className: 'st-detail-side-desc' }, raw(summary.description))
+        : null,
+      h('div', { className: 'st-detail-fact' },
+        h('span', null, localized('调用方式', 'Invocation')),
+        h('code', null, raw(invocationLabel(runs[0]?.invocationType)))))
 
-      // ── 中栏：Skill 头部 + 声明流程 ─────────────────────────────────────────
-      h('main', { className: 'st-audit-col st-audit-center st-skill-center' },
-        h('header', { className: 'st-audit-toolbar' },
-          h('div', null,
-            h('h2', null, raw(activeName || localized('本次 Skill', 'Skills in this run'))),
-            activeEntry?.description || summary?.description
-              ? h('p', { className: 'st-skill-toolbar-desc' }, raw(activeEntry?.description || summary.description))
-              : null),
-          h('div', { className: 'st-audit-toolbar-actions' },
-            h('span', { className: 'st-audit-chip', 'data-tone': 'definition' }, definitionStatusText(activeEntry?.definitionStatus)))),
-        h('div', { className: 'st-audit-canvas st-skill-flow' },
-          h('div', { className: 'st-audit-start' }, h('span', { className: 'st-audit-start-dot', 'aria-hidden': 'true' }), startLabel),
-          h('div', { className: 'st-audit-connector', 'aria-hidden': 'true' }),
-          steps.length
-            // 顺序、条数都照 `flow.steps[].order` 原样走：证据只标注，不增删、不重排。
-            ? h('ol', { className: 'st-audit-steps' }, ...steps.map((step, position) => {
-              const evidence = step.evidence ?? {}
-              const meta = AUDIT_BADGES[evidence.relationship] ?? AUDIT_BADGES.unknown
-              const runtimeEvidence = Array.isArray(evidence.runtimeEvidence) ? evidence.runtimeEvidence : []
-              const anchor = anchors[step.id]
-              return h('li', { key: step.id ?? position },
-                h('button', {
-                  type: 'button',
-                  className: 'st-audit-step',
-                  'data-tone': meta.tone,
-                  'data-active': activeStep?.id === step.id ? 'true' : undefined,
-                  onClick: () => selectStep(step),
-                },
-                h('span', { className: 'st-audit-step-head' },
-                  h('span', { className: 'st-audit-step-order' }, String(step.order ?? position + 1).padStart(2, '0')),
-                  h('span', { className: 'st-audit-step-title' }, raw(step.title)),
-                  h('span', { className: 'st-audit-step-badge', 'data-tone': meta.tone }, h('i', { 'aria-hidden': 'true' }, meta.glyph), auditBadgeLabel(evidence.relationship))),
-                h('span', { className: 'st-audit-step-body' },
-                  h('span', { className: 'st-audit-step-line' }, h('span', { className: 'st-audit-step-key' }, localized('声明类别', 'Declared kind')), h('code', null, raw(step.kind))),
-                  h('span', { className: 'st-audit-step-line' }, h('span', { className: 'st-audit-step-key' }, localized('运行时证据', 'Runtime evidence')),
-                    runtimeEvidence.length
-                      ? h('span', { className: 'st-audit-tags' }, ...runtimeEvidence.slice(0, 6).map((entry, index) => h('span', { className: 'st-audit-tag', key: `${entry.type}:${entry.category}:${index}` }, raw(`${entry.type} · ${entry.category}`))))
-                      : h('span', { className: 'st-audit-empty' }, localized('具体目标无法从当前证据确认', 'The specific target cannot be confirmed from the current evidence'))),
-                  h('span', { className: 'st-audit-step-line' }, h('span', { className: 'st-audit-step-key' }, localized('定义来源', 'Definition source')),
-                    anchor
-                      ? h('span', { className: 'st-audit-step-src' }, raw(`SKILL.md § ${step.title}`))
-                      : h('span', { className: 'st-audit-step-src' }, localized('无法定位到正文锚点', 'No document anchor could be located'))))))
-            }))
-            // 定义读不到时，声明流程**本来就是空的**——这不是渲染失败，而是一条信息。
-            // 所以给一句解释加一条限制，而不是丢一张空白卡片。
-            : h('div', { className: 'st-audit-note' },
-              h('p', null, definitionUnavailable
-                ? localized('这份 Skill 的定义当前读不到，所以无法抽取声明流程。', 'The definition cannot be read right now, so no declared flow could be extracted.')
-                : localized('这次加载没有留下可对齐的声明步骤。', 'This load left no declarable steps to align against.')),
-              Array.isArray(activeDetail?.limitations) && activeDetail.limitations.length
-                ? h('p', null, raw(activeDetail.limitations.map(limitationLabel).filter(Boolean).join(' ')))
-                : null),
-          h('div', { className: 'st-audit-legend' },
-            h('span', { className: 'st-audit-legend-item', 'data-tone': 'supported' }, h('i', null, '●'), localized('运行时支持', 'Runtime-supported')),
-            h('span', { className: 'st-audit-legend-item', 'data-tone': 'partial' }, h('i', null, '◐'), localized('部分支持', 'Partial')),
-            h('span', { className: 'st-audit-legend-item', 'data-tone': 'insufficient' }, h('i', null, '○'), localized('证据不足', 'Insufficient'))))),
+    const sideDefinition = h('section', { className: 'st-detail-card' },
+      h('h3', null, localized('Definition', 'Definition')),
+      h('div', { className: 'st-detail-fact' }, h('span', null, localized('文件', 'File')), h('code', null, 'SKILL.md')),
+      h('div', { className: 'st-detail-fact' },
+        h('span', null, localized('当前指纹', 'Current fingerprint')),
+        h('code', null, raw(sha ? shortHash(sha) : localized('读不到', 'unavailable')))),
+      h('div', { className: 'st-detail-fact' },
+        h('span', null, localized('本次使用', 'Used in this run')),
+        h('code', null, raw(`${runs.length}`))),
+      h('div', { className: 'st-detail-fact' },
+        h('span', null, localized('定义来源', 'Definition source')),
+        h('code', null, raw(`${summary?.source ?? '—'} · ${summary?.provider ?? '—'}`))),
+      h('div', { className: 'st-detail-fact' },
+        h('span', null, localized('指令指纹比对', 'Instruction fingerprint')),
+        h('code', null, raw(matchLabel))),
+      h('p', { className: 'st-detail-side-note' }, raw(definitionUnavailable
+        ? localized('这份 Skill 的定义当前读不到，所以下面只有它的来源事实。', 'The definition cannot be read right now, so only its provenance facts are shown.')
+        : `observed ${shortHash(observedHash) || '—'} · current ${shortHash(currentHash) || '—'}`)),
+      definitionUnavailable && definitionReason === 'definition-changed'
+        ? h('p', { className: 'st-detail-side-note' }, localized('定义在本次运行之后被改动过。', 'The definition changed after this run.'))
+        : null)
 
-      // ── 右栏：SKILL.md 与证据 ──────────────────────────────────────────────
-      h('aside', { className: 'st-audit-col st-audit-right st-skill-right' },
-        h('div', { className: 'st-audit-tabs', role: 'tablist' },
-          h('button', { type: 'button', role: 'tab', className: 'st-audit-tab', 'aria-selected': tab === 'doc', 'data-active': tab === 'doc' ? 'true' : undefined, onClick: () => setTab('doc') }, 'SKILL.md'),
-          h('button', { type: 'button', role: 'tab', className: 'st-audit-tab', 'aria-selected': tab === 'evidence', 'data-active': tab === 'evidence' ? 'true' : undefined, onClick: () => setTab('evidence') }, localized('证据', 'Evidence'))),
+    // 未解析就只留结论与理由：不放链接、不放按钮、也不放一个点不动的占位 ——「查不到」本身
+    // 就是这条信息，给它配一个禁用的控件只会让人以为还能点。
+    const repositoryLimitation = Array.isArray(repository?.limitations) && repository.limitations.length
+      ? limitationLabel(repository.limitations[0])
+      : ''
+    const repositoryResolved = repository?.status === 'resolved' && Boolean(repository.label)
+    const sideRepository = h('section', { className: 'st-detail-card' },
+      h('h3', null, localized('Repository', 'Repository')),
+      repositoryResolved
+        ? h('div', null,
+          h('p', { className: 'st-detail-side-desc' }, raw(repository.label)),
+          repository.relativePath ? h('p', { className: 'st-detail-side-note' }, raw(repository.relativePath)) : null,
+          repository.cloneCommand
+            ? h('a', { className: 'st-detail-repo-link', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开仓库 ↗', 'Open repository ↗'))
+            : null)
+        : h('div', null,
+          h('p', { className: 'st-detail-side-desc' }, localized('未解析', 'Not available')),
+          h('p', { className: 'st-detail-side-note' }, raw(repositoryLimitation
+            || localized('没有找到 git work tree，无法确定仓库来源。', 'No git work tree was found, so the repository source cannot be established.')))))
 
-        // 两个面板都留在 DOM 里，只由 CSS 切显隐——与 demo 的
-        // `.panel{display:none}.panel.active{display:block}` 一致。这样切 Tab 不会丢掉
-        // 文档滚动位置与闪烁状态，渲染冒烟测试也才能两个面板都跑到。
-        h('div', { className: 'st-audit-pane', 'data-active': tab === 'doc' ? 'true' : undefined, 'aria-hidden': tab === 'doc' ? undefined : 'true' },
-          h('header', { className: 'st-audit-pane-head' },
-            h('h3', null, localized('Skill 定义', 'Skill Definition')),
-            h('span', { className: 'st-audit-pane-meta' }, raw(content ? shortHash(content.sha256) : ''))),
-          h('div', { className: 'st-audit-chips' },
-            h('span', { className: 'st-audit-chip' }, 'SKILL.md'),
-            summary?.source ? h('span', { className: 'st-audit-chip' }, raw(`source:${summary.source}`)) : null,
-            summary?.provider ? h('span', { className: 'st-audit-chip', 'data-tone': 'provider' }, raw(`provider:${summary.provider}`)) : null,
-            content && Number.isFinite(content.lineCount) ? h('span', { className: 'st-audit-chip' }, raw(localized(`${content.lineCount} 行`, `${content.lineCount} lines`))) : null,
-            content?.sha256 ? h('span', { className: 'st-audit-chip' }, raw(`sha256:${String(content.sha256).slice(0, 12)}…`)) : null),
-          detailError ? h('div', { className: 'st-notice' }, detailError) : null,
-          definitionUnavailable
-            ? h('div', { className: 'st-audit-note' }, localized(
-              `当前读不到这份定义（${definitionReason}）。这次运行加载过它，但它现在可能已经不在目录里了。`,
-              `This definition cannot be read right now (${definitionReason}). The run loaded it, but it may no longer be installed.`))
-            : detailLoading && !content
-              ? h('div', { className: 'st-audit-note' }, localized('正在读取定义…', 'Reading the definition…'))
-              : h('div', { className: 'st-audit-doc', ref: docRef }, ...renderSkillMarkdown(content?.text, outline, flash, selectHeading)),
-          h('footer', { className: 'st-audit-pane-foot' },
-            h('span', null, content?.truncated
-              ? localized('正文超长，已截断显示；哈希仍按整份文件计算。', 'The body is truncated for display; the hash still covers the whole file.')
-              : localized('只读展示，不落盘。', 'Read-only, never persisted.')),
-            repository?.status === 'resolved' && repository.cloneCommand ? h('a', { className: 'st-audit-open', href: repository.cloneCommand, target: '_blank', rel: 'noreferrer noopener' }, localized('打开仓库 ↗', 'Open repository ↗')) : null)),
+    const sidePanel = h('aside', { className: 'st-detail-side' }, sideIdentity, sideDefinition, sideRepository)
 
-        h('div', { className: 'st-audit-pane', 'data-active': tab === 'evidence' ? 'true' : undefined, 'aria-hidden': tab === 'evidence' ? undefined : 'true' },
-          h('header', { className: 'st-audit-pane-head' },
-            h('h3', null, localized('步骤证据', 'Step Evidence')),
-            h('span', { className: 'st-audit-pane-meta' }, activeStep ? auditBadgeLabel(activeStep.evidence?.relationship) : '')),
-          activeStep
-            ? h('div', { className: 'st-audit-evidence' },
-              h('div', { className: 'st-audit-field' }, h('span', null, localized('声明', 'Declaration')),
-                h('strong', null, raw(activeStep.title)),
-                h('code', null, raw(`${activeStep.kind ?? ''}${Number.isFinite(activeStep.line) ? ` @L${activeStep.line}` : ''}`))),
-              h('div', { className: 'st-audit-field' }, h('span', null, localized('关系', 'Relationship')),
-                h('strong', null, auditBadgeLabel(activeStep.evidence?.relationship)),
-                h('code', null, raw(activeStep.evidence?.relationship ?? ''))),
-              h('div', { className: 'st-audit-field' }, h('span', null, localized('运行时证据', 'Runtime evidence')),
-                (Array.isArray(activeStep.evidence?.runtimeEvidence) && activeStep.evidence.runtimeEvidence.length)
-                  ? h('div', { className: 'st-audit-tags' }, ...activeStep.evidence.runtimeEvidence.map((entry, index) => h('span', { className: 'st-audit-tag', key: `${entry.type}:${entry.category}:${index}` }, raw(`${entry.type} · ${entry.category}`))))
-                  : h('strong', { className: 'st-audit-empty' }, localized('运行时证据不足', 'No sufficient runtime evidence'))),
-              activeStep.evidence?.limitation ? h('div', { className: 'st-audit-note' }, raw(limitationLabel(activeStep.evidence.limitation))) : null)
-            : h('div', { className: 'st-audit-note' }, localized('这次加载没有可抽取的声明步骤。', 'No declarable steps were extracted from this load.')),
-          // 定义来源与指令指纹比对属于**整次运行**，不属于某一条声明步骤——定义读不到时这里
-          // 恰恰是最该说话的地方，所以它们不跟着「没有选中步骤」一起消失。缺一半哈希就是
-          // 「无法比对」，既不能写成 mismatch，也不能写成「Skill 已失效」。
-          h('div', { className: 'st-audit-evidence' },
-            h('div', { className: 'st-audit-field' }, h('span', null, localized('定义来源', 'Definition source')),
-              h('strong', null, raw(`${summary?.source ?? '—'} · ${summary?.provider ?? '—'}`)),
-              content?.sha256 ? h('code', null, raw(shortHash(content.sha256))) : null),
-            h('div', { className: 'st-audit-field' }, h('span', null, localized('指令指纹比对', 'Instruction fingerprint')),
-              h('strong', null, matchState === 'match' ? localized('一致', 'Match') : matchState === 'mismatch' ? localized('文件已改变', 'The file has changed') : localized('无法比对', 'Cannot be compared')),
-              h('code', null, raw(`observed ${shortHash(observedHash) || '—'}`)),
-              h('code', null, raw(`current ${shortHash(currentHash) || '—'}`))),
-            h('div', { className: 'st-audit-note' }, localized(
-              '这些 Runtime Event 为本次运行提供了可观察证据；不证明 Skill 对这些调用具有因果关系。',
-              'These runtime events provide observable evidence for this run; they do not prove that the Skill caused these calls.')),
-            h('div', { className: 'st-audit-boundary' }, localized('证据充足 ≠ 正确。证据不足 ≠ 未执行。', 'Evidence ≠ correctness. Insufficient ≠ not executed.'))),
-          observation
-            ? h('div', { className: 'st-audit-evidence' },
-              observation.catalogPublication && catalog.total
-                ? h('details', { className: 'st-audit-catalog' },
-                  h('summary', null, localized(`当时目录中的候选（${catalog.total}）`, `Candidates in the catalog then (${catalog.total})`)),
-                  catalog.entries.length
-                    ? h('ul', { className: 'st-audit-catalog-list' },
-                      ...catalog.entries.slice(0, AUDIT_CATALOG_LIMIT).map((entry, position) => h('li', {
-                        key: `${entry?.name ?? 'entry'}:${position}`,
-                        'data-active': entry?.name === activeName ? 'true' : null,
-                      },
-                      h('strong', null, raw(entry?.name ?? '')),
-                      entry?.description ? h('span', null, raw(entry.description)) : null)))
-                    : h('p', { className: 'st-audit-catalog-more' }, localized('这次发布只留下了候选数量与摘要，没有留下候选名字。', 'This publication retained only the candidate count and digest, not the candidate names.')),
-                  catalog.total > AUDIT_CATALOG_LIMIT
-                    ? h('p', { className: 'st-audit-catalog-more' }, localized(`另有 ${catalog.total - AUDIT_CATALOG_LIMIT} 个候选未列出。`, `${catalog.total - AUDIT_CATALOG_LIMIT} further candidates are not listed.`))
-                    : null,
-                  catalog.digest ? h('p', { className: 'st-audit-catalog-more' }, raw(`entriesDigest ${String(catalog.digest).slice(0, 19)}…`)) : null)
-                : null)
-            : null)),
+    const segControl = h('div', { className: 'st-seg', role: 'group', 'aria-label': 'SKILL.md 显示方式' },
+      h('button', { type: 'button', 'data-active': !translated, onClick: () => setTab('original') }, localized('原文', 'Original')),
+      h('button', {
+        type: 'button',
+        'data-active': translated,
+        onClick: () => { setTab('translated'); if (translation.state !== 'ready') runTranslation() },
+      }, localized('中文预览', 'Chinese preview')))
 
-      h('footer', { className: 'st-audit-foot' }, localized(
-        'Skill Trace 不是 Agent Trace Viewer。它把 Skill 的原始定义、声明流程、本次运行证据与仓库来源放在同一条理解链上。',
-        'Skill Trace is not an Agent Trace Viewer. It places the Skill’s original definition, declared flow, runtime evidence and repository source on one line of understanding.')))
+    const translateButton = h('button', {
+      type: 'button',
+      className: 'st-translate',
+      disabled: translation.state === 'loading' || definitionUnavailable || !sha,
+      onClick: runTranslation,
+    }, translation.state === 'loading' ? localized('翻译中…', 'Translating…')
+      : translation.state === 'ready' || translation.state === 'error' ? localized('重新翻译', 'Translate again')
+        : localized('翻译', 'Translate'))
+
+    const docHeader = h('header', { className: 'st-detail-doc-head' },
+      h('div', { className: 'st-detail-doc-title' },
+        h('strong', null, 'SKILL.md'),
+        h('p', null, localized('只读展示 · 原文不会被修改', 'Read-only · the original file is never modified'))),
+      segControl,
+      translateButton)
+
+    const docNotice = h('p', { className: 'st-translate-notice' }, raw(translated
+      ? localized('中文预览只用于当前页面阅读，不会写回 SKILL.md，也不会进入这次对话；退出插件后不保留。', 'This preview is shown on this page only: it is never written back to SKILL.md, never added to the conversation, and is discarded when you leave.')
+      : localized('原文逐字来自 Skill 定义文件；这里不做任何改写。', 'The original text comes from the Skill definition file verbatim; nothing here rewrites it.')))
+
+    const translationState = translation.state === 'loading'
+      ? h('p', { className: 'st-translate-error' }, raw(localized('正在翻译…译文只留在内存里。', 'Translating… the result is kept in memory only.')))
+      : translation.state === 'error'
+        ? h('p', { className: 'st-translate-error' }, raw(localized('翻译没有完成。可以重试，原文不受影响。', 'Translation did not finish. You can retry; the original is unaffected.')))
+        : null
+
+    // §9.3：Outline 只做文档导航，不再表达"执行流程"。
+    const outlineNav = outline.length
+      ? h('nav', { className: 'st-detail-outline', 'aria-label': localized('文档目录', 'Document contents') },
+        ...outline.map((entry) => h('button', {
+          key: entry.id,
+          type: 'button',
+          className: 'st-detail-outline-item',
+          'data-level': entry.level,
+          'data-active': activeHeading === entry.id || flash === entry.id ? 'true' : undefined,
+          onClick: () => flashAnchor(entry.id),
+        }, raw(entry.title))))
+      : null
+
+    const documentBlocks = documentText
+      ? renderSkillMarkdown(documentText, documentOutline, flash, null)
+      : [h('p', { key: 'empty', className: 'st-audit-empty' }, raw(definitionUnavailable
+        ? localized('这份 Skill 的定义当前读不到，所以没有正文可以显示。', 'The definition cannot be read right now, so there is no document to show.')
+        : localized('这份 Skill 没有可显示的正文。', 'This Skill has no document to show.')))]
+
+    const documentScroll = h('div', { className: 'st-detail-doc-scroll', ref: scrollRef },
+      h('div', { className: 'st-audit-doc st-detail-doc-inner', ref: docRef }, ...documentBlocks))
+
+    const docPanel = h('section', { className: 'st-detail-doc' },
+      docHeader,
+      docNotice,
+      // 失败后分段控件会退回「原文」，但**错误本身必须留在屏幕上**：一次静默失败比一次
+      // 摆在明面上的失败糟得多 —— 用户点过「中文预览」，他就得知道那一下没成。
+      translationState,
+      h('div', { className: 'st-detail-doc-body' }, outlineNav, documentScroll))
+
+    return h('div', { className: 'st-detail' },
+      backButton,
+      h('div', { className: 'st-detail-body' }, sidePanel, docPanel))
   }
 
   /**
@@ -3211,6 +3280,11 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     const [catalogContext, setCatalogContext] = React.useState({ query: '', filter: 'all', sort: 'review', selectedName: '', selectedId: '' })
     const [catalogMeta, setCatalogMeta] = React.useState(null)
     const [catalogReload, setCatalogReload] = React.useState(0)
+    const [currentMeta, setCurrentMeta] = React.useState(null)
+    const [sessionReload, setSessionReload] = React.useState(0)
+    // §8.4：Detail 必须记得自己是从哪个列表进来的，返回时回到那个列表。**不能固定返回
+    // 某一个列表页** —— 所以来源跟着这次导航走，而不是当成一个全局状态。
+    const [openSkill, setOpenSkill] = React.useState(null)
     const [replayActive, setReplayActive] = React.useState(false)
     const [fitTick, setFitTick] = React.useState(0)
     const [showAllTick, setShowAllTick] = React.useState(0)
@@ -3346,7 +3420,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     }, [load])
 
     function chooseView(next) {
-      setView(next); setError(''); setInspect(null); setReplayActive(false)
+      setView(next); setError(''); setInspect(null); setReplayActive(false); setOpenSkill(null)
       try { localStorage.setItem(VIEW_KEY, next) } catch (_) {}
       // §7：两个一级页面都可以成为用户的默认页，所以两者都写回宿主偏好。
       api('/preferences', { method: 'POST', body: JSON.stringify({ defaultView: next }) })
@@ -3365,15 +3439,24 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     // v0.6 §4：Runtime 视图（运行流程 / 运行图谱 / Runtime Inspector / Runtime Replay）已经不是
     // 页面，也不再有任何入口。这里只留下「本次 Skill」这一条正文路径 —— 少掉的分支不是被藏起来，
     // 而是没有消费者的 UI（组件本身要等客户端不再引用后才删，见 §4 的清理顺序）。
-    const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
-      : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
-        : h(SkillWorkbench, { sessionId, data, loading, error, onRetry: load, loadedSkillCount })
+    // §6：第一屏是这次对话加载过的 Skill 卡片。它自己读 `/skills`，因为「哪些 Skill 被加载过」
+    // 与「这次会话的收据里有什么」是两个问题，前者不该等后者的四路投影（context/runtime/…）。
+    const sessionContent = h(CurrentSkillPage, {
+      sessionId,
+      loadedSkillCount,
+      reloadSignal: sessionReload,
+      onMeta: setCurrentMeta,
+      onRetry: () => setSessionReload((value) => value + 1),
+      onOpen: (name, from) => setOpenSkill({ name, from }),
+    })
 
     // 页头必须和正文说同一件事。此前 `!data` 一律显示"正在读取"，于是 Error 态下
     // 页头写"正在读取"、正文写"暂时无法读取"——**同一屏上两句话互相矛盾**（截图发现）。
-    const sessionSubtitle = !data
-      ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
-      : localized(`${data.workspaceLabel} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
+    const sessionSubtitle = currentMeta?.error
+      ? localized('本次 Skill 读取失败 · 宿主可能仍在运行旧版本', 'Could not read this run’s Skills · the Host may be running an older build')
+      : !data
+        ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
+        : localized(`${data.workspaceLabel} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
     // 已安装列表的页头只说「这次发现是否完整」与「发现了多少个」。它不引用 receipt，
     // 也不显示学习/验证历史 —— 页头和正文必须说同一件事（见 sessionSubtitle 的注释）。
     const catalogSubtitle = !catalogMeta
@@ -3388,7 +3471,16 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
 
     // 两个一级页面各自拥有自己的分栏（Skill 工作台是三栏、已安装列表是网格），所以它们
     // 直接成为正文，不再套一层 `.st-layout` 的单列内边距。
-    const content = view === 'installed'
+    // §8：Skill Detail 是唯一的二级页面，两个列表共用它。返回目标来自进入时的列表（§8.4）。
+    const detailContent = openSkill
+      ? h(SkillDetailPage, {
+        sessionId,
+        skillName: openSkill.name,
+        backLabel: openSkill.from === 'installed' ? localized('已安装 Skill', 'Installed Skills') : localized('本次 Skill', 'Skills in this run'),
+        onBack: () => setOpenSkill(null),
+      })
+      : null
+    const listContent = view === 'installed'
       ? h(InstalledSkillsPage, {
         sessionId,
         query: catalogContext.query,
@@ -3398,6 +3490,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
         onRetry: () => setCatalogReload((value) => value + 1),
       })
       : sessionContent
+    const content = detailContent ?? listContent
 
     return h('section', { ref: rootRef, 'data-plugin': 'dsh-skill-trace', 'data-conversation-composer-overlay': '', className: hostComposerHeight ? 'st-host' : undefined, style: {
       // --st-host-composer-h keeps this panel clear of the host composer; --st-host-h is the
@@ -3439,5 +3532,5 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
   // render smoke test execute each one against a real payload. Source assertions cannot
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
-  module.exports.__pure = { resolveSkillLoad, resolveSkillListState }
-  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel, SkillWorkbench }
+  module.exports.__pure = { resolveSkillLoad, resolveSkillListState, alignOutlineToTranslation, invocationLabel }
+  module.exports.__views = { Workbench, FlowCanvas, RuntimeView, ReceiptView, RuntimeInspector, ReplayControls, CatalogPage, Aside, LearningPanel, CurrentSkillPage, SkillDetailPage, SkillCard }

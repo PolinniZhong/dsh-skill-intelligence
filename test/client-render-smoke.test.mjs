@@ -433,25 +433,23 @@ test('the client registers and its entry component renders without throwing', as
       [{ timeline: payload.timeline, index: -1, playing: true, onIndex() {}, onPlaying() {} }],
       [{ timeline: null, index: -1, playing: false, onIndex() {}, onPlaying() {} }],
     ],
-    // §11：Skill Workbench 是一个**新的一级视图**，三栏都长，任何一栏的 TDZ 或空
-    // 载荷访问都会让整页空白。六个形态：有清单、有清单+详情、加载中、出错、
-    // 「有回执但这只 Skill 没有对齐结果」，以及**定义读不到**（`definition.available
-    // === false` 且 `flow.steps` 为空）——最后一种最容易漏，因为它走的是另一条渲染分支。
-    SkillWorkbench: [
-      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {}, list: skillListFixture }],
-      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {}, list: skillListFixture, skill: skillDetailFixture }],
-      [{ sessionId: 's', data: null, loading: true, error: '', onRetry() {} }],
-      [{ sessionId: 's', data: null, loading: false, error: '读取失败', onRetry() {} }],
-      [{
-        sessionId: 's',
-        data: {
-          ...payload,
-          receipt: { ...payload.receipt, traceEvents: [] },
-          views: { ...payload.views, receipt: { ...payload.views.receipt, runtime: { ...payload.views.receipt.runtime, alignments: [] } } },
-        },
-        loading: false, error: '', onRetry() {}, list: skillListFixture,
-      }],
-      [{ sessionId: 's', data: payload, loading: false, error: '', onRetry() {}, list: skillListFixture, skill: unavailableSkill }],
+    // v0.6 §6：「本次 Skill」的第一屏是卡片列表。三个形态：有卡片、空列表（宿主答了、
+    // 答案是空）、还没答（loading）。卡片整体是一个 `<button>`，点它进 Detail（§6.4）。
+    CurrentSkillPage: [
+      [{ sessionId: 's', onOpen() {}, loadedSkillCount: 2, onMeta() {}, onRetry() {}, list: skillListFixture }],
+      [{ sessionId: 's', onOpen() {}, loadedSkillCount: 2, onMeta() {}, onRetry() {}, list: { ...skillListFixture, skills: [] } }],
+      [{ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {} }],
+    ],
+    // v0.6 §8：唯一的二级页面。三个形态：定义读得到、定义读不到（`available === false`）、
+    // 还没读到（loading）。定义读不到那条最容易漏 —— 它走的是另一条渲染分支。
+    SkillDetailPage: [
+      [{ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '本次 Skill', skill: skillDetailFixture }],
+      [{ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '已安装 Skill', skill: unavailableSkill }],
+      [{ sessionId: 's', skillName: 'code-review', onBack() {}, skill: null }],
+    ],
+    SkillCard: [
+      [{ name: 'code-review', description: '评审代码变更。', meta: [{ label: '已加载 1 次', tone: 'accent' }], onOpen() {} }],
+      [{ name: 'demo-skill', description: null, meta: [], onOpen() {} }],
     ],
   }
   for (const [name, variants] of Object.entries(cases)) {
@@ -461,47 +459,49 @@ test('the client registers and its entry component renders without throwing', as
       assert.doesNotThrow(() => render(View(props)), `${name} threw on variant ${index}`)
     })
   }
-  // 注入的清单与详情必须**真的**渲染出来，而且要渲染成正确的形状。只比节点数是不行的：右栏从
-  // Tab 面板到 Markdown 渲染器到目录清单，每一层都有分支，节点数涨了不代表每个分支都对。
-  // 曾经那个断言（+200 个节点）既测不出 `javascript:` 链接漏成了 `<a>`，也测不出目录清单
-  // 截断条数写错——它只证明「多了不少东西」。
-  const nodes = collect(views.SkillWorkbench({
-    sessionId: 's', data: catalogPayload, loading: false, error: '', onRetry() {},
-    list: skillListFixture, skill: skillDetailFixture,
-  }))
-  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
-  const elements = (type) => nodes.filter((node) => node.type === type)
+  // 下面全部走真注入：注入的清单与详情必须**真的**渲染出来，而且要渲染成正确的形状。只比
+  // 节点数是不行的：从卡片到 Markdown 渲染器到目录清单，每一层都有分支，节点数涨了不代表
+  // 每个分支都对。曾经那个断言（+200 个节点）既测不出 `javascript:` 链接漏成了 `<a>`，
+  // 也测不出目录条目截断写错 —— 它只证明「多了不少东西」。
+  const listNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 2, onMeta() {}, onRetry() {}, list: skillListFixture }))
+  const detailNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '本次 Skill', skill: skillDetailFixture }))
+  const detailText = detailNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  const detailElements = (type) => detailNodes.filter((node) => node.type === type)
   const childText = (node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')
 
-  // 0. 第一屏是 Skill 清单，不是运行图谱。清单按 Host 给的最后加载时间倒序原样显示，并且
-  //    **不带**运行节点数 / 边数 / 工具数——那些属于高级里的运行视图。
-  const listNames = nodes.filter((node) => node.props.className === 'st-skill-item-name').map(childText)
-  assert.deepEqual(listNames, ['code-review', 'demo-skill'], 'the first column lists exactly the Skills this session loaded, in Host order')
-  assert.ok(text.includes('评审代码变更。'), 'a Skill description is shown as written')
-  assert.ok(text.includes('1 次加载'), 'the list states how many times each Skill was loaded')
+  // 0. 第一屏是 Skill 卡片列表，不是运行图谱，也不是任何 Runtime 画布（§6.4）。清单按宿主
+  //    给的最后加载时间倒序原样显示，卡片上**不带**运行节点数 / 边数 / 工具数。
+  const cardNames = listNodes.filter((node) => node.props.className === 'st-skill-card-name').map(childText)
+  assert.deepEqual(cardNames, ['code-review', 'demo-skill'], 'the first screen lists exactly the Skills this session loaded, in Host order')
+  const listText = listNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.ok(listText.includes('评审代码变更。'), 'a Skill description is shown as written')
+  assert.ok(listText.includes('已加载 1 次'), 'each card states how many times the Skill was loaded')
+  assert.equal(listNodes.filter((node) => node.props.className === 'st-flow-node').length, 0, 'the list page renders no runtime graph node')
+  const cardOpeners = listNodes.filter((node) => node.props.className === 'st-skill-card')
+  assert.equal(cardOpeners.length, 2, 'each Skill is one card')
+  assert.equal(typeof cardOpeners[0].props.onClick, 'function', 'the whole card is the control that opens the detail page')
 
   // 1. Markdown 渲染器认得出标题、行内代码、围栏块。
-  const headingText = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].flatMap((tag) => elements(tag).map(childText))
+  const headingText = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].flatMap((tag) => detailElements(tag).map(childText))
   assert.ok(headingText.includes('Purpose') && headingText.includes('Workflow'), 'the outline headings become heading elements')
   assert.ok(!headingText.some((heading) => heading.includes('not a heading')), 'a # inside a fenced code block must not become a heading')
-  assert.ok(text.includes('# not a heading'), 'the fenced block keeps its content verbatim, as code')
-  assert.ok(text.includes('diff'), 'inline code is rendered')
-  assert.ok(text.includes('changes') && !text.includes('**changes**'), 'bold is rendered as <strong>, not left as literal asterisks')
+  assert.ok(detailText.includes('# not a heading'), 'the fenced block keeps its content verbatim, as code')
+  assert.ok(detailText.includes('diff'), 'inline code is rendered')
+  assert.ok(detailText.includes('changes') && !detailText.includes('**changes**'), 'bold is rendered as <strong>, not left as literal asterisks')
   // 面板自己已经有层级，所以正文标题降一级：`# Purpose` 是 h2，页面里不会出现第二个 h1。
-  assert.ok(!elements('h1').some((node) => childText(node).includes('Purpose')), 'a body heading never becomes another <h1>')
-  // 锚点 id 取自 Host 的 outline 行号映射；客户端二次 slug 一旦和它不一致就会锚错段落。
-  assert.ok(nodes.some((node) => node.props.id === 'st-audit-doc-purpose' && node.type === 'h2'), 'the heading id comes from the Host outline entry, not a client-side slug')
+  assert.ok(!detailElements('h1').some((node) => childText(node).includes('Purpose')), 'a body heading never becomes another <h1>')
+  // 锚点 id 取自宿主 outline 的条目 id；客户端二次 slug 一旦和它不一致就会锚错段落。
+  assert.ok(detailNodes.some((node) => node.props.id === 'st-audit-doc-purpose' && node.type === 'h2'), 'the heading id comes from the Host outline entry, not a client-side slug')
 
   // 2. 第三方 SKILL.md 能写任何东西。只有 http(s) 允许变成链接，其余协议必须退化成纯文本，
-  //    否则一份 Skill 文档就能把 `javascript:` 带进界面。
-  const anchors = elements('a')
-  assert.ok(anchors.length > 0, 'the resolved repository must produce a link')
+  //    否则一份 Skill 文档就能把 `javascript:` 带进界面（§9.4）。
+  const anchors = detailElements('a')
   assert.ok(anchors.every((node) => /^https?:\/\//i.test(String(node.props.href))), 'only http(s) hrefs may become anchors')
-  assert.ok(text.includes('javascript:alert(1)'), 'a non-http link degrades to plain text instead of an anchor')
+  assert.ok(detailText.includes('javascript:alert(1)'), 'a non-http link degrades to plain text instead of an anchor')
   const external = anchors.filter((node) => node.props.target === '_blank')
-  assert.ok(external.length >= 2, 'a resolved repository is offered from both the source card and the definition pane')
-  assert.ok(external.every((node) => node.props.href === 'https://github.com/example/code-review-skill'), 'every external link points at the resolved clone command')
-  assert.ok(external.every((node) => /noopener/.test(String(node.props.rel))), 'external links carry rel="noreferrer noopener"')
+  assert.equal(external.length, 1, 'a resolved repository is offered exactly once, from the Definition column')
+  assert.equal(external[0].props.href, 'https://github.com/example/code-review-skill', 'the external link points at the resolved clone command')
+  assert.ok(/noopener/.test(String(external[0].props.rel)), 'external links carry rel="noreferrer noopener"')
 
   // 2b. §11.9：仓库没解析出来时，界面上不能出现猜测出来的链接，也不能留一个禁用态的占位。
   const unresolvedSkill = {
@@ -509,39 +509,57 @@ test('the client registers and its entry component renders without throwing', as
     repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] },
     definition: { ...skillDetailFixture.definition, repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] } },
   }
-  const unresolvedNodes = collect(views.SkillWorkbench({
-    sessionId: 's', data: catalogPayload, loading: false, error: '', onRetry() {},
-    list: skillListFixture, skill: unresolvedSkill,
-  }))
-  const unresolvedAnchors = unresolvedNodes.filter((node) => node.type === 'a' && node.props.target === '_blank')
-  assert.equal(unresolvedAnchors.length, 0, 'an unresolved repository must not invent a link')
-  assert.ok(unresolvedNodes.some((node) => node.type === '#text' && node.text.includes('仓库 · 未解析')), 'the surface states the repository is unresolved rather than staying blank')
+  const unresolvedNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, skill: unresolvedSkill }))
+  assert.equal(unresolvedNodes.filter((node) => node.type === 'a' && node.props.target === '_blank').length, 0, 'an unresolved repository must not invent a link')
+  assert.ok(unresolvedNodes.some((node) => node.type === '#text' && node.text.includes('未解析')), 'the surface states the repository is unresolved rather than staying blank')
+  assert.ok(unresolvedNodes.some((node) => node.type === '#text' && /没有找到 git work tree/.test(node.text)), 'it repeats the limitation code in words')
 
-  // 2c. 定义读不到：`flow.steps` 是空的，界面不能从运行时的调用反推出一串假步骤；
-  //     指纹比对缺一半哈希时必须写「无法比对」，既不能当成 mismatch，也不能写成「已失效」。
-  const unavailableNodes = collect(views.SkillWorkbench({
-    sessionId: 's', data: catalogPayload, loading: false, error: '', onRetry() {},
-    list: skillListFixture, skill: unavailableSkill,
-  }))
+  // 2c. 定义读不到：正文没有可显示的内容，界面既不能从运行时的调用反推出一串假步骤，也不能
+  //     把缺一半哈希写成「文件已改变」——那是从缺失推出的结论（§10.2）。
+  const unavailableNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, skill: unavailableSkill }))
   const unavailableText = unavailableNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
-  assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-step').length, 0, 'an unavailable definition yields no synthesised flow step')
-  assert.ok(unavailableText.includes('这份 Skill 的定义当前读不到，所以无法抽取声明流程。'), 'the empty flow explains itself instead of rendering an empty card')
+  assert.ok(unavailableText.includes('这份 Skill 的定义当前读不到'), 'the empty document explains itself')
   assert.ok(unavailableText.includes('无法比对'), 'a missing fingerprint pair is stated as 无法比对')
   assert.ok(!unavailableText.includes('文件已改变'), 'an unavailable comparison must never be reported as a mismatch')
   assert.ok(!unavailableText.includes('已失效'), 'an unavailable comparison must never be reported as "the Skill is void"')
+  assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-step').length, 0, 'an unavailable definition yields no synthesised flow step')
 
-  // 3. 目录候选只列 AUDIT_CATALOG_LIMIT 条，并如实说明剩下的——一条都不能多渲染。
-  assert.ok(text.includes('skill-0') && text.includes('skill-39'), 'the catalogue list renders up to the limit')
-  assert.ok(!text.includes('skill-40'), 'the catalogue list must stop at the limit')
-  assert.ok(text.includes('另有 4 个候选未列出'), 'the truncation is stated, not silently dropped')
-  assert.equal(nodes.filter((node) => node.type === 'ul' && node.props.className === 'st-audit-catalog-list').length, 1, 'the catalogue list renders once')
-  assert.equal(nodes.filter((node) => node.type === 'ul' && node.props.className === 'st-audit-catalog-list')[0].children.length, 40, 'the catalogue list stops at AUDIT_CATALOG_LIMIT')
+  // 3. 空列表：宿主答了、答案是空的，这才是空态。三种"没有卡片"的原因必须分开说（§6.5）。
+  const emptyNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {}, list: { ...skillListFixture, skills: [] } }))
+  assert.equal(emptyNodes.filter((node) => node.props.className === 'st-skill-card').length, 0, 'an empty answer renders no card')
+  assert.ok(emptyNodes.some((node) => node.type === '#text' && node.text.includes('当前对话暂未加载可追踪的 Skill。')), 'the empty state says exactly what happened')
+  const loadingNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {} }))
+  assert.equal(loadingNodes.filter((node) => node.props.className === 'st-skill-card').length, 0, 'a pending read renders no card')
 
-  // 4. 两个 Tab 面板都留在 DOM 里（由 CSS 切显隐），所以切 Tab 不丢滚动位置——同时这也意味着
-  //    "没有定义" 的那个变体不该渲染出任何一个面板的正文。
-  assert.equal(nodes.filter((node) => node.props.className === 'st-audit-pane').length, 2, 'both tab panels stay mounted')
-  assert.equal(nodes.filter((node) => node.props['data-active'] === 'true' && node.props.className === 'st-audit-pane').length, 1, 'exactly one panel is active')
-  assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-pane').length, 2, 'both tab panels stay mounted even without a definition')
+  // 4. 段控与翻译按钮的默认态：原文 active、按钮写「翻译」；译文只活在组件内存里（§12.4），
+  //    所以初始渲染里不可能已经有一份译文。
+  const segButtons = detailNodes.filter((node) => node.props.className === undefined && node.type === 'button' && node.children?.includes('原文'))
+  assert.equal(segButtons.length, 1, 'the segmented control offers 原文')
+  assert.equal(segButtons[0].props['data-active'], true, '原文 is the default segment')
+  const translateButtons = detailNodes.filter((node) => node.props.className === 'st-translate')
+  assert.equal(translateButtons.length, 1, 'the detail page offers exactly one translate button')
+  assert.ok(childText(translateButtons[0]).includes('翻译'), 'the idle state reads 翻译')
+  assert.ok(detailText.includes('只读展示'), 'the document header states the file is read-only')
+  assert.ok(detailText.includes('原文逐字来自 Skill 定义文件'), 'the notice states where the original text comes from')
+  const outlineItems = detailNodes.filter((node) => node.props.className === 'st-detail-outline-item')
+  assert.deepEqual(outlineItems.map(childText), ['Purpose', 'Workflow'], 'the outline lists the document headings in order')
+
+  // 5. §8.4：Detail 记住的是"从哪个列表进来"，所以返回按钮的措辞由调用方给，不是写死的。
+  const fromInstalled = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '已安装 Skill', skill: skillDetailFixture }))
+  const backLabelText = fromInstalled.filter((node) => node.props.className === 'st-detail-back').map(childText)[0]
+  assert.ok(backLabelText.includes('已安装 Skill'), 'the back label follows the list the user came from')
+  assert.ok(!backLabelText.includes('本次 Skill'), 'it does not hard-code one list')
+
+  // 6. `invocationLabel` 与 `runSourceLabel` 回答的是两个不同的问题，不能互相顶替：
+  //    「没有加载记录」是「未使用」，不是「未知来源」。
+  const invocationLabel = module.exports.__pure.invocationLabel
+  assert.equal(typeof invocationLabel, 'function', 'the invocation wording must be exposed to the smoke test')
+  assert.equal(invocationLabel('model-invoked'), 'model')
+  assert.equal(invocationLabel('user-explicit'), '/name')
+  assert.equal(invocationLabel(null), '未使用')
+  assert.equal(invocationLabel({ modelInvocable: true, userInvocable: false }), 'model')
+  assert.equal(invocationLabel({ modelInvocable: false, userInvocable: true }), '/name')
+  assert.equal(invocationLabel({ modelInvocable: true, userInvocable: true }), 'model / /name')
 })
 
 test('an unreachable Skill list is not reported as "no Skill was loaded"', () => {

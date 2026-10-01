@@ -830,7 +830,9 @@ for (const source of [client, host]) {
 // 解包。这两条断言成对存在，是因为只改一端不会让任何单元测试变红——列表会静默变成空数组，
 // 第一屏只是「看起来这个会话没有 Skill」。渲染台截图抓到过这个 bug。
 if (!host.includes('list: buildSessionSkillList(')) throw new Error('the skills endpoint must nest its payload under `list`')
-if (!client.includes('setList(body?.list ?? null)')) throw new Error('the client must unwrap the skills payload from `list`')
+// 断言的是**解包这个动作**，不是某个 state setter 的名字 —— 组件改名（`setList` →
+// `setFetchedList`）不该让这条守卫失效，而「客户端不再解 `list`」必须让它失效。
+if (!client.includes('body?.list ?? null')) throw new Error('the client must unwrap the skills payload from `list`')
 
 // DSH 主题 alias 白名单 -------------------------------------------------------------------
 // `--dsw-alias-*` 由宿主注入。名字拼错不会有任何报错：CSS 自定义属性未定义时静默失效，
@@ -986,6 +988,35 @@ console.log('VISUAL_TOKENS_OK')
     }
   }
   console.log('TRANSLATION_MEMORY_ONLY_OK')
+
+// v0.6 §6 / §8 / §9 Skill-first 的信息架构 ----------------------------------------------
+// 这一段的断言全部关于**形状**，不是措辞：卡片列表、唯一的二级页、以及「译文只在内存里」。
+{
+  for (const required of ['function SkillCard(', 'function CurrentSkillPage(', 'function SkillDetailPage(']) {
+    if (!client.includes(required)) throw new Error(`v0.6 §6/§8: the client must define ${required}`)
+  }
+  // 旧的三栏工作台整个退役。它一旦回来，第一屏就不再是「这次加载了哪些 Skill」。
+  if (client.includes('function SkillWorkbench(')) throw new Error('v0.6 §4.4: the old three-column workbench must stay deleted')
+  if (client.includes('st-skill-item')) throw new Error('v0.6 §6.2: Skill cards replaced the old workbench rows')
+
+  // §12.4 的另一半在客户端：译文只活在组件 state 里，既不落盘也不进会话。
+  const detailStart = client.indexOf('function SkillDetailPage(')
+  const detailEnd = client.indexOf('\n  function ', detailStart + 10)
+  const component = client.slice(detailStart, detailEnd === -1 ? undefined : detailEnd)
+  for (const forbidden of ['localStorage', 'sessionStorage', 'indexedDB', 'navigator.sendBeacon']) {
+    if (component.includes(forbidden)) {
+      throw new Error(`v0.6 §12.4: Skill Detail must keep a translation in memory only, but it touches ${forbidden}`)
+    }
+  }
+  if (!component.includes('setTranslation(')) {
+    throw new Error('v0.6 §12: Skill Detail must hold the translation in component state')
+  }
+  // §8.4：返回的目标由调用方给进来，页面里不能写死任何一个列表页。
+  if (/backLabel\s*:\s*'/.test(component) || /onBack:\s*\(\)\s*=>\s*setView/.test(component)) {
+    throw new Error('v0.6 §8.4: the detail page must not hard-code which list it returns to')
+  }
+  console.log('SKILL_FIRST_DETAIL_OK')
+}
 }
 
 // --- 发布资产的版本一致性 ---------------------------------------------------
