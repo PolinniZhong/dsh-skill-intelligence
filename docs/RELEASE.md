@@ -11,11 +11,11 @@
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `8808aa4 docs: npm 发布结果写回 CHANGELOG 与发布清单` |
-| `origin/main` | `8808aa4` —— 与本地同名提交，**本次 v0.7.0 的改动全部还没提交** |
+| 本地 `HEAD` | `a9a6959 feat: Skill 理解与复用 —— 已安装卡片进详情 / 中文阅读版落盘 / 复刻 Skill` |
+| `origin/main` | `8808aa4` —— 本地**领先 1 个提交**；`0.7.0` 的知识库治理（`spec/` 落盘、三份旧文档归档、`AGENTS.md` / `README.md` / `design.md` / `CHANGELOG.md` / `docs/RELEASE.md` 同步）**还没提交** |
 | 远端最新 tag | `v0.6.1`（`git ls-remote --tags origin` 可直接看到 `refs/tags/v0.6.1^{}` → `b3bc500`） |
 | npm | `beta` 与 `latest` **都指向 `0.6.1`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
-| 工作区 | 21 处未提交改动：12 个已跟踪文件（`AGENTS.md` / `CHANGELOG.md` / `README.md` / `design.md` / `package.json` / `scripts/verify-project.mjs` / `docs/ARCHITECTURE.md` / `docs/PRIVACY.md` / `dist/client.js` + `.map` / `src/dsh/client/client.js` / `src/dsh/host/index.js` / `test/client-render-smoke.test.mjs`）与 8 个新文件（`src/core/skill-clone.mjs` / `src/core/skill-clone-path.mjs` / `src/storage/skill-clone-writer.mjs` / `src/storage/translation-store.mjs` / `test/phase17-skill-clone.test.mjs` / `test/phase18-skill-clone-writer.test.mjs` / `test/phase18-clone-routes.test.mjs` / `test/translation-store.test.mjs`）——全部属于本次发布 |
+| 工作区 | 知识库治理的未提交改动：`.gitignore` / `AGENTS.md` / `CHANGELOG.md` / `README.md` / `design.md` / `docs/ARCHITECTURE.md` / `docs/RELEASE.md` / `package.json` / `scripts/verify-project.mjs` / `src/dsh/host/index.js`，三份根目录旧文档重命名为 `docs/archive/*`，新增未跟踪的 `spec/`（`PRD.md` 692 行 / `SDD.md` 969 行）——全部属于本次发布 |
 
 **第一个要决定的事是版本号 —— 这次是 `0.7.0`。** 上一版 `0.6.1` 只修了一处布局塌陷，是 patch；这一版加了三条宿主路由、四个新模块、一个对象级动作，并且**改变了译文的生命周期**（从内存搬进本机数据目录），按语义是 minor。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
 
@@ -47,15 +47,24 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ---
 
-## 1. 版本一致性（发布会话若需改版本号，只改这三处）
+## 1. 版本一致性（版本号必须逐字相同的五处）
 
 | 文件 | 位置 |
 |---|---|
 | `package.json` | `"version"` |
 | `README.md` | 「当前公开版为 \`x\`」 + `github:` 安装示例（锚定 `#vx`）+ npm 安装示例（锚定 npm 上真实存在的版本）+ 「完整历史见 CHANGELOG……（当前已到 \`x\`）」 |
 | `CHANGELOG.md` | 版本标题「## x — YYYY-MM-DD · 一句话主题」，并在正文写明测试数量变化 |
+| `spec/PRD.md` | 头部版本号 + 正文里写死的测试数 / 客户端行数 / bundle 字节 |
+| `spec/SDD.md` | 头部版本号 + §模块清单的行数表（`wc -l` 重跑，行数变了就要改） |
 
 改完重跑第 0 步的 `verify`。**README 是发布资产，不是随手笔记。**
+
+> 后两处是 2026-10-05 加进来的：`spec/` 收拢了当前版 PRD 与 SDD，而它们把版本号和几项实测数字**写死在正文里**。
+> `RELEASE_ASSETS_IN_SYNC_OK` 管不到它们——那条守卫只看 `README.md`。漏改的症状是「规格文档说 0.7.0、包说 0.8.0」。
+
+> **这张表和 `AGENTS.md` §9.1 的「六处」不是同一张表，别对着数。** 这里列的是**发布资产里版本字符串必须逐字相同**的文件（发布前用）；§9.1 列的是**发版后需要顺手更新的状态类文字**（发布后用），因此多出 `AGENTS.md` §1 自己的版本行与 `docs/RELEASE.md` 的「本次发布的起点」表。
+>
+> 两张表的**唯一缺口**在本表这一侧：`AGENTS.md` §1 的版本号也必须等于 `package.json`，而它不在这五个「发布资产」里。所以**发布前请配合 §9.1 第 1 条一起看**，别只照本表改。
 
 ---
 
@@ -63,8 +72,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.6.1 — SKILL.md 面板不再被框架层压成 2px"
-git tag -a v0.6.1 -m "v0.6.1"
+git commit -m "release: v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走"
+git tag -a v0.7.0 -m "v0.7.0"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -75,7 +84,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.6.1
+git push origin v0.7.0
 ```
 
 推送曾经失败过一次——`fatal: unable to access '…': Error in the HTTP2 framing layer`。当时可用的做法是
@@ -83,19 +92,20 @@ git push origin v0.6.1
 
 ```bash
 git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.6.1
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.7.0
 ```
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.6.1`。
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.7.0`。
+`git ls-remote` **也要带同样的两个 `-c`**（HTTP/2 那条路同样会被打断）。
 
 ---
 
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.6.1 \
-  --title "v0.6.1 — SKILL.md 面板不再被框架层压成 2px" \
-  --notes-file <(sed -n '/^## 0.6.1/,/^## 0.6.0/p' CHANGELOG.md | sed '$d')
+gh release create v0.7.0 \
+  --title "v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走" \
+  --notes-file <(sed -n '/^## 0.7.0/,/^## 0.6.1/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。
@@ -105,12 +115,12 @@ gh release create v0.6.1 \
 
 ## 5. npm 发布
 
-`0.6.1` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 当时只发 GitHub，所以 npm 的版本号是从
-`0.4.0-beta.66` 直接跳过来的）。两条命令，顺序不能换：
+`0.7.0` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 与 `0.7.0` 都是 GitHub + npm）。
+两条命令，顺序不能换：
 
 ```bash
 npm publish --tag latest --cache=/tmp/npm-cache-dsh                     # 这个版本第一次发布
-npm dist-tag add dsh-skill-trace@0.6.1 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
+npm dist-tag add dsh-skill-trace@0.7.0 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
 ```
 
 **不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未
@@ -181,8 +191,8 @@ lsof -p "$(cat ~/.dsh/.harness.pid)" | grep -o '\.dsh/profiles/[a-z0-9-]*' | sor
 ### 6.2 往**上一步查到的** profile 安装
 
 ```bash
-# 0.5.0 及之后都没有发布到 npm，所以用 github: 写法（与 README 的安装示例一致）
-dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.6.1&path:/"
+# npm 与 github: 两种写法都能用（0.6.1 起两处都有），这里用 github: 写法（与 README 的安装示例一致）
+dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.7.0&path:/"
 ```
 
 ### 6.3 版本一致

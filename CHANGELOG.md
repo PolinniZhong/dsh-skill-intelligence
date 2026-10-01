@@ -219,6 +219,53 @@
 
 **故意没动的地方**：`04-product-requirements.md` §18 的 `0.20`–`0.26` 修订行、`docs/RELEASE.md` 的 `0.6.1` 发布表、`README.md` 里 `beta.69` / `0.6.0` / `0.6.1` 的版本史——**它们是各自那一轮的准确记录，改掉才是错。**
 
+### 十五、知识库治理：根目录只留入口，`spec/` 收拢当前版（**没有产品改动**）
+
+`0.7.0` 验收通过后做的一遍仓库治理。**产品一行没改**：没碰客户端源码，没碰 `dist/`，测试 `429` 项、守卫 `23` 组、客户端 `2332` 行、bundle `129280` 字节都与上一节相同。唯一的源码改动是 `src/dsh/host/index.js` 里**两条注释**（见第 ⑤ 条），它因此从 **1106 行变成 1110 行**——注释也是源码，行数照样要对。这一节记录的是**文档被搬到哪里、以及顺带修掉的一个真缺陷**。
+
+**① 根目录从 12 个文件收到 9 个。** 三份编号文档移进新目录 `docs/archive/`（`git mv`，可追溯）：
+
+| 原路径 | 现路径 |
+|---|---|
+| `04-product-requirements.md`（v0.7 及以前的全量 PRD，1095 行） | `docs/archive/requirements-v0.7-full.md` |
+| `05-technical-design.md`（V0.1–V0.5 技术设计） | `docs/archive/technical-design-v0.1-v0.5.md` |
+| `02-product-thesis.md`（产品命题初稿） | `docs/archive/product-thesis.md` |
+
+三份都加了**归档横幅**（YAML front-matter 与 H1 之间）：写明它原是哪个路径、何日为何移入、**只用于追溯不再回写**、当前权威是 `spec/`，以及「本文内部及其对根目录的链接已部分失效，**这是归档的代价，不是待修的缺陷**」。同时把能修的链接都修了（`02-product-thesis.md` → `product-thesis.md`、`design.md` → `../../design.md` 等）；故意留下的只有 `git log -p -- 02-product-thesis.md` 这类恢复命令——它按定义必须写历史路径。
+
+**② 新增 `spec/`：当前版的 PRD 与 SDD，各只有一份。** 目录名不是 `specs/`——`.gitignore` 里 `specs/` 是排除项，放进去会被静默忽略。
+
+- `spec/PRD.md`（692 行）：从 `docs/archive/requirements-v0.7-full.md` 重写成**只描述 0.7.0 为真的事实**，**不含任何修订记录**。80 个 `FR-*` 编号原样保留（编号是承重的：`FR-UI-047` 被 `FR-UI-060` 部分取代这类关系只能靠编号表达），已作废的编号登记成「ID 保留、内容作废、不得复用」而不是删掉。
+- `spec/SDD.md`（969 行）：从 `docs/ARCHITECTURE.md` 重写成当前架构的唯一权威——10 条路由逐条、数据流、证据模型、模块清单（含 `wc -l` 实测行数）、23 组守卫逐条、测试策略、已知取舍。
+
+**③ `.gitignore` 退役了编号约定。** `/[0-9][0-9]-*.md` 连它下面三条 `!` 例外一起删掉，并在原位留注释说明原因：这套约定同时带来「哪些文档要提交」的歧义，而**一个编号文档悄悄没被提交，正是它当年造成的那类事故**。`specs/` 保持排除，让退役的名字回不来。
+
+**④ 顺带修掉的真缺陷：两个没有断言的守卫。** 这一轮唯一触及行为的问题。`scripts/verify-project.mjs` 末尾的 `FIVE_LAYER_MODEL_OK` 与 `FINGERPRINT_RESERVED_OK` **只是两句 `console.log`**——它们会在输出里宣布契约成立，而之前没有任何检查。同一份文件在 `572-578` 行早就把这个反模式写了下来，正是这条纪律当年抓出 `CANVAS_BOUNDED_OK` 那一批事故的原因。
+
+`FIVE_LAYER_MODEL_OK` 是**遗产**：`git log -S` 显示它只来自 `835bdac`（`v0.4.0-beta.28`），守的是 `src/core/runtime-layout.mjs` 与 `src/dsh/client/runtime-flow.js`；这两个模块连同 `runtime-replay.mjs` 在 v0.6 删运行图谱画布时**一起被删了**，断言块跟着消失，marker 留了下来。处理分两种：
+
+- **守的东西已经不存在 → 删掉 marker。** `FIVE_LAYER_MODEL_OK` 直接删除。今天「五层」的活代码是 `src/core/skill-runtime-logic.mjs:25` 的 `RUNTIME_STAGE_IDS = ['catalog','load','instructions','capability','evidence']`，由 `SKILL_FRAMEWORK_OK` 覆盖。
+- **守的东西还在 → 补上真断言。** `FINGERPRINT_RESERVED_OK` 现在真的 import `src/core/runtime-fingerprint.mjs`，并**给一个有内容的图**（4 节点、2 次 `tool` 调用、1 条边）之后仍然要求 `derived: false` / `status: 'reserved'` / 每个 slot `value === null`。这条断言的重点是**在有东西可推的时候也必须成立**——§31 只是预留槽位，§32 禁止界面自己推断关系；一个在空图上通过的断言证明不了这一条。
+
+新增的 `GUARD_MARKERS_ARE_BACKED_OK` 把这类事故变成不可能的：它每次运行都重扫本文件，要求每个 `console.log('…_OK')` 所在的那一段（段界是**顶格的 `}`**）里出现过 `throw new Error`，且带断言的 marker 少于 15 条也报错（防止它自己退化成永远为真的空循环）。**验证这条守卫本身会失败**：临时追加一句 `console.log('TOTALLY_FAKE_OK')`，`npm run verify` 立刻红在 `这些 marker 前面没有任何断言，输出会声称契约成立而其实没人检查过：TOTALLY_FAKE_OK`。组数仍是 **23**（删一、补一）。
+
+**⑤ 六处文档漂移，以源码为准修掉。** 都是「注释/文档说的是上一版的行为」，运行时没错，错的是读它的人：
+
+| 位置 | 过期说法 | 现说法 |
+|---|---|---|
+| `src/dsh/host/index.js` translate 注释 | 「刻意**不**落盘……只存在页面运行时内存里」 | v0.7 起落盘为本机资产，键不含会话（`FR-UI-060`） |
+| `src/dsh/host/index.js` catalog 注释 | 「名字暂用 `/installed`」 | 字面一直是 `/skill-trace/catalog`；「我的 Skill」工作台 `0.5.0` 已删 |
+| `docs/ARCHITECTURE.md:243` | the seven routes | **the ten routes** |
+| `AGENTS.md` §6.6 | 客户端 `require` 六支 core 模块 | **七支**（多 `skill-clone.mjs`） |
+| `package.json` `description` | 含已删对象的措辞 | 只描述今天的产品 |
+| `README.md:146` | 指纹三态写作「已改变」 | **「文件已改变」**（与 `client.js:1736` 一致） |
+
+**⑥ README 的 npm 口径改成实话。** 原文写「`0.7.0` 已发布，`beta` 与 `latest` 都指向它」——**这是假的**：npm 上两个 tag 都还在 `0.6.1`，`v0.7.0` 连 tag 都没推。现在安装小节明写「`0.7.0` 发版前这条命令取不到东西」，版本化命令标明「发版之后才可用」，`AGENTS.md` 附录 A 同步记下这条规矩：**npm 安装示例必须锚定 npm 上真实存在的版本；发版前 README 必须明说还没发布。**
+
+**⑦ 一处「漂移」是复核的人看错了，撤下并留下记录。** `spec/PRD.md` 的来源冲突表曾把 `design.md` §6.1 的顶栏高度列为「尚未回写」，复核发现 `design.md:223` 写的就是「最小高度 48px，水平内边距 16px」，与代码一致——58px 只出现在 `design.md:225-227` 的修订说明里（「因此 58px → 48px」）。**判断错了也要留痕**，所以那一行改成了「核对后撤下的一条」而不是悄悄删掉。
+
+**故意没动的地方**：`CHANGELOG.md` 里各轮提到旧文件名的句子（那是各自那一轮的准确记录）、`docs/archive/` 三份正文（冻结）、`docs/archive/technical-design-v0.1-v0.5.md` §0 的过期数字（归档只作追溯）。
+
 ## 0.6.1 — 2026-10-01 · `SKILL.md` 面板不再被框架层压成 2px
 
 **一次客户端补丁。** 信息架构、宿主接口、路由数量都没动：一级页面仍是「本次 Skill」「已安装 Skill」，二级页面仍是唯一的 Skill 详情，四层顺序仍是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。发布范围与 `0.5.0` / `0.6.0` 不同：**GitHub 与 npm 同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.6.1`。中间那两版只在 GitHub，所以 npm 的版本号是从 `0.4.0-beta.66` 直接跳过来的。

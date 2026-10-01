@@ -849,10 +849,14 @@ export function apply(ctx, config = {}) {
             return
           }
 
-          // v0.6 §13：翻译。整条路径只读定义、只回一次结果。
+          // v0.6 §13 起是翻译路径。整条路径只读定义、只回一次结果。
           //
-          // 这里刻意**不**落盘、不写 receipt、不动偏好文件：§12.4 要求译文只存在页面运行时
-          // 内存里，退出插件即消失。所以响应之后宿主不再持有它，客户端刷新页面也就没有了。
+          // **v0.7 修订**：这里曾经写着「刻意不落盘……§12.4 要求译文只存在页面运行时内存里」，
+          // 那句话在 v0.7 起已经不成立 —— 见下面 `persistTranslation` 的分支：译文现在作为
+          // **本机资产**落到 `<dataRoot>/translations/`，键是「Skill 名 + 正文指纹 + 语言」且
+          // **不含会话**（`FR-UI-060`）。仍然不变的是另外三条：不写 receipt、不动偏好文件、
+          // 不把正文或 args 带进任何记录 —— 落盘的只有译文本身。
+          // 写失败时响应里回 `saved: false`，客户端据此**不**显示「已保存」。
           if (method === 'POST' && url.pathname === '/skill-trace/translate') {
             const body = await readBody(req)
             const sessionId = requiredSessionId(body.sessionId)
@@ -945,9 +949,9 @@ export function apply(ctx, config = {}) {
           // v0.6 §7：已安装 Skill。回答「当前 DSH 环境可发现哪些 Skill」，与本次会话
           // 发生过什么无关 —— 所以这条路由**不读 receipt**，也不把学习状态带回来。
           //
-          // 名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`：旧的 `/catalog` 仍被
-          // 「我的 Skill」工作台消费着，而 §4 规定的清理顺序是「先删 UI → 再删 View
-          // consumer → 最后删 Host route」。等那个工作台删掉之后，这条路由再改名收口。
+          // **v0.7 修订**：这里曾经写着「名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`」，
+          // 但字面早就是 `/skill-trace/catalog`，「我的 Skill」工作台也已在 `0.5.0` 删除，
+          // 改名条件已经满足。注释留在原处只会让后来的人以为还有一次改名欠着。
           if (method === 'GET' && url.pathname === '/skill-trace/catalog') {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const query = optionalSearchQuery(url.searchParams.get('query'))

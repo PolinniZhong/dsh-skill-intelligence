@@ -958,5 +958,111 @@ console.log('VISUAL_TOKENS_OK')
   console.log('RELEASE_ASSETS_IN_SYNC_OK')
 }
 
-console.log('FIVE_LAYER_MODEL_OK')
-console.log('FINGERPRINT_RESERVED_OK')
+// --- 指纹预留结构（§31 预留位置，§32 不许界面自推） --------------------------------
+// 这一段也曾经**只是一句 `console.log`**：`FINGERPRINT_RESERVED_OK` 印在输出里，而它之前
+// 没有任何断言。与 `FIVE_LAYER_MODEL_OK` 不同的是，它守的模块今天还在，所以这里补断言，
+// 而不是把 marker 删掉。
+//
+// 要钉的是**克制**本身。§31 只要求"预留位置"，§32 禁止界面自己推导关系，所以断言必须在
+// **给了一个有内容的图之后**仍然成立 —— 否则这条守卫只是在重复"这个模块存在"。
+{
+  const {
+    buildFingerprintReservation,
+    FINGERPRINT_PATTERNS,
+    FINGERPRINT_PATTERN_LABELS,
+    FINGERPRINT_SOURCES,
+  } = await import(pathToFileURL(resolve(root, 'src/core/runtime-fingerprint.mjs')).href)
+
+  const expected = ['runtime', 'tool', 'mcp', 'cli', 'failure', 'recovery']
+  if (JSON.stringify(FINGERPRINT_PATTERNS) !== JSON.stringify(expected)) {
+    throw new Error(`§31 点名的六个 Pattern 必须逐字、按序，实际是 ${FINGERPRINT_PATTERNS.join(', ')}`)
+  }
+  for (const [name, table] of [['FINGERPRINT_PATTERN_LABELS', FINGERPRINT_PATTERN_LABELS], ['FINGERPRINT_SOURCES', FINGERPRINT_SOURCES]]) {
+    const keys = Object.keys(table).sort()
+    if (JSON.stringify(keys) !== JSON.stringify([...expected].sort())) {
+      throw new Error(`${name} 必须与六个 Pattern 一一对应，实际是 ${Object.keys(table).join(', ')}`)
+    }
+  }
+
+  // 一个"看起来能派生点什么"的图。哪天有人把推导接上，这里就会红 —— 这才是这条守卫的意义。
+  const graph = {
+    nodes: [
+      { id: 'session:s', type: 'session' },
+      { id: 'turn:1', type: 'turn' },
+      { id: 'call:1', role: 'invocation', capabilityId: 'tool' },
+      { id: 'call:2', role: 'invocation', capabilityId: 'tool' },
+    ],
+    edges: [{ id: 'edge:contains:turn:1->call:1', from: 'turn:1', to: 'call:1' }],
+  }
+  const reservation = buildFingerprintReservation(graph)
+  if (reservation.derived !== false || reservation.status !== 'reserved') {
+    throw new Error('§31 只预留结构：`derived` 必须是 false、`status` 必须是 reserved')
+  }
+  for (const pattern of Object.values(reservation.patterns)) {
+    if (pattern.value !== null) {
+      throw new Error(`§32：指纹是"这次运行怎么工作"的判断，界面不得自推（${pattern.key} 被填了值）`)
+    }
+    if (pattern.status !== 'not-yet-derived') {
+      throw new Error(`${pattern.key} 未派生时只能写 not-yet-derived，不能写别的`)
+    }
+    if (!Array.isArray(pattern.sources) || !pattern.sources.length) {
+      throw new Error(`${pattern.key} 必须写明它由哪些能力喂，否则预留结构不可读`)
+    }
+  }
+  // 它读图是为了**报数**，不是为了判断。"空"与"没有模式"是两句话，所以这句必须在。
+  if (typeof reservation.note !== 'string' || !reservation.note.includes('尚未派生')) {
+    throw new Error('预留结构必须自己说明"空不代表没有模式"，否则读者会把 null 读成"没有模式"')
+  }
+  const available = reservation.evidenceAvailable ?? {}
+  if (available.nodeCount !== 4 || available.edgeCount !== 1) {
+    throw new Error('预留结构只报证据量，不解释证据')
+  }
+  if (available.invocationCount?.tool !== 2) {
+    throw new Error('预留结构应如实数出每个能力的调用次数')
+  }
+
+  console.log('FINGERPRINT_RESERVED_OK')
+}
+
+// --- 有断言的 marker 才算数 --------------------------------------------------------
+// 这条守卫守的是**上面每一条 marker 自己**。
+//
+// 实测事故（`FIVE_LAYER_MODEL_OK`，v0.7 知识库治理时才发现）：它和
+// `FINGERPRINT_RESERVED_OK` 两句一直印在输出里，而它们之前没有任何断言 —— 输出说
+// "这条契约成立"，其实没有人检查过。前者的模块（`src/core/runtime-layout.mjs`、
+// `src/dsh/client/runtime-flow.js`、`test/phase8-five-layer-model.test.mjs`）在 v0.6 删掉
+// 运行图谱画布时一起删了，marker 却留了下来 —— 正是本文件上面自己写下的那个反模式。
+// 所以这次不是补断言，而是**删掉 marker**：它守的界面已经不存在了。
+//
+// 规则：每个 marker 所在的那一段里必须出现过抛错。段的边界是**顶格的 `}`**，
+// 因此连续印出的那十四个 marker 共用一段，只要该段有过断言就全部算数。
+{
+  const lines = (await readFile(resolve(root, 'scripts/verify-project.mjs'), 'utf8')).split('\n')
+  const backed = []
+  const bare = []
+  let threwSinceBoundary = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue
+    if (line === '}') threwSinceBoundary = false
+    else if (trimmed.includes('throw new Error')) threwSinceBoundary = true
+    const marker = /^console\.log\('([A-Z_]+_OK)'\)$/.exec(trimmed)
+    if (!marker) continue
+    if (threwSinceBoundary) backed.push(marker[1])
+    else bare.push(marker[1])
+  }
+
+  if (bare.length) {
+    throw new Error(
+      `这些 marker 前面没有任何断言，输出会声称契约成立而其实没人检查过：${bare.join(', ')}`
+      + ' —— 补上断言，或者在同一次改动里删掉 marker。',
+    )
+  }
+  // 反方向也要成立：如果这条守卫自己不再扫到任何 marker，它就变成了一个永远为真的空循环。
+  if (backed.length < 15) {
+    throw new Error(`只扫到 ${backed.length} 条带断言的 marker，怀疑本守卫已经扫不到东西了`)
+  }
+
+  console.log('GUARD_MARKERS_ARE_BACKED_OK')
+}

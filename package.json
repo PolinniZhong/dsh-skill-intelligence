@@ -2,7 +2,7 @@
   "name": "dsh-skill-trace",
   "version": "0.7.0",
   "type": "module",
-  "description": "Local-first Skill load evidence, learning cards, and iteration preparation for DeepSeek Harness",
+  "description": "Local-first Skill load evidence for DeepSeek Harness: what this session loaded, and what this machine has",
   "license": "MIT",
   "repository": {
     "type": "git",

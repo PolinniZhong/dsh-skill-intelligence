@@ -1,9 +1,9 @@
 # DSH Skill Trace 项目执行规则（Agent 入口）
 
 > 本文件是 Agent 进入本项目的**第一读物**：只说「怎么在这个项目里干活」和「哪些不能动」。
-> 产品主张 `02-product-thesis.md` · 需求 `04-product-requirements.md` · 视觉与组件规格 `design.md`
-> · 技术设计 `05-technical-design.md` · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md`
-> **最后更新：2026-10-05**（v0.7 中文阅读版 / 复刻 Skill / 已安装卡片进详情；§1 的数字与它同步）
+> 产品需求 `spec/PRD.md` · 技术设计 `spec/SDD.md` · 视觉与组件规格 `design.md`
+> · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md` · 历史规格 `docs/archive/`
+> **最后更新：2026-10-05**（知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步）
 
 ---
 
@@ -53,15 +53,18 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 ## 3. 每次任务的必读顺序
 
 1. **本文件**
-2. `README.md` §「当前状态」 —— 对外口径的现状（发版后必须同步，见 §9.1）
-3. `docs/ARCHITECTURE.md` —— 模块职责、宿主路由、证据模型、布局合同
-4. `CHANGELOG.md` 顶部那一段 —— 这一版到底改了什么、为什么
-5. 按任务类型再读一份：
-   - 改界面 → `design.md`（视觉规格与组件表）+ `04-product-requirements.md` 的 `FR-UI-*`
+2. `spec/PRD.md` —— **产品语义的唯一权威**：目标、业务对象、状态语义、范围与验收标准
+3. `spec/SDD.md` —— **当前架构的唯一权威**：分层、10 条路由、数据流、存储与隐私、模块清单
+4. `README.md` §「当前状态」 —— 对外口径的现状（发版后必须同步，见 §9.1）
+5. `docs/ARCHITECTURE.md` —— 运行时那条链的深读：事件 → 收据 → 定义视图，以及布局合同
+6. `CHANGELOG.md` 顶部那一段 —— 这一版到底改了什么、为什么
+7. 按任务类型再读一份：
+   - 改界面 → `design.md`（视觉规格与组件表）+ `spec/PRD.md` 的 `FR-UI-*`
    - 改证据 / 对齐 → `docs/ARCHITECTURE.md` §Evidence model、§Correlation and provenance
+   - 查历史规格 → `docs/archive/`（**是历史，不是权威**）
    - 要发版 → `docs/RELEASE.md`（**照做，不要凭记忆**）
 
-> 只改代码的话，最少读 **1 → 5**。改之前先 `npm test`（**429 项**，必须全绿）。
+> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**429 项**，必须全绿）。
 
 ---
 
@@ -70,14 +73,16 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 | 问题类型 | 权威文件 |
 |---|---|
 | **现在这个仓库是什么状态** | 本文件 §1 + `README.md` §当前状态 |
-| 做什么 / 不做什么 | `04-product-requirements.md` |
-| 为什么是这个产品 | `02-product-thesis.md` |
+| 做什么 / 不做什么 | `spec/PRD.md` |
+| 为什么是这个产品 | `spec/PRD.md` §1 |
+| 数据怎么流、模块谁负责谁、路由几条 | `spec/SDD.md` |
 | 界面长什么样、组件叫什么 | `design.md` |
-| 数据怎么流、模块谁负责谁 | `docs/ARCHITECTURE.md` |
+| 运行时那条链的边界与证据模型 | `docs/ARCHITECTURE.md` |
 | 这一版改了什么 | `CHANGELOG.md`（顶部那段是当前版） |
 | 怎么发版、发完核对什么 | `docs/RELEASE.md` |
 | 隐私边界 | `docs/PRIVACY.md` |
 | **当前事实状态**（版本 / 测试数 / 路由数） | 本文件 §1 |
+| v0.7 以前的产品与技术原文 | `docs/archive/`（**只用于追溯，冲突时以 `spec/` + 源码为准**） |
 
 **冲突时以本文件 §1 + 源码 + 测试为准**，不以任何规格文档为准——规格写的是意图，源码写的是事实。
 
@@ -86,7 +91,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 ## 5. 已知的文档漂移
 
 - `01_重构方案/` 是**本地过程目录，被 `.gitignore` 排除、不随仓库发布**（`01_重构方案/README.md` 自己写着）。里面的 SDD / 设计 / 原型 / 渲染台是历史材料，**不要拿它当当前实现**。
-- `05-technical-design.md` 与 `02-product-thesis.md` 的各节写于 V0.1–V0.5，产品此后收缩过两次（v0.6 的两级信息架构、其后的详情页四层）。**方向没变，细节已被现状取代**——改产品措辞要改 `README.md` 与 `04-product-requirements.md`，不要回改这两份的历史节。
+- **`docs/archive/` 是历史，三份原文都已冻结、不再回写**：`requirements-v0.7-full.md`（v0.7 及以前的全量 PRD，含 §6 历史范围与 §18 修订记录）、`technical-design-v0.1-v0.5.md`（V0.1–V0.5 的技术设计，只有 §0 作时效性说明）、`product-thesis.md`（产品命题初稿）。**改产品措辞要改 `spec/PRD.md`，不要回改这三份。** 它们之间以及它们对根目录的链接已失效，这是归档的代价，不是待修的缺陷。
 - **所有日期都可能比机器时钟靠前**：`date` 与 `git log` 报的是同一天，而文档里写的是后一两天。发版时以 **`git log` 的时间戳**为准，别照抄规格里的日期。
 - **`0.6.0` 与 `SDD v0.6` 是两样东西，撞名是已知的。** `SDD v0.6` 是**信息架构规格自身的版本号**（一级两页那次收敛），`0.6.0` 是**插件包版本**（详情页四层）。两者同时出现在一句话里会互相吞掉，所以约定：说规格时写「SDD v0.6」并带上下文中提到「规格」，说版本时一律带 `v`。发布时显式选了 `0.6.0` 而不是 `0.5.1`（理由见 `CHANGELOG.md` 这一版第二段与 `docs/RELEASE.md` 的起点表）。
 
@@ -159,9 +164,11 @@ export default …               // ✗ 降级器直接抛错
 export { a, b }                // ✗
 ```
 
-所以**新的 core 模块要么无依赖，要么只用单行具名 import**。当前客户端 require 的是
-`flow-evidence.mjs` / `skill-framework.mjs` / `skill-runtime-logic.mjs` / `markdown-table.mjs` /
-`installed-view.mjs` / `translation-cache.mjs`。**能不能被客户端读，不该取决于它恰好有几个依赖。**
+所以**新的 core 模块要么无依赖，要么只用单行具名 import**。当前客户端 require 的是**七支**：
+`installed-view.mjs` / `translation-cache.mjs` / `markdown-table.mjs` / `skill-clone.mjs` /
+`flow-evidence.mjs` / `skill-framework.mjs` / `skill-runtime-logic.mjs`。
+（`skill-clone.mjs` 是 v0.7 加的第七支，本文此前一直写着六支。）
+**能不能被客户端读，不该取决于它恰好有几个依赖。**
 
 ### 6.7 证据词表：禁用词只能来自模块常量
 
@@ -315,16 +322,18 @@ npm run verify                          # 必须 23 组 OK
 
 **本文件 §1 + `README.md` §「当前状态」是知识库入口** —— 给外人 / 新会话交代「这是什么、现在到哪一步」。
 
-**每次发版后顺手改四处（两分钟）**：
+**每次发版后顺手改六处（五分钟）**：
 
 1. 本文件 §1 的**版本 / 测试数 / bundle 字节 / 客户端行数**；
 2. `README.md` §「当前状态」的「当前公开版为 `x`」+ 版本史里那一条 `- **Unreleased**` 换成版本号；
 3. `CHANGELOG.md` 的 `## Unreleased` 标题换成 `## x — YYYY-MM-DD · 一句话`；
-4. `docs/RELEASE.md` 的「当前待发布版本」与「本次发布的起点」表。
+4. `docs/RELEASE.md` 的「当前待发布版本」与「本次发布的起点」表；
+5. **`spec/PRD.md`** 头部版本号 + 它里面写死的测试数 / 行数 / 字节数；
+6. **`spec/SDD.md`** 头部版本号 + §模块清单的行数表（`wc -l` 重跑，行数变了就要改）。
 
 > **判据：凡是「状态类」的字**（版本号、测试数、❌/✅、「还没做」）**，改完动作就要回头改它。**
 > `RELEASE_ASSETS_IN_SYNC_OK` 只钉住 README 的版本行与 `github:` 安装示例的 `#v…` 锚点，
-> **它管不到上面这几处**。
+> **它管不到上面这几处**——第 5、6 条尤其容易漏，因为 `spec/` 里的数字是写死在正文里的。
 
 ### 9.2 真机验收清单（改完界面至少过一遍）
 
@@ -365,14 +374,18 @@ npm run verify                          # 必须 23 组 OK
 ├── AGENTS.md                 ← 本文件
 ├── README.md                 ← 对外口径 + 当前状态（知识库入口）
 ├── CHANGELOG.md              ← 顶部那段是当前版
-├── 02-product-thesis.md      ← 产品主张
-├── 04-product-requirements.md← 需求与修订记录
-├── 05-technical-design.md    ← 技术设计（历史各节，见 §5）
 ├── design.md                 ← 视觉规格与组件表
+├── spec/
+│   ├── PRD.md                ← **当前版产品的唯一权威**（旧版见 docs/archive/）
+│   └── SDD.md                ← **当前架构的唯一权威**（模块清单 / 10 条路由 / 数据流）
 ├── docs/
 │   ├── ARCHITECTURE.md       ← 模块职责 / 宿主路由 / 证据模型 / 布局合同 / 删除记录
 │   ├── PRIVACY.md
-│   └── RELEASE.md            ← 可执行的发布清单
+│   ├── RELEASE.md            ← 可执行的发布清单
+│   └── archive/              ← **历史规格，只用于追溯**（不随产品演进回写）
+│       ├── requirements-v0.7-full.md        ← v0.7 及以前的全量 PRD
+│       ├── technical-design-v0.1-v0.5.md    ← V0.1–V0.5 的技术设计
+│       └── product-thesis.md                ← 产品命题初稿
 ├── src/
 │   ├── core/                 ← 纯函数层（框架、运行逻辑、对齐、表格、翻译…）
 │   ├── dsh/host/index.js     ← 宿主半边：10 条路由、事件观察、持久化
@@ -385,6 +398,11 @@ npm run verify                          # 必须 23 组 OK
 ├── test/                     ← 429 项
 └── 01_重构方案/              ← 本地过程目录，**.gitignore 排除，不发布**
 ```
+
+> 根目录只放**入口**：`AGENTS.md`（怎么干活）、`README.md`（对外口径）、`CHANGELOG.md`（这一版改了什么）、
+> `design.md`（界面规格）。规格正文在 `spec/`，实现深读在 `docs/`，历史在 `docs/archive/`。
+> **不要再往根目录加 `.md`** —— 2026-10-05 之前那种 `NN-xxx.md` 编号约定已经退役，
+> 它同时带来「哪些文档要提交」的歧义（`.gitignore` 里一度挂着三条 `!` 例外）。
 
 ---
 
@@ -427,7 +445,7 @@ git rev-parse origin/main && git ls-remote origin refs/tags/vX.Y.Z
 ```
 
 - **`RELEASE_ASSETS_IN_SYNC_OK` 会钉住** README 的「当前公开版为 `x`」与 `github:` 安装示例的 `#vx` 锚点。曾经 README 落后 49 个版本。
-- **npm 安装示例锚定的是 npm 上真实存在的版本**（现为 `0.6.1`，此前长期是 `0.4.0-beta.66`）——`0.5.0` / `0.6.0` 只在 GitHub，发布范围与 `0.6.1` 不同。
+- **npm 安装示例锚定的是 npm 上真实存在的版本。** 发版前 README 必须**明说还没发布**——`0.7.0` 现在就是这个状态：`beta` 与 `latest` 都指向 `0.6.1`，`v0.7.0` 的 tag 也没推，所以 README 的安装小节写着「发版前这条命令取不到东西」，而不是让人照抄一条装不上的命令。发布范围历来不一致：`0.5.0` / `0.6.0` 只在 GitHub。
 - **`npm publish` 从本地 `git HEAD` 读 `gitHead`。** 先发后推、或用 Git-data API 推（会生成不同 sha）会留下**永远 404** 的 commit 链接。**顺序是硬规则：先推成功 → 确认本地/远端对齐 → 最后才 publish。**
 - **tag 打在发布提交上**（推送时 `main` 的顶端）。历史上 `bc78e53` 的 tag 落在 `HEAD` 之前 9 个提交处，照 commit message 找位置会漏掉之后 9 个提交。
 - GitHub Release 的正文**直接从 CHANGELOG 取**，不要另写一份——两份说明一定会漂移。

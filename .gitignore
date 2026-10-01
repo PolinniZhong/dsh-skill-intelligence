@@ -7,18 +7,19 @@ coverage/
 # Internal research, personal validation evidence, and generated design assets.
 # These stay local and are intentionally excluded from the public preview repo.
 #
-# The numbered top-level documents are exempted below. Product thesis, requirements and
-# technical design are **artifacts of the product**, not process notes: a reader cloning this
-# repo should be able to see what it is meant to do and how it is put together. 07-adversarial-
-# review.md stays local because it cites screenshots under /.audit/, which is not published —
-# shipping it would ship broken links.
+# Product artifacts are NOT ignored: `spec/` (the living PRD and SDD) and `docs/`
+# (architecture, privacy, release) ship with the repo, because a reader cloning it should be
+# able to see what the product is meant to do and how it is put together. `docs/archive/` ships
+# too — it is the pre-0.7 record, and it is history rather than a current entry point.
+#
+# The numbered top-level convention (`/[0-9][0-9]-*.md`, plus three `!` exemptions that pulled
+# 02- / 04- / 05- back in) was retired on 2026-10-05: those three files moved to `docs/archive/`
+# and were replaced by `spec/PRD.md` + `spec/SDD.md`. The pattern is gone rather than kept as a
+# trap, since a numbered file silently failing to be committed is exactly the failure it used to
+# cause. `/specs/` stays ignored so the retired name cannot come back by accident.
 /.audit/
 /00_原型与迭代方案/
 /01_重构方案/
 /99_归档/
 /specs/
-/[0-9][0-9]-*.md
-!/02-product-thesis.md
-!/04-product-requirements.md
-!/05-technical-design.md
 /.dsh-illustration-family/

@@ -38,7 +38,7 @@ supersedes: "2.1"
 
 **v4.1（当前）**：Skill 详情的**框架层被重做**。v4.0 把「Skill 框架」等同于那条 `01 → 02 → 03 → 04`，那是错的——`extractDeclaredFlow()` 抽到的只是 `SKILL.md` 里某一小节的有序列表，于是 342 行、11 个小节、39 个外部资源的 `ui-craft` 被说明成四步。现在框架是**组成结构**（角色分类 + 声明流程子模块 + 渐进披露），另起一层「本次运行逻辑」，并把 `detail.flow.steps[].evidence` 第一次显示出来。一级 / 二级页面结构不变。
 
-完整架构与验收见 **`docs/ARCHITECTURE.md`**；需求侧见 `04-product-requirements.md`；技术侧见 `05-technical-design.md` §0。当前有效的规格与视觉契约在 `01_重构方案/`（**不随仓库发布，不要当成可点击的来源**）。
+完整架构与验收见 **`docs/ARCHITECTURE.md`**；需求侧见 `spec/PRD.md`；技术侧见 `spec/SDD.md`。v0.7 及以前的产品与技术原文在 `docs/archive/`（**是历史，不是权威**）。另有本地过程材料在 `01_重构方案/`（**不随仓库发布，不要当成可点击的来源**）。
 
 ## 2. 设计目标
 
@@ -659,7 +659,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 - 定义侧：`src/core/skill-definition.mjs`、`skill-flow.mjs`、`definition-outline.mjs`、`repository-resolver.mjs`、`markdown-table.mjs`、`step-kind.mjs`；
 - 运行时侧：`src/core/runtime-events.mjs`、`runtime-graph.mjs`、`runtime-evidence.mjs`、`runtime-fingerprint.mjs`、`skill-runtime-scope.mjs`、`source-snapshot.mjs`、`session-log.mjs`、`trace-reducer.mjs`；
 - 组合侧：`src/core/skill-view-model.mjs`、`runtime-alignment.mjs`、`flow-evidence.mjs`、`installed-view.mjs`、`skill-translation.mjs`、`translation-cache.mjs`；
-- 产品语义与版本边界：`README.md`；技术设计：`05-technical-design.md` §0；
+- 产品语义与版本边界：`spec/PRD.md`；技术设计：`spec/SDD.md`；
 - 技术合同：`docs/ARCHITECTURE.md`；
 - 隐私与本地数据边界：`docs/PRIVACY.md`；
 - 版本变化：`CHANGELOG.md`；

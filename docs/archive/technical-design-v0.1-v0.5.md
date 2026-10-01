@@ -6,9 +6,11 @@ updated: 2026-10-02
 status: v0.6-two-level-ia-skill-framework-desktop-eyeball-pending
 ---
 
+> **🗄 归档文件 —— 不是当前规格。** 本文原是仓库根目录的 `05-technical-design.md`（V0.1–V0.5 的技术设计），已于 **2026-10-05** 随知识库治理移入 `docs/archive/`。它**只用于追溯，不再随产品演进回写**；当前权威是 [`spec/PRD.md`](../../spec/PRD.md)（产品语义）与 [`spec/SDD.md`](../../spec/SDD.md)（当前架构），实现事实以源码与测试为准。要改产品措辞请改 `spec/PRD.md`，**不要回改本文**；本文内部及其对根目录的链接已部分失效，这是归档的代价，不是待修的缺陷。
+
 # DSH Skill Trace 技术设计
 
-> 产品语义以 `04-product-requirements.md` 为权威，当前实现以 **§0** 为准，运行时的证据链细节以 `docs/ARCHITECTURE.md` 为准。
+> 产品语义以 `requirements-v0.7-full.md` 为权威，当前实现以 **§0** 为准，运行时的证据链细节以 `docs/ARCHITECTURE.md` 为准。
 
 ## 0. 当前架构（先读这一节）
 
@@ -227,7 +229,7 @@ stateDiagram-v2
 - 插件与 `dsh-visual-acceptance` 是两个独立 Bundle；当前没有运行时调用和共享 Store。
 - Observer 出错只记录插件错误，不改变原生 Tool 结果。
 - 官方 Consumer 与 SkillFlux 0.2.0 已验证标准事件兼容；单事件仍标记 `consumerIdentity: unavailable`。不符合标准事件契约的 Consumer 保持 `coverage-unknown`。
-- 仍然没有：自动试跑、Skill 安装、动态挂载、统计 Dashboard、跨会话综合理解。这些不是"还没做"，是**产品明确不做**（`04-product-requirements.md` §2 非目标）。
+- 仍然没有：自动试跑、Skill 安装、动态挂载、统计 Dashboard、跨会话综合理解。这些不是"还没做"，是**产品明确不做**（`requirements-v0.7-full.md` §2 非目标）。
 
 ## 10. 测试策略
 

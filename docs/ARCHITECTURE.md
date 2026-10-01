@@ -240,7 +240,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 | Module | Responsibility |
 | --- | --- |
-| `src/dsh/host/index.js` | DSH lifecycle bridge, the seven routes, event observation, privacy policy, local persistence wiring |
+| `src/dsh/host/index.js` | DSH lifecycle bridge, the ten routes, event observation, privacy policy, local persistence wiring |
 | `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence — the load-evidence layer v0.6 was required not to break |
 | `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations |
 | `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships |
