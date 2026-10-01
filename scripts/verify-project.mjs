@@ -745,12 +745,15 @@ console.log('VISUAL_TOKENS_OK')
 //
 // 这里只钉"会被人照抄的两处"：当前版本声明与安装示例。逐版历史由 CHANGELOG 负责，
 // 不要求 README 同步——否则每次发版都要改 README，规则会被绕过。
+//
+// `0.5.0` 起这个项目有了不带 `-beta` 的正式版，措辞从「当前公开预发布版为」改成「当前公开版为」。
+// 正则同时接受两种写法：措辞不该为了迁就守卫而定，守卫也不该为了措辞再改一次。
 {
   const pkgVersion = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version
   const readme = await readFile(resolve(root, 'README.md'), 'utf8')
 
-  const declared = /当前公开预发布版为\s*`([^`]+)`/.exec(readme)
-  if (!declared) throw new Error('README must state the current pre-release version')
+  const declared = /当前公开(?:预发布)?版为\s*`([^`]+)`/.exec(readme)
+  if (!declared) throw new Error('README must state the current published version')
   if (declared[1] !== pkgVersion) {
     throw new Error(`README says the current version is ${declared[1]} but package.json says ${pkgVersion} — README is a release asset`)
   }

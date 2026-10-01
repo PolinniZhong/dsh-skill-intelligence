@@ -91,16 +91,16 @@ flowchart LR
 
 ### 1. 安装
 
-从 npm 安装（推荐）：
+从 GitHub 安装（`0.5.0` 目前只发布在这里）：
 
 ```bash
-dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.69
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.5.0&path:/"
 ```
 
-或从 GitHub 试用版安装（同一版本，不经 npm）：
+或从 npm 安装（npm 上的 `dsh-skill-trace` 仍停在 `0.4.0-beta.66`——`0.5.0` 没有发布到 npm）：
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.4.0-beta.69&path:/"
+dsh plugin --profile web add dsh-skill-trace@0.4.0-beta.66
 ```
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。
@@ -148,7 +148,7 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开预发布版为 `0.4.0-beta.69`，同时发布在 npm（包名 `dsh-skill-trace`，`beta` 与 `latest` 两个标签都指向该版本）。**这一版按 SDD v0.6 收敛了信息架构**：一级页面只剩两个——「本次 Skill」与「已安装 Skill」——它们各自回答一个用户真会问的问题：这次对话加载过什么，这台机器上有什么。两者点进同一个二级页「Skill 详情」，返回键会写明是从哪个列表进来的。中文预览是这一版新增的能力：只读、只存内存、按 `sourceSha256` 绑定。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台一并删除，连同只服务于它们的 `elkjs` 与 `@xyflow/react` ——客户端源码 3536 → 1345 行，bundle 421 → 52 KB，宿主路由 22 → 7 条。
+当前公开版为 `0.5.0`（GitHub Release）。这一版**没有发布到 npm**：npm 上的 `dsh-skill-trace` 仍停在 `0.4.0-beta.66`，`beta` 与 `latest` 两个标签都指向它——要用 npm 装就照上面第二段装那个版本，或直接用 `github:` 写法装 `0.5.0`。**这一版按 SDD v0.6 收敛了信息架构**：一级页面只剩两个——「本次 Skill」与「已安装 Skill」——它们各自回答一个用户真会问的问题：这次对话加载过什么，这台机器上有什么。两者点进同一个二级页「Skill 详情」，返回键会写明是从哪个列表进来的。中文预览是这一版新增的能力：只读、只存内存、按 `sourceSha256` 绑定。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台一并删除，连同只服务于它们的 `elkjs` 与 `@xyflow/react` ——客户端源码 3536 → 1345 行，bundle 421 → 52 KB，宿主路由 22 → 7 条。
 
 **声明与观测不互相推导**这条原则没有变，变的只是渲染它的界面。`SKILL.md` 的正文与目录是**声明**：逐字读取，**不经过任何模型、Embedding 或检索**。收据里的加载证据是**观测**：谁加载、加载了几次、用哪种调用方式、加载时的指令哈希是多少。v0.6 不再把两者叠成「声明流程 + 证据徽章」的中间栏——那只在旧的三栏工作台里说得通。列表只认加载证据；Run 标识不伪造（`runId` 字段刻意不存在）；仓库来源只可能来自 frontmatter、git origin 或用户配置，猜不到就显示「仓库 · 未解析」，不造链接。证据词表仍是五个值，仍然只做投影，只是不再有页面逐个渲染它。
 
@@ -171,7 +171,7 @@ dsh plugin --profile web remove dsh-skill-trace
 `0.4.0-beta.13` 加入**运行图谱画布**——插件里的第三个视图，也是 `beta.5` 以来第一次改动界面。按重构方案的硬约束**先量后决**：本机 56 个真实会话的图谱规模是**中位 61 节点、p90 915、最大 1095**，比扁平画布能承受的量大一个数量级，所以**分组是模型的一部分，不是事后优化**。三条规则依次生效：单个 Turn 超过 12 次调用→按能力折叠；会话超过 36 个 Turn→折成区间；单层超过 26 行→换列。它们把画布稳定压在 **200 节点以内、约 1036px 高**，56 个会话**无一超限**（布局耗时中位 0.3ms，最差 15ms）。
 
 布局是图的纯函数：不存坐标、不记视口与缩放、不改动图本身——同一份收据永远画出同一张图，所以重绘不会被误读成新证据。**检查器**逐节点/逐边回答"这条线为什么存在"，每条关系都同时给出**含义**与**它不表示什么**（`follows` 是日志顺序不是因果；规则派生的 `spawns` 归属不是宿主事实；`retries` 不代表重试更接近成功），并携带 `causal/compliance/correctness: false` 的证据边界。画布只发计数不发 id 列表，细节按需重新推导——最大会话的响应从 **481KB 降到 145KB**（中位 21KB）。
-上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.4.0-beta.69`）。
+上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.5.0`）。
 以下是 `beta.14` 以来的主线：
 
 - **`beta.14`–`beta.30`**：`My Skills` 目录页、指纹预留结构、五层运行时模型（会话 → Turn → 能力 → 调用 → 结果）、
@@ -213,6 +213,9 @@ dsh plugin --profile web remove dsh-skill-trace
   运行流程 / 运行图谱 / 收据 / 上下文检查器 /「我的 Skill」学习工作台全部删除，新增只读且只存内存的
   中文预览。客户端 3536 → 1345 行，bundle 421 → 52 KB，宿主路由 22 → 7 条，测试 440 → 357
   （17 个测试文件只测已删界面）
+- **`0.5.0`**：**首个正式版**——`beta.67` / `.68` / `.69` 三版从未单独公开，内容一并包含在这一版里。
+  插件代码与 `0.4.0-beta.69` 逐字节相同，改动只在版本号与发布资产；**这一版只发布在 GitHub**，
+  npm 上的 `latest` 仍是 `0.4.0-beta.66`
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 

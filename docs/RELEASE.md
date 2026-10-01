@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**`0.4.0-beta.69`**。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+当前待发布版本：**`0.5.0`**（首个正式版）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
 
 ---
 
@@ -11,15 +11,17 @@
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `13a68df` — `fix: the panel said "translated", and the user was looking at English` |
-| `origin/main` | `23de65f release: v0.4.0-beta.66` —— **落后 21 个提交**（beta.67 / .68 / .69 三版都在里面） |
+| 本地 `HEAD` | `e3f4924` — `docs: the release notes said beta.69 was out, and it never was` |
+| `origin/main` | `23de65f release: v0.4.0-beta.66` —— **落后 22 个提交**（beta.67 / .68 / .69 三版都在里面，一个都没公开过） |
 | 远端最新 tag | `v0.4.0-beta.66`；本地也没有 `.67` / `.68` / `.69` 的 tag |
-| npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`） |
+| npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`）——本次**不发布 npm** |
 | 工作区 | 干净 |
 
-**tag 要打在 `HEAD`，不是打在名字里带 `release:` 的那个提交上。** `bc78e53 release: v0.4.0-beta.69 …` 位于 `HEAD` 之前 9 个提交处：它当时把版本号改成了 `0.4.0-beta.69`，此后又落了 9 个提交（顶栏改造 + 中文预览的第四、五次修复），版本号没有再动。只有 `HEAD` 包含全部内容 —— tag 名与 `package.json` 逐字相同即可，中间那个 `release:` 提交只是历史。
+**`0.5.0` 是第一个正式版，不是预发布版**：版本号不带 `-beta`，§4 的 `gh release create` **不带 `--prerelease`**，README 的措辞也从「当前公开预发布版为」改成「当前公开版为」。
 
-`CHANGELOG.md` 的 `0.4.0-beta.69` 段已经把这三部分都写进去了（v0.6 收敛 / 顶栏 / 中文预览连败五次），所以 GitHub Release 的 notes 直接取它就对，**不要另写一份**。
+**tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
+
+`CHANGELOG.md` 的 `0.5.0` 段已经把发布范围（只发 GitHub）、跳过 npm 的原因与文档资产改动都写进去了，GitHub Release 的 notes 直接取它，**不要另写一份**。
 
 ---
 
@@ -33,9 +35,11 @@ node --test 2>&1 | tail -8      # 必须 0 fail
 node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_SYNC_OK
 ```
 
-`RELEASE_ASSETS_IN_SYNC_OK` 会钉住两处**会被人照抄**的内容：README 的「当前公开预发布版为 `x`」
-必须等于 `package.json` 的 version，README 的安装示例必须 `#v<version>` 锚定。
-这条规则来自一次真实漂移——`package.json` 已到 `beta.52`，README 还写着 `beta.3`，**落后 49 个版本**。
+`RELEASE_ASSETS_IN_SYNC_OK` 会钉住两处**会被人照抄**的内容：README 的「当前公开版为 `x`」（旧措辞
+「当前公开预发布版为」也接受）必须等于 `package.json` 的 version，README 的 `github:` 安装示例必须
+`#v<version>` 锚定。这条规则来自一次真实漂移——`package.json` 已到 `beta.52`，README 还写着 `beta.3`，
+**落后 49 个版本**。注意 npm 安装示例**不在**这条守卫里：`0.5.0` 没有发布到 npm，那一行锚定的是 npm 上
+真实存在的版本（`0.4.0-beta.66`）。
 
 ---
 
@@ -44,7 +48,7 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 | 文件 | 位置 |
 |---|---|
 | `package.json` | `"version"` |
-| `README.md` | 「当前公开预发布版为 \`x\`」 + npm 安装示例 + `github:` 安装示例 + 「完整历史见 CHANGELOG……（当前已到 \`x\`）」 |
+| `README.md` | 「当前公开版为 \`x\`」 + `github:` 安装示例（锚定 `#vx`）+ npm 安装示例（锚定 npm 上真实存在的版本）+ 「完整历史见 CHANGELOG……（当前已到 \`x\`）」 |
 | `CHANGELOG.md` | 版本标题「## x — YYYY-MM-DD · 一句话主题」，并在正文写明测试数量变化 |
 
 改完重跑第 0 步的 `verify`。**README 是发布资产，不是随手笔记。**
@@ -55,8 +59,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.4.0-beta.69 — <一句话>"
-git tag -a v0.4.0-beta.69 -m "v0.4.0-beta.69"
+git commit -m "release: v0.5.0 — 首个正式版：合并从未公开的 .67 / .68 / .69"
+git tag -a v0.5.0 -m "v0.5.0"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -67,33 +71,55 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.4.0-beta.69
+git push origin v0.5.0
 ```
+
+推送曾经失败过一次——`fatal: unable to access '…': Error in the HTTP2 framing layer`。当时可用的做法是
+降级协议并指定实测可达的 GitHub 地址：
+
+```bash
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin main
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.5.0
+```
+
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.5.0`。
 
 ---
 
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.4.0-beta.69 \
-  --title "v0.4.0-beta.69 — SDD v0.6：两个一级页面，以及被它们排掉的 22 个组件" \
-  --notes-file <(sed -n '/^## 0.4.0-beta.69/,/^## 0.4.0-beta.68/p' CHANGELOG.md | sed '$d') \
-  --prerelease
+gh release create v0.5.0 \
+  --title "v0.5.0 — 首个正式版：Skill-first 两级信息架构（合并 .67 / .68 / .69）" \
+  --notes-file <(sed -n '/^## 0.5.0/,/^## 0.4.0-beta.69/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。
-它是预发布版，所以带 `--prerelease`。
+**正式版不带 `--prerelease`**；只有 `0.4.0-beta.x` 那种预发布版才带。
 
 ---
 
 ## 5. npm 发布
 
+**本次跳过**：`0.5.0` 只发布到 GitHub。npm 上的 `dsh-skill-trace` 停在 `0.4.0-beta.66`，`beta` 与
+`latest` 两个标签都指向它——README 已经照实这么写，所以「npm 落后一版」是**已知状态**，不是漂移。
+
+将来要补发这一版时：
+
 ```bash
-npm publish --tag beta
-npm publish --tag latest
+npm publish --tag latest                        # 该版本从未发布过时
+npm dist-tag add dsh-skill-trace@0.5.0 latest   # 版本已发布、只想挪标签时
 ```
 
-README 声明 `beta` 与 `latest` **两个标签都指向该版本**；只推 `beta` 会让 README 变成假话。
+**不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未
+被执行到）：同一个版本第二次 publish 会被注册表拒绝，实测返回：
+
+```
+npm error code E403
+npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - You cannot publish over the previously published versions: 0.4.0-beta.66.
+```
+
+正确做法是 `npm dist-tag add`（`beta.66` 发布时就是这么做的）。
 `prepack` 会自动重建 `dist`，所以发布产物里的客户端 bundle 一定是最新源码构建的。
 
 ---
@@ -117,7 +143,8 @@ lsof -p "$(cat ~/.dsh/.harness.pid)" | grep -o '\.dsh/profiles/[a-z0-9-]*' | sor
 ### 6.2 往**上一步查到的** profile 安装
 
 ```bash
-dsh plugin --profile <上一步的输出> add dsh-skill-trace@0.4.0-beta.69
+# 0.5.0 不在 npm 上，所以用 github: 写法（与 README 的安装示例一致）
+dsh plugin --profile <上一步的输出> add "github:PolinniZhong/dsh-skill-trace#v0.5.0&path:/"
 ```
 
 ### 6.3 版本一致
@@ -255,5 +282,5 @@ git status --porcelain   # 应为空
 git log --oneline -1     # 应是 release commit
 ```
 
-回到 `README.md` 确认「当前公开预发布版为」写的就是刚推的那个版本——
+回到 `README.md` 确认「当前公开版为」写的就是刚推的那个版本——
 **如果 tag 没推成，这一行就是假话**，而它是这份文件里最容易被别人复制的一行。

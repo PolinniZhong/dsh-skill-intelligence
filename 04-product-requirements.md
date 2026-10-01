@@ -9,7 +9,7 @@ status: v0.6-two-level-ia-desktop-eyeball-pending
 
 > 产品版本：V0.6 两级信息架构重构版  
 > 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。当前为 357 项自动化测试、22 项静态契约守卫，Client 源码 3536 → 1345 行、Client bundle 421 KB → 52 KB  
-> 工程发布候选：`dsh-skill-trace 0.4.0-beta.69`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面）。**尚未发布**：本地 `main` 领先 `origin/main`（停在 `23de65f` = `0.4.0-beta.66`）**21 个提交**，npm 的 `beta` 与 `latest` 也都还指向 `0.4.0-beta.66`——beta.67 / .68 / .69 三版从没推出去过。发布步骤与起点见 `docs/RELEASE.md`。本轮未完成项两项：**推送 + 打 tag + 发 npm**，以及 **DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），走查清单见 `01_重构方案/发布会话验收清单.md`
+> 工程发布版：`dsh-skill-trace 0.5.0`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面）。**已发布到 GitHub**（tag `v0.5.0`）——`0.4.0-beta.67` / `.68` / `.69` 三版从未单独公开，内容一并包含在这一版里；**npm 未同步**：`beta` 与 `latest` 仍指向 `0.4.0-beta.66`。发布步骤与起点见 `docs/RELEASE.md`。本轮未完成项一项：**DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），走查清单见 `01_重构方案/发布会话验收清单.md`
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
 > 用户可见命名：DSH 会话 Tab 仍为“Skill 追踪”；一级页面**恰好两个**——“本次 Skill”（`current`，本次对话加载过哪些 Skill，来自收据的 load evidence）与“已安装 Skill”（`installed`，本机 / 当前作用域可发现什么，只读 `GET /skill-trace/catalog`，**刻意不读收据**）。二级页面**恰好一个**——Skill 详情，点任意一张卡都进入它，返回按钮文案由来源 state 派生（“返回 Skill 列表（本次 Skill）” / “返回 Skill 列表（已安装 Skill）”），不得硬编码。**没有 `Advanced` 组**：运行流程 / 运行图谱 / Skill 收据 / 上下文检查器 / 声明流程面板 / 跨会话学习工作台已在 v0.6 整体删除。“流程”只描述可观测事件关系，不代表 Agent 已执行 Skill 内全部步骤。
