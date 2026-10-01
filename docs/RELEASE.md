@@ -7,6 +7,22 @@
 
 ---
 
+## 本次发布的起点（2026-10-01 实测，发布会话照此核对）
+
+| 项 | 值 |
+|---|---|
+| 本地 `HEAD` | `13a68df` — `fix: the panel said "translated", and the user was looking at English` |
+| `origin/main` | `23de65f release: v0.4.0-beta.66` —— **落后 21 个提交**（beta.67 / .68 / .69 三版都在里面） |
+| 远端最新 tag | `v0.4.0-beta.66`；本地也没有 `.67` / `.68` / `.69` 的 tag |
+| npm | `beta` 与 `latest` **都还是 `0.4.0-beta.66`**（`npm view dsh-skill-trace dist-tags`） |
+| 工作区 | 干净 |
+
+**tag 要打在 `HEAD`，不是打在名字里带 `release:` 的那个提交上。** `bc78e53 release: v0.4.0-beta.69 …` 位于 `HEAD` 之前 9 个提交处：它当时把版本号改成了 `0.4.0-beta.69`，此后又落了 9 个提交（顶栏改造 + 中文预览的第四、五次修复），版本号没有再动。只有 `HEAD` 包含全部内容 —— tag 名与 `package.json` 逐字相同即可，中间那个 `release:` 提交只是历史。
+
+`CHANGELOG.md` 的 `0.4.0-beta.69` 段已经把这三部分都写进去了（v0.6 收敛 / 顶栏 / 中文预览连败五次），所以 GitHub Release 的 notes 直接取它就对，**不要另写一份**。
+
+---
+
 ## 0. 前置检查（在仓库根目录）
 
 ```bash
@@ -146,9 +162,45 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3080/skill-trace/cont
 说明**新代码不在运行中的进程里**；若返回 `400 {"ok":false,"error":"sessionId 必填"}`，
 说明参数没被解析，同样是旧代码。
 
-### 6.6 重启宿主，然后**重跑 6.5**
+### 6.5b 中文预览：证明**这一次的修复**在跑的进程里
+
+`0.4.0-beta.69` 里的中文预览在用户手里连败五次，五次的原因各不相同（见 `CHANGELOG.md` 的 `#### 二之一` / `#### 二之二`）。上面那枚 `/catalog` 探针只能证明「beta.68 之后的代码在」，**证明不了第五次修复在**——所以这一版多一枚探针。
+
+**宿主侧**（要真跑一次翻译，一到三分钟；发布会话本来就要验这一条）：
+
+```bash
+SID=$(ls -t ~/.dsh/sessions | head -1)                       # 挑一个真实会话
+curl -s "http://127.0.0.1:3080/skill-trace/skill?sessionId=$SID&skillName=ui-craft" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["skill"]["definition"]["content"]["sha256"])'
+# 拿上面那个 sha256 去翻译；把输出存文件，别打屏
+curl -s -X POST -H 'content-type: application/json' \
+  -d "{\"sessionId\":\"$SID\",\"skillName\":\"ui-craft\",\"sourceSha256\":\"<上一步的 sha256>\"}" \
+  --max-time 900 "http://127.0.0.1:3080/skill-trace/translate" -o /tmp/translate-probe.json
+python3 -c 'import json; d=json.load(open("/tmp/translate-probe.json")); print(sorted(d))'
+```
+
+| 输出 | 说明 |
+|---|---|
+| `['chunkCount','fallbackChunks','fallbackReasons',…]` | 分段策略与段级原因在**运行中的宿主**里 —— `10dc8be` 之后的代码 |
+| 只有 `['code','error','ok','violations']` | 宿主还是旧的（`violations` 是整篇校验时代的返回形状） |
+| `ok: true` 且 `fallbackReasons` 为空 | 这一版翻译成功了 |
+
+**第五次修复本身**（`looksUntranslated` / `alignHeadingLevels` / 拆段重试）**没有独立的探针**：宿主不对外报版本号，而它的表现只在模型犯错时才可见。这一条靠 §6.4 的逐文件 sha256 比对来钉 —— 已安装 `src/` 与已发布 commit 一致，那 `13a68df` 就一定在。**不要为了一个探针去加一条新路由**，那会引入一个只有发布时才被走到的新分支。
+
+**客户端侧**：横幅里出现「**模型把原文原样返回了**」这九个字，说明 `13a68df` 的客户端在跑（这个字符串是那一版才加进 `TRANSLATION_RULE_TEXT` 的）。它是 `dist/client.js` 里的内容，同样由 §6.4 的文件比对覆盖。
+
+### 6.6 重启宿主，然后**重跑 6.5 与 6.5b**
 
 宿主把代码读进内存后不会自动换。不重启就跑 6.5 得到的是旧的答案。
+
+### 6.7 中文预览的寿命（人眼，一分钟）
+
+这一条**没有任何探针能替**，因为它一半在客户端、一半在用户的操作顺序里：
+
+1. 在详情页点「翻译」，等出中文 → 返回列表 → 打开**另一个** Skill → 再切回原来那个 → **中文预览还在**（不该重译）。
+2. 完全退出 DeepSeek Harness 再进来 → 那个 Skill 的译文**应该是没有的**（缓存只活在插件进程里，`src/core/translation-cache.mjs`）。
+
+第 2 步失败（退出后译文还在）意味着它落盘了 —— 那是 `FR-UI-047` 违规，比功能没做更严重，必须当事故处理。
 
 ---
 
@@ -174,7 +226,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3080/skill-trace/cont
 |---|---|---|
 | 单元 / 契约测试 | 模型算得对吗 | 每次 |
 | `verify-project` 守卫 | 结构约束还在吗 | 每次 |
-| **对运行中的宿主打接口** | **这个端点真的在跑的进程里吗** | 6.5 |
+| **对运行中的宿主打接口** | **这个端点真的在跑的进程里吗** | 6.5 / 6.5b |
 | **渲染台截图（近似应用）** | **画面照着真实载荷长得对吗** | 改界面后 |
 | **真实应用里复现 + 人眼看** | **用户看到的就是这个吗、可读吗** | 发布前 / 发布后手动 |
 

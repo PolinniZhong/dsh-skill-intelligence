@@ -1,6 +1,6 @@
 ---
 artifact: prd
-version: "0.19-v0.6-two-level-ia"
+version: "0.20-v0.6-two-level-ia"
 created: 2026-08-26
 status: v0.6-two-level-ia-desktop-eyeball-pending
 ---
@@ -9,7 +9,7 @@ status: v0.6-two-level-ia-desktop-eyeball-pending
 
 > 产品版本：V0.6 两级信息架构重构版  
 > 当前阶段：v0.6 已把信息架构收敛为**一级两页 + 详情一页**；收据与 `trace-reducer.mjs` 作为加载证据底座原样保留，失去的只是收据自己的页面身份。当前为 357 项自动化测试、22 项静态契约守卫，Client 源码 3536 → 1345 行、Client bundle 421 KB → 52 KB  
-> 工程发布候选：`dsh-skill-trace 0.4.0-beta.69`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面），已发布到 npm 与 GitHub，`beta` 与 `latest` 两个标签都指向该版本；本轮唯一未完成项是 **DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），清单见 `docs/RELEASE.md` §7.2
+> 工程发布候选：`dsh-skill-trace 0.4.0-beta.69`（v0.6 两级信息架构：本次 Skill / 已安装 Skill 两个一级页面 + Skill 详情一个二级页面）。**尚未发布**：本地 `main` 领先 `origin/main`（停在 `23de65f` = `0.4.0-beta.66`）**21 个提交**，npm 的 `beta` 与 `latest` 也都还指向 `0.4.0-beta.66`——beta.67 / .68 / .69 三版从没推出去过。发布步骤与起点见 `docs/RELEASE.md`。本轮未完成项两项：**推送 + 打 tag + 发 npm**，以及 **DSH Desktop WebView 内的人眼走查**（亮色 / 暗色各一遍，1180 / 980 两处断点），走查清单见 `01_重构方案/发布会话验收清单.md`
 > 文档权威：本文件定义产品目标、业务对象、状态语义、范围与验收标准；技术实现以 `05-technical-design.md` 为准。
 
 > 用户可见命名：DSH 会话 Tab 仍为“Skill 追踪”；一级页面**恰好两个**——“本次 Skill”（`current`，本次对话加载过哪些 Skill，来自收据的 load evidence）与“已安装 Skill”（`installed`，本机 / 当前作用域可发现什么，只读 `GET /skill-trace/catalog`，**刻意不读收据**）。二级页面**恰好一个**——Skill 详情，点任意一张卡都进入它，返回按钮文案由来源 state 派生（“返回 Skill 列表（本次 Skill）” / “返回 Skill 列表（已安装 Skill）”），不得硬编码。**没有 `Advanced` 组**：运行流程 / 运行图谱 / Skill 收据 / 上下文检查器 / 声明流程面板 / 跨会话学习工作台已在 v0.6 整体删除。“流程”只描述可观测事件关系，不代表 Agent 已执行 Skill 内全部步骤。
@@ -1177,6 +1177,7 @@ V0.2 后置入口，v0.6 仍未实现。试跑请求与真实加载事实必须�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 0.20 | 2026-10-01 | **中文预览的第五次失败：判定根本不看语言**。`checkChunk()` 只查结构，所以模型把 3302 字符**原样返回英文**时拿了满分——横幅说「其余已翻译」，正文里躺着英文（用户原话「宏观你那是提示成功，但是我没有看到」）。新增 `looksUntranslated()`（输出与输入逐字相同、或目标语言是中文而输出里一个汉字都没有且字母数 ≥24 → 判 `untranslated`）；标题**层级**对得上就按原文钉回去（`alignHeadingLevels()`，不再为一个 `#` 丢掉整段），**数量**对不上才失败；失败的那一段先劈成两半再试（`splitChunkSource()` + 递归 `translateLeaf()`，最多 2 层），坏的那半继续劈、好的那半把译文留住；重试时告诉模型上次错在哪。**译文寿命按用户要求定义**：插件内切换 Skill 保留（`src/core/translation-cache.mjs`，进程内 Map，最多 8 条 LRU），退出 DeepSeek Harness 才清掉——仍然只存内存、不落盘、不进对话（`FR-UI-047` 不变）。顶栏改为「导航 → 这一页的数据 → 刷新」，两个一级页面不再重复正文段头。测试 349 → 357 |
 | 0.19 | 2026-10-01 | **V0.6 两级信息架构收敛**：删除运行流程 / 运行图谱 / Skill 收据页 / Contextual Inspector / 声明流程面板 / 跨会话学习工作台 / 备份导出链路，以及依赖 `elkjs`、`@xyflow/react`；一级页面收敛为「本次 Skill」（`current`）与「已安装 Skill」（`installed`），二级页面收敛为唯一 Skill 详情；新增只读仅内存的中文预览、Definition 事实卡与 Repository 三级解析；Host 路由 22 → 7；偏好升级到 `PREFERENCES_VERSION = 3`（无版本号与 v0.5 词汇 `skills` / `map` / `receipt` / `audit` 一律归一化为 `current`）；新增 `FR-UI-043` 至 `FR-UI-053`、`US-14` 至 `US-17`、`DEC-27` 至 `DEC-29`；357 项自动化测试 / 22 项静态契约守卫；剩余唯一未完成项为真实 DSH Desktop WebView 人眼走查 |
 | 0.18 | 2026-09-30 | **（v0.6 部分取代）** **Skill-first Information Architecture Refactor**：Skill 提升为产品一级对象，旧 `Session → Runtime → Definition` 层级改为 `Skill → Definition / Declared Flow / Runs / Evidence / Repository`；新增 §8.1「本次 Skill」为默认页、§8.2 本次 Skill 详情、§8.8 Advanced，原双视图与新学习入口收进 Advanced；默认视图偏好收敛为 `skills / map`（`receipt` 归一化为 `skills`）；新增 `FR-UI-032` 至 `FR-UI-042` 与 `DEC-26`；其中 `Advanced` 分组、声明流程面板与跨会话学习入口已在 0.19 删除 |
 | 0.17 | 2026-08-28 | 补齐未保存草稿闭环：当前 Desktop 运行期间分域暂存、页面返回恢复、保存版本冲突失效、成功写入或删除后的确定性清理，以及关闭/重载提醒 |
