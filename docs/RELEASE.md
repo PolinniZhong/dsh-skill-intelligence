@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-当前待发布版本：**`0.4.0-beta.68`**。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
+当前待发布版本：**`0.4.0-beta.69`**。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致。
 
 ---
 
@@ -39,8 +39,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.4.0-beta.68 — <一句话>"
-git tag -a v0.4.0-beta.68 -m "v0.4.0-beta.68"
+git commit -m "release: v0.4.0-beta.69 — <一句话>"
+git tag -a v0.4.0-beta.69 -m "v0.4.0-beta.69"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -51,7 +51,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.4.0-beta.68
+git push origin v0.4.0-beta.69
 ```
 
 ---
@@ -59,9 +59,9 @@ git push origin v0.4.0-beta.68
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.4.0-beta.68 \
-  --title "v0.4.0-beta.68 — Skill-first 信息架构，以及两个只在真实应用里出现的升级缺陷" \
-  --notes-file <(sed -n '/^## 0.4.0-beta.68/,/^## 0.4.0-beta.67/p' CHANGELOG.md | sed '$d') \
+gh release create v0.4.0-beta.69 \
+  --title "v0.4.0-beta.69 — SDD v0.6：两个一级页面，以及被它们排掉的 22 个组件" \
+  --notes-file <(sed -n '/^## 0.4.0-beta.69/,/^## 0.4.0-beta.68/p' CHANGELOG.md | sed '$d') \
   --prerelease
 ```
 
@@ -101,7 +101,7 @@ lsof -p "$(cat ~/.dsh/.harness.pid)" | grep -o '\.dsh/profiles/[a-z0-9-]*' | sor
 ### 6.2 往**上一步查到的** profile 安装
 
 ```bash
-dsh plugin --profile <上一步的输出> add dsh-skill-trace@0.4.0-beta.68
+dsh plugin --profile <上一步的输出> add dsh-skill-trace@0.4.0-beta.69
 ```
 
 ### 6.3 版本一致
@@ -119,12 +119,18 @@ pin（`~/.dsh/profiles/<p>/package.json` 里的依赖声明） == lockfile ==
 而不是「用户运行的是我装的那个目录」。
 
 ```bash
-# 探针：/skill-trace/skills 是 beta.67 才有的端点，更早的进程对它只会回 404
-curl -s "http://127.0.0.1:3080/skill-trace/skills?sessionId=probe"
+# 探针：/skill-trace/catalog 是 beta.69 才有的端点，更早的进程对它只会回 404
+curl -s "http://127.0.0.1:3080/skill-trace/catalog?sessionId=probe"
+
+# 第二枚探针：beta.69 新增的翻译端点（GET 应当 404/405，POST 才存在）
+curl -s -X POST -H 'content-type: application/json' -d '{}' \
+  "http://127.0.0.1:3080/skill-trace/translate"
 
 # 对照组：老路由，用来确认探针本身没写错
 curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3080/skill-trace/context?sessionId=probe"
 ```
+
+`/skill-trace/catalog` 是这一版区分「新代码在不在跑的进程里」最干净的一枚探针：它在 beta.68 及更早的进程上根本不存在。`sessionId=probe` 不是真会话，Registry 解析不出来，因此 `installed` 会是 `null`——**空数据也是 200**，探针要证明的是「这个端点存在并答得出来」，不是「它有数据」。发布前再拿一个**真实会话 id** 跑一次，确认 `coverage` 为 `complete`、`skills[]` 非空。
 
 期望（2026-10-01 在运行中的宿主上实测）：
 
@@ -179,12 +185,13 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3080/skill-trace/cont
 **第四层也不等于第五层。** `0.4.0-beta.67` 一度把渲染台当成了终点，结果两个缺陷都只在真实应用里出现：
 
 - 渲染台的 `?view=` 默认值是 `map`，于是它**自带一个视图选择**，把「宿主给的旧偏好要不要被尊重」
-  这整条分支短路掉了——所有截图都没走过那条路径。现在渲染台不写默认值，并新增 `?prefVersion=2`
-  复现「用户在新版里主动选了运行地图」。
+  这整条分支短路掉了——所有截图都没走过那条路径。现在渲染台不写默认值，偏好只能靠载荷演示。
 - 渲染台只截**最后一帧**。React #310 要两帧才出现（第一帧 loading、第二帧有数据），
   所以截图永远看不到它。抓到它的是用 CDP 连上真实应用、点开那个标签页、读 console。
+- 它**不加载宿主主题**。所有 `--dsw-alias-*` 都退回渲染台自己的回退值，所以「暗色下看不看得清」
+  在渲染台上永远显示为正常。
 
-最后一行是**至今仍未完全自动化**的一层：布局是否重叠、三栏在 DSH WebView 里是否真的可读、
+最后一行是**至今仍未完全自动化**的一层：布局是否重叠、两个页面在 DSH WebView 里是否真的可读、
 标签页会不会整片空白。只有人看过才算数。
 
 ---

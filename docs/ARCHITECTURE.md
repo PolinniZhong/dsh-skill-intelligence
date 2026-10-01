@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object: a local receipt plus a user-owned learning loop. It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
+DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object. After v0.6 it has exactly two first-level pages — **本次 Skill** (which Skills this conversation loaded) and **已安装 Skill** (which Skills this DSH environment can discover) — and one second-level page, **Skill Detail** (`Skill 信息` / `Definition 元信息` / `Repository` / `SKILL.md` 原文 · Outline · 中文预览). It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
 
 ```text
 DSH event stream
@@ -12,23 +12,34 @@ DSH event stream
   │    └─ skill-catalog             → published Declaration baseline
   └─ turn/start · step/start        → log-order attribution cursor
        └─ trace reducer
-            ├─ local session receipt
-            └─ skill view model (Skill-first)
-                 ├─ Skill list  — only Skills this session actually loaded
-                 └─ Skill detail
-                      ├─ Definition        live read, never persisted
-                      ├─ Declared Flow     parsed from the definition text
-                      ├─ Runs              load records + definition fingerprint
-                      ├─ Evidence          runtime evidence per declared step
-                      └─ Repository        resolved from frontmatter / git origin
-            └─ Advanced views (not first-visual)
-                 ├─ receipt / flow-map / runtime-graph
-                 └─ read-only My Skills workspace
-                      ├─ no-selection seven-step learning guide
-                      ├─ per-Skill learning and validation timeline
-                      ├─ pending-review projection and local user-text search
-                      └─ deterministic continuation handoff
+            └─ local session receipt        ← evidence layer, no page of its own
+                 └─ /context projection      (served to the client through GET /context)
+                      ├─ Skill Run          which Skills this conversation loaded, and how many times
+                      └─ Evidence           declared steps ↔ scoped runtime evidence
+
+DSH Skill registry (read live, never persisted)
+  ├─ GET /installed   → what this environment can discover (never reads the receipt)
+  └─ GET /skills · GET /skill · GET /definition · POST /translate
+       └─ Client pages: 本次 Skill · 已安装 Skill ──→ Skill Detail
 ```
+
+The receipt kept its evidence role and lost its page identity: it is no longer a screen, and neither the runtime flow nor the runtime graph is one. The route table below is the whole host surface; the section at the end, *V0.6 — 删除记录：删了什么，为什么留下的没删*, records which modules went with the deleted screens and why the reducer did not.
+
+### Host surface
+
+Exactly seven routes remain. All seven are registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
+
+| Method | Route | Answers |
+| --- | --- | --- |
+| GET | `/skill-trace/context` | the session receipt (public projection), preferences, and view models |
+| GET | `/skill-trace/skills` | which Skills this conversation loaded |
+| GET | `/skill-trace/skill` | one loaded Skill's detail |
+| GET | `/skill-trace/catalog` | which Skills this DSH environment can discover |
+| GET | `/skill-trace/definition` | the live definition body, outline, repository, and fingerprint comparison |
+| POST | `/skill-trace/translate` | a 中文预览 for one definition at one `sourceSha256` |
+| POST | `/skill-trace/preferences` | persist the default first-level page |
+
+Fifteen further routes were deleted with the screens that consumed them: `/runtime`, `/inspect`, `/catalog`, `/history-note`, `/history-receipt`, `/export`, `GET`+`POST` `/backups`, `/backups/preview`, `/backups/restore`, `POST`+`DELETE` `/outputs`, `/continuity`, `/learning-note`, `/validation-result`, `DELETE /receipt`, and `DELETE /receipts`. The verifier asserts the deleted names cannot come back through the host, because a route with no page left is just a door the old information architecture can walk back in through.
 
 ## Evidence model
 
@@ -38,12 +49,11 @@ DSH event stream
 4. `user/message` records no turn or step of its own. It is attributed by the `turn/start` / `step/start` cursor most recently seen in the same log — log order, never timestamps.
 5. The reducer can associate repeated loads and multiple Skills in the same session.
 6. A load record is not upgraded into proof of compliance, causal contribution, correctness, or usefulness.
-7. The user may separately write an understanding, an improvement intent, and a next validation plan. Those fields are personal notes, not model judgments.
-8. The user may later record whether that plan met expectations, what they observed, and what to do next. This is a human-authored validation result attached to the original session receipt, not a quality score or causal proof.
+7. Older releases let the user separately write an understanding, an improvement intent, a next validation plan, and later a human-authored validation result. v0.6 removed every write entry point, so those fields are legacy data: a receipt written by an earlier version may still carry them, and nothing in the current product creates, edits, or deletes them. They were always personal notes and never a quality score or causal proof.
 
 ## Runtime surface
 
-Beyond Skill loads, the receipt keeps a bounded **normalized event stream** in `runtimeEvents`. This is the Normalizer and Invocation Aggregator stage of the Runtime Flow pipeline, and the raw material the graph is reconstructed from — not a second trace database.
+Beyond Skill loads, the receipt keeps a bounded **normalized event stream** in `runtimeEvents`. This is the Normalizer and Invocation Aggregator stage of the Runtime Flow pipeline, and the raw material the graph is reconstructed from — not a second trace database. v0.6 removed the Runtime Flow *page* but not this stream: Skill Run and Evidence are both built from it, so it survives the screens that used to display it.
 
 Raw session events become `RuntimeEvent`s with a stable, citeable identity:
 
@@ -155,11 +165,10 @@ The chain that must stay intact:
 [data-plugin="dsh-skill-trace"]  height: var(--st-host-h, 100%)
   .st-shell                      height:100%; min-height:0; display:flex; column
     .st-layout                   flex:1; min-height:0; display:grid
-      .st-main                   min-height:0; overflow:hidden
-        .st-flow                 flex:1; min-height:0
-          .st-flow-canvas-wrap   min-height:0; display:flex; column
-            .st-flow-canvas      flex:1; min-height:0
+      page root                  min-height:0 (a list page or .st-detail)
 ```
+
+v0.5's chain descended two layers further, into `.st-main → .st-flow → .st-flow-canvas-wrap → .st-flow-canvas`. Those components were deleted in v0.6 and the classes are gone, but the contract did not relax: the rule is about the *shape* of the chain, not about those particular names.
 
 Every layer needs either `height:100%` or `flex:1` **together with `min-height:0`**; without
 `min-height:0` a flex item refuses to shrink below its content and the chain silently reverts to
@@ -173,127 +182,103 @@ query had been read as stray and deleted. At every desktop width the rule theref
 at all: `font-size` fell back to the host's 16px, so the whole UI rendered a size larger, and
 `height` resolved to content height, so the Runtime Graph occupied a strip at the top.
 
-**All 337 tests passed while that was true**, because no test parsed the stylesheet as CSS. It was
+**All 337 tests then in the suite passed while that was true**, because no test parsed the stylesheet as CSS. It was
 found by reading the browser's CSSOM, where the rule appeared at
 `root > (max-width: 1050px) @290 #4` while the top-level rule at `root#0` held only custom
 properties. `element.matches('[data-plugin="dsh-skill-trace"]')` returned `true` throughout — the
 selector was correct and the *scope* was wrong.
 
-`test/phase11-layout-contract.test.mjs` now holds the line: the root rule must sit at brace depth
+`test/layout-contract.test.mjs` now holds the line: the root rule must sit at brace depth
 0, must carry the typography and layout base, the height chain must use no viewport units, and the
-stylesheet's braces must balance.
+stylesheet's braces must balance. The file was renamed from `phase11-layout-contract.test.mjs` in
+v0.6 and its selector swapped for the v0.6 layout layers — the guard outlived the canvas, because
+the accident it prevents was never about the canvas.
 
-## Canvas
+## Two ways the whole tab goes blank
 
-The runtime graph is an **Advanced** view, not the first visual. It is worth stating what the canvas is *not*: it is not a second source of truth. It receives positions, draws them, and asks the Host why a line exists when one is clicked.
+`conversation.view` is a React slot with no error boundary above it, so a throw anywhere in the tree is not a local error state: React unmounts the entire slot and the user sees a blank tab. Two real occurrences set the rules.
 
-### Why grouping is in the model
+1. **A hook after an early return.** `RuntimeView` and `FlowCanvas` placed `React.useMemo` after a `return` that fired on the first (loading) frame. The first frame called one hook fewer than the second, React threw `Minified React error #310`, and the Skill tab went white. The rule is source-level: no `React.use*` may sit after the first early return in the same component. `scripts/verify-project.mjs` (`HOOK_ORDER_OK`) compares those two line numbers, and `test/client-hook-order.test.mjs` exports `scanHookOrder(source)` and asserts zero violations against the real client. Component tests missed it because `test/client-render-smoke.test.mjs` stubs `useState` and only renders the frame where the data has already arrived — #310 needs two frames.
+2. **Throwing on a missing field.** A page that received a malformed payload read `payload.coverage` off `undefined` and threw `Cannot read properties of undefined (reading 'coverage')` — the same blank tab, from a data bug rather than a hook bug. The rule: a missing field must degrade to a visible error state, and "cannot read it" must never be rendered as "there is nothing". A list that cannot be read says so; it does not render as an honest-looking empty list.
 
-Measured across 56 real sessions before any layout code was written:
+## Translation (中文预览)
 
-| | median | p90 | max |
-| --- | --- | --- | --- |
-| graph nodes | 61 | 915 | 1095 |
-| graph edges | 85 | 966 | 1287 |
+`POST /skill-trace/translate` reads the Skill definition live (`registry.get(name, …)` → `loadSkillDefinition`), builds messages with `buildTranslationMessages({skillName, definitionText, targetLanguage})` from `src/core/skill-translation.mjs`, and calls the user's configured DSH model through `ctx.llm.stream` (`@deepseek-ai/dsh-llm` — provider-neutral, and the official non-session-polluting call pattern: `createUserMessage` → `llm.stream` → `BlockAssembler`, as in `@deepseek-ai/dsh-session-title-llm/lib/index.js:206-235`). `DEFAULT_TRANSLATION_LANGUAGE` is `'zh-CN'`.
 
-A flat canvas covers the median and fails the tail, so three rules run in order:
+Success returns `{ok, skillName, sourceSha256, targetLanguage, model, truncated, translation, preserved}` with `translation` a plain string. Errors are a closed set: `invalid-request`, `skill-not-found`, `definition-changed`, `definition-unavailable`, `model-busy`, `translation-failed`.
 
-| Rule | Trigger | Effect |
-| --- | --- | --- |
-| Capability collapse | a turn with more than 12 invocations | one node per capability, naming what it stands for |
-| Turn ranges | more than 36 turns | consecutive turns fold into labelled ranges |
-| Layer wrapping | more than 26 nodes in a layer | the layer wraps into sub-columns |
+The model is asked to preserve structure, and the answer is checked rather than trusted. `inspectTranslation({source, translation})` returns `{ok, violations, preserved}` with rule names `code-fence` / `heading` / `inline-code` / `url` / `file-path` / `frontmatter`, capped at 20 violations; the preservation targets themselves come from `extractProtected(markdown)`, which yields `{fences, fenceCount, headingLevels, inline, urls, paths, frontmatterKeys}`. A translation that moved a fence or edited a URL is discarded, not shown with a warning beside it — §14 of the spec is a hard rule, not a wish in the prompt. `compareTranslationSource({requestedSha256, currentSha256})` returns the string `'match' | 'mismatch' | 'unavailable'`: one side missing is `unavailable`, never a soft "the content changed".
 
-Together they hold the canvas at 200 nodes and roughly 1036 px tall whatever the graph size. Across all 56 sessions nothing exceeded the bound; layout cost is 0.3 ms at the median and 15 ms at the worst.
+**Translation is memory-only.** The result lives in the Skill Detail component's state and nowhere else: not the receipt, not a backup, not `localStorage`, `sessionStorage`, `indexedDB`, `navigator.sendBeacon`, or the filesystem, and it is never appended to the user conversation. The definition body itself is only read live and never persisted. The one thing that leaves the machine is the definition text sent to the model provider the user configured — stated plainly here because it is the entire outbound surface of this feature. `docs/PRIVACY.md` carries the same boundary for readers who care about data rather than modules.
 
-Layout is a pure function of the graph. It stores no coordinate, keeps no viewport or zoom state, and never mutates the graph — the same receipt always draws the same picture, so a redraw can never look like new evidence.
+## Installed Skill view
 
-### What a folded node owes the reader
+`GET /skill-trace/catalog` resolves the registry for the session, calls the existing `buildCatalogSnapshot(registry, cwd, liveAgent)`, and projects it through `buildInstalledView({catalogSnapshot, query})` from `src/core/installed-view.mjs`:
 
-A bound that cannot say what it dropped is not a bound. `hidden` reports the node, edge, and intra-group edge counts; a collapsed node carries `memberCount`; a merged edge carries `evidenceCount`. The canvas sends counts rather than id lists, because the client never reads the ids — the inspector re-derives them.
+```
+{schemaVersion:1, scope:'installed-skills', query,
+ coverage:'complete'|'incomplete'|'unknown', observedAt,
+ totalCount, skillCount, skills, limitations}
+```
 
-### The inspector
+Each skill is `{name, description, provider, invocation:{modelInvocable,userInvocable}}` — a whitelist projection, so a field the host adds later does not silently flow to the client. `sourceFingerprint` is deliberately absent: no card renders it, no search filters on it, and an unread hash in an outbound projection eventually gets used as if it meant something.
 
-`/skill-trace/inspect` answers for one node or one edge:
+The route **never reads the receipt**: what is installed on this machine has nothing to do with what a conversation happened to load. That is the same boundary `buildSessionSkillList(receipt, {lookup})` draws from the other side — the loaded list uses the registry only to describe names already loaded, never to discover members.
 
-- the derivation, and the rule's own name when a rule produced the relationship;
-- the events the claim rests on, as a bounded sample with the true count;
-- `meaning` — what the relationship says;
-- `limit` — what it does not. A `follows` edge is log order, not causation. A rule-based `spawns` attribution is not a host fact. A `retries` edge does not mean the retry went better.
-
-Every answer carries `evidenceBoundary: { causal: false, compliance: false, correctness: false }`, asserted as booleans so absence of a claim is testable rather than merely written down.
+It is named `/installed` rather than the SDD §16 name `/catalog` because the old `/catalog` route — the learning workbench's endpoint — still existed when it was added. That workbench is now gone, so the name is a deliberate deviation from the spec, kept because renaming it after the fact buys nothing; it is not a bug.
 
 ## Main modules
 
 | Module | Responsibility |
 | --- | --- |
-| `src/dsh/host/index.js` | DSH lifecycle bridge, event observation, privacy policy, local persistence wiring |
-| `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence |
-| `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations (Phase 1) |
-| `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships (Phase 2) |
-| `src/core/runtime-alignment.mjs` | Aligns declared Skill steps with runtime evidence; never scores and never claims a step was skipped (Phase 3) |
-| `src/core/runtime-layout.mjs` | Deterministic layered layout with grouping; positions only, never facts (Phase 4) |
-| `src/core/runtime-inspector.mjs` | Answers "why does this line exist" for one node or edge, with an explicit limit (Phase 4) |
-| `src/core/source-snapshot.mjs` | Creates safe source identity/snapshot metadata |
-| `src/core/catalog-view.mjs` | Projects receipt, note, pending-review, validation-result, local search, and review-priority data into the read-only My Skills workspace |
+| `src/dsh/host/index.js` | DSH lifecycle bridge, the seven routes, event observation, privacy policy, local persistence wiring |
+| `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence — the load-evidence layer v0.6 was required not to break |
+| `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations |
+| `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships |
+| `src/core/runtime-alignment.mjs` | Aligns declared Skill steps with scoped runtime evidence; never scores and never claims a step was skipped |
+| `src/core/runtime-fingerprint.mjs` | Builds the definition-fingerprint reservation carried on the receipt |
+| `src/core/skill-runtime-scope.mjs` | Bounds runtime evidence to the Turn in which a Skill loaded; no imports, so it is a leaf |
+| `src/core/skill-flow.mjs` | `Markdown → Declared Flow`, definition-only; imports no runtime module |
+| `src/core/skill-view-model.mjs` | Composition layer; runtime evidence may annotate the declared flow but never add, remove, or reorder a step |
+| `src/core/skill-definition.mjs` | One live read-only view of a definition, with `currentInstructionSha256`; the body is never persisted |
+| `src/core/definition-outline.mjs` | Markdown outline plus declared-step anchors; pure, and does not interpret the Skill |
+| `src/core/repository-resolver.mjs` | Resolves the repository a definition points at; never derives it from Skill identity, because DSH has no repository field |
+| `src/core/installed-view.mjs` | Projects the catalog snapshot into the installed-skills view; never reads the receipt |
+| `src/core/skill-translation.mjs` | Pure translation prompt builder, protected-structure extraction, and violation inspection; the model call itself lives in the host |
+| `src/core/runtime-evidence.mjs` | Seam between raw tool arguments and the evidence model |
+| `src/core/step-kind.mjs` | Shared step vocabulary; alignment compares only at kind level |
+| `src/core/source-snapshot.mjs` | Safe source identity and snapshot metadata (sha256 plus provider sanitizing) |
+| `src/core/session-log.mjs` | Reads the durable session log from disk as a fallback; the live session is always preferred |
 | `src/storage/receipt-store.mjs` | Stores local receipts and schema migrations |
-| `src/storage/preference-store.mjs` | Stores the local default-view preference |
-| `src/storage/backup-store.mjs` | Creates, verifies, lists, and reads immutable local recovery backups |
-| `src/dsh/client/client.js` | Conversation UI: receipt, flow map, catalog, learning notes, and the DSH `ctx.locale` adapter |
+| `src/storage/preference-store.mjs` | Stores the default-view preference, at version 3 |
+| `src/dsh/client/client.js` | Conversation view: 本次 Skill, 已安装 Skill, Skill Detail, and the DSH `ctx.locale` adapter |
 
-## Unsaved draft protection
+## Client component tree
 
-The Client keeps bounded unsaved learning-note, validation-result, and output-reference drafts in WebView `sessionStorage`, keyed by draft type, Session, and Skill where applicable. This buffer survives React view unmounts during in-app navigation but is not a second receipt database: it is limited to the current Desktop run, capped to 24 recent drafts and 500 characters per field, and excluded from Host backups until the user explicitly saves.
+`src/dsh/client/client.js` is the entire client — about 1300 lines after v0.6, down from about 3536, with a bundle of about 50 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
-Each learning or validation draft records the `updatedAt` value of the saved receipt field it was based on. A later saved revision invalidates the buffered draft rather than silently applying stale text over newer local data. Successful saves remove only the matching draft; successful single-receipt deletion removes that Session's drafts; successful clear-all removes the complete buffer. Failed Host actions keep drafts available. If `sessionStorage` rejects a write, the Client keeps an in-memory dirty marker, shows an explicit “cannot buffer” warning, and continues to warn before unload instead of claiming the draft is protected. A `beforeunload` guard warns while any draft remains, while ordinary DSH tab/view switching is handled by restoring the buffer when the view mounts again.
+```text
+Workbench                      first-level page switch + host preference
+  ├─ TraceState                {kind, message, onRetry} — the shared failure state
+  ├─ Icon
+  ├─ CurrentSkillPage          本次 Skill     ← GET /skills, GET /skill
+  │    └─ SkillCard            {name, description, meta, onOpen}
+  ├─ InstalledSkillsPage       已安装 Skill   ← GET /installed
+  │    └─ SkillCard
+  └─ SkillDetailPage           Skill Detail   ← GET /definition, POST /translate
+```
 
-## Learning validation result
+The client calls only the seven surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
 
-The receipt schema keeps `validationResults[]` next to `learningNotes[]`. A result is keyed by the Skill name already proven loaded in that receipt and contains only a bounded human-selected status (`met`, `not-met`, or `inconclusive`), a human-authored observation, an optional next action, authorship, and timestamps. Saving `unassessed` with empty text removes that local result.
+## Legacy receipt fields
 
-The My Skills projection derives review state without creating a second database: a history item is pending when it contains a non-empty validation plan and no validation result; it is recorded when a result exists. Exact and candidate histories retain separate counts, so same-name or identity-conflicting records are never promoted into verified history. The detail view orders the original receipt notes and validation results by receipt time and does not select or synthesize a latest “correct understanding.”
-
-The same loopback route is used from the current-session sidebar and an expanded historical timeline card. Both paths write only to the referenced local receipt. No reminder scheduler, telemetry, model call, cloud sync, Skill scoring, or automatic recommendation is introduced.
-
-## Review workspace and local search
-
-The catalog derives a review summary and deterministic sort keys from the same stored receipts. `pending review` still means only that a user-authored validation plan exists while no human validation result is attached to that receipt. It does not mean overdue, important, or system-recommended. Sorting may prioritize that explicit state, version drift, or original receipt time without creating a new status.
-
-Local full-text search covers the Skill name and declared description plus bounded user-authored fields already stored in receipts: understanding, improvement intent, validation plan, observed outcome, and next action. The Host returns only a bounded local search projection to the loopback client. It does not index complete Skill instructions, prompts, conversations, project files, or generated outputs.
-
-## Deterministic continuation handoff
-
-The continuation handoff is formatted in the client from an original receipt projection. It may include the Skill name, receipt time, short instruction fingerprints, candidate steps extracted by existing deterministic rules, the user's local notes, the user's validation result, and the user's `manual`, `partial`, or `blocked` decision. It is copied to the clipboard only after an explicit user action.
-
-The handoff does not call a model, select a Skill, claim a current correct understanding, infer causality, execute a tool, or modify or publish a Skill. Historical handoffs continue to point to their original receipt rather than silently merging sessions.
-
-## Local archive and clearing
-
-`0.4.0-beta.2` used `GET /skill-trace/export` to produce a JSON payload that the Client handed to a WebView Blob download, but it could not verify that a file was saved. Desktop testing reproduced a false success state. In `0.4.0-beta.3`, that legacy route returns `409` so it cannot continue to masquerade as an accepted backup delivery mechanism.
-
-`0.4.0-beta.3` moves persistence into a dedicated Host-side backup store under the plugin data root. A backup is successful only after atomic write, stat, read, and JSON parse validation. The Client receives bounded metadata and can list the backup history. To open the fixed backup directory, it calls the official same-origin `host.openPath` RPC directly: the installed `dsh-better-sidebar` profile plugin wraps `ctx.workspaces.openPath` for file-editor routing and can swallow directory opens.
-
-Restore validates every archive receipt before mutation and runs each write through the same per-Session queue as live event updates. A missing `sessionId` restores the complete receipt. If the active session has already reconstructed a trace-only receipt after clear-all, restore unions missing backed-up trace identity and supplements only absent user-owned fields: learning note and validation result by Skill name, output reference by relative reference, and a human-confirmed continuation decision only when the current receipt is still unassessed. Current user fields remain authoritative. Results report full restores, supplemented receipts, and unchanged receipts separately. Receipt-store writes use a unique temporary file per attempt so concurrent operations cannot move the same temporary path.
-
-Clear-all uses a global maintenance barrier around safety-backup creation and receipt removal. Session writes that began before the barrier finish first; writes arriving during clear-all wait until it completes. A single-receipt deletion keeps its read, verified safety backup, and delete inside the target Session queue. This avoids a late save or restore interleaving with destructive storage work while keeping unrelated reads available.
-
-Archives continue to exclude complete Skill bodies, prompts, conversation content, project files, credentials, and absolute paths. The plugin does not upload them. Backup identifiers are validated and resolved only inside the fixed backup root; arbitrary local paths are not accepted as delete or restore targets.
-
-`DELETE /skill-trace/receipts` clears only receipt files owned by this plugin after an inline client confirmation. Preferences and DeepSeek Harness conversations are not deleted. In `0.4.0-beta.3`, clear-all and single-receipt deletion create and verify a safety backup first; backup failure aborts deletion. If the current DSH session remains available, observed trace evidence can still be reconstructed from the live event stream, but that is not a substitute for restoring user-authored notes and validation results.
-
-## My Skills no-selection guide
-
-When no catalog entry is selected on a wide layout, the Client renders a static seven-step guide in the otherwise empty detail pane. The guide explains the evidence-to-learning path and directs the user to a real Skill entry. It does not query a model, read a Skill body, create sample receipts, mutate storage, or change catalog association rules. On narrow layouts the catalog list remains the primary selection surface; the full guide is not inserted into the scrolling list.
+A receipt written by an older version may still contain `learningNotes[]` and `validationResults[]` from the learning loop v0.6 deleted. Nothing writes them any more: there is no note route, no validation route, and no editor component, so they are read only when rendering a receipt that already has them. They are never migrated into a new shape and never used to derive a status the current UI displays.
 
 ## Interface language
 
 DSH Skill Trace follows the DeepSeek Harness locale service rather than the browser language. Its client registers a `dsh-skill-trace` namespace with `zh` and `en` dictionaries for static keys, uses explicit locale branches for dynamic templates, subscribes to the locale snapshot, and re-renders in place on a Host language change. The tab labels are locale-aware functions, so they also update without slot re-registration.
 
-Only plugin-owned interface copy is translated. Receipt evidence, Skill names and declarations, workspace names, output references, user-authored learning notes, and validation results remain local source data and are never translated, uploaded, or rewritten. The DSH locale contract currently ships `zh` and `en`; an unknown active locale follows DSH’s English fallback. A missing plugin dictionary key remains visible as its source key so omissions fail loud during review rather than silently rewriting evidence.
-
-## Flow-map layout
-
-The grid viewport can expand beyond the map's fixed coordinate system. A 1000px `st-map-stage` owns the SVG relationship layer, labels, and absolutely positioned nodes, and is centered inside that viewport. When the available width is below 1000px, the outer canvas keeps its 1000px minimum width and the scroll container exposes horizontal navigation. This is a presentation-only wrapper; the flow map and receipt continue to consume the same View Model and persistence is unchanged.
+Only plugin-owned interface copy is translated. Receipt evidence, Skill names and declarations, workspace names, and any legacy output references, learning notes, or validation results remain local source data and are never translated, uploaded, or rewritten. The DSH locale contract currently ships `zh` and `en`; an unknown active locale follows DSH’s English fallback. A missing plugin dictionary key remains visible as its source key so omissions fail loud during review rather than silently rewriting evidence.
 
 ## Compatibility boundary
 
@@ -477,25 +462,24 @@ ranking 或百分比。
 
 ### 默认视图
 
-默认页偏好只有 `skills` 与 `map`。`receipt` 与 `audit` 不再可保存为默认页：
-旧 IA 的默认页就是 receipt，所以存下来的 `receipt` 几乎不是「用户的选择」而是「被写下来的默认值」。
+默认页偏好只有 `current`（本次 Skill）与 `installed`（已安装 Skill）两个取值，版本号是 3。
+`skills` / `map` / `receipt` / `audit` / `runtime` 都是旧 IA 的取值，客户端把它们一律映射到
+`current`，`catalog` 映射到 `installed`（见 `LEGACY_VIEWS`）——迁移的是第一屏，不是对用户意图的考古。
 
-**同一条推理也适用于 `map`，beta.67 漏掉了它。** `~/.dsh/skill-trace/preferences.json`
-里只有 `{"defaultView":"map"}` 时，文件本身没有记录这是用户点的、还是旧 IA 写下的缺省值——
-而 beta.66 的第一屏就是运行地图，所以从 beta.66 升上来的机器几乎都停在这个值上。
-文件没记录意图，就没法事后恢复意图，只能从 beta.68 起**开始记录**：
+旧值的可信度问题仍然成立，而且正是版本号存在的理由：文件本身不记录这个值是用户点的、
+还是旧 IA 写下的缺省值。所以只有**版本号匹配**的文件才算「用户表达过偏好」：
 
 | 磁盘上的值 | 判定 | 第一屏 |
 |---|---|---|
-| `{"version":2,"defaultView":"skills"}` | 本版写下 | `skills` |
-| `{"version":2,"defaultView":"map"}` | 本版写下，用户主动选的 | `map`（保留） |
-| `{"defaultView":"map"}`（无 `version`） | 无法判定 → 视为**从未表达偏好** | `skills` |
+| `{"version":3,"defaultView":"current"}` | 本版写下 | `current` |
+| `{"version":3,"defaultView":"installed"}` | 本版写下，用户主动选的 | `installed` |
+| `{"version":2,…}` 或 `{"defaultView":"map"}`（无 `version`） | 版本不匹配 → 视为**从未表达偏好** | `current` |
 
-`src/storage/preference-store.mjs` 的 `PREFERENCES_VERSION` 是唯一版本源，读路径走
-`normalizeStored`（无版本号即不认），写路径走 `normalizeChosen`（盖章）。客户端
-`src/dsh/client/client.js` 里另有一份 `PREFERENCE_VERSION`：只有它等于响应里的
-`preferences.version` 时才采纳宿主偏好——这样**旧宿主**（响应里根本没有 `version` 字段）
-也不会把第一屏交回给运行地图。两份常量由 `scripts/verify-project.mjs` 的
+`src/storage/preference-store.mjs` 的 `PREFERENCES_VERSION = 3` 是唯一版本源，读路径走
+`normalizeStored`（版本或取值不匹配即回落 `current`），写路径走 `normalizeChosen`（一律盖章 3）。
+客户端 `src/dsh/client/client.js` 里另有一份 `PREFERENCE_VERSION = 3`：只有它等于响应里的
+`preferences.version` 时才采纳宿主偏好——这样**旧宿主**（响应里根本没有 `version` 字段，
+或还停在版本 2）也不会把第一屏交回给旧的运行地图。两份常量由 `scripts/verify-project.mjs` 的
 `PREFERENCE_VERSION_OK` 钉住必须相等：它们若漂移，失败方式是静默的——不报错，只是第一屏换回去。
 
 ### 两个端点的信封
@@ -544,3 +528,66 @@ Skill 标签页整片空白。
   被测试锁住的行为，不是偶发缺陷。
 - **`<skill_content>` 外壳不可复现。** 插件里没有任何 `@deepseek-ai` 运行时导入，
   `renderSkillContent()` 拿不到，因此该层显式报告为「不可在宿主之外复现」，而不是自己拼一个像的。
+
+---
+
+## V0.6 — 删除记录：删了什么，为什么留下的没删
+
+v0.6 只做一件事：把「本次对话加载了哪些 Skill」与「这台机器上有哪些 Skill」变成两个可读页面，
+其余全部删掉。它没有新增证据模型，也**没有删掉任何证据**——删掉的是页面、画法和写入口。
+
+### 删除顺序
+
+按 SDD §4.4 的顺序落地，因为反过来做会先删掉还在被引用的东西：
+
+```
+UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → 最后才是只服务运行图的代码
+```
+
+| 类别 | 删掉的东西 |
+| --- | --- |
+| 路由 | 15 条：`/runtime`、`/inspect`、`/catalog`、`/history-note`、`/history-receipt`、`/export`、`GET`+`POST` `/backups`、`/backups/preview`、`/backups/restore`、`POST`+`DELETE` `/outputs`、`/continuity`、`/learning-note`、`/validation-result`、`DELETE /receipt`、`DELETE /receipts` |
+| 模块 | `src/core/runtime-layout.mjs`、`src/core/runtime-layout-elk.mjs`、`src/core/runtime-inspector.mjs`、`src/core/runtime-replay.mjs`、`src/core/catalog-view.mjs`、`src/storage/backup-store.mjs`、`src/dsh/client/runtime-flow.js` |
+| 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
+| 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
+
+因此客户端从约 3536 行降到约 1300 行，bundle 从 421 KB 降到约 50 KB，只调用留下来的七条路由，
+并且只注册一个 slot（`conversation.view`）。
+
+### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着
+
+判据只有一条：**这个模块是在陈述证据，还是在陈述证据的一种画法。**
+
+`runtime-layout.mjs` 是画法。它的输入是图、输出是坐标，它自己不产生任何关于会话的断言——
+删掉它，`/context` 返回的 receipt 一个字节都不变。`runtime-inspector.mjs` 同理，它是
+「这条线为什么存在」的问答界面；`catalog-view.mjs` 是旧 My Skills 工作台的投影，而它的消费者
+（学习时间线、待复核、继续交接）已经不存在；`backup-store.mjs` 服务的是一整套被删掉的
+导出 / 备份 / 还原链——没有入口的备份不是备份，只是一条没人走的写路径。
+
+`trace-reducer.mjs` 不是画法。它把观测到的事件变成**有界会话证据**：哪些 Skill 被加载、
+加载了几次、每次的指令指纹是什么。这正是 SDD §4 明确要求**不得破坏**的那个 reducer，
+`GET /context` 与第一屏「本次 Skill」都在用它。它 import 的三个模块因此一并留下：
+
+- `runtime-graph.mjs` —— `trace-reducer.mjs:971` 每次归约都调用 `buildRuntimeGraph(receipt)`，把结果
+  的 `stats` 写进收据的图摘要，并用同一个图生成指纹预留位（`buildFingerprintReservation(runtimeGraph)`）。
+  删掉它，收据的图摘要与指纹路径会同时断掉。
+- `runtime-alignment.mjs` —— 声明步骤 ↔ 运行证据的对照。`trace-reducer.mjs` 直接调用它的
+  `buildAlignment` 与 `extractDeclarationSteps`，这是 Evidence 的来源。
+- `runtime-fingerprint.mjs` —— 定义指纹预留位，让「这次加载看到的是哪一版正文」可以被比对；
+  哈希三态 `match` / `mismatch` / `unavailable` 必须保留，否则 `definition-changed` 无从判定。
+
+`skill-runtime-scope.mjs` 一并留下：它把证据收敛到加载发生的那个 Turn，是 `runtime-alignment.mjs`
+的直接输入，而且**没有任何 import**——留着它的成本是零。
+
+一句话：删除的判据不是「和运行图有关」，而是「删掉之后，收据还能不能回答它一直在回答的问题」。
+`runtime-layout.mjs` 删掉之后答案不变；`trace-reducer.mjs` 删掉之后答案就没有了。
+
+### 保留的是角色，不是页面
+
+Receipt 失去了页面身份，没有失去职责：它仍然是「本次对话加载了哪些 Skill、各自加载了几次」的
+证据层，只是不再有自己的一屏，改为通过 `GET /skill-trace/context` 提供。运行图与运行流程同样
+不再有页面：图以 `graph.stats` 的形式留在收据摘要里，运行流程的数据仍留在 `runtimeEvents` 里，
+Skill Run 与 Evidence 都从后者构建。
+
+旧版本写入的学习笔记与验证结果**仍然留在收据里**，但 v0.6 删除了全部写入入口：没有 note 路由、
+没有 validation 路由、也没有编辑组件。它们只在渲染旧收据时被读到，见上面的「Legacy receipt fields」。

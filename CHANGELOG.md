@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.4.0-beta.69 — 2026-10-01 · SDD v0.6：两个一级页面，以及被它们排掉的 22 个组件
+
+**这一版按 SDD v0.6 收敛信息架构：一级页面只剩「本次 Skill」与「已安装 Skill」，两者共用一个二级页「Skill 详情」。** 测试 440 → 328；静态合同守卫 **26 → 20**——这一版新增了 `TRANSLATION_MEMORY_ONLY_OK` 与 `SKILL_FIRST_DETAIL_OK`，又删掉了 8 个**早已没有断言撑着、只是名字还印在输出里**的旧标记（见下）；客户端 3536 → 1283 行，bundle 421 → 50 KB，宿主路由 22 → 7 条。
+
+### 一、一级页面回答两个问题，不再罗列四个视图
+
+v0.5 的一级导航是四个平级的「会话视图」：`skills` / `map` / `runtime` / `receipt`。它们描述的是**同一次会话的不同画法**，只对已经知道自己要找什么的人成立。v0.6 换成两个页面，各自回答一个用户真会问的问题：
+
+- **本次 Skill** —— 这次对话加载过什么。每张卡片是一个 Skill：描述、调用方式（`model` / `/name`）、加载过几次、定义现在读不读得到。
+- **已安装 Skill** —— 这台机器上有什么。只打 `GET /skill-trace/catalog`，由注册表快照投影而来，**不读收据**：这台机器上装着什么，与这次会话发生过什么无关。
+- **Skill 详情**（唯一二级页）—— 点任意一张卡片进入，返回键写明是从哪个列表进来的（`backLabel` 由来源决定，源码里禁止写死返回目标）。
+
+偏好版本抬到 3：`skills` / `map` / `receipt` 这些 v0.5 词汇在读取时一概归零为「未表达偏好」，落到「本次 Skill」。这不是迁移失败——`map` 在 v0.6 里已经不是一页，尊重一个无法兑现的选择才是错的。
+
+### 二、新增：中文预览（只读、只存内存）
+
+`SKILL.md` 原文旁边多了一个「中文预览」分段。它的约束比功能本身重要：
+
+- **只读**：围栏、URL、文件路径、行内代码、frontmatter 一律逐字保留，只翻译正文；译文**不写回** `SKILL.md`，也**不追加**进这次对话。
+- **只存内存**：不落收据、不落备份、不进 `localStorage` / `sessionStorage`、不写文件系统；按 `sourceSha256` 绑定，定义在翻译期间变了就作废（`definition-changed`）。离开页面即丢弃。
+- **失败要说出来**：翻译失败时分段控件退回「原文」（显示的＝选中的），但**错误横幅留在屏幕上**——一次静默失败比摆在明面上的失败糟得多。
+- `inspectTranslation()` 另有一层守卫：把译文里的围栏数、标题层级、行内代码、URL 与路径与原文逐一比对，不一致就报违规，最多记 20 条。
+
+### 三、删除：不是整理，是重构的另一半
+
+§4.4 的顺序是 UI → 视图消费者 → 宿主路由 → 撑住路由的模块，四步都走完才算删干净。
+
+- **客户端 22 个组件**：`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`、`MapView`、`Inspector`、`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`、`HistoricalContinuationAction`、`Aside`、`SessionSummary`、`SessionStatus`，以及 47 个只服务于它们的辅助声明、302 条无消费者的 CSS 规则、147 条只剩历史意义的字典项。
+- **宿主 15 条路由**：`/runtime`、`/inspect`、`/catalog`（v0.5 的学习工作台那一条；v0.6 的已安装列表是另一条同名新路由，见上）、`/history-note`、`/history-receipt`、`/export`、`/backups`、`/backups/preview`、`/backups/restore`、`/outputs`、`/continuity`、`/learning-note`、`/validation-result`、`DELETE /receipt`、`DELETE /receipts`。**保留 7 条**：`/context`、`/skills`、`/skill`、`/catalog`、`/definition`、`/translate`、`/preferences`。
+- **模块与依赖**：`runtime-layout`、`runtime-layout-elk`、`runtime-inspector`、`runtime-replay`、`catalog-view`、`backup-store`、客户端的 `runtime-flow.js`；依赖里的 `elkjs` 与 `@xyflow/react` 一并移除。
+- **刻意保留**：`trace-reducer.mjs`（§4.4 明令不得破坏加载证据 reducer）、`runtime-graph.mjs`、`runtime-alignment.mjs`、`runtime-fingerprint.mjs`——它们仍被 reducer 导入，删掉会让「这次加载发生过」这条证据链断掉。收据失去的是**页面身份**，不是证据。
+
+### 四、守卫：断言今天成立的事实，而不是历史
+
+删完之后 `verify-project.mjs` 的客户端契约里还有 45 条断言在描述已经不存在的界面，其中大多数之所以仍在通过，只是因为那句文案还留在英文字典里（字典项没有消费者，源文本里照样能 `includes` 到）。**一条守卫如果断言一个不存在的页面，它唯一的作用就是拦住删除。** 契约因此重写成 28 条，并且**只在字典之外**成立——`verify-project.mjs` 现在先切掉 `const EN = { … }` 再比对，否则一句死文案就能继续把断言喂饱（实测：`正在读取当前目录…` 早已换成 `正在读取当前环境…`，而断言一直通过，因为死键还在字典里）。同时**反向**钉住那 15 条已删路由与 `buildRuntimeGraph` / `computeRuntimeLayout` / `buildCatalogView`：删掉的东西不该悄悄回来。
+
+**八个标记没有断言撑着，却一直印在输出里。** 底部的 `_OK` 清单是一串裸 `console.log`，第 5 步删断言块时它们留了下来：`CANVAS_BOUNDED_OK`、`ELK_LAYOUT_BOUNDED_OK`、`CONTEXTUAL_INSPECTOR_OK`、`REPLAY_READ_ONLY_OK`、`RUNTIME_FLOW_READONLY_OK`、`GRAPH_FILTERS_OK`、`MY_SKILL_READ_ONLY_CATALOG_OK`、`MY_SKILLS_SLIM_OK` —— 八个名字宣称的契约，对应的界面早就不存在了。**一个没有断言的标记是假的通过**，它比没有标记更糟：`VISUAL_TOKENS_OK` 在 beta.60 就是这样被发现的，同一个坑踩了第二次。八个标记已删除，`CLIENT_DUAL_VIEW_CONTRACT_OK` → `CLIENT_CONTRACT_OK`、`LOCAL_LEARNING_LOOP_OK` → `LEGACY_LEARNING_FIELDS_OK`（它现在断言的是 reducer 仍携带历史字段）。规则写进了文件的注释：**删断言块时，同一次改动里删掉它的标记。**
+
+新增两道守卫：
+
+- `SKILL_FIRST_DETAIL_OK`：三个页面组件必须存在，`SkillWorkbench` 与 `st-skill-item` 必须不存在；详情页切片里禁止任何浏览器存储 API，且必须含 `setTranslation(`。
+- `TRANSLATION_MEMORY_ONLY_OK`：`/translate` 的响应路径上不得出现收据、备份、浏览器存储或文件写入。
+
+### 五、两次真实回归，都不是测试先发现的
+
+- **Layout Contract 守卫被误删**：`test/phase11-layout-contract.test.mjs` 是唯一守着「根规则必须在 brace depth 0、高度链禁用视口单位、花括号配平」的测试——beta.63 那个真实事故（根规则被困在 `@media(max-width:1050px)` 里，桌面宽度下 `font-size` 回退宿主 16px、整个 UI 大一号）本身与运行图谱毫无关系。它被删只是因为文件名带 `phase11`。已取回并改名为 `test/layout-contract.test.mjs`，选择器换成 v0.6 的布局层。
+- **样式表里的第三块陈旧区域**：`.st-topbar` 被第二条规则覆写成 72px —— 一个 v0.6 设计文档（68px）与 `design.md`（58px 下限）都没有的数字；同一块里还留着 `@xyflow/react` 的两条 `.react-flow__*` 规则、两条没有任何元素使用的 `.st-layout` 规则，以及描述已删画布的注释。顶栏统一为设计文档的 **68px**，守卫也跟着改（原来钉的 72px 是「口口相传」写进代码的）。
+- **§25 验收测试抓到两处死重**：`installed-view.mjs` 的 `projectInstalledSkill` 仍在投影 `sourceFingerprint`，客户端零消费者；客户端样式里五个 `--st-*` 定义（`--st-grid` / `--st-edge` / `--st-subagent` / `--st-node-color:#dfe3e9` / `--st-node-width`）活过了第 5 步清扫——那次清的是**死规则**而不是**死值**。其中 `--st-node-color:#dfe3e9` 是硬编码浅色，暗色主题下永远不会跟随，**正是一个没人引用的 token 才没有任何测试能看见它**。新增的守卫遍历所有 `--st-*` 定义，要求每个值要么来自 `--dsw-alias-*`，要么来自另一个语义 token。
+
 ## 0.4.0-beta.68 — 2026-10-01 · 两个只在真实应用里出现的升级缺陷：白屏与旧缺省视图
 
 **beta.67 发布后在真实 DSH 里立刻遇到两件事，两件都不是测试能预先抓到的形状。** 测试 407 → 412，静态合同守卫 24 → 26。

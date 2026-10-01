@@ -34,6 +34,16 @@ const client = await readFile(resolve(root, 'src/dsh/client/client.js'), 'utf8')
 // 删掉的那些（`model.events`、`st-map-stage`、`api('/receipts'`、`const DRAFT_KEY` …）不是
 // 被放宽了，而是它们的宿主页面已经不在 v0.6 里了（§4）。一条守卫如果断言一个不存在的
 // 页面，它唯一的作用就是拦住删除 —— 所以在删页面的同一次改动里删掉它们。
+//
+// 而且断言必须在**字典之外**成立。`EN` 里的条目说的是「界面可能会说这句话」，
+// 不是「界面在说这句话」—— 一段死文案只要还留在字典里，`client.includes()` 就照样为真。
+// 这个路径真的发生过：删掉 22 个组件之后仍有 45 条断言在通过，其中一条
+// （`正在读取当前目录…`）的界面文案其实早就换成了「正在读取当前环境…」，
+// 只是字典里还留着旧键。所以下面比的是去掉 EN 块之后的源码。
+const dictStart = client.indexOf('  const EN = {')
+const dictEnd = client.indexOf('\n  }', dictStart) + 4
+if (dictStart < 0 || dictEnd < 4) throw new Error('cannot locate the EN dictionary')
+const clientCode = client.slice(0, dictStart) + client.slice(dictEnd)
 for (const requiredText of [
   // 双语与主题生命周期。`t()` 会查字典，所以字典就是界面的英文。
   'ctx.locale.register(NS',
@@ -47,7 +57,7 @@ for (const requiredText of [
   '正在读取当前对话的 Skill 使用情况…',
   '本次 Skill 使用记录',
   '本次 Skill',
-  '正在读取当前目录…',
+  '正在读取当前环境…',
   '工作区未连接',
   // §8：返回的措辞由调用方给，所以页面里必须有「返回 Skill 列表」这个地方。
   '返回 Skill 列表',
@@ -73,7 +83,7 @@ for (const requiredText of [
   'st-detail-doc',
   'st-trace-state',
 ]) {
-  if (!client.includes(requiredText)) throw new Error(`client contract missing: ${requiredText}`)
+  if (!clientCode.includes(requiredText)) throw new Error(`client contract missing (outside the dictionary): ${requiredText}`)
 }
 if (client.includes('Promise.all([buildReceipt') || client.includes('generateImage')) throw new Error('dual view must not generate duplicate analyses')
 if (client.includes('window.confirm(')) throw new Error('destructive actions must use inline confirmation')
@@ -119,7 +129,7 @@ for (const requiredText of [
   "'/skill-trace/context'",
   "'/skill-trace/skills'",
   "'/skill-trace/skill'",
-  "'/skill-trace/installed'",
+  "'/skill-trace/catalog'",
   "'/skill-trace/definition'",
   "'/skill-trace/translate'",
   'buildInstalledView',
@@ -128,7 +138,7 @@ for (const requiredText of [
   if (!host.includes(requiredText)) throw new Error(`host contract missing: ${requiredText}`)
 }
 // 删掉的东西不得以别的方式回来。
-for (const forbidden of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", "'/skill-trace/catalog'", "'/skill-trace/backups'", "'/skill-trace/learning-note'", "'/skill-trace/validation-result'", "'/skill-trace/receipts'", 'buildRuntimeGraph', 'computeRuntimeLayout', 'buildCatalogView']) {
+for (const forbidden of ["'/skill-trace/runtime'", "'/skill-trace/inspect'", "'/skill-trace/backups'", "'/skill-trace/learning-note'", "'/skill-trace/validation-result'", "'/skill-trace/receipts'", 'buildRuntimeGraph', 'computeRuntimeLayout', 'buildCatalogView']) {
   if (host.includes(forbidden)) throw new Error(`a deleted v0.5 surface is still wired into the host: ${forbidden}`)
 }
 if (host.includes('rebuildReceipt(sessionId, session.events')) throw new Error('host must rebuild from the live session log, not the removed session.events field')
@@ -366,7 +376,9 @@ if (!builder.shippedBundleIsFresh()) {
     if (size < 10.5) throw new Error(`§26 floors auxiliary text at 10.5px; found ${size}px`)
   }
   // §26's structural sizes.
-  if (!/\.st-topbar\{[^}]*min-height:72px/.test(css)) throw new Error('§26: the top bar is 72px')
+  // v0.6 §22 的顶栏是 68px（`height:68px`），`design.md` §6.1 只规定 58px 下限。
+  // 这里曾经钉的是 72px —— 一个两份文档都没有的数字，谁也说不清它是从哪抄来的。
+  if (!/\.st-topbar\{[^}]*min-height:68px/.test(css)) throw new Error('§22: the top bar is 68px')
   if (!/\.st-heading h1\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
   // v0.6 §8.2/§9.3 replaced the three-column workbench with one detail page: a 280px
   // fact column, and a 170px outline strip inside the SKILL.md panel. The old
@@ -480,26 +492,25 @@ if (!client.includes('body?.list ?? null')) throw new Error('the client must unw
   }
 }
 
+// 这一行一行都是**结论**，不是清单。每个 marker 都必须有上面一段仍然存在的断言撑着：
+// 一个没有断言的 marker 会在输出里说「这条契约成立」，而实际上没有人检查过它。
+// 第 5 步删页面时就踩过一次——断言块随页面删掉了，marker 却留了下来，
+// 于是 `CANVAS_BOUNDED_OK`、`ELK_LAYOUT_BOUNDED_OK`、`CONTEXTUAL_INSPECTOR_OK`、
+// `REPLAY_READ_ONLY_OK`、`RUNTIME_FLOW_READONLY_OK`、`GRAPH_FILTERS_OK`、
+// `MY_SKILL_READ_ONLY_CATALOG_OK`、`MY_SKILLS_SLIM_OK` 八个名字一直印在输出里，
+// 而它们守的界面早就不存在了。**删断言块时，同一次改动里删掉它的 marker。**
 console.log('PROJECT_STRUCTURE_OK')
-console.log('CLIENT_DUAL_VIEW_CONTRACT_OK')
+console.log('CLIENT_CONTRACT_OK')
 console.log('SOURCE_PRIVACY_FIELDS_OK')
-console.log('LOCAL_LEARNING_LOOP_OK')
-console.log('MY_SKILL_READ_ONLY_CATALOG_OK')
+console.log('LEGACY_LEARNING_FIELDS_OK')
 console.log('SESSION_FORMAT_TOOL_RESULT_CONTRACT_OK')
 console.log('OBSERVATION_SURFACE_OK')
 console.log('RUNTIME_MODEL_OK')
 console.log('CORRELATION_PROVENANCE_OK')
 console.log('ALIGNMENT_NO_SCORE_OK')
-console.log('CANVAS_BOUNDED_OK')
 console.log('SESSION_LOG_RECOVERY_OK')
 console.log('CLIENT_BUNDLE_CONTRACT_OK')
-console.log('RUNTIME_FLOW_READONLY_OK')
-console.log('ELK_LAYOUT_BOUNDED_OK')
-console.log('CONTEXTUAL_INSPECTOR_OK')
-console.log('REPLAY_READ_ONLY_OK')
 console.log('RECEIPT_SECTIONS_OK')
-console.log('GRAPH_FILTERS_OK')
-console.log('MY_SKILLS_SLIM_OK')
 console.log('VISUAL_TOKENS_OK')
 
 // --- Rules of Hooks：hook 不得写在提前 return 之后 --------------------------------

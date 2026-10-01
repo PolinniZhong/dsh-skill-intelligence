@@ -626,7 +626,7 @@ export function apply(ctx, config = {}) {
           // 名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`：旧的 `/catalog` 仍被
           // 「我的 Skill」工作台消费着，而 §4 规定的清理顺序是「先删 UI → 再删 View
           // consumer → 最后删 Host route」。等那个工作台删掉之后，这条路由再改名收口。
-          if (method === 'GET' && url.pathname === '/skill-trace/installed') {
+          if (method === 'GET' && url.pathname === '/skill-trace/catalog') {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const query = optionalSearchQuery(url.searchParams.get('query'))
             const { registry, liveAgent, session, cwd } = registryContext(sessionId)

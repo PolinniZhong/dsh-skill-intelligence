@@ -16,28 +16,25 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
   const EN = {
-    '当前会话': 'Current session', '我的 Skill': 'My Skills', '本次 Skill 使用记录': 'Skill usage this session', 'Skill 收据': 'Skill receipt', 'Skill 追踪': 'Skill Trace', 'Skill 追踪状态': 'Skill Trace status', '刷新': 'Refresh',
-    '工作区未连接': 'No workspace connected', '正在读取当前会话…': 'Reading current session…', '正在读取当前目录…': 'Reading current catalog…',
-    '当前目录无法确认': 'Current catalog cannot be confirmed', '仅显示本地历史': 'Showing local history only', '目录可能不完整': 'Catalog may be incomplete', '当前可发现': 'Currently discoverable',
-    '返回 Skill 列表': 'Back to Skill list', 'Skill 声明': 'Skill declaration', '实际运行记录': 'Observed run records', '历次会话理解': 'Session understandings',
-    'Skill 列表': 'Skill list', '搜索名称或声明简介': 'Search name or declared summary', '搜索 Skill': 'Search Skills', 'Skill 筛选': 'Filter Skills',
-    '重试': 'Retry', '删除': 'Delete', '删除中': 'Deleting', '保存': 'Save', '复制清单': 'Copy checklist', '已复制': 'Copied', '复制失败': 'Copy failed',
-    '当前对话暂未加载可追踪的 Skill。': 'No traceable Skill has been loaded in this conversation yet.',
-    '正在读取当前对话的 Skill 使用情况…': 'Reading Skill usage in this conversation…',
-    '当前视图没有可用的会话 ID': 'No session ID is available for this view.',
-    // ── Phase 3：Skill 优先的第一层。第一屏是「本次运行加载过的 Skill」，不是运行图谱。 ──
-    '本次 Skill': 'Skills in this run', '本次加载的 Skill': 'Skills loaded in this run', '高级': 'Advanced', '运行图谱': 'Runtime graph', '暂无可用视图': 'Nothing available yet',
-    '定义可用': 'Definition available', '未找到定义': 'No definition found',
-    '注册表不可用': 'Registry unavailable', '定义状态未知': 'Definition status unknown',
-    '指令指纹比对': 'Instruction fingerprint', '无法比对': 'Cannot be compared',
-    '一致': 'Match', '文件已改变': 'The file has changed',
-    '没有找到 git work tree，无法确定仓库来源。': 'No git work tree was found, so the repository source cannot be established.',
-    '这份 Skill 的定义当前读不到，所以无法抽取声明流程。': 'The definition cannot be read right now, so no declared flow could be extracted.',
-    '本次会话没有记录到该 Skill 的成功加载。': 'This session recorded no successful load of this Skill.',
-    'Skill 注册表不可用，所以缺少描述与定义状态。': 'The Skill registry is unavailable, so descriptions and definition status are missing.',
-    '部分声明步骤因内容可疑而被省略。': 'Some declared steps were withheld by the sanitiser.',
-    '定义正文被截断，声明流程可能不完整。': 'The definition body was truncated, so the flow may be incomplete.',
-    '资源基准路径已省略。': 'The resource base path is withheld.',
+    '当前会话': 'Current session', '我的 Skill': 'My Skills',
+    '本次 Skill 使用记录': 'Skill usage this session', 'Skill 收据': 'Skill receipt',
+    'Skill 追踪': 'Skill Trace', '刷新': 'Refresh',
+    '工作区未连接': 'No workspace connected', '正在读取当前会话…': 'Reading current session…',
+    '当前目录无法确认': 'Current catalog cannot be confirmed', '目录可能不完整': 'Catalog may be incomplete',
+    '返回 Skill 列表': 'Back to Skill list', 'Skill 列表': 'Skill list',
+    '搜索 Skill': 'Search Skills', '重试': 'Retry',
+    '删除': 'Delete', '保存': 'Save',
+    '当前对话暂未加载可追踪的 Skill。': 'No traceable Skill has been loaded in this conversation yet.', '正在读取当前对话的 Skill 使用情况…': 'Reading Skill usage in this conversation…',
+    '当前视图没有可用的会话 ID': 'No session ID is available for this view.', '本次 Skill': 'Skills in this run',
+    '本次加载的 Skill': 'Skills loaded in this run', '高级': 'Advanced',
+    '运行图谱': 'Runtime graph', '定义可用': 'Definition available',
+    '未找到定义': 'No definition found', '注册表不可用': 'Registry unavailable',
+    '定义状态未知': 'Definition status unknown', '指令指纹比对': 'Instruction fingerprint',
+    '无法比对': 'Cannot be compared', '一致': 'Match',
+    '文件已改变': 'The file has changed', '没有找到 git work tree，无法确定仓库来源。': 'No git work tree was found, so the repository source cannot be established.',
+    '这份 Skill 的定义当前读不到，所以无法抽取声明流程。': 'The definition cannot be read right now, so no declared flow could be extracted.', '本次会话没有记录到该 Skill 的成功加载。': 'This session recorded no successful load of this Skill.',
+    'Skill 注册表不可用，所以缺少描述与定义状态。': 'The Skill registry is unavailable, so descriptions and definition status are missing.', '部分声明步骤因内容可疑而被省略。': 'Some declared steps were withheld by the sanitiser.',
+    '定义正文被截断，声明流程可能不完整。': 'The definition body was truncated, so the flow may be incomplete.', '资源基准路径已省略。': 'The resource base path is withheld.'
   }
   const ZH = Object.fromEntries(Object.keys(EN).map((key) => [key, key]))
   let translate = (key) => key
@@ -170,10 +167,13 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       [data-plugin="dsh-skill-trace"].st-host{height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px));max-height:calc(var(--st-host-h,100%) - var(--st-host-composer-h,0px))}
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}
       .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
-      .st-topbar{min-height:58px;padding:9px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
+      /* v0.6 §22 顶栏：品牌 + 两个一级页面入口 + 刷新。高度取设计文档的 68px，
+        高于 design.md §6.1 的 58px 下限。曾经这里有第二条规则把它覆写成 72px ——
+        那个数字来自哪个文档都说不清，就成了「样式表里的一句口口相传」。 */
+      .st-topbar{min-height:68px;padding:0 18px;display:flex;align-items:center;gap:18px;flex:none;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
       .st-heading{min-width:0;flex:1}.st-heading-line{display:flex;align-items:center;gap:9px}.st-heading h1{margin:0;font-size:16px;font-weight:650;letter-spacing:-.01em}.st-workspace{margin-top:2px;color:var(--st-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
       .st-view-switch{display:inline-flex;padding:3px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer-2)}.st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}.st-view-button[aria-pressed="true"]{background:var(--st-layer);color:var(--st-brand);box-shadow:0 1px 2px rgba(20,24,32,.08)}
-      .st-empty-page,.st-trace-state{height:100%;display:grid;place-items:center;padding:32px;color:var(--st-muted)}.st-empty-page-inner{width:min(100%,420px)}.st-empty-page p{margin:0}.st-trace-state-line{display:inline-flex;align-items:center;gap:9px;font-size:13px}.st-trace-state-dot{width:7px;height:7px;border-radius:50%;background:var(--st-faint)}.st-trace-state[data-kind="loading"] .st-trace-state-dot{background:var(--st-brand);animation:st-pulse 1.2s ease-in-out infinite}.st-layout[data-simple="true"]{grid-template-columns:minmax(0,1fr)}@keyframes st-pulse{50%{opacity:.35}}
+      .st-empty-page,.st-trace-state{height:100%;display:grid;place-items:center;padding:32px;color:var(--st-muted)}.st-empty-page-inner{width:min(100%,420px)}.st-empty-page p{margin:0}.st-trace-state-line{display:inline-flex;align-items:center;gap:9px;font-size:13px}.st-trace-state-dot{width:7px;height:7px;border-radius:50%;background:var(--st-faint)}.st-trace-state[data-kind="loading"] .st-trace-state-dot{background:var(--st-brand);animation:st-pulse 1.2s ease-in-out infinite}@keyframes st-pulse{50%{opacity:.35}}
       [data-plugin="dsh-skill-trace"]{overflow:hidden;max-height:none;height:var(--st-host-h,100%);min-height:0;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.st-trace-state-dot{animation:none!important}}
 
@@ -182,23 +182,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
          按下时轻微下沉，读成"点到了"而不是"没反应"。 */
       /* 过渡：objective 明确要求。preview 没有过渡，但状态切换（hover / 聚焦降权 / 回放）
          若瞬变会读成"画面闪了一下"；160ms 足以让它读成一次状态变化。 */
-      /* §十二：Scope 是**证据边界**，不是容器。用节点淡边框 + 极淡底纹表达，
-         **不画包围盒、不画连线**——否则读起来就是 BPMN 的「Skill 工作流框」。
-         只有 observed / correlated 会被宿主投影进来；candidate / unlinked 不参与，
-         因此不会被同等强度误读为已确认关系。 */
-      .react-flow__edge-path{transition:stroke-width .16s ease,opacity .16s ease}
-      /* §十：React Flow 作为引擎保留，但**产品体验不是 Workflow Editor**。
-   可见的 source/target handle 会读成「可以拖线连接」——把它隐掉。
-   Handle 本身必须保留：删掉它 React Flow 就画不出边。 */
-      .react-flow__attribution{display:none}
-      /* S2 visual alignment: full-height canvas + right inspector */
-      .st-layout{flex:1;min-height:0}
-      /* §三 Inspector 是上下文工具，不永久压缩画布。
-         折叠只改列宽，**不动任何 Graph 数据**；Inspector 保持挂载以免重新取数。
-         窄屏媒体查询在其后，仍会覆盖为单列——折叠不改变响应式行为。 */
-      /* §27 圆角是例外不是默认：收起是次要操作，用无边框文字按钮，不新增一张"卡片"。 */
-      /* Receipt visual alignment: Page > Section > Row */
-      .st-topbar{min-height:72px;padding:0 18px;gap:18px;flex:none}
       .st-heading h1{font-size:17px}
       .st-view-switch{border-radius:9px}
       .st-view-button{height:32px;padding:0 11px}
@@ -949,7 +932,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     React.useEffect(() => {
       let cancelled = false
       setState((current) => ({ ...current, loading: true, error: '' }))
-      api(`/installed?sessionId=${encodeURIComponent(sessionId)}`)
+      api(`/catalog?sessionId=${encodeURIComponent(sessionId)}`)
         .then((body) => {
           if (cancelled) return
           const installed = body?.installed ?? null
@@ -1237,7 +1220,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
           : localized(`${data?.workspaceLabel || '工作区未连接'} · 可发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `${data?.workspaceLabel || 'Workspace not connected'} · ${catalogMeta.totalCount ?? 0} Skill(s) discoverable`)
 
     // 两个一级页面各自拥有自己的分栏（Skill 工作台是三栏、已安装列表是网格），所以它们
-    // 直接成为正文，不再套一层 `.st-layout` 的单列内边距。
+    // 直接成为正文，不再套一层单列内边距的包装。
     // §8：Skill Detail 是唯一的二级页面，两个列表共用它。返回目标来自进入时的列表（§8.4）。
     const detailContent = openSkill
       ? h(SkillDetailPage, {

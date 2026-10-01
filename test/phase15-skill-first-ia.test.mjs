@@ -508,7 +508,7 @@ test('A13: the host registers the Skill-first routes and refuses receipt as a de
   const host = readFileSync(new URL('../src/dsh/host/index.js', import.meta.url), 'utf8')
   assert.ok(host.includes("'/skill-trace/skills'"), 'the Skill list route must be registered')
   assert.ok(host.includes("'/skill-trace/skill'"), 'the Skill detail route must be registered')
-  assert.ok(host.includes("'/skill-trace/installed'"), 'the installed Skill page must have its own route (§7)')
+  assert.ok(host.includes("'/skill-trace/catalog'"), 'the installed Skill page must have its own route (§7)')
   assert.ok(host.includes("['current', 'installed']"), 'only the two first-level pages may be a default')
   assert.equal(host.includes("['receipt', 'map']"), false, 'the Session-first default is retired')
   assert.equal(host.includes("['skills', 'map']"), false, 'the v0.5 view vocabulary is retired with the pages it named')

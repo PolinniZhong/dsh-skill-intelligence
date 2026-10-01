@@ -60,7 +60,7 @@ test('§25.1 the current Skill list renders a card per loaded Skill', () => {
 })
 
 test('§25.1 the installed list is metadata only and needs no Definition read', () => {
-  const route = routeSource('/skill-trace/installed')
+  const route = routeSource('/skill-trace/catalog')
   assert.equal(route.includes('loadSkillDefinition'), false, 'listing Skills must not read their Definitions')
   assert.ok(route.includes('buildCatalogSnapshot'), 'the list comes from the registry snapshot')
   const view = buildInstalledView({ catalogSnapshot: snapshot(), query: '' })
