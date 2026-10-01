@@ -261,8 +261,10 @@ test('a trimmed segment cannot glue two lines together', () => {
 
 test('the junctions survive a model that trims every segment', async () => {
   // 模型 trim 输出是常态而不是异常；把预算压小，这样 fixture 会长出真正的接头。
+  // 用**会翻译**的假模型而不是原地返回：原地返回时 trim 只是删空白，翻译之后
+  // 段首那个 `## ` 才真的是接在别人后面。
   const budget = 90
-  const ask = async ({ chunk }) => chunk.source.trim()
+  const ask = async ({ chunk }) => fakeTranslate(chunk.source).trim()
   const result = await runSegmentedTranslation({
     definitionText: DEFINITION,
     skillName: 'ui-craft',
@@ -271,6 +273,7 @@ test('the junctions survive a model that trims every segment', async () => {
   })
   assert.ok(result.chunkCount > 1, 'the fixture has to actually be split, or this proves nothing')
   assert.equal(result.fallbackChunks, 0, 'trimming is not a reason to fall back')
+  assert.match(result.translation, /[\u4e00-\u9fff]/, 'this model really does translate')
   assert.deepEqual(
     headingLevelsOf(result.translation),
     headingLevelsOf(DEFINITION),
