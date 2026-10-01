@@ -266,6 +266,17 @@
 
 **故意没动的地方**：`CHANGELOG.md` 里各轮提到旧文件名的句子（那是各自那一轮的准确记录）、`docs/archive/` 三份正文（冻结）、`docs/archive/technical-design-v0.1-v0.5.md` §0 的过期数字（归档只作追溯）。
 
+### 十六、发布：GitHub Release 与 npm（全平台）
+
+`0.7.0` 是**全平台**发布：GitHub Release 与 npm 上是同一份构建，npm 的 `beta` 与 `latest` 都指向它。顺序上有一条硬规矩——**先把 README 改成「已发布」口径的那次提交推上去，然后才 `npm publish`**：npm 包页渲染的 README 是发布当时那份快照，反过来做的代价是包页带着一句「尚未发布」活到下一版。
+
+- 发布提交 `5fac5d9 release: v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走`；注释 tag `v0.7.0` → `9ceb019ba63039a8e56635d43ca00298b92a830b`，解引用到 `5fac5d9`（打在发布提交上）。
+- GitHub Release：<https://github.com/PolinniZhong/dsh-skill-trace/releases/tag/v0.7.0>，`Latest` 且非预发布，正文**直接取本节所属的 `CHANGELOG` 0.7.0 段**（266 行 / 38718 字节），没有第二份说明。
+- 口径提交 `9800098 docs: 0.7.0 已发到 npm —— 安装口径、状态表与发布清单同步`（`README.md` / `AGENTS.md` / `spec/PRD.md` / `spec/SDD.md` / `docs/RELEASE.md`）**先推**，npm 记录到的 `gitHead` 就是它——先发后推会留下永远 404 的 commit 链接。
+- npm：`npm publish --tag latest --cache=/tmp/npm-cache-dsh` → `dsh-skill-trace@0.7.0`（37 个文件 / 346.6 kB / 解包 1070413 字节 / shasum `015bbf75aee07c5dd921fdc093727e2795c1d155`），再用 `npm dist-tag add dsh-skill-trace@0.7.0 beta` 补第二个标签（同一个版本不能发布两次）。
+- **注册表约 3.5 分钟后才对上**：写操作返回的是「being processed」，`23:25:17` 才读到 `{ beta: '0.7.0', latest: '0.7.0' }`。读的是注册表 packument（带时间戳破缓存），不是 `npm view`。
+- 净室验证：空目录 `npm i dsh-skill-trace@0.7.0` → 版本 `0.7.0`、包内 `dist/client.js` 带 `min(72vh,640px)`、包内 README 写着 `dsh-skill-trace@0.7.0`、宿主入口可 import（`apply` / `createSessionMutationQueue` / `name` / `sessionEventLog` / `shouldPersistReceipt` / `skillEvidenceSignature`）。包页 README（21586 字符）含安装命令与「当前公开版为 `0.7.0`」，**不含**「尚未发布」。
+
 ## 0.6.1 — 2026-10-01 · `SKILL.md` 面板不再被框架层压成 2px
 
 **一次客户端补丁。** 信息架构、宿主接口、路由数量都没动：一级页面仍是「本次 Skill」「已安装 Skill」，二级页面仍是唯一的 Skill 详情，四层顺序仍是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。发布范围与 `0.5.0` / `0.6.0` 不同：**GitHub 与 npm 同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.6.1`。中间那两版只在 GitHub，所以 npm 的版本号是从 `0.4.0-beta.66` 直接跳过来的。

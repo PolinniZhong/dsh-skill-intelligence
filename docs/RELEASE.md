@@ -158,6 +158,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | `origin/main` | `5fac5d961fa7b01e91ef02f81c76c85a1dcee431` —— 与本地 `main` **0 领先 / 0 落后** |
 | tag | `v0.7.0` → 注释对象 `9ceb019ba63039a8e56635d43ca00298b92a830b`，解引用到 `5fac5d9`（打在发布提交上，符合规则） |
 | GitHub Release | <https://github.com/PolinniZhong/dsh-skill-trace/releases/tag/v0.7.0>（`Latest`，`prerelease=false`、`draft=false`），正文取 `CHANGELOG.md` 的 266 行 `## 0.7.0` 段 |
+| npm | **`beta` 与 `latest` 都指向 `0.7.0`**（§5 本次已执行）：口径提交 `9800098` **先推**，`gitHead` 就是它；37 个文件 / 346.6 kB / 解包 1070413 字节 / shasum `015bbf75aee07c5dd921fdc093727e2795c1d155`；约 3.5 分钟后注册表才对上；空目录安装验证通过 |
 | 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `GUARD_MARKERS_ARE_BACKED_OK` 与 `RELEASE_ASSETS_IN_SYNC_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129280 字节**（source hash `31d39c71f13aeeb8`），重建后 `git status` 无 `dist` 差异 |
 
 ### 6.0.1 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
