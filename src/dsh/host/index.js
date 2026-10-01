@@ -15,10 +15,14 @@ import { buildCatalogSnapshot, buildSourceSnapshots } from '../../core/source-sn
 import { buildInstalledView } from '../../core/installed-view.mjs'
 import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
 import {
-  buildTranslationMessages,
+  buildChunkMessages,
+  checkChunk,
+  chunkMasked,
   compareTranslationSource,
   DEFAULT_TRANSLATION_LANGUAGE,
   inspectTranslation,
+  maskProtected,
+  restoreProtected,
   TRANSLATION_ERROR,
 } from '../../core/skill-translation.mjs'
 import { buildSessionSkillList, buildSkillDetail } from '../../core/skill-view-model.mjs'
@@ -274,29 +278,85 @@ export function skillEvidenceSignature(receipt) {
  * `@deepseek-ai/dsh-llm` 用动态 import：解析失败只会让翻译不可用，不会让整个宿主插件
  * 起不来 —— 它是一个能力，不是一个启动依赖。
  */
+// 每次模型调用的输出上限。分段之后每段输入 ≤ 6000 字符，4096 的输出预算足够，
+// 也不会再出现「整篇译文被 maxTokens 截断」这种看不出来的失败。
+const TRANSLATION_MAX_TOKENS = 4096
+// 每段最多问两次。第二次仍不听话就**回退这一段**（显示原文），而不是丢掉整篇 ——
+// 用户宁可看到一段英文加一句说明，也不该看到「翻译失败」而一个字都没有。
+const TRANSLATION_ATTEMPTS_PER_CHUNK = 2
+
+/**
+ * 把定义正文翻成目标语言。
+ *
+ * 这里不再「一次性把 3 万字符交给模型然后祈祷它一个字符都不改」——那是 beta.69 翻译
+ * 一次都没成功的原因。现在必须逐字保留的片段（围栏、行内代码、URL、路径、frontmatter）
+ * 根本不进入请求，正文按空行分段逐段翻译，段内校验占位符与标题层级。
+ *
+ * 返回 `{ translation, chunkCount, fallbackChunks }`；`fallbackChunks` 是**回退到原文的
+ * 段数**，界面必须把它说出来，不能让用户以为整篇都翻好了。
+ */
 async function translateSkillDefinition({ llm, selection, skillName, definitionText, targetLanguage }) {
   const { BlockAssembler, createUserMessage } = await import('@deepseek-ai/dsh-llm')
-  const built = buildTranslationMessages({ skillName, definitionText, targetLanguage })
-  const messages = [createUserMessage({
-    content: [{ type: 'text', text: built.messages[0].content }],
-    source: { kind: 'dsh-skill-trace-translate' },
-  })]
-  const request = {
-    provider: selection.provider,
-    model: selection.model,
-    messages,
-    system: built.system,
-    maxTokens: 8192,
-  }
-  if (selection.reasoningEffort) request.reasoningEffort = selection.reasoningEffort
-  const assembler = new BlockAssembler()
-  for await (const chunk of llm.stream(request)) assembler.push(chunk)
-  const blocks = assembler.blocks()
-  // 只取文本块。模型若返回 tool-call，那段内容不属于译文，忽略即可 —— 后面的结构校验
-  // 会因为段落缺失而拒绝这份结果。
-  return blocks.filter((block) => block.type === 'text').map((block) => block.text).join('')
-}
 
+  const { masked, tokens } = maskProtected(definitionText)
+  const chunks = chunkMasked(masked)
+  const total = chunks.length
+
+  const askModel = async (system, body) => {
+    const messages = [createUserMessage({
+      content: [{ type: 'text', text: body }],
+      source: { kind: 'dsh-skill-trace-translate' },
+    })]
+    const request = {
+      provider: selection.provider,
+      model: selection.model,
+      messages,
+      system,
+      maxTokens: TRANSLATION_MAX_TOKENS,
+    }
+    if (selection.reasoningEffort) request.reasoningEffort = selection.reasoningEffort
+    const assembler = new BlockAssembler()
+    for await (const chunk of llm.stream(request)) assembler.push(chunk)
+    // 只取文本块。模型若返回 tool-call，那段内容不属于译文，忽略即可 —— 段内校验
+    // 会因为占位符缺失或标题不符而拒绝它。
+    return assembler.blocks().filter((block) => block.type === 'text').map((block) => block.text).join('')
+  }
+
+  const pieces = []
+  let fallbackChunks = 0
+  for (const chunk of chunks) {
+    const built = buildChunkMessages({
+      skillName,
+      chunkSource: chunk.source,
+      targetLanguage,
+      index: chunk.index,
+      total,
+    })
+    let accepted = null
+    for (let attempt = 0; attempt < TRANSLATION_ATTEMPTS_PER_CHUNK && accepted === null; attempt += 1) {
+      let produced = ''
+      try {
+        produced = await askModel(built.system, built.messages[0].content)
+      } catch {
+        produced = ''
+      }
+      if (checkChunk({ source: chunk.source, translation: produced, tokens }).ok) accepted = produced
+    }
+    if (accepted === null) {
+      // 回退的是**掩码态**原文，稍后与其它段一起还原，所以围栏与路径仍然是逐字的。
+      fallbackChunks += 1
+      pieces.push(chunk.source)
+    } else {
+      pieces.push(accepted)
+    }
+  }
+
+  return {
+    translation: restoreProtected(pieces.join(''), tokens),
+    chunkCount: total,
+    fallbackChunks,
+  }
+}
 export function apply(ctx, config = {}) {
   ctx.inject(['webServer', 'sessions', 'agents'], (webCtx) => {
     const dataRoot = typeof config.dataRoot === 'string' && config.dataRoot.trim() ? config.dataRoot.trim() : null
@@ -581,9 +641,9 @@ export function apply(ctx, config = {}) {
               sendJson(res, 429, { ok: false, code: TRANSLATION_ERROR.MODEL_BUSY, error: '当前没有可用的模型服务，稍后再试。' })
               return
             }
-            let translation = ''
+            let result = null
             try {
-              translation = await translateSkillDefinition({
+              result = await translateSkillDefinition({
                 llm,
                 selection,
                 skillName: definition.skillName,
@@ -594,6 +654,7 @@ export function apply(ctx, config = {}) {
               sendJson(res, 500, { ok: false, code: TRANSLATION_ERROR.TRANSLATION_FAILED, error: '翻译失败，可以重试。' })
               return
             }
+            const translation = result.translation
             // §14 是硬规则，不是提示词里的愿望。模型改动了围栏、URL、路径或标题层级时，
             // 宁可返回失败也不能把一份改坏结构的文档当成"中文预览"交给用户。
             const check = inspectTranslation({ source: definition.content.text, translation })
@@ -616,6 +677,10 @@ export function apply(ctx, config = {}) {
               truncated: definition.content.truncated === true,
               translation,
               preserved: check.preserved,
+              // 有段落回退到原文时必须说出来。用户看到一段英文而界面声称「已翻译」，
+              // 比看到「翻译失败」更糟 —— 那是在无声地骗他。
+              chunkCount: result.chunkCount,
+              fallbackChunks: result.fallbackChunks,
             })
             return
           }

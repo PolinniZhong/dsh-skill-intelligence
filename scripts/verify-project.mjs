@@ -133,7 +133,10 @@ for (const requiredText of [
   "'/skill-trace/definition'",
   "'/skill-trace/translate'",
   'buildInstalledView',
-  'buildTranslationMessages',
+  'buildChunkMessages',
+  'maskProtected',
+  'restoreProtected',
+  'checkChunk',
 ]) {
   if (!host.includes(requiredText)) throw new Error(`host contract missing: ${requiredText}`)
 }

@@ -752,7 +752,16 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
             setTab('original')
             return
           }
-          setTranslation({ state: 'ready', text, sha, error: '' })
+          // 宿主逐段翻译，有段落回退到原文时**必须说出来**：界面若声称「已翻译」
+          // 而正文里躺着一段英文，那是在无声地骗用户。
+          setTranslation({
+            state: 'ready',
+            text,
+            sha,
+            error: '',
+            chunkCount: Number(body?.chunkCount) || 0,
+            fallbackChunks: Number(body?.fallbackChunks) || 0,
+          })
         })
         .catch((reason) => {
           setTranslation({ state: 'error', text: '', sha, error: String(reason?.message || 'translation-failed') })
@@ -876,10 +885,18 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       : localized('原文逐字来自 Skill 定义文件；这里不做任何改写。', 'The original text comes from the Skill definition file verbatim; nothing here rewrites it.')))
 
     const translationState = translation.state === 'loading'
-      ? h('p', { className: 'st-translate-error' }, raw(localized('正在翻译…译文只留在内存里。', 'Translating… the result is kept in memory only.')))
+      // 分段翻译后这是一次**多段**调用，比原来的单次调用慢。等待时若不说清楚，用户会
+      // 以为界面卡死了 —— 而"以为卡死"的下一个动作通常是刷新，那会把进度全丢掉。
+      ? h('p', { className: 'st-translate-error' }, raw(localized('正在逐段翻译…整份文档会分成若干段依次翻译，可能需要一两分钟。译文只留在内存里。', 'Translating segment by segment — a long definition is split into several parts and translated in order, which can take a minute or two. The result is kept in memory only.')))
       : translation.state === 'error'
         ? h('p', { className: 'st-translate-error' }, raw(localized('翻译没有完成。可以重试，原文不受影响。', 'Translation did not finish. You can retry; the original is unaffected.')))
-        : null
+        : translation.state === 'ready' && translation.fallbackChunks > 0
+          // 部分成功也要说清楚，并给出段数：用户能自己数出哪几段还是英文。
+          ? h('p', { className: 'st-translate-error' }, raw(localized(
+            `有 ${translation.fallbackChunks} 段没有翻译成功，那几段显示的是原文。其余已翻译。`,
+            `${translation.fallbackChunks} section(s) could not be translated and are shown in the original language; the rest is translated.`,
+          )))
+          : null
 
     // §9.3：Outline 只做文档导航，不再表达"执行流程"。
     const outlineNav = outline.length
