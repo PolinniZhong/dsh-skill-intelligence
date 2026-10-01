@@ -23,7 +23,7 @@
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 
-`CHANGELOG.md` 的 `Unreleased` 段已经把新增能力、证据词表的设计理由与工程数字都写进去了，GitHub Release 的 notes 直接取它，**不要另写一份**；发布时把标题里的 `Unreleased` 换成版本号与日期即可。
+`CHANGELOG.md` 的 `Unreleased` 段已经把新增能力、证据词表的设计理由与工程数字都写进去了，GitHub Release 的 notes 直接取它，**不要另写一份**；发布时把标题里的 `Unreleased` 换成版本号与日期即可——`v0.6.0` 已按此执行（标题现为 `## 0.6.0 — 2026-10-01 · Skill 详情拆成四层…`，Release 正文就是它的前 69 行）。
 
 ---
 
@@ -131,6 +131,20 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 > 以下六步来自 `0.4.0-beta.7` → `0.4.0-beta.13` 的一次真实事故：
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
+
+### 6.0 本次 `v0.6.0` 的实际结果（2026-10-01 已执行）
+
+| 项 | 结果 |
+|---|---|
+| 发布提交 | `9e9e6b3 release: v0.6.0 — Skill 详情拆成四层：框架 / 运行逻辑 / 步骤证据 / 表格`（`package.json` `0.6.0`） |
+| `origin/main` | `9e9e6b3f906ab995e99d078ac0e0be025110a1a3` —— 与本地 `main` **0 领先 / 0 落后** |
+| tag | `v0.6.0` → 注释对象 `a0462c21087f00cd76974817224fb73c132fd645`，解引用到 `9e9e6b3`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-trace/releases/tag/v0.6.0>（`Latest`），正文取 `CHANGELOG.md` 的 69 行 `## 0.6.0` 段 |
+| npm | `beta` 与 `latest` **仍都是 `0.4.0-beta.66`** —— §5 整节按计划跳过，这是**已知状态**不是漂移 |
+| 运行中的 profile | `core-020`，`node_modules/dsh-skill-trace` 是 **`link:` 到工作区**的软链（`~/.dsh/profiles/core-020/package.json:15`），所以它**已经**在读 `0.6.0`，**不需要**执行 §6.2 的 GitHub 安装 |
+| 宿主探针 | `/skill-trace/context` 200、`/skill-trace/catalog` 200；真实会话 `skills` 列表 `ui-craft` / `available` / `runCount 1` |
+
+> `npm view` 若报 `EPERM … Your cache folder contains root-owned files`，是**本机 `~/.npm` 属主问题**，与发布无关；加 `--cache /tmp/npm-cache-probe` 即可读到 dist-tags。
 
 ### 6.1 从运行中的进程反查它加载了什么
 
