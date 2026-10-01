@@ -33,12 +33,9 @@ for (const requiredText of [
   'Skill 收据',
   '运行流程',
   "localStorage.setItem(VIEW_KEY",
-  "view === 'receipt'",
   '当前对话暂未加载可追踪的 Skill。',
-  '暂时无法确认当前对话是否加载了 Skill。',
-  "'data-simple': 'true'",
-  'method.callCount',
   'model.events',
+  'method.callCount',
   "api('/preferences'",
   '本次 Skill 使用记录',
   '本次流程小结',
@@ -432,7 +429,9 @@ for (const forbidden of ['runtimeEvents', 'evidenceIds', '/context?', 'arguments
 if (!/follows:\s*\{[^}]*dashed:\s*true/.test(canvas)) {
   throw new Error('the follows relation must be drawn dashed')
 }
-if (!client.includes('h(FlowCanvas')) throw new Error('运行流程 must render the Runtime Flow canvas')
+// v0.6 §4：运行流程不再是页面，也不再是任何页面的正文。组件暂时留在文件里（下一步随它的
+// 其余测试一起删除），但页面不得再渲染它 —— 否则「Runtime 降级成事实层」就只是把入口藏起来。
+if (client.includes('h(FlowCanvas')) throw new Error('运行流程 must not be rendered by any page any more (§4)')
 if (!client.includes('installFlowStyles')) throw new Error("React Flow's stylesheet must be installed by the client")
 
 // ELK-assisted layout (§12/§34/§35/§36).
@@ -522,8 +521,10 @@ for (const name of ['FlowCanvas', 'RuntimeView']) {
 }
 // §22 lists "all events" as its own control, not as the absence of a toggle.
 if (!client.includes("'显示全部事件'")) throw new Error('§22: the graph view needs an explicit all-events control')
-if (!/alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client)) {
-  throw new Error('the inspector must receive the declaration baseline')
+// v0.6 §4：Runtime Inspector 不再有任何页面消费者，所以这条接线必须消失（先是 UI，再是
+// View consumer，最后才是 Host route 与图表代码 —— 每一步都要能构建、能跑测试）。
+if (/alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client)) {
+  throw new Error('the runtime inspector must not be wired into a page any more (§4)')
 }
 
 // Runtime replay (§37). It is a read of the Host's timeline: stepping must not be
@@ -611,8 +612,9 @@ for (const requiredText of ['仅显示主路径', '只看失败/重试', 'FILTER
 }
 // §22's default is the main path, and what is hidden is always stated.
 if (!/已隐藏|Hiding/.test(client)) throw new Error('a filtered canvas must state what it hid')
-if (!client.includes("view === 'runtime' ? 'graph' : 'flow'")) {
-  throw new Error('the graph view must be allowed its own density (§21)')
+// v0.6 §4：视图驱动的 graph/flow 密度选择随运行图谱一起消失。
+if (client.includes("view === 'runtime' ? 'graph' : 'flow'")) {
+  throw new Error('the client must not pick a graph density from a view that is no longer a page (§4)')
 }
 if (!canvasModule.includes("density === 'graph' ? 'bottom-left' : 'top-right'")) {
   throw new Error('the graph legend must move to the bottom-left (§21)')

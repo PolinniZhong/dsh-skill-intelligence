@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 /**
- * The default view is the Skill list.
+ * The default page is the list of Skills this conversation loaded.
  *
  * Under the old Session-first IA the first screen was the runtime map, and the client wrote that
  * default down without ever asking. So a stored `map` is ambiguous: it is either a deliberate
@@ -13,14 +13,19 @@ import { join } from 'node:path'
  *
  * Intent cannot be recovered from a file that never recorded it, so this store records it going
  * forward: `version` names the IA whose default was in effect when the file was written. **Reading**
- * an unversioned file therefore means "no preference stated" and normalises to the Skill list;
- * **writing** always stamps the current version, so a view the user picks now survives.
- * `receipt` is not a first-level view at all any more; `map` stays valid once it was chosen under
- * the current version, because picking the runtime map is then a deliberate act.
+ * an unversioned file therefore means "no preference stated" and normalises to the current list;
+ * **writing** always stamps the current version, so a page the user picks now survives.
+ *
+ * v3 drops the v0.5 vocabulary entirely. `skills`/`map`/`receipt` were *views of a session*; v0.6's
+ * two first-level pages are the two questions a user actually asks — which Skills did this run
+ * load, and which Skills can this environment discover. The runtime flow, the runtime graph and the
+ * receipt are no longer pages at all (§4), so a stored `map` from v2 is not a page we can honour:
+ * the version bump turns it into "no preference stated" and the reader lands on the Skill list.
+ * That is the intended outcome, not a side effect.
  */
-const PREFERENCES_VERSION = 2
-const DEFAULT_VIEWS = Object.freeze(['skills', 'map'])
-const DEFAULT_PREFERENCES = Object.freeze({ version: PREFERENCES_VERSION, defaultView: 'skills' })
+const PREFERENCES_VERSION = 3
+const DEFAULT_VIEWS = Object.freeze(['current', 'installed'])
+const DEFAULT_PREFERENCES = Object.freeze({ version: PREFERENCES_VERSION, defaultView: 'current' })
 
 function defaultRoot() {
   return join(homedir(), '.dsh', 'skill-trace')

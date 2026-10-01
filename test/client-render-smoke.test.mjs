@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { seedRequire } from './helpers/react-stub.mjs'
 
 // A smoke render of the client's real entry point.
@@ -24,17 +24,35 @@ const source = readFileSync(join(CLIENT_DIR, 'client.js'), 'utf8')
  * A require that resolves the seed words, React Flow's stub, stylesheets as text, and
  * the client's own relative modules by evaluating them the same way.
  */
+/**
+ * The smoke harness evaluates modules as CommonJS, but `src/core/*.mjs` are ESM.
+ * esbuild rewrites them for the real bundle; this lowers the one export shape the
+ * client actually imports — named `export function` declarations — and fails loudly
+ * on anything else so a new export form cannot be lowered silently.
+ */
+function lowerEsmToCjs(code, target) {
+  const names = [...code.matchAll(/^export function (\w+)/gm)].map((match) => match[1])
+  const stripped = code.replace(/^export function (\w+)/gm, 'function $1')
+  if (/^export /m.test(stripped)) {
+    throw new Error(`client-modules: ${target} uses an export form this harness cannot lower`)
+  }
+  return `${stripped}\nmodule.exports = { ${names.join(', ')} }\n`
+}
+
 function makeRequire(file, required = [], cache = new Map()) {
   const seeds = seedRequire(required)
   return (spec) => {
     if (spec === '@xyflow/react') return REACT_FLOW_STUB
     if (spec.endsWith('.css')) return '/* stylesheet */'
-    if (spec.startsWith('./')) {
-      const target = join(CLIENT_DIR, spec.slice(2))
+    // 相对路径按**当前文件**解析，而不是一律按 client 目录：客户端现在会 import
+    // `../../core/installed-view.mjs`（搜索谓词必须与宿主共用一份）。
+    if (spec.startsWith('./') || spec.startsWith('../')) {
+      const target = resolve(dirname(file), spec)
       if (cache.has(target)) return cache.get(target)
       const module = { exports: {} }
       cache.set(target, module.exports)
-      const code = readFileSync(target, 'utf8')
+      const raw = readFileSync(target, 'utf8')
+      const code = target.endsWith('.mjs') ? lowerEsmToCjs(raw, target) : raw
       // eslint-disable-next-line no-new-func
       new Function('require', 'module', 'exports', code)(makeRequire(target, required, cache), module, module.exports)
       cache.set(target, module.exports)
@@ -63,7 +81,7 @@ const REACT_FLOW_STUB = {
 function loadClient(overrides = {}) {
   const seeds = seedRequire()
   const module = { exports: {} }
-  const req = makeRequire('client.js')
+  const req = makeRequire(join(CLIENT_DIR, 'client.js'))
   const globals = {
     window: {
       addEventListener() {}, removeEventListener() {},
@@ -203,7 +221,7 @@ test('the client registers and its entry component renders without throwing', as
   const required = []
   const seeds = seedRequire(required)
   const module = { exports: {} }
-  const req = makeRequire('client.js')
+  const req = makeRequire(join(CLIENT_DIR, 'client.js'))
   const globals = {
     window: {
       addEventListener() {}, removeEventListener() {},

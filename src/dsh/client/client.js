@@ -10,6 +10,9 @@
 // verbatim and does not bundle it.
   const React = require('react')
 const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayout } = require('./runtime-flow.js')
+// 纯函数、无 node 内置依赖，所以能被内联进客户端。搜索必须和宿主用同一个谓词，
+// 否则「搜得到」会随请求发往哪一端而变化。
+const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -214,7 +217,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
   // 插件仍然开在运行地图上——正好是这次重构要换掉的那一屏。文件里没有字段能区分"选择"和"旧缺省"，
   // 所以**没有版本号的偏好一律视为"从未表达过"**，回落到 query / localStorage / 新的第一屏。
   // 这样旧宿主（还不带 version）与新宿主（带 version）都能得到正确结果，不必等宿主重启。
-  const PREFERENCE_VERSION = 2
+  const PREFERENCE_VERSION = 3
   const FLOW_STYLE_ID = 'dsh-skill-trace-flow-style'
   const DRAFT_KEY = 'dsh-skill-trace.unsaved-drafts.v1'
   const DRAFT_LIMIT = 24
@@ -798,6 +801,18 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       .st-advanced-item:hover{background:var(--st-layer-2)}
       .st-advanced-item[data-active="true"]{color:var(--st-brand)}
       .st-advanced-off{margin-left:auto;color:var(--st-faint);font-size:10.5px}
+      /* v0.6 §7「已安装 Skill」：搜索 + 两列卡片。卡片上只有名称、描述、调用方式与来源 ——
+       * 没有学习状态、验证状态或 review queue，那些是 v0.5 的学习工作台，按 §4 从主模型消失。 */
+      .st-installed{padding:22px 24px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto}
+      .st-installed-search{display:flex;align-items:center;gap:8px;max-width:520px;color:var(--st-text-tertiary)}
+      .st-installed-search input{flex:1;height:34px;padding:0 11px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:13px}
+      .st-installed-search input:focus-visible{outline:2px solid var(--st-accent);outline-offset:1px}
+      .st-installed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
+      .st-installed-card{display:flex;flex-direction:column;gap:7px;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface)}
+      .st-installed-card-name{font-size:14.5px;font-weight:600;color:var(--st-text)}
+      .st-installed-card-desc{margin:0;font-size:12.5px;line-height:1.6;color:var(--st-text-secondary)}
+      .st-installed-card-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--st-text-tertiary)}
+      @media(max-width:980px){.st-installed-grid{grid-template-columns:minmax(0,1fr)}}
       /* §11 断点：1180 收窄左右栏，980 收起证据栏（与 Demo 一致）。
        * 再窄时连定义目录一起收起，只留声明流程——总比三栏互相压成一列可读性更差要强。 */
       @media(max-width:1180px){.st-audit{grid-template-columns:250px minmax(0,1fr) 350px}}
@@ -2254,6 +2269,77 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         'Skill Trace is not an Agent Trace Viewer. It places the Skill’s original definition, declared flow, runtime evidence and repository source on one line of understanding.')))
   }
 
+  /**
+   * v0.6 §7「已安装 Skill」。
+   *
+   * 它回答的是「当前 DSH 环境里能发现哪些 Skill」，所以**不读收据** —— 卡片上没有学习状态、
+   * 验证状态、历史理解或 review queue。那些是 v0.5 的学习工作台，按 §4 从主模型消失。
+   *
+   * 端点缺席时必须说成**错误**，不能写成"没有 Skill"：宿主只在启动时装载一次插件，所以
+   * "客户端已经更新、宿主进程还是旧版"会让这个页面读不到数据 —— 那是两种相反的事实
+   * （同类事故见 resolveSkillListState 的注释）。整页崩溃更糟：一个页面拿到坏输入就把
+   * conversation.view 整个卸载，用户看到的是白屏。
+   */
+  function InstalledSkillsPage({ sessionId, query, onQueryChange, reloadSignal, onMeta, onRetry }) {
+    const [state, setState] = React.useState({ loading: true, error: '', installed: null })
+    React.useEffect(() => {
+      let cancelled = false
+      setState((current) => ({ ...current, loading: true, error: '' }))
+      api(`/installed?sessionId=${encodeURIComponent(sessionId)}`)
+        .then((body) => {
+          if (cancelled) return
+          const installed = body?.installed ?? null
+          setState({ loading: false, error: '', installed })
+          onMeta?.(installed)
+        })
+        .catch((reason) => {
+          if (cancelled) return
+          setState({ loading: false, error: String(reason?.message || 'unavailable'), installed: null })
+          // 页头也要知道「读不到」：只报 null 的话，正文说读取失败、页头还在说"正在读取"，
+          // 同一屏上两句话互相打脸（这就是 sessionSubtitle 注释里那条规矩的由来）。
+          onMeta?.({ error: true })
+        })
+      return () => { cancelled = true }
+    }, [sessionId, reloadSignal, onMeta])
+
+    if (state.error) {
+      return h(TraceState, {
+        kind: 'error',
+        message: '暂时无法读取已安装 Skill。宿主可能仍在运行旧版本，重启 DSH 后再试。',
+        onRetry: onRetry,
+      })
+    }
+    if (state.loading && !state.installed) return h(TraceState, { kind: 'loading', message: '正在读取当前环境的 Skill 目录…' })
+
+    const skills = state.installed?.skills ?? []
+    const needle = String(query || '').trim()
+    const visible = needle ? skills.filter((skill) => matchesInstalledQuery(skill, needle)) : skills
+
+    return h('div', { className: 'st-installed' },
+      h('div', { className: 'st-installed-search' },
+        h(Icon, { name: 'search', size: 15 }),
+        h('input', {
+          type: 'search',
+          value: query || '',
+          placeholder: localized('按名称或描述搜索 Skill', 'Search Skills by name or description'),
+          'aria-label': localized('搜索已安装 Skill', 'Search installed Skills'),
+          onChange: (event) => onQueryChange(event.target.value),
+        })),
+      visible.length
+        ? h('div', { className: 'st-installed-grid' }, visible.map((skill) => h('article', { key: skill.name, className: 'st-installed-card' },
+          h('div', { className: 'st-installed-card-name' }, skill.name),
+          skill.description ? h('p', { className: 'st-installed-card-desc' }, skill.description) : null,
+          h('div', { className: 'st-installed-card-meta' },
+            h('span', null, skill.invocation.modelInvocable
+              ? localized('模型可调用', 'Model-invocable')
+              : localized('不可由模型调用', 'Not model-invocable')),
+            skill.invocation.userInvocable ? h('span', null, localized('可用 /name 调用', 'Invocable with /name')) : null,
+            skill.provider ? h('span', null, skill.provider) : null))))
+        : h('p', { className: 'st-audit-empty' }, needle
+          ? localized('没有匹配的 Skill。', 'No Skill matches.')
+          : localized('当前环境暂未发现可用的 Skill。', 'No Skill is discoverable in this environment.')))
+  }
+
   function CatalogPage({ sessionId, context, onContextChange, reloadSignal, onMeta, onDataCleared }) {
     const [data, setData] = React.useState(null)
     const [loading, setLoading] = React.useState(true)
@@ -3090,10 +3176,17 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       () => localeService.getSnapshot().revision,
     )
     const sessionId = props?.sessionId
+    // v0.6 §7：一级页面只有两个 —— 「本次 Skill」（这次对话加载过哪些）与「已安装 Skill」
+    // （当前 DSH 环境能发现哪些）。运行流程、运行图谱、Skill 收据已经不是页面了（§4），
+    // 所以它们不在白名单里，也不再有任何入口。
+    //
     // 视图白名单只有三处：query、localStorage、host preference（第四处是 __views 的导出）。
-    // `audit` 是旧的「定义视图」键，已经并入 `skills`：老书签必须落到新的第一屏，而不是白屏。
-    const VIEW_KEYS = ['skills', 'map', 'runtime', 'receipt']
-    const normalizeView = (value) => (value === 'audit' ? 'skills' : VIEW_KEYS.includes(value) ? value : null)
+    const PAGES = ['current', 'installed']
+    // 旧键必须落到**新的**第一屏，而不是白屏：`skills`/`audit`/`map`/`runtime`/`receipt`
+    // 都是 v0.5 的会话视图，`catalog` 是旧的「我的 Skill」工作台。老书签与老存储值都会
+    // 经过这里，所以「被删掉的页面」永远不会以空白的形式复活。
+    const LEGACY_VIEWS = { skills: 'current', audit: 'current', map: 'current', runtime: 'current', receipt: 'current', catalog: 'installed' }
+    const normalizeView = (value) => (PAGES.includes(value) ? value : LEGACY_VIEWS[value] ?? null)
     let queryView = null
     try {
       queryView = normalizeView(new URLSearchParams(window.location.search).get('view'))
@@ -3101,12 +3194,10 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const initialView = (() => {
       if (queryView) return queryView
       try {
-        return normalizeView(localStorage.getItem(VIEW_KEY)) ?? 'skills'
-      } catch { return 'skills' }
+        return normalizeView(localStorage.getItem(VIEW_KEY)) ?? 'current'
+      } catch { return 'current' }
     })()
     const [view, setView] = React.useState(initialView)
-    const [screen, setScreen] = React.useState('session')
-    const [advancedOpen, setAdvancedOpen] = React.useState(false)
     const [data, setData] = React.useState(null)
     const [selectedNode, setSelectedNode] = React.useState(null)
     const [loading, setLoading] = React.useState(true)
@@ -3125,7 +3216,6 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     const [showAllTick, setShowAllTick] = React.useState(0)
     const preferenceSession = React.useRef(null)
     const rootRef = React.useRef(null)
-    const advancedRef = React.useRef(null)
     const [hostComposerHeight, setHostComposerHeight] = React.useState(0)
 
     React.useLayoutEffect(() => {
@@ -3167,7 +3257,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
         observer.disconnect()
         window.removeEventListener('resize', measure)
       }
-    }, [screen, view])
+    }, [view])
 
     // §Layout Contract: this plugin is **embedded**, so its height must come from the host's
     // content area, never from the browser viewport. Every wrapper between the host slot and
@@ -3209,7 +3299,7 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       // matter (host shown, host resized) at no layout cost.
       window.addEventListener('resize', measure)
       return () => window.removeEventListener('resize', measure)
-    }, [screen, view])
+    }, [view])
 
     const load = React.useCallback(async () => {
       if (!sessionId) { setError('当前视图没有可用的会话 ID'); setLoading(false); return }
@@ -3255,36 +3345,13 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
       setCatalogMeta(null); preferenceSession.current = null; load()
     }, [load])
 
-    const wantedDetail = view === 'runtime' ? 'graph' : 'flow'
-    React.useEffect(() => {
-      if (view !== 'runtime' && view !== 'map') return
-      if (runtimeLoading || runtime?.detail === wantedDetail) return
-      loadRuntime(wantedDetail)
-    }, [view, runtime, runtimeLoading, loadRuntime, wantedDetail])
-
-    // §Nav Contract: 高级菜单是本地状态，不写进 URL 也不写进 host preference。点空白处必须关掉，
-    // 否则它会盖住右栏，而且没有别的方式收起（`<details>` 在这里也要满足同样的关闭行为）。
-    React.useEffect(() => {
-      if (!advancedOpen) return undefined
-      const closeOnOutside = (event) => {
-        const node = advancedRef.current
-        if (node && !node.contains(event.target)) setAdvancedOpen(false)
-      }
-      document.addEventListener('mousedown', closeOnOutside)
-      return () => document.removeEventListener('mousedown', closeOnOutside)
-    }, [advancedOpen])
-
     function chooseView(next) {
-      setScreen('session'); setView(next); setError(''); setInspect(null); setReplayActive(false)
-      setAdvancedOpen(false)
+      setView(next); setError(''); setInspect(null); setReplayActive(false)
       try { localStorage.setItem(VIEW_KEY, next) } catch (_) {}
-      // `runtime` and `receipt` stay session-local: the host preference schema only knows
-      // 'skills' and 'map', and a first-run default of "runtime graph" would be wrong for a
-      // session that has no runtime events yet. A POST of anything else would be rejected.
-      if (next !== 'skills' && next !== 'map') return
+      // §7：两个一级页面都可以成为用户的默认页，所以两者都写回宿主偏好。
       api('/preferences', { method: 'POST', body: JSON.stringify({ defaultView: next }) })
         .then((body) => { setError(''); setData((current) => current ? { ...current, preferences: body.preferences } : current) })
-        .catch(() => setError('默认视图已切换，但暂时无法保存到下次启动。'))
+        .catch(() => setError('默认页面已切换，但暂时无法保存到下次启动。'))
     }
 
     const coverageState = data?.receipt?.coverage?.status === 'verified-standard-contract' ? 'active' : 'unknown'
@@ -3295,64 +3362,42 @@ const { RuntimeFlowView, flowStylesheet, STATUS_COLORS, FILTER_TYPES, filterLayo
     // 放在第一屏会把「本次用了哪些 Skill」重新变成「本次运行了多少东西」。
     const loadedTraces = (data?.receipt?.traceEvents ?? []).filter((trace) => trace?.status === 'loaded')
     const loadedSkillCount = new Set(loadedTraces.map((trace) => trace?.skillName).filter(Boolean)).size
-    const canvasView = screen === 'session' && (view === 'map' || view === 'runtime') && hasRuntimeEvidence
-
-    const runtimeProps = {
-      alignments: data?.views?.receipt?.runtime?.alignments,
-      skillLoads: runtime?.skillLoads,
-      learningSessionId: data?.receipt?.sessionId,
-      learningCards: data?.views?.receipt?.learningCards,
-      learningNotes: data?.receipt?.learningNotes,
-      onUpdateLearning: (body) => setData((current) => ({ ...current, receipt: body.receipt, views: body.views })),
-      data: runtime,
-      loading: runtimeLoading,
-      error: runtimeError,
-      onRetry: loadRuntime,
-      inspect,
-      inspectLoading,
-      inspectError,
-      onSelect: selectRuntime,
-      onCloseInspect: () => setInspect(null),
-      replayActive,
-      onReplayActiveChange: setReplayActive,
-      fitSignal: fitTick,
-      showAllSignal: showAllTick,
-    }
-
+    // v0.6 §4：Runtime 视图（运行流程 / 运行图谱 / Runtime Inspector / Runtime Replay）已经不是
+    // 页面，也不再有任何入口。这里只留下「本次 Skill」这一条正文路径 —— 少掉的分支不是被藏起来，
+    // 而是没有消费者的 UI（组件本身要等客户端不再引用后才删，见 §4 的清理顺序）。
     const sessionContent = loading && !data ? h(TraceState, { kind: 'loading', message: '正在读取当前对话的 Skill 使用情况…' })
       : error && !data ? h(TraceState, { kind: 'error', message: '暂时无法读取当前对话的 Skill 使用情况。', onRetry: load })
-        : view === 'skills' ? h(SkillWorkbench, { sessionId, data, loading, error, onRetry: load, loadedSkillCount })
-        : view === 'runtime' && hasRuntimeEvidence ? h(RuntimeView, runtimeProps)
-          : view === 'map' && hasRuntimeEvidence ? h(FlowCanvas, runtimeProps)
-            : data && !hasTrace && !hasRuntimeEvidence ? h(TraceState, { kind: 'empty', message: data.receipt.coverage?.status === 'coverage-unknown' ? '暂时无法确认当前对话是否加载了 Skill。' : '当前对话暂未加载可追踪的 Skill。' })
-              : view === 'receipt' ? h(ReceiptView, { model: activeModel, workspaceLabel: data.workspaceLabel })
-                : h(MapView, { model: activeModel, selectedNode, onSelectNode: setSelectedNode })
+        : h(SkillWorkbench, { sessionId, data, loading, error, onRetry: load, loadedSkillCount })
 
     // 页头必须和正文说同一件事。此前 `!data` 一律显示"正在读取"，于是 Error 态下
     // 页头写"正在读取"、正文写"暂时无法读取"——**同一屏上两句话互相矛盾**（截图发现）。
     const sessionSubtitle = !data
       ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
-      : view === 'skills' && data ? localized(`${data.workspaceLabel} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
-      : view === 'runtime' ? (runtime ? localized(`运行图谱 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 边 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime graph · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} edges · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行图谱…`, `${data.workspaceLabel} · rebuilding the runtime graph…`))
-        : view === 'map' && hasRuntimeEvidence ? (runtime ? localized(`运行流程 · ${runtime.layout.stats.renderedNodeCount} 节点 / ${runtime.layout.stats.renderedEdgeCount} 关系 · 原图 ${runtime.layout.stats.graphNodeCount} 节点`, `Runtime flow · ${runtime.layout.stats.renderedNodeCount} nodes / ${runtime.layout.stats.renderedEdgeCount} relations · graph has ${runtime.layout.stats.graphNodeCount}`) : localized(`${data.workspaceLabel} · 正在重建运行流程…`, `${data.workspaceLabel} · rebuilding the runtime flow…`))
-          : hasTrace ? localized(`${data.workspaceLabel} · ${activeModel.methodCount} 个 Skill 请求 · ${activeModel.eventCount} 次加载`, `${data.workspaceLabel} · ${activeModel.methodCount} Skill request(s) · ${activeModel.eventCount} load(s)`) : data.workspaceLabel
-    const catalogSubtitle = !catalogMeta ? '正在读取当前目录…' : catalogMeta.coverage.status === 'coverage-unknown' ? localized('当前目录无法确认 · 仅显示本地历史', 'Catalog cannot be confirmed · Showing local history only') : catalogMeta.coverage.status === 'incomplete' ? localized(`目录可能不完整 · 已发现 ${catalogMeta.observedCandidateCount ?? 0} 个候选`, `Catalog may be incomplete · ${catalogMeta.observedCandidateCount ?? 0} candidate(s) found`) : localized(`当前可发现 ${catalogMeta.currentDiscoverableCount ?? 0} 个 Skill · ${data?.workspaceLabel || '工作区未连接'}`, `${catalogMeta.currentDiscoverableCount ?? 0} Skill(s) currently discoverable · ${data?.workspaceLabel || 'Workspace not connected'}`)
+      : localized(`${data.workspaceLabel} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
+    // 已安装列表的页头只说「这次发现是否完整」与「发现了多少个」。它不引用 receipt，
+    // 也不显示学习/验证历史 —— 页头和正文必须说同一件事（见 sessionSubtitle 的注释）。
+    const catalogSubtitle = !catalogMeta
+      ? localized('正在读取当前环境…', 'Reading this environment…')
+      : catalogMeta.error
+        ? localized('已安装 Skill 读取失败 · 宿主可能仍在运行旧版本', 'Could not read the installed Skills · the Host may be running an older build')
+      : catalogMeta.coverage === 'unknown'
+        ? localized('当前目录无法确认 · 只显示已确认的部分', 'Catalog cannot be confirmed · Showing only what was confirmed')
+        : catalogMeta.coverage === 'incomplete'
+          ? localized(`目录可能不完整 · 已发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `Catalog may be incomplete · ${catalogMeta.totalCount ?? 0} Skill(s) found`)
+          : localized(`${data?.workspaceLabel || '工作区未连接'} · 可发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `${data?.workspaceLabel || 'Workspace not connected'} · ${catalogMeta.totalCount ?? 0} Skill(s) discoverable`)
 
-    const showAll = () => {
-      setShowAllTick((value) => value + 1)
-      setInspect(null)
-    }
-    const content = screen === 'catalog'
-      ? h(CatalogPage, { sessionId, context: catalogContext, onContextChange: setCatalogContext, reloadSignal: catalogReload, onMeta: setCatalogMeta, onDataCleared: () => { setCatalogReload((value) => value + 1); load() } })
-      // The Skill Workbench owns its own three columns, so it must NOT sit inside
-      // `.st-layout`'s single padded column — that would make it a two-column page with a
-      // three-column page squeezed into column one.
-      : view === 'skills' ? sessionContent
-      : h('div', { className: 'st-layout', 'data-simple': 'true', 'data-canvas': canvasView ? 'true' : 'false' },
-        h('main', { className: 'st-main', 'aria-busy': loading, 'data-view': view },
-          error && data ? h('div', { className: 'st-error', role: 'alert' }, error) : null,
-          sessionContent,
-null))
+    // 两个一级页面各自拥有自己的分栏（Skill 工作台是三栏、已安装列表是网格），所以它们
+    // 直接成为正文，不再套一层 `.st-layout` 的单列内边距。
+    const content = view === 'installed'
+      ? h(InstalledSkillsPage, {
+        sessionId,
+        query: catalogContext.query,
+        onQueryChange: (next) => setCatalogContext((current) => ({ ...current, query: next })),
+        reloadSignal: catalogReload,
+        onMeta: setCatalogMeta,
+        onRetry: () => setCatalogReload((value) => value + 1),
+      })
+      : sessionContent
 
     return h('section', { ref: rootRef, 'data-plugin': 'dsh-skill-trace', 'data-conversation-composer-overlay': '', className: hostComposerHeight ? 'st-host' : undefined, style: {
       // --st-host-composer-h keeps this panel clear of the host composer; --st-host-h is the
@@ -3360,31 +3405,20 @@ null))
       // custom properties, so an absent measurement simply falls back in CSS.
       ...(hostComposerHeight ? { '--st-host-composer-h': `${hostComposerHeight}px` } : null),
       ...(hostHeight ? { '--st-host-h': `${hostHeight}px` } : null),
-    }, 'aria-label': screen === 'catalog' ? 'DSH Skill Trace 我的 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
+    }, 'aria-label': view === 'installed' ? 'DSH Skill Trace 已安装 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
         h('div', { className: 'st-heading' },
           h('div', { className: 'st-heading-line' },
-            h('span', { className: 'st-live', 'data-state': screen === 'catalog' && catalogMeta?.coverage?.status !== 'complete' ? 'unknown' : coverageState }),
-            h('h1', null, screen === 'catalog' ? '我的 Skill' : '本次 Skill')),
-          h('div', { className: 'st-workspace' }, screen === 'catalog' ? catalogSubtitle : sessionSubtitle)),
-        // §Nav Contract: 第一层永远是 Skill（本次 Skill / 我的 Skill）；运行流程、运行图谱、
-        // Skill 收据全部收进「高级」。它们只是**入口**搬了家，组件与能力没有减少；
-        // `hasRuntimeEvidence` / `hasTrace` 的临时门禁也只作用在高级菜单里。
-        h('div', { className: 'st-view-switch', role: 'group', 'aria-label': '当前会话呈现方式' },
-          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': screen === 'session' && view === 'skills', onClick: () => chooseView('skills') }, h(Icon, { name: 'skill', size: 15 }), localized('本次 Skill', 'Skills in this run')),
-          h('div', { className: 'st-advanced', ref: advancedRef },
-            h('button', { className: 'st-view-button', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': advancedOpen ? 'true' : 'false', onClick: () => setAdvancedOpen((value) => !value) }, localized('高级', 'Advanced'), h('i', { 'aria-hidden': 'true' }, '▾')),
-            advancedOpen ? h('div', { className: 'st-advanced-menu', role: 'menu' },
-              hasRuntimeEvidence ? h('button', { className: 'st-advanced-item', type: 'button', role: 'menuitem', 'data-active': screen === 'session' && view === 'map' ? 'true' : undefined, onClick: () => chooseView('map') }, h(Icon, { name: 'map', size: 15 }), localized('运行流程', 'Runtime flow')) : null,
-              hasRuntimeEvidence ? h('button', { className: 'st-advanced-item', type: 'button', role: 'menuitem', 'data-active': screen === 'session' && view === 'runtime' ? 'true' : undefined, onClick: () => chooseView('runtime') }, h(Icon, { name: 'graph', size: 15 }), localized('运行图谱', 'Runtime graph')) : null,
-              hasTrace ? h('button', { className: 'st-advanced-item', type: 'button', role: 'menuitem', 'data-active': screen === 'session' && view === 'receipt' ? 'true' : undefined, onClick: () => chooseView('receipt') }, h(Icon, { name: 'receipt', size: 15 }), localized('Skill 收据', 'Skill receipt')) : null,
-              !hasTrace && !hasRuntimeEvidence ? h('span', { className: 'st-advanced-off' }, localized('暂无可用视图', 'Nothing available yet')) : null) : null)),
+            h('span', { className: 'st-live', 'data-state': view === 'installed' && (catalogMeta?.error || catalogMeta?.coverage !== 'complete') ? 'unknown' : coverageState }),
+            h('h1', null, view === 'installed' ? localized('已安装 Skill', 'Installed Skills') : localized('本次 Skill', 'Skills in this run'))),
+          h('div', { className: 'st-workspace' }, view === 'installed' ? catalogSubtitle : sessionSubtitle)),
+        // §7：一级导航**只有两个**。运行流程 / 运行图谱 / Skill 收据在 v0.6 里不是页面（§4），
+        // 所以这里既没有「高级」菜单，也没有任何 Runtime 画布操作（显示全部 / 适配画布 / 回放）。
+        h('div', { className: 'st-view-switch', role: 'group', 'aria-label': 'Skill 页面' },
+          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'current', onClick: () => chooseView('current') }, h(Icon, { name: 'skill', size: 15 }), localized('本次 Skill', 'Skills in this run')),
+          h('button', { className: 'st-view-button', type: 'button', 'aria-pressed': view === 'installed', onClick: () => chooseView('installed') }, h(Icon, { name: 'list', size: 15 }), localized('已安装 Skill', 'Installed Skills'))),
         h('div', { className: 'st-header-actions' },
-          canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: showAll }, localized('显示全部', 'Show all')) : null,
-          canvasView && runtime ? h('button', { className: 'st-header-btn', type: 'button', onClick: () => setFitTick((value) => value + 1) }, localized('适配画布', 'Fit')) : null,
-          canvasView && runtime && !replayActive ? h('button', { className: 'st-header-btn primary', type: 'button', onClick: () => setReplayActive(true) }, replayActive ? localized('退出回放', 'Exit replay') : localized('回放', 'Replay')) : null,
-          h('button', { className: 'st-button st-library-button', type: 'button', 'aria-pressed': screen === 'catalog', onClick: () => { setScreen('catalog'); setReplayActive(false) } }, h(Icon, { name: 'list', size: 15 }), localized('我的 Skill', 'My Skills')),
-          h('button', { className: 'st-icon-button', type: 'button', onClick: screen === 'catalog' ? () => setCatalogReload((value) => value + 1) : load, disabled: screen === 'session' && loading, title: '刷新', 'aria-label': screen === 'catalog' ? '刷新我的 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
+          h('button', { className: 'st-icon-button', type: 'button', onClick: view === 'installed' ? () => setCatalogReload((value) => value + 1) : load, disabled: view === 'current' && loading, title: '刷新', 'aria-label': view === 'installed' ? '刷新已安装 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
       content))
   }
 

@@ -189,10 +189,18 @@ test('§15/§38 learning lives only in the Skill inspector, collapsed', () => {
   assert.equal(client.includes('pendingLearningSkill'), true === false || true)
 })
 
-test('the inspector receives the declaration baseline and the load index', () => {
-  assert.ok(/alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client), 'alignments must be wired to the runtime view model')
-  assert.ok(client.includes('skillLoads: runtime?.skillLoads'))
-  assert.ok(client.includes('function DeclarationPanel({ alignment, load })'))
+test('the runtime inspector is no longer wired into any page', () => {
+  // v0.6 §4：运行流程 / 运行图谱 / Runtime Inspector 已经从一级 UI 消失，`Workbench` 不再构造
+  // `runtimeProps`，所以这些 props 的接线也随之消失 —— 这正是"先删 UI、再删 View consumer"的
+  // 第一步。组件本身（含 `DeclarationPanel`）暂时留在文件里，等它的其余测试一起删除，
+  // 这样每一步都还能构建、还能跑测试。
+  assert.equal(
+    /alignments:\s*data\?\.views\?\.receipt\?\.runtime\?\.alignments/.test(client),
+    false,
+    'the runtime view model must not be fed from a page any more',
+  )
+  assert.equal(client.includes('skillLoads: runtime?.skillLoads'), false, 'the load index must not be fed from a page any more')
+  assert.ok(client.includes('function DeclarationPanel({ alignment, load })'), 'the component is still present until it is deleted with its tests')
 })
 
 test('§9 the declaration surface marks status with a glyph and a word, not colour alone', () => {

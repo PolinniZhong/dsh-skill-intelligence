@@ -508,14 +508,16 @@ test('A13: the host registers the Skill-first routes and refuses receipt as a de
   const host = readFileSync(new URL('../src/dsh/host/index.js', import.meta.url), 'utf8')
   assert.ok(host.includes("'/skill-trace/skills'"), 'the Skill list route must be registered')
   assert.ok(host.includes("'/skill-trace/skill'"), 'the Skill detail route must be registered')
-  assert.ok(host.includes("['skills', 'map']"), 'only first-level views may be a default')
+  assert.ok(host.includes("'/skill-trace/installed'"), 'the installed Skill page must have its own route (§7)')
+  assert.ok(host.includes("['current', 'installed']"), 'only the two first-level pages may be a default')
   assert.equal(host.includes("['receipt', 'map']"), false, 'the Session-first default is retired')
+  assert.equal(host.includes("['skills', 'map']"), false, 'the v0.5 view vocabulary is retired with the pages it named')
   assert.ok(host.includes('buildSessionSkillList'), 'the list comes from the view model, not from the route')
   assert.ok(host.includes('buildSkillDetail'), 'the detail comes from the view model, not from the route')
 
   const preferences = readFileSync(new URL('../src/storage/preference-store.mjs', import.meta.url), 'utf8')
-  assert.ok(preferences.includes("defaultView: 'skills'"), 'a fresh install opens on the Skill list')
-  assert.ok(preferences.includes('const PREFERENCES_VERSION = 2'), 'stored preferences record the IA they were written under')
+  assert.ok(preferences.includes("defaultView: 'current'"), 'a fresh install opens on the Skills this run loaded')
+  assert.ok(preferences.includes('const PREFERENCES_VERSION = 3'), 'stored preferences record the IA they were written under')
   assert.ok(preferences.includes('value?.version === PREFERENCES_VERSION'), 'an unversioned preference is not a choice')
 })
 
@@ -523,10 +525,16 @@ test('A14: the client ignores a default view that carries no IA version', () => 
   // 真实事故：beta.66 把「运行流程」写成缺省并落进偏好文件，升级后插件仍开在那一屏。
   // 文件里没有字段能区分"选择"与"旧缺省"，所以客户端也要求版本号。
   const client = readFileSync(new URL('../src/dsh/client/client.js', import.meta.url), 'utf8')
-  assert.ok(client.includes('const PREFERENCE_VERSION = 2'), 'the client must know the current preference version')
+  assert.ok(client.includes('const PREFERENCE_VERSION = 3'), 'the client must know the current preference version')
   assert.ok(
     client.includes('next.preferences?.version === PREFERENCE_VERSION'),
     'the client must not honour an unversioned default view',
+  )
+  assert.ok(client.includes("const PAGES = ['current', 'installed']"), 'the client knows exactly two first-level pages')
+  assert.equal(
+    client.includes("const VIEW_KEYS = ['skills', 'map', 'runtime', 'receipt']"),
+    false,
+    'the v0.5 view vocabulary is gone — a legacy value is translated, not honoured',
   )
   assert.equal(
     client.includes('const wanted = normalizeView(next.preferences?.defaultView)'),

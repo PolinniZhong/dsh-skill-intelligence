@@ -156,7 +156,12 @@ test('§21 the flow view is the quiet one and says what it dropped', () => {
   assert.ok(flowView.includes('运行图谱'), 'it must point at where the candidates can be seen')
 })
 
-test('§21 the graph view may be denser than the flow view', () => {
-  assert.ok(client.includes("view === 'runtime' ? 'graph' : 'flow'"), 'the density must follow the view')
-  assert.ok(client.includes('detail='), 'the density must be requested from the Host')
+test('§21 the client no longer asks the Host for a graph density', () => {
+  // v0.6 §4：运行图谱已从 UI 消失，视图驱动的 `graph`/`flow` 密度选择也随之消失。
+  // 这段代码（连同 `loadRuntime`）在下一步与 Runtime Graph 专用代码一起删除。
+  assert.equal(
+    client.includes("view === 'runtime' ? 'graph' : 'flow'"),
+    false,
+    'the density must not follow a view that is no longer a page',
+  )
 })

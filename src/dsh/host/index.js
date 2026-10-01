@@ -26,6 +26,7 @@ import { buildSkillRuntimeScopes, projectScopesOntoLayout } from '../../core/ski
 import { buildReplayTimeline } from '../../core/runtime-replay.mjs'
 import { buildFingerprintReservation } from '../../core/runtime-fingerprint.mjs'
 import { buildCatalogSnapshot, buildSourceSnapshots, loadSkillDefinition } from '../../core/source-snapshot.mjs'
+import { buildInstalledView } from '../../core/installed-view.mjs'
 import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
 import {
   buildTranslationMessages,
@@ -877,6 +878,30 @@ export function apply(ctx, config = {}) {
             return
           }
 
+          // v0.6 §7：已安装 Skill。回答「当前 DSH 环境可发现哪些 Skill」，与本次会话
+          // 发生过什么无关 —— 所以这条路由**不读 receipt**，也不把学习状态带回来。
+          //
+          // 名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`：旧的 `/catalog` 仍被
+          // 「我的 Skill」工作台消费着，而 §4 规定的清理顺序是「先删 UI → 再删 View
+          // consumer → 最后删 Host route」。等那个工作台删掉之后，这条路由再改名收口。
+          if (method === 'GET' && url.pathname === '/skill-trace/installed') {
+            const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
+            const query = optionalSearchQuery(url.searchParams.get('query'))
+            const { registry, liveAgent, session, cwd } = registryContext(sessionId)
+            // 发现不完整是**事实**，不是错误：`buildCatalogSnapshot` 把 registry 抛错与
+            // 并发改动都收敛成 status，`buildInstalledView` 再把它写成 coverage。
+            const catalogSnapshot = registry && liveAgent
+              ? await buildCatalogSnapshot(registry, cwd, liveAgent)
+              : null
+            sendJson(res, 200, {
+              ok: true,
+              sessionId,
+              workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
+              installed: buildInstalledView({ catalogSnapshot, query }),
+            })
+            return
+          }
+
           if (method === 'GET' && url.pathname === '/skill-trace/skills') {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const { registry, liveAgent, session, cwd } = registryContext(sessionId)
@@ -1001,7 +1026,9 @@ export function apply(ctx, config = {}) {
 
           if (method === 'POST' && url.pathname === '/skill-trace/preferences') {
             const body = await readBody(req)
-            if (!['skills', 'map'].includes(body.defaultView)) throw new Error('defaultView 无效')
+            // v0.6 §7：一级页面只有两个。白名单必须和 `preference-store.mjs` 的
+            // `DEFAULT_VIEWS` 一致，否则客户端会挑一个宿主随后归零的页面。
+            if (!['current', 'installed'].includes(body.defaultView)) throw new Error('defaultView 无效')
             const preferences = await preferenceStore.write({ defaultView: body.defaultView })
             sendJson(res, 200, { ok: true, preferences })
             return
