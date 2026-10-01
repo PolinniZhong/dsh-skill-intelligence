@@ -171,7 +171,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
         高于 design.md §6.1 的 58px 下限。曾经这里有第二条规则把它覆写成 72px ——
         那个数字来自哪个文档都说不清，就成了「样式表里的一句口口相传」。 */
       .st-topbar{min-height:68px;padding:0 18px;display:flex;align-items:center;gap:18px;flex:none;border-bottom:1px solid var(--st-border);background:var(--st-layer)}
-      .st-heading{min-width:0;flex:1}.st-heading-line{display:flex;align-items:center;gap:9px}.st-heading h1{margin:0;font-size:16px;font-weight:650;letter-spacing:-.01em}.st-workspace{margin-top:2px;color:var(--st-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
+      .st-heading{min-width:0;flex:1;display:flex;align-items:center}.st-live{width:6px;height:6px;border-radius:50%;background:var(--st-success);flex:none}.st-live[data-state="unknown"]{background:var(--st-faint)}
       .st-view-switch{display:inline-flex;padding:3px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-layer-2)}.st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}.st-view-button[aria-pressed="true"]{background:var(--st-layer);color:var(--st-brand);box-shadow:0 1px 2px rgba(20,24,32,.08)}
       .st-empty-page,.st-trace-state{height:100%;display:grid;place-items:center;padding:32px;color:var(--st-muted)}.st-empty-page-inner{width:min(100%,420px)}.st-empty-page p{margin:0}.st-trace-state-line{display:inline-flex;align-items:center;gap:9px;font-size:13px}.st-trace-state-dot{width:7px;height:7px;border-radius:50%;background:var(--st-faint)}.st-trace-state[data-kind="loading"] .st-trace-state-dot{background:var(--st-brand);animation:st-pulse 1.2s ease-in-out infinite}@keyframes st-pulse{50%{opacity:.35}}
       [data-plugin="dsh-skill-trace"]{overflow:hidden;max-height:none;height:var(--st-host-h,100%);min-height:0;color:var(--st-text);background:var(--st-bg);font-size:13px;line-height:1.45}
@@ -182,7 +182,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
          按下时轻微下沉，读成"点到了"而不是"没反应"。 */
       /* 过渡：objective 明确要求。preview 没有过渡，但状态切换（hover / 聚焦降权 / 回放）
          若瞬变会读成"画面闪了一下"；160ms 足以让它读成一次状态变化。 */
-      .st-heading h1{font-size:17px}
       .st-view-switch{border-radius:9px}
       .st-view-button{height:32px;padding:0 11px}
 
@@ -236,7 +235,8 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
        */
       .st-page{height:100%;min-height:0;overflow:auto;padding:20px 22px 28px}
       .st-page-head{margin-bottom:14px}
-      .st-page-head h2{margin:0;font-size:15px}
+      .st-page-head h2{margin:0;font-size:16px}
+      .st-page-status{display:flex;align-items:center;gap:7px;margin:5px 0 0;color:var(--st-muted);font-size:12px}
       .st-page-head p{margin:5px 0 0;color:var(--st-muted);font-size:12px}
       .st-skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
       .st-skill-card{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);color:inherit;cursor:pointer;transition:border-color .16s ease,transform .16s ease}
@@ -250,7 +250,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       .st-pill{border:1px solid var(--st-border);border-radius:999px;padding:3px 8px;font-size:11px;color:var(--st-muted);background:var(--st-surface-subtle)}
       .st-pill[data-tone="accent"]{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
       .st-detail{height:100%;min-height:0;display:flex;flex-direction:column}
-      .st-detail-back{align-self:flex-start;margin:14px 22px 0;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 0;cursor:pointer}
+      .st-detail-back{align-self:center;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 0;cursor:pointer;white-space:nowrap}
       .st-detail-back:hover{color:var(--st-text)}
       .st-detail-body{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:12px 22px 18px}
       .st-detail-side{min-width:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
@@ -599,7 +599,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
    * `list` 是渲染冒烟测试的注入口（那个测试的 react stub 不跑 useEffect，fetch 永远不会发生，
    * 于是卡片、`resolveSkillListState` 的每一条分支都执行不到），平时由这里的 fetch 填。
    */
-  function CurrentSkillPage({ sessionId, onOpen, loadedSkillCount = 0, onMeta, onRetry, reloadSignal, list: suppliedList }) {
+  function CurrentSkillPage({ sessionId, onOpen, loadedSkillCount = 0, onMeta, onRetry, reloadSignal, status = '', liveState = 'unknown', list: suppliedList }) {
     const [fetchedList, setFetchedList] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedList)
     const [listError, setListError] = React.useState('')
@@ -625,17 +625,22 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       onMeta?.({ error: Boolean(listError && !skills.length), skillCount: skills.length })
     }, [listError, skills.length, onMeta])
 
+    // 状态行从顶栏搬到这里：顶栏那行「本次 Skill / DSH_Skill_Trace · 1 个 Skill · 1 次加载」
+    // 和这个段头说的是同一件事，只留一处。信息没丢 —— workspace 标签、计数、以及
+    // 「宿主可能仍在运行旧版本」这类警告，全都跟着这一行走。
+    const head = h('header', { className: 'st-page-head' },
+      h('h2', null, localized('本次加载的 Skill', 'Skills loaded in this run')),
+      h('p', { className: 'st-page-status' },
+        h('span', { className: 'st-live', 'data-state': liveState }),
+        raw(status || localized(`这次对话加载过 ${skills.length} 个 Skill。`, `${skills.length} Skill(s) were loaded in this conversation.`))))
+
     if (state) {
-      return h('div', { className: 'st-page' },
+      return h('div', { className: 'st-page' }, head,
         h(TraceState, { kind: state.kind, message: state.message, onRetry: state.kind === 'error' ? onRetry : undefined }))
     }
 
     return h('div', { className: 'st-page' },
-      h('header', { className: 'st-page-head' },
-        h('h2', null, localized('本次加载的 Skill', 'Skills loaded in this run')),
-        h('p', null, localized(
-          `这次对话加载过 ${skills.length} 个 Skill。点开一个，读它的 SKILL.md。`,
-          `${skills.length} Skill(s) were loaded in this conversation. Open one to read its SKILL.md.`))),
+      head,
       h('div', { className: 'st-skill-grid' }, ...skills.map((entry) => h(SkillCard, {
         key: entry.name,
         name: entry.name,
@@ -662,7 +667,19 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
    * 会话、不落盘。切换 Skill 或定义指纹变了就丢弃（`alignOutlineToTranslation` 的注释说明
    * 为什么「结构没被破坏」是上游保证的）。
    */
-  function SkillDetailPage({ sessionId, skillName, onBack, backLabel, skill: suppliedSkill }) {
+  /**
+   * 二级页的返回键。它现在住在顶栏里 —— 顶栏原先那行「本次 Skill / DSH_Skill_Trace · …」
+   * 和正文的标题说的是同一件事，删掉之后那个位置正好归返回键（用户截图指出）。
+   *
+   * 返回目标来自**进入时的那张列表**（§8.4），所以这里只接一个算好的标签，
+   * 不写死任何目标。
+   */
+  function DetailBackButton({ backLabel, onBack }) {
+    return h('button', { type: 'button', className: 'st-detail-back', onClick: onBack },
+      raw(`← ${localized('返回 Skill 列表', 'Back to the Skill list')}${backLabel ? localized(`（${backLabel}）`, ` (${backLabel})`) : ''}`))
+  }
+
+  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
     const [error, setError] = React.useState('')
@@ -800,9 +817,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       : matchState === 'mismatch' ? localized('文件已改变', 'The file has changed')
         : localized('无法比对', 'Cannot be compared')
 
-    const backButton = h('button', { type: 'button', className: 'st-detail-back', onClick: onBack },
-      raw(`← ${localized('返回 Skill 列表', 'Back to the Skill list')}${backLabel ? localized(`（${backLabel}）`, ` (${backLabel})`) : ''}`))
-
     const sideIdentity = h('section', { className: 'st-detail-card' },
       h('h3', null, raw(skillName)),
       summary?.description
@@ -929,7 +943,6 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       h('div', { className: 'st-detail-doc-body' }, outlineNav, documentScroll))
 
     return h('div', { className: 'st-detail' },
-      backButton,
       h('div', { className: 'st-detail-body' }, sidePanel, docPanel))
   }
 
@@ -944,7 +957,7 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
    * （同类事故见 resolveSkillListState 的注释）。整页崩溃更糟：一个页面拿到坏输入就把
    * conversation.view 整个卸载，用户看到的是白屏。
    */
-  function InstalledSkillsPage({ sessionId, query, onQueryChange, reloadSignal, onMeta, onRetry }) {
+  function InstalledSkillsPage({ sessionId, query, onQueryChange, reloadSignal, onMeta, onRetry, status = '', liveState = 'unknown' }) {
     const [state, setState] = React.useState({ loading: true, error: '', installed: null })
     React.useEffect(() => {
       let cancelled = false
@@ -960,26 +973,39 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
           if (cancelled) return
           setState({ loading: false, error: String(reason?.message || 'unavailable'), installed: null })
           // 页头也要知道「读不到」：只报 null 的话，正文说读取失败、页头还在说"正在读取"，
-          // 同一屏上两句话互相打脸（这就是 sessionSubtitle 注释里那条规矩的由来）。
+          // 同一屏上两句话互相打脸（这就是 sessionStatus 注释里那条规矩的由来）。
           onMeta?.({ error: true })
         })
       return () => { cancelled = true }
     }, [sessionId, reloadSignal, onMeta])
 
+    // 段头在**每一个**分支里都渲染。删掉顶栏那行标题之后，它是这一页唯一的身份 ——
+    // 出错时让它跟着正文一起消失，用户看到的就是一屏没有标题、没有页名的报错，
+    // 而「这一页是什么」本来不该由请求成不成功来决定。
+    const head = h('header', { className: 'st-page-head' },
+      h('h2', null, localized('已安装的 Skill', 'Installed Skills')),
+      h('p', { className: 'st-page-status' },
+        h('span', { className: 'st-live', 'data-state': liveState }),
+        raw(status)))
+
     if (state.error) {
-      return h(TraceState, {
+      return h('div', { className: 'st-installed' }, head, h(TraceState, {
         kind: 'error',
         message: '暂时无法读取已安装 Skill。宿主可能仍在运行旧版本，重启 DSH 后再试。',
         onRetry: onRetry,
-      })
+      }))
     }
-    if (state.loading && !state.installed) return h(TraceState, { kind: 'loading', message: '正在读取当前环境的 Skill 目录…' })
+    if (state.loading && !state.installed) {
+      return h('div', { className: 'st-installed' }, head,
+        h(TraceState, { kind: 'loading', message: '正在读取当前环境的 Skill 目录…' }))
+    }
 
     const skills = state.installed?.skills ?? []
     const needle = String(query || '').trim()
     const visible = needle ? skills.filter((skill) => matchesInstalledQuery(skill, needle)) : skills
 
     return h('div', { className: 'st-installed' },
+      head,
       h('div', { className: 'st-installed-search' },
         h(Icon, { name: 'search', size: 15 }),
         h('input', {
@@ -1179,27 +1205,17 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     // v0.6 §4：Runtime 视图（运行流程 / 运行图谱 / Runtime Inspector / Runtime Replay）已经不是
     // 页面，也不再有任何入口。这里只留下「本次 Skill」这一条正文路径 —— 少掉的分支不是被藏起来，
     // 而是没有消费者的 UI（组件本身要等客户端不再引用后才删，见 §4 的清理顺序）。
-    // §6：第一屏是这次对话加载过的 Skill 卡片。它自己读 `/skills`，因为「哪些 Skill 被加载过」
-    // 与「这次会话的收据里有什么」是两个问题，前者不该等后者的四路投影（context/runtime/…）。
-    const sessionContent = h(CurrentSkillPage, {
-      sessionId,
-      loadedSkillCount,
-      reloadSignal: sessionReload,
-      onMeta: setCurrentMeta,
-      onRetry: () => setSessionReload((value) => value + 1),
-      onOpen: (name, from) => setOpenSkill({ name, from }),
-    })
-
-    // 页头必须和正文说同一件事。此前 `!data` 一律显示"正在读取"，于是 Error 态下
-    // 页头写"正在读取"、正文写"暂时无法读取"——**同一屏上两句话互相矛盾**（截图发现）。
-    const sessionSubtitle = currentMeta?.error
+    // 段头必须和正文说同一件事。此前 `!data` 一律显示"正在读取"，于是 Error 态下
+    // 段头写"正在读取"、正文写"暂时无法读取"——**同一屏上两句话互相矛盾**（截图发现）。
+    // 这两行从 2026-10-01 起渲染在各自页面的段头里，不再渲染在顶栏。
+    const sessionStatus = currentMeta?.error
       ? localized('本次 Skill 读取失败 · 宿主可能仍在运行旧版本', 'Could not read this run’s Skills · the Host may be running an older build')
       : !data
         ? (error ? localized('当前会话读取失败', 'Could not read this session') : localized('正在读取当前会话…', 'Reading this session…'))
         : localized(`${data.workspaceLabel} · ${loadedSkillCount} 个 Skill · ${loadedTraces.length} 次加载`, `${data.workspaceLabel} · ${loadedSkillCount} Skill(s) · ${loadedTraces.length} load(s)`)
     // 已安装列表的页头只说「这次发现是否完整」与「发现了多少个」。它不引用 receipt，
-    // 也不显示学习/验证历史 —— 页头和正文必须说同一件事（见 sessionSubtitle 的注释）。
-    const catalogSubtitle = !catalogMeta
+    // 也不显示学习/验证历史 —— 页头和正文必须说同一件事（见 sessionStatus 的注释）。
+    const catalogStatus = !catalogMeta
       ? localized('正在读取当前环境…', 'Reading this environment…')
       : catalogMeta.error
         ? localized('已安装 Skill 读取失败 · 宿主可能仍在运行旧版本', 'Could not read the installed Skills · the Host may be running an older build')
@@ -1208,6 +1224,19 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
         : catalogMeta.coverage === 'incomplete'
           ? localized(`目录可能不完整 · 已发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `Catalog may be incomplete · ${catalogMeta.totalCount ?? 0} Skill(s) found`)
           : localized(`${data?.workspaceLabel || '工作区未连接'} · 可发现 ${catalogMeta.totalCount ?? 0} 个 Skill`, `${data?.workspaceLabel || 'Workspace not connected'} · ${catalogMeta.totalCount ?? 0} Skill(s) discoverable`)
+
+    // §6：第一屏是这次对话加载过的 Skill 卡片。它自己读 `/skills`，因为「哪些 Skill 被加载过」
+    // 与「这次会话的收据里有什么」是两个问题，前者不该等后者的四路投影（context/runtime/…）。
+    const sessionContent = h(CurrentSkillPage, {
+      sessionId,
+      status: sessionStatus,
+      liveState,
+      loadedSkillCount,
+      reloadSignal: sessionReload,
+      onMeta: setCurrentMeta,
+      onRetry: () => setSessionReload((value) => value + 1),
+      onOpen: (name, from) => setOpenSkill({ name, from }),
+    })
 
     // 两个一级页面各自拥有自己的分栏（Skill 工作台是三栏、已安装列表是网格），所以它们
     // 直接成为正文，不再套一层单列内边距的包装。
@@ -1223,6 +1252,8 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
     const listContent = view === 'installed'
       ? h(InstalledSkillsPage, {
         sessionId,
+        status: catalogStatus,
+        liveState,
         query: installedQuery,
         onQueryChange: setInstalledQuery,
         reloadSignal: catalogReload,
@@ -1240,11 +1271,16 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
       ...(hostHeight ? { '--st-host-h': `${hostHeight}px` } : null),
     }, 'aria-label': view === 'installed' ? 'DSH Skill Trace 已安装 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
+        // 顶栏不再重复页面标题。原先这里是「本次 Skill / DSH_Skill_Trace · 1 个 Skill · 1 次加载」，
+        // 而正文紧接着又写「本次加载的 Skill / 这次对话加载过 1 个 Skill」——同一屏上同一件事说了
+        // 两遍，两处还各自带一份计数。留下的这个位置归二级页的返回键。
         h('div', { className: 'st-heading' },
-          h('div', { className: 'st-heading-line' },
-            h('span', { className: 'st-live', 'data-state': liveState }),
-            h('h1', null, view === 'installed' ? localized('已安装 Skill', 'Installed Skills') : localized('本次 Skill', 'Skills in this run'))),
-          h('div', { className: 'st-workspace' }, view === 'installed' ? catalogSubtitle : sessionSubtitle)),
+          openSkill
+            ? h(DetailBackButton, {
+              backLabel: openSkill.from === 'installed' ? localized('已安装 Skill', 'Installed Skills') : localized('本次 Skill', 'Skills in this run'),
+              onBack: () => setOpenSkill(null),
+            })
+            : null),
         // §7：一级导航**只有两个**。运行流程 / 运行图谱 / Skill 收据在 v0.6 里不是页面（§4），
         // 所以这里既没有「高级」菜单，也没有任何 Runtime 画布操作（显示全部 / 适配画布 / 回放）。
         h('div', { className: 'st-view-switch', role: 'group', 'aria-label': 'Skill 页面' },
@@ -1270,4 +1306,4 @@ const { matchesInstalledQuery } = require('../../core/installed-view.mjs')
   // see a component that throws while rendering — a hook reading a binding declared below
   // it passes every string check and still leaves the user with a blank panel.
   module.exports.__pure = { resolveSkillListState, alignOutlineToTranslation, invocationLabel }
-  module.exports.__views = { Workbench, CurrentSkillPage, SkillDetailPage, InstalledSkillsPage, SkillCard, TraceState }
+  module.exports.__views = { Workbench, CurrentSkillPage, SkillDetailPage, DetailBackButton, InstalledSkillsPage, SkillCard, TraceState }

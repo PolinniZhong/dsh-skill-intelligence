@@ -380,7 +380,9 @@ if (!builder.shippedBundleIsFresh()) {
   // v0.6 §22 的顶栏是 68px（`height:68px`），`design.md` §6.1 只规定 58px 下限。
   // 这里曾经钉的是 72px —— 一个两份文档都没有的数字，谁也说不清它是从哪抄来的。
   if (!/\.st-topbar\{[^}]*min-height:68px/.test(css)) throw new Error('§22: the top bar is 68px')
-  if (!/\.st-heading h1\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
+  // 2026-10-01：顶栏那行「本次 Skill / DSH_Skill_Trace · …」和正文段头说的是同一件事，
+  // 删掉之后**页面标题就是段头**，16px 的档位跟着它一起搬了过来（原本钉的是 `.st-heading h1`）。
+  if (!/\.st-page-head h2\{[^}]*font-size:(1[6-8])px/.test(css)) throw new Error('§26: the page title is 16-18px')
   // v0.6 §8.2/§9.3 replaced the three-column workbench with one detail page: a 280px
   // fact column, and a 170px outline strip inside the SKILL.md panel. The old
   // assertions described a page that no longer exists, so they moved with it.

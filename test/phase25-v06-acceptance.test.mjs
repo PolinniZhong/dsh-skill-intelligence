@@ -111,11 +111,14 @@ test('§25.2 clicking a card is what opens the Detail page', () => {
 })
 
 test('§25.2 Back returns to the list the user came from, never to a fixed one', () => {
-  const detail = componentSource('SkillDetailPage')
-  assert.ok(/backLabel/.test(detail), 'the return label is a prop')
-  assert.equal(/backLabel\s*:\s*['"]/.test(detail), false, 'the label must not be hard-coded')
+  // 返回键 2026-10-01 搬进了顶栏（用户指出顶栏标题块与段头重复），所以它现在是自己的
+  // 组件、由 Workbench 实例化。§25.2 要问的两件事没变：标签从哪来、有没有写死。
+  const back = componentSource('DetailBackButton')
+  assert.ok(/backLabel/.test(back), 'the return label is a prop')
+  assert.equal(/backLabel\s*:\s*['"]/.test(back), false, 'the label must not be hard-coded')
   const workbench = componentSource('Workbench')
-  assert.ok(/backLabel/.test(workbench), 'the caller decides where Back goes')
+  assert.ok(/backLabel:/.test(workbench), 'the caller decides where Back goes')
+  assert.ok(/openSkill\.from/.test(workbench), 'and it decides from the list the user actually came from')
 })
 
 test('§25.2 a Definition that cannot be read says so instead of showing an empty document', () => {

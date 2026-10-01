@@ -422,8 +422,8 @@ test('the client registers and its entry component renders without throwing', as
     // v0.6 §8：唯一的二级页面。三个形态：定义读得到、定义读不到（`available === false`）、
     // 还没读到（loading）。定义读不到那条最容易漏 —— 它走的是另一条渲染分支。
     SkillDetailPage: [
-      [{ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '本次 Skill', skill: skillDetailFixture }],
-      [{ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '已安装 Skill', skill: unavailableSkill }],
+      [{ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }],
+      [{ sessionId: 's', skillName: 'code-review', skill: unavailableSkill }],
       [{ sessionId: 's', skillName: 'code-review', onBack() {}, skill: null }],
     ],
     SkillCard: [
@@ -443,7 +443,7 @@ test('the client registers and its entry component renders without throwing', as
   // 每个分支都对。曾经那个断言（+200 个节点）既测不出 `javascript:` 链接漏成了 `<a>`，
   // 也测不出目录条目截断写错 —— 它只证明「多了不少东西」。
   const listNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 2, onMeta() {}, onRetry() {}, list: skillListFixture }))
-  const detailNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '本次 Skill', skill: skillDetailFixture }))
+  const detailNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }))
   const detailText = detailNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   const detailElements = (type) => detailNodes.filter((node) => node.type === type)
   const childText = (node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')
@@ -488,14 +488,14 @@ test('the client registers and its entry component renders without throwing', as
     repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] },
     definition: { ...skillDetailFixture.definition, repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] } },
   }
-  const unresolvedNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, skill: unresolvedSkill }))
+  const unresolvedNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: unresolvedSkill }))
   assert.equal(unresolvedNodes.filter((node) => node.type === 'a' && node.props.target === '_blank').length, 0, 'an unresolved repository must not invent a link')
   assert.ok(unresolvedNodes.some((node) => node.type === '#text' && node.text.includes('未解析')), 'the surface states the repository is unresolved rather than staying blank')
   assert.ok(unresolvedNodes.some((node) => node.type === '#text' && /没有找到 git work tree/.test(node.text)), 'it repeats the limitation code in words')
 
   // 2c. 定义读不到：正文没有可显示的内容，界面既不能从运行时的调用反推出一串假步骤，也不能
   //     把缺一半哈希写成「文件已改变」——那是从缺失推出的结论（§10.2）。
-  const unavailableNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, skill: unavailableSkill }))
+  const unavailableNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: unavailableSkill }))
   const unavailableText = unavailableNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   assert.ok(unavailableText.includes('这份 Skill 的定义当前读不到'), 'the empty document explains itself')
   assert.ok(unavailableText.includes('无法比对'), 'a missing fingerprint pair is stated as 无法比对')
@@ -524,8 +524,11 @@ test('the client registers and its entry component renders without throwing', as
   assert.deepEqual(outlineItems.map(childText), ['Purpose', 'Workflow'], 'the outline lists the document headings in order')
 
   // 5. §8.4：Detail 记住的是"从哪个列表进来"，所以返回按钮的措辞由调用方给，不是写死的。
-  const fromInstalled = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', onBack() {}, backLabel: '已安装 Skill', skill: skillDetailFixture }))
+  const fromInstalled = collect(views.DetailBackButton({ backLabel: '已安装 Skill', onBack() {} }))
   const backLabelText = fromInstalled.filter((node) => node.props.className === 'st-detail-back').map(childText)[0]
+  const noBackInPage = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }))
+    .filter((node) => node.props.className === 'st-detail-back')
+  assert.equal(noBackInPage.length, 0, 'the detail body no longer renders the back button: the topbar does')
   assert.ok(backLabelText.includes('已安装 Skill'), 'the back label follows the list the user came from')
   assert.ok(!backLabelText.includes('本次 Skill'), 'it does not hard-code one list')
 
