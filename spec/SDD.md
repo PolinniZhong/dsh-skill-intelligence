@@ -1,4 +1,4 @@
-# DSH Skill Trace · 软件设计文档（SDD）
+# DSH Skill Intelligence · DSH Skill 智能实验室 · 软件设计文档（SDD）
 
 > **当前版本**：`dsh-skill-trace@0.7.0`（`package.json`）
 > **这份文件是什么**：本插件**唯一一份描述当前实现**的技术设计 —— 分层、运行架构、宿主接口面、数据流、存储与隐私、模块清单、契约守卫、验证边界。

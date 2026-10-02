@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — Brand Update：Skill Trace → DSH Skill Intelligence（DSH Skill 智能实验室）
+
+**这是一次品牌迁移，不是功能重写。** 核心功能逻辑一个字没改：Skill Runtime 分析、Framework Parser、
+Translation Store、Clone 机制、Host API（仍是 10 条路由）与 Storage 结构全部保持原样；改的是产品名、
+用户可见措辞与仓库元信息。能力链没变，只是换了说法：
+Discovery → Understanding → Framework Analysis → Markdown Reading → Translation → Clone → Evolution。
+
+### Changed
+
+- Renamed product positioning from Skill Trace to DSH Skill Intelligence.
+- Updated user-facing terminology from runtime tracing to Skill understanding and evolution.
+- Introduced DSH Skill 智能实验室 brand identity.
+
+### Product Positioning
+
+DSH Skill Intelligence helps users understand, reproduce and evolve Agent Skills.
+
+**命名分层（改什么、不改什么）**
+
+| 层 | 名称 | 说明 |
+|---|---|---|
+| 产品名 | **DSH Skill 智能实验室** / **DSH Skill Intelligence** | README 首屏、DSH 工作栏标签、包描述、文档抬头 |
+| 一句话 | 探索优秀 Agent Skill 的结构与方法，将成熟 AI 工作流转化为个人能力和企业业务能力。 | 所有对外介绍统一用这句 |
+| npm 包名 | `dsh-skill-trace` | **不改**：已发布，改名会让安装命令与 `github:` 锚点全部失效 |
+| 技术层 | **Skill Trace** | **保留**：`/skill-trace/*` 路由、`dsh-skill-trace` 命名空间、`[data-plugin="dsh-skill-trace"]`、storage 结构 |
+| 仓库 | `PolinniZhong/dsh-skill-intelligence` | GitHub 仓库改名，旧地址自动重定向 |
+
 ## 0.7.0 — 2026-10-02 · Skill 理解与复用：读得懂、存得住、复刻得走
 
 **一次功能版。** 信息架构一个字没动：一级页面仍是「本次 Skill」「已安装 Skill」，二级页面仍是唯一的 Skill 详情，四层顺序仍是 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`。这一版把产品从「观察 Skill → 理解 Skill」推进到「观察 → 理解 → **阅读** → **复刻** → 让当前 DSH Agent 继续使用」。

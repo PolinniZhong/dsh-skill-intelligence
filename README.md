@@ -1,13 +1,26 @@
-# DSH Skill Trace
+# DSH Skill 智能实验室
 
-[![npm version](https://img.shields.io/npm/v/dsh-skill-trace.svg)](https://www.npmjs.com/package/dsh-skill-trace)
+`dsh-skill-intelligence` · [![npm version](https://img.shields.io/npm/v/dsh-skill-trace.svg)](https://www.npmjs.com/package/dsh-skill-trace)
 [![npm license](https://img.shields.io/npm/l/dsh-skill-trace.svg)](LICENSE)
 
-> **Skill 是一级对象：它声明了什么、这次会话到底加载过它、以及它的 `SKILL.md` 原文。**
+> 探索优秀 Agent Skill 的结构与方法，
+> 将成熟 AI 工作流转化为个人能力和企业业务能力。
 
-DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追踪**
+DSH Skill Intelligence 是面向 DeepSeek Harness 的 Agent Skill 研究与演进工具。
 
-当 Agent 自动选择 Skill 时，普通用户常常只看到结果：不知道它加载了什么、按什么步骤工作。DSH Skill Trace 把两件事分开摆：**Skill 声明了什么**（只来自 `SKILL.md` 正文）与**这次会话实际加载过什么**（只来自 DSH 的运行时事实）。两者不互相推断，也都不打分。
+它帮助用户：
+
+- 理解优秀 Skill 的设计结构
+- 分析 Skill 的运行逻辑
+- 阅读和翻译 Skill 文档
+- 复刻已有 Skill
+- 持续沉淀个人与企业 AI 能力
+
+DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**DSH Skill 智能实验室**
+
+**它仍然只做一件事，只是名字换了：** Skill 是一级对象 —— 它声明了什么、这次会话到底加载过它、以及它的 `SKILL.md` 原文。底层能力是 **Skill Trace**（本地加载证据：`/skill-trace/*` 路由、npm 包名 `dsh-skill-trace`、存储结构都不改名），产品层是**理解 → 阅读 → 翻译 → 复刻 → 演进**。
+
+当 Agent 自动选择 Skill 时，普通用户常常只看到结果：不知道它加载了什么、按什么步骤工作。DSH Skill Intelligence 把两件事分开摆：**Skill 声明了什么**（只来自 `SKILL.md` 正文）与**这次会话实际加载过什么**（只来自 DSH 的运行时事实）。两者不互相推断，也都不打分。
 
 > 一次成功的 `skill(name)` 调用只证明 Agent 请求并成功加载了 Skill；**不**证明 Agent 完全遵循其指令，也不证明 Skill 导致了正确结果。插件会明确保留这条证据边界。
 
@@ -19,7 +32,9 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追�
 
 | 项目 | 说明 |
 | --- | --- |
-| 插件名称 | `dsh-skill-trace` |
+| 产品名称 | **DSH Skill 智能实验室**（英文：DSH Skill Intelligence） |
+| 插件名称（npm / 目录 / 路由） | `dsh-skill-trace` —— **保持不变**：npm 上已发布，改名会让所有安装命令与已锚定的 `github:` 源失效 |
+| 技术底座 | **Skill Trace** —— 本地加载证据；`/skill-trace/*` 路由、模块名与存储结构都属于内部技术层，不随品牌改名 |
 | 适配平台 | DeepSeek Harness `web` Profile / Desktop（当前运行基线：DSH Desktop `0.11.3` / runtime `0.1.5-rc.2`；此前基线验证于 Desktop `0.8.3` / runtime `0.1.1-rc.2`） |
 | 解决的问题 | Agent 加载了什么 Skill、何时加载、声明如何运行、我能否手动延续，都缺少用户可读的证据 |
 | 核心界面 | **本次 Skill**、**已安装 Skill**，以及它们共用的二级页 **Skill 详情**（`SKILL.md` 原文 / 中文阅读版）；详情页左栏的对象动作里有 **复刻 Skill** |
@@ -93,7 +108,7 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**Skill 追�
 flowchart LR
     A[Agent 请求 skill name] --> B[DSH 工具调用与结果]
     U["用户输入 /name"] --> B
-    B --> C[Skill 追踪：本地收据]
+    B --> C[Skill Trace：本地收据]
     C --> D[本次 Skill 列表]
     R[Skill Registry] --> E[已安装 Skill 列表]
     D --> F[Skill 详情]
@@ -114,7 +129,7 @@ flowchart LR
 从 GitHub 安装（锚定本次发布的 tag）：
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.7.0&path:/"
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-intelligence#v0.7.0&path:/"
 ```
 
 或从 npm 安装（`0.7.0` 已发布，npm 上的 `beta` 与 `latest` 都指向它）：
@@ -123,13 +138,13 @@ dsh plugin --profile web add "github:PolinniZhong/dsh-skill-trace#v0.7.0&path:/"
 dsh plugin --profile web add dsh-skill-trace@0.7.0
 ```
 
-安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 追踪**。
+安装后重启 DeepSeek Harness Desktop，在会话中打开 **DSH Skill 智能实验室**。
 
 > 当前功能已通过本地链接安装的 Desktop 验证。`dsh plugin add` 会把包名参数转交 pnpm 解析，所以 npm 包名与 `github:` 源两种写法都可用；如未来 DSH 更新导致源安装行为变化，可使用下方的克隆安装作为回退方式。
 
 ### 2. 跑一次真实任务
 
-让 Agent 自然加载一个 Skill。若本次没有观测到任何 Skill，插件只显示“当前对话暂未使用任何 Skill”的空状态，不会填入示例数据。
+让 Agent 自然加载一个 Skill。若本次没有观测到任何 Skill，插件只显示“当前对话暂未加载任何 Skill”的空状态，不会填入示例数据。
 
 ### 3. 读它的 SKILL.md，不要停在列表
 
@@ -144,8 +159,8 @@ dsh plugin --profile web add dsh-skill-trace@0.7.0
 ## 本地开发与回退安装
 
 ```bash
-git clone https://github.com/PolinniZhong/dsh-skill-trace.git
-cd dsh-skill-trace
+git clone https://github.com/PolinniZhong/dsh-skill-intelligence.git
+cd dsh-skill-intelligence
 npm test
 npm run verify
 dsh plugin --profile web add "link:$(pwd)"
@@ -170,7 +185,7 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开版为 `0.7.0`：GitHub Release（tag `v0.7.0`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 2332 行，bundle 129280 字节，宿主路由 10 条。
+当前公开版为 `0.7.0`：GitHub Release（tag `v0.7.0`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。**品牌迁移（Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）已在仓库中完成，尚未发版**——npm 包名仍是 `dsh-skill-trace`，路由、模块与存储结构一个都没动，功能行为不变。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 2332 行，bundle 129280 字节，宿主路由 10 条。
 
 **`0.7.0` 把产品从「观察 → 理解」推进到「观察 → 理解 → 阅读 → 复刻 → 让当前 Agent 继续用」，三个能力都落在已有页面里，没有新增一级或二级页面。** 一是**已安装 Skill 的卡片整张可点**：它此前是个纯展示的 `article`，只能看不能进，现在点一下就进**同一个** `SkillDetailPage`，返回键照旧写明是从哪个列表来的；卡片里**没有**再加一个「查看详情」按钮——两个入口指向同一个动作，其中一个必然多余，渲染烟测直接断言这个页面的按钮数恰好等于卡片数。二是**中文阅读版从「临时」变成「资产」**：译文落到 `<dataRoot>/translations/`，按「Skill 名 + 正文指纹 + 语言」索引、**不含会话 ID**（它是资产，不是某次会话的产物），退出 DSH 再打开、正文没变就直接用，正文一变就退回原文并允许重译。保存态是真的写成功才说——宿主在 `/translate` 的响应里回一个 `saved` 布尔，没写成界面就直说「中文阅读版没有保存到本机，下次打开需要重新翻译。」三是**复刻 Skill**：详情页左栏对象区里唯一的对象级动作，弹一个 560px 的紧凑对话框（名字、当前项目还是我的 Skill、复刻整包还是只要 `SKILL.md`）。它只读源、只写新目录，`mkdir` 不带 `recursive`，所以**同名不覆盖**是文件系统的性质而不是一段记得住的判断；`sourceSha256` 随请求提交、宿主重新读源再校验，对不上就 409 让用户重开详情页；副本的 frontmatter `name:` 会被改写成目标名（DSH 认 frontmatter 不认目录名）；写完之后**必须回读**再报成功，并且重新读一遍源比对哈希、如实说源有没有被动过。它**不执行** Skill 里的 `scripts/`、不跑 bash、不触发 Agent，也**不返回任何本地绝对路径**。目录刷新是**观察**出来的——插件拿不到 provider 的 `invalidate`，观察不到就写「待确认」并说明重启后一定可见。
 
@@ -274,7 +289,7 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 
-Skill Trace 运行在 DSH 内部，因此
+Skill Intelligence 运行在 DSH 内部，因此
 
 ```
 Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
@@ -322,7 +337,7 @@ npm pack --dry-run
 | 复刻会改动源 Skill 吗？会覆盖同名 Skill 吗？ | 都不会。复刻只读源、只写新目录，而且新目录用的是不带 `recursive` 的 `mkdir`——同名目录已经存在就直接冲突报错，没有「先删再写」这条路。写完还会回读一遍，再重新读源比对哈希，如实告诉你源有没有被动过。 |
 | 复刻会执行 Skill 里的 `scripts/` 吗？ | 不会。复刻只做四件事：读、复制、写、校验。不跑 bash、不跑 Python、不触发 Skill、不触发 Agent。复刻到的是文件，不是一次运行。 |
 | 复刻成功为什么还说「目录刷新状态待确认」？ | 因为那是我观察出来的，不是我保证得了的。插件拿不到 Skill 目录 provider 的刷新接口，只能轮询注册表；没轮询到就直说，并告诉你重启 DSH 后一定可见。 |
-| 清空 Skill Trace 数据会删除 DSH 对话吗？ | 不会。它只删除插件自己的本地收据；当前仍在运行的会话证据可能根据 DSH 事件重新建立。 |
+| 清空 DSH Skill 智能实验室的数据会删除 DSH 对话吗？ | 不会。它只删除插件自己的本地收据；当前仍在运行的会话证据可能根据 DSH 事件重新建立。 |
 | 能直接生成或发布改好的 Skill 吗？ | 不能。这一版帮你读定义、看清这次会话加载过什么，并把一份 Skill 复刻成你自己的；它不编辑源、不安装、不发布、不评判 Skill 好坏。 |
 
 ## 相关文档

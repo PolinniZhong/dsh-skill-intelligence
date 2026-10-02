@@ -1,4 +1,9 @@
-// DSH Skill Trace — conversation view client.
+// DSH Skill Intelligence（中文名：DSH Skill 智能实验室）— conversation view client.
+//
+// 命名分层（2026-10-02 品牌迁移）：**产品名**是 DSH Skill 智能实验室 / DSH Skill
+// Intelligence；**npm 包名**仍是 `dsh-skill-trace`（已发布，不能改）；**技术概念**
+// Skill Trace（本地加载证据）保留 —— 路由 `/skill-trace/*`、命名空间
+// `dsh-skill-trace`、`[data-plugin="dsh-skill-trace"]`、storage 结构都不随品牌改名。
 //
 // This file is the *implementation*: a plain CommonJS module. It is bundled by
 // `scripts/build-client.mjs` into `dist/client.js`, which wraps it in the
@@ -40,13 +45,13 @@ const { RUNTIME_LOGIC_NOTE } = require('../../core/skill-runtime-logic.mjs')
   const EN = {
     '当前会话': 'Current session',
     '本次 Skill 使用记录': 'Skill usage this session',
-    'Skill 追踪': 'Skill Trace', '刷新': 'Refresh',
+    'DSH Skill 智能实验室': 'DSH Skill Intelligence', '刷新': 'Refresh',
     '工作区未连接': 'No workspace connected', '正在读取当前会话…': 'Reading current session…',
     '当前目录无法确认': 'Current catalog cannot be confirmed', '目录可能不完整': 'Catalog may be incomplete',
     '返回 Skill 列表': 'Back to Skill list', 'Skill 列表': 'Skill list',
     '搜索 Skill': 'Search Skills', '重试': 'Retry',
     '保存': 'Save',
-    '当前对话暂未加载可追踪的 Skill。': 'No traceable Skill has been loaded in this conversation yet.', '正在读取当前对话的 Skill 使用情况…': 'Reading Skill usage in this conversation…',
+    '当前对话暂未加载任何 Skill。': 'No Skill has been loaded in this conversation yet.', '正在读取当前对话的 Skill 使用情况…': 'Reading Skill usage in this conversation…',
     '当前视图没有可用的会话 ID': 'No session ID is available for this view.', '本次 Skill': 'Skills in this run',
     '本次加载的 Skill': 'Skills loaded in this run',
     '定义可用': 'Definition available',
@@ -151,7 +156,7 @@ function installStyles() {
     style.id = STYLE_ID
     style.textContent = `
       [data-plugin="dsh-skill-trace"]{
-      /* DSH Theme → DSH Alias → --st-* → Skill Trace UI
+      /* DSH Theme → DSH Alias → --st-* → DSH Skill Intelligence UI
        *
        * Every neutral, status and brand token resolves to a **DSH alias token** first; the
        * literal is only the fallback for the abnormal case where the host token is absent.
@@ -837,7 +842,7 @@ function installStyles() {
           : localized('暂时无法从宿主读取 Skill 列表。宿主可能仍在运行旧版本，重启 DSH 后再试。', 'The Skill list cannot be read from the host right now. The host may still be running an older build; restart DSH and try again.'),
       }
     }
-    return { kind: 'empty', message: localized('当前对话暂未加载可追踪的 Skill。', 'No traceable Skill was loaded in this conversation.') }
+    return { kind: 'empty', message: localized('当前对话暂未加载任何 Skill。', 'No Skill was loaded in this conversation.') }
   }
 
   /**
@@ -2268,7 +2273,7 @@ function installStyles() {
       // custom properties, so an absent measurement simply falls back in CSS.
       ...(hostComposerHeight ? { '--st-host-composer-h': `${hostComposerHeight}px` } : null),
       ...(hostHeight ? { '--st-host-h': `${hostHeight}px` } : null),
-    }, 'aria-label': view === 'installed' ? 'DSH Skill Trace 已安装 Skill' : 'DSH Skill Trace 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
+    }, 'aria-label': view === 'installed' ? 'DSH Skill 智能实验室 已安装 Skill' : 'DSH Skill 智能实验室 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
         // §7：一级导航**只有两个**，而且是顶栏里最左的东西 —— 顶栏的读法固定成
         // 「导航 → 这一页的状态 →（右侧）搜索 → 刷新」。运行流程 / 运行图谱 / Skill 收据在
@@ -2299,7 +2304,7 @@ function installStyles() {
           view === 'installed' && !openSkill && catalogMeta && !catalogMeta.error
             ? h(InstalledSearchBox, { query: installedQuery, onQueryChange: setInstalledQuery })
             : null,
-          h('button', { className: 'st-icon-button', type: 'button', onClick: view === 'installed' ? () => setCatalogReload((value) => value + 1) : load, disabled: view === 'current' && loading, title: '刷新', 'aria-label': view === 'installed' ? '刷新已安装 Skill' : '刷新 Skill 追踪' }, h(Icon, { name: 'refresh', size: 15 })))),
+          h('button', { className: 'st-icon-button', type: 'button', onClick: view === 'installed' ? () => setCatalogReload((value) => value + 1) : load, disabled: view === 'current' && loading, title: '刷新', 'aria-label': view === 'installed' ? '刷新已安装 Skill' : '刷新本次 Skill' }, h(Icon, { name: 'refresh', size: 15 })))),
       content))
   }
 
@@ -2310,7 +2315,9 @@ function installStyles() {
     translate = ctx.locale.bind(NS)
     ctx.effect(() => ctx.locale.register(NS, { zh: ZH, en: EN }), 'dsh-skill-trace: locale dictionaries')
     ctx.effect(() => installStyles(), 'dsh-skill-trace: stylesheet')
-    ctx.slots.inject('conversation.view', () => ctx.slots.register({ name: 'conversation.view', id: 'skill-trace', order: 70, label: () => t('Skill 追踪'), locale: NS }, (props) => h(Workbench, props)))
+    // 工作栏标签就是**插件显示名**：品牌迁移后这里读 DSH Skill 智能实验室 / DSH Skill
+    // Intelligence。`id: 'skill-trace'` 与 `locale: NS` 是技术标识，不随品牌改名。
+    ctx.slots.inject('conversation.view', () => ctx.slots.register({ name: 'conversation.view', id: 'skill-trace', order: 70, label: () => t('DSH Skill 智能实验室'), locale: NS }, (props) => h(Workbench, props)))
   }
 
   // Test seam. The shell reads only `inject` and `apply`; exposing the views lets the

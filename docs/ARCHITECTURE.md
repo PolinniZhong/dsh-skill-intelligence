@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-DSH Skill Trace observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object. After v0.6 it has exactly two first-level pages — **本次 Skill** (which Skills this conversation loaded) and **已安装 Skill** (which Skills this DSH environment can discover) — and one second-level page, **Skill Detail** (`Skill 信息` / `Definition 元信息` / `Repository` / `SKILL.md` 原文 · Outline · 中文阅读版), where a Skill can also be cloned into a new directory. It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
+DSH Skill Intelligence (product name; npm package and plugin id stay `dsh-skill-trace`) observes event evidence produced by DeepSeek Harness and presents Skills as the primary product object. After v0.6 it has exactly two first-level pages — **本次 Skill** (which Skills this conversation loaded) and **已安装 Skill** (which Skills this DSH environment can discover) — and one second-level page, **Skill Detail** (`Skill 信息` / `Definition 元信息` / `Repository` / `SKILL.md` 原文 · Outline · 中文阅读版), where a Skill can also be cloned into a new directory. It does not decide which Skill to use, discover remote Skills, mount a Skill, or judge a model output.
 
 ```text
 DSH event stream
@@ -331,7 +331,7 @@ A receipt written by an older version may still contain `learningNotes[]` and `v
 
 ## Interface language
 
-DSH Skill Trace follows the DeepSeek Harness locale service rather than the browser language. Its client registers a `dsh-skill-trace` namespace with `zh` and `en` dictionaries for static keys, uses explicit locale branches for dynamic templates, subscribes to the locale snapshot, and re-renders in place on a Host language change. The tab labels are locale-aware functions, so they also update without slot re-registration.
+DSH Skill Intelligence follows the DeepSeek Harness locale service rather than the browser language. Its client registers a `dsh-skill-trace` namespace with `zh` and `en` dictionaries for static keys, uses explicit locale branches for dynamic templates, subscribes to the locale snapshot, and re-renders in place on a Host language change. The tab labels are locale-aware functions, so they also update without slot re-registration.
 
 Only plugin-owned interface copy is translated. Receipt evidence, Skill names and declarations, workspace names, and any legacy output references, learning notes, or validation results remain local source data and are never translated, uploaded, or rewritten. The DSH locale contract currently ships `zh` and `en`; an unknown active locale follows DSH’s English fallback. A missing plugin dictionary key remains visible as its source key so omissions fail loud during review rather than silently rewriting evidence.
 

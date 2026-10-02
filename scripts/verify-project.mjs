@@ -53,7 +53,7 @@ for (const requiredText of [
   'if (previous) previous.replaceWith(style)',
   'if (document.getElementById(STYLE_ID) === style) style.remove()',
   // §6/§7：两个一级页面各自的空态、读不到、与副标题，必须说自己的那件事。
-  '当前对话暂未加载可追踪的 Skill。',
+  '当前对话暂未加载任何 Skill。',
   '正在读取当前对话的 Skill 使用情况…',
   '本次 Skill 使用记录',
   '本次 Skill',

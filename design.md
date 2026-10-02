@@ -7,11 +7,11 @@ status: current-authority
 supersedes: "2.1"
 ---
 
-# DSH Skill Trace Design System
+# DSH Skill Intelligence Design System
 
 ## 1. 文档职责
 
-本文是 DSH Skill Trace 的 UI 视觉与交互权威。后续新增页面、组件或状态时，应先遵守本文，再补充局部实现；稳定规则经过至少两个页面或状态验证后，才允许提升到本文。
+本文是 DSH Skill Intelligence（DSH Skill 智能实验室）的 UI 视觉与交互权威。后续新增页面、组件或状态时，应先遵守本文，再补充局部实现；稳定规则经过至少两个页面或状态验证后，才允许提升到本文。
 
 本文定义：
 
@@ -70,7 +70,7 @@ supersedes: "2.1"
 ## 3. 产品信息架构
 
 ```text
-Skill 追踪
+DSH Skill 智能实验室
 ├── 本次 Skill                     ← 默认第一屏
 │   ├── Skill 列表：本会话真正加载过的 Skill（名称 / 简介 / 加载次数 / 最近加载 / 定义状态）
 │   └── Skill 详情：一次点击进入
@@ -184,7 +184,7 @@ Skill 追踪
 
 ## 6.1 Layout Contract（嵌入宿主，不按视口布局）
 
-Skill Trace 运行在 DeepSeek Harness **内部**，因此：
+DSH Skill Intelligence 运行在 DeepSeek Harness **内部**，因此：
 
 ```
 Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
@@ -421,7 +421,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 
 ## 9. 证据表达规则
 
-Skill Trace 的视觉系统必须服从证据强度：
+DSH Skill Intelligence 的视觉系统必须服从证据强度：
 
 | 事实强度 | UI 表达 |
 |---|---|
@@ -469,7 +469,7 @@ Skill Trace 的视觉系统必须服从证据强度：
 
 必须区分：
 
-- 当前会话没有可追踪 Skill；
+- 当前会话没有已加载的 Skill；
 - 当前会话没有可重建的运行证据；
 - 当前作用域没有可发现 Skill；
 - 搜索或筛选无匹配；
@@ -526,11 +526,11 @@ Skill Trace 的视觉系统必须服从证据强度：
 ### 架构
 
 ```
-DSH Theme → DSH Alias / Semantic Token → --st-* → Skill Trace UI
+DSH Theme → DSH Alias / Semantic Token → --st-* → DSH Skill Intelligence UI
 ```
 
 - **优先复用 DSH semantic / alias token**（实测当前可用 **52 个 `--dsw-alias-*`**）
-- `--st-*` 是 Skill Trace **内部语义 token**，值形如 `var(--dsw-alias-…, <回退字面量>)`
+- `--st-*` 是 DSH Skill Intelligence **内部语义 token**，值形如 `var(--dsw-alias-…, <回退字面量>)`
 - **字面量只用于宿主 token 缺失的异常环境**；不得绑定某一主题的绝对颜色
 
 ### 已映射的 14 个 token
@@ -641,7 +641,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 
 ## 15. 跨插件复用边界
 
-其他 DSH 插件可以复用本文的宿主 Token、密度、页面壳层、列表/详情、Inspector、状态、表单和响应式原则，但不得复制 Skill Trace 的业务语言、收据结构、证据等级、Runtime 层级模型或固定地图关系。
+其他 DSH 插件可以复用本文的宿主 Token、密度、页面壳层、列表/详情、Inspector、状态、表单和响应式原则，但不得复制 DSH Skill Intelligence 的业务语言、收据结构、证据等级、Runtime 层级模型或固定地图关系。
 
 可复用：
 
@@ -973,7 +973,7 @@ Skill IDE、工作台、笔记、评分、排行、推荐。
 
 ### 23.4 与 DSH 的分工
 
-Skill Trace 只负责「观察 / 阅读 / 翻译 / 复刻」。**不重新实现** Skill registry、
+DSH Skill Intelligence 只负责「观察 / 阅读 / 翻译 / 复刻」。**不重新实现** Skill registry、
 Agent Skill resolver、Skill 调用引擎。目录失效与刷新交给 `dsh-skill-filesystem` 自己的 watcher
 （chokidar，`awaitWriteFinish.stabilityThreshold` 200ms）—— 插件拿不到 provider 的 `invalidate`，
 所以目录刷新只能**观察**出来，观察不到就只能说实话。

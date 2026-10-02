@@ -1,9 +1,13 @@
-# DSH Skill Trace 项目执行规则（Agent 入口）
+# DSH Skill Intelligence（DSH Skill 智能实验室）项目执行规则（Agent 入口）
 
 > 本文件是 Agent 进入本项目的**第一读物**：只说「怎么在这个项目里干活」和「哪些不能动」。
 > 产品需求 `spec/PRD.md` · 技术设计 `spec/SDD.md` · 视觉与组件规格 `design.md`
 > · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md` · 历史规格 `docs/archive/`
 > **最后更新：2026-10-05**（知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步）
+>
+> **产品名：DSH Skill 智能实验室（DSH Skill Intelligence）。** npm 包名与插件标识仍是 `dsh-skill-trace`
+> （已发布，不改）；`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]` 与 storage 结构属于
+> 技术层 **Skill Trace**，同样不随品牌改名。
 
 ---
 

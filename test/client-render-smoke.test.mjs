@@ -522,7 +522,7 @@ test('the client registers and its entry component renders without throwing', as
   // 3. 空列表：宿主答了、答案是空的，这才是空态。三种"没有卡片"的原因必须分开说（§6.5）。
   const emptyNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {}, list: { ...skillListFixture, skills: [] } }))
   assert.equal(emptyNodes.filter((node) => node.props.className === 'st-skill-card').length, 0, 'an empty answer renders no card')
-  assert.ok(emptyNodes.some((node) => node.type === '#text' && node.text.includes('当前对话暂未加载可追踪的 Skill。')), 'the empty state says exactly what happened')
+  assert.ok(emptyNodes.some((node) => node.type === '#text' && node.text.includes('当前对话暂未加载任何 Skill。')), 'the empty state says exactly what happened')
   const loadingNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {} }))
   assert.equal(loadingNodes.filter((node) => node.props.className === 'st-skill-card').length, 0, 'a pending read renders no card')
 

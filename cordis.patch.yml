@@ -1,4 +1,5 @@
-# DSH Skill Trace bundle: independent Host observer and conversation view.
+# DSH Skill Intelligence（DSH Skill 智能实验室）bundle: an independent Host observer and
+# conversation view. `id` / `name` 是插件标识，与 npm 包名一致，**不随品牌迁移改名**。
 - insert:
     - id: dsh-skill-trace
       name: 'dsh-skill-trace'
