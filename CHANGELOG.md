@@ -38,6 +38,10 @@ DSH Skill Intelligence helps users understand, reproduce and evolve Agent Skills
   都不变——数字不变正是「纯品牌迁移」的证据。
 - **GitHub 仓库改名**：`PolinniZhong/dsh-skill-trace` → `PolinniZhong/dsh-skill-intelligence`
   （旧地址自动重定向），description / homepage / topics 同步（`skill-tracing` 换成 `skill-intelligence`）。
+- **npm 发布实测**：口径提交（`README` 折成「已发布」的那一次，也就是发布提交 `74a161d`）**先推**，
+  `npm publish --tag latest --cache=/tmp/npm-cache-dsh` → 37 个文件 / 包体 348.0 kB / 解包 1.1 MB /
+  shasum `2379892b6fe5a61ba5d00502545a707982e8fb13`；`npm dist-tag add dsh-skill-trace@0.7.1 beta`
+  之后 `beta` 与 `latest` 都指向 `0.7.1`。注册表传播有延迟，`gitHead` 回读即 `74a161d`。
 
 ## 0.7.0 — 2026-10-02 · Skill 理解与复用：读得懂、存得住、复刻得走
 

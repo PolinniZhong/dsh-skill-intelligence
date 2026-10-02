@@ -25,7 +25,7 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`0.7.0`**（`package.json`）· tag `v0.7.0` · 2026-10-02 · **GitHub Release 与 npm 都已发布** · 发布提交 `5fac5d9`；上一版 `0.6.1`（发布提交 `b3bc500`） |
+| 插件包版本 | **`0.7.1`**（`package.json`）· tag `v0.7.1` · 2026-10-02 · **GitHub Release 与 npm 都已发布** · 发布提交 `74a161d`；上一版 `0.7.0`（发布提交 `5fac5d9`） |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
 | npm | **`beta` 与 `latest` 都指向 `0.7.1`**。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1` |
 | 测试 | **429 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |

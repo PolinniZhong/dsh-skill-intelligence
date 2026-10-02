@@ -965,5 +965,6 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 - ~~§13.1 第 22、23 条 marker 没有断言（D5）~~ **已修**：`FIVE_LAYER_MODEL_OK` 删除、`FINGERPRINT_RESERVED_OK` 补断言、新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查。
 - ~~`src/dsh/host/index.js` 两条过期注释（D1、D2）与 `docs/ARCHITECTURE.md` 的「seven routes」（D3）~~ **已修**，连同 `AGENTS.md` §6.6 的六支 core 模块（D6）。
+- `0.7.1` **已发布**（品牌迁移：Skill Trace → DSH Skill Intelligence）：tag `v0.7.1` → 发布提交 `74a161d`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它；功能逻辑与 `0.7.0` 逐字一致。
 - `0.7.0` **已发布**：tag `v0.7.0` → 发布提交 `5fac5d9`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它。
 - 本文件的 §9 模块清单行数与 §14 测试文件数都是**写死的实测值**，`AGENTS.md` §9.1 要求发版时用 `wc -l` 重跑；改代码时容易漏改这里。

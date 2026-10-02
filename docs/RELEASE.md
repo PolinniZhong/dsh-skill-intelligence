@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**当前待发布版本：`0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）。** 上一版 `0.7.0`（Skill 理解与复用）已于 2026-10-02 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**当前没有待发布版本：`0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）已于 2026-10-02 发布到 GitHub Release 与 npm**（发布提交 `74a161d`，结果见 §6.0）。下一版从它开始：发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
 **这一版为什么是 patch：** `0.7.1` 只改产品名、用户可见措辞与仓库元信息（`CHANGELOG.md` 顶部 `## 0.7.1`），功能逻辑一个字没改。GitHub 仓库已改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向，本地 `origin` 已同步）。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此这次**不需要 npm 迁移**：照常发布一个版本即可，发布时 npm 包页的 README 会自动换成新品牌口径。**验证点：客户端 2332 → 2339 行、bundle 129280 → 129315 字节，测试 429 与守卫 23 都不变——数字变了就不是纯品牌迁移。**
 
@@ -13,11 +13,11 @@
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `8ec062f docs: 发布清单记下未发布的品牌迁移与「不需要 npm 迁移」的结论`（= `origin/main`；品牌迁移提交 `176dbcf` 在它之前） |
-| `origin/main` | `8ec062f80dea12e6fe6505a1b0fdbe9bec769f9a` —— 与本地 `main` **0 领先 / 0 落后** |
-| 远端最新 tag | `v0.7.0`（`refs/tags/v0.7.0^{}` → `5fac5d9`） |
-| npm | `beta` 与 `latest` **都指向 `0.7.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
-| 工作区 | 干净（`git status --porcelain` 无输出）——本次版本号编辑从这里开始 |
+| 本地 `HEAD` | `74a161d release: v0.7.1 — 品牌迁移：DSH Skill Intelligence（DSH Skill 智能实验室）`（= `origin/main`） |
+| `origin/main` | `74a161de0ca1b619a1389a942ddbe88b78fa5f7c` —— 与本地 `main` **0 领先 / 0 落后** |
+| 远端最新 tag | `v0.7.1`（`refs/tags/v0.7.1^{}` → `74a161d`） |
+| npm | `beta` 与 `latest` **都指向 `0.7.1`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 工作区 | 干净（`git status --porcelain` 无输出） |
 
 **第一个要决定的事是版本号 —— 这次是 `0.7.1`。** 上一版 `0.7.0` 加了三条宿主路由、四个新模块与一个对象级动作，是 minor；这一版**一个功能都没加**：产品名、用户可见措辞、仓库元信息是全部改动，按语义是 patch。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
 
@@ -152,7 +152,19 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
-### 6.0 本次 `v0.7.0` 的实际结果（2026-10-02 已执行）
+### 6.0 本次 `v0.7.1` 的实际结果（2026-10-02 已执行）
+
+| 项 | 结果 |
+|---|---|
+| 发布提交 | `74a161d release: v0.7.1 — 品牌迁移：DSH Skill Intelligence（DSH Skill 智能实验室）`（`package.json` `0.7.1`） |
+| `origin/main` | `74a161de0ca1b619a1389a942ddbe88b78fa5f7c` —— 与本地 `main` **0 领先 / 0 落后** |
+| tag | `v0.7.1` → 注释对象 `8abbacee672154beae23d72332b29fd76c0c0e63`，解引用到 `74a161d`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.7.1>（`Latest`，`prerelease=false`、`draft=false`），正文取 `CHANGELOG.md` 的 39 行 `## 0.7.1` 段 |
+| npm | **`beta` 与 `latest` 都指向 `0.7.1`**（§5 本次已执行）：发布提交 `74a161d` **先推**，`gitHead` 就是它；37 个文件 / 包体 348.0 kB / 解包 1.1 MB / shasum `2379892b6fe5a61ba5d00502545a707982e8fb13`；注册表传播有延迟 |
+| 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129315 字节**（source hash `58ed0ec27f941c3f`），重建后 `git status` 无 `dist` 差异 |
+| 附属产出 | 向 `awesome-dsh-plugin/awesome-dsh-plugin` 投稿：PR [#6351](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6351)，只加 `data/plugins/PolinniZhong__dsh-skill-intelligence.yml`（`category: skill`） |
+
+### 6.0.1 本次 `v0.7.0` 的实际结果（2026-10-02 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -163,7 +175,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | npm | **`beta` 与 `latest` 都指向 `0.7.0`**（§5 本次已执行）：口径提交 `9800098` **先推**，`gitHead` 就是它；37 个文件 / 346.6 kB / 解包 1070413 字节 / shasum `015bbf75aee07c5dd921fdc093727e2795c1d155`；约 3.5 分钟后注册表才对上；空目录安装验证通过 |
 | 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `GUARD_MARKERS_ARE_BACKED_OK` 与 `RELEASE_ASSETS_IN_SYNC_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129280 字节**（source hash `31d39c71f13aeeb8`），重建后 `git status` 无 `dist` 差异 |
 
-### 6.0.1 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
+### 6.0.2 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -177,7 +189,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | 渲染台实测 | `.st-detail-doc` 高度 **2px → 640px**，内部滚动区 clientHeight **24 → 539** / scrollHeight 4233；主内容区 scrollHeight 3399 |
 | README 五张截图 | 用 Chrome for Testing 以真实 1600×1050 视口重拍后转 jpg：`skill-list.jpg` 69384B / `installed-skills.jpg` 334705B / `skill-detail.jpg` 266250B / `skill-detail-table.jpg` 289567B / `skill-detail-zh.jpg` 335350B |
 
-### 6.0.2 上一版 `v0.6.0` 的实际结果（2026-10-01）
+### 6.0.3 上一版 `v0.6.0` 的实际结果（2026-10-01）
 
 | 项 | 结果 |
 |---|---|
