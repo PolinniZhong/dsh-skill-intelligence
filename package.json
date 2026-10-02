@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-trace",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "type": "module",
   "description": "DSH Skill 智能实验室（DSH Skill Intelligence）：探索优秀 Agent Skill 的结构与方法，将成熟 AI 工作流转化为个人能力和企业业务能力。",
   "license": "MIT",

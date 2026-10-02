@@ -1,6 +1,6 @@
 # DSH Skill Intelligence · DSH Skill 智能实验室 · 软件设计文档（SDD）
 
-> **当前版本**：`dsh-skill-trace@0.7.0`（`package.json`）
+> **当前版本**：`dsh-skill-trace@0.7.1`（`package.json`；`0.7.1` 是品牌迁移版，产品名 **DSH Skill 智能实验室 / DSH Skill Intelligence**，架构与模块清单未变）
 > **这份文件是什么**：本插件**唯一一份描述当前实现**的技术设计 —— 分层、运行架构、宿主接口面、数据流、存储与隐私、模块清单、契约守卫、验证边界。
 > **目录定位**：
 > - **`spec/SDD.md`（本文件）= 当前架构的唯一权威。** 分层、10 条路由、数据流、存储与隐私、模块清单都以此为准。
@@ -21,7 +21,7 @@
 | D1 | `src/dsh/host/index.js` translate 路由的注释 | 原文写「这里刻意**不**落盘……§12.4 要求译文只存在页面运行时内存里」 | 同文件 `saved: await persistTranslation({...})`，v0.7 起译文落盘 | **已修（2026-10-05）**：注释改成 v0.7 的事实——落盘为本机资产、键不含会话，同时保留不写 receipt / 不动偏好 / 不读正文三条 |
 | D2 | `src/dsh/host/index.js` catalog 路由的注释 | 「名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`」 | 路由字面早就是 `/skill-trace/catalog`，「我的 Skill」工作台也已在 `0.5.0` 删除 | **已修（2026-10-05）**：那段「等改名收口」的注释删掉了，它会让后来的人以为还欠一次改名 |
 | D3 | `docs/ARCHITECTURE.md` 模块表 | 写「the seven routes」 | 宿主有 **10** 条路由 | **已修（2026-10-05）**：改成「the ten routes」 |
-| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 10 条 / 2332 行 / 129280 字节 / 24 个模块 7342 行 | 归档只作追溯，本文件不复用这些数字 |
+| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 10 条 / 2339 行 / 129315 字节 / 24 个模块 7342 行 | 归档只作追溯，本文件不复用这些数字 |
 | D5 | `scripts/verify-project.mjs` 末尾 | `console.log('FIVE_LAYER_MODEL_OK')` / `console.log('FINGERPRINT_RESERVED_OK')` 两句声称两条契约成立 | 两句之前**没有任何断言**。`FIVE_LAYER_MODEL_OK` 守的模块（`src/core/runtime-layout.mjs`、`src/dsh/client/runtime-flow.js`、`test/phase8-five-layer-model.test.mjs`）在 v0.6 删运行图谱画布时一起删了，marker 却留了下来 | **已修（2026-10-05）**：`FIVE_LAYER_MODEL_OK` 删掉（它守的界面不存在了）；`FINGERPRINT_RESERVED_OK` 补上真断言；新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查每一个 marker 之前是否有断言。见 §13.1 |
 | D6 | `AGENTS.md` §6.6 | 客户端 `require` 的 core 模块列举了 6 支 | 实际 `require` **7** 支（多一支 `skill-clone.mjs`，见 §10.3） | **已修（2026-10-05）**：本文改成七支并列出全部七个 |
 | D7 | `spec/PRD.md` | `AGENTS.md` §4 把它列为产品语义权威 | 写本文件时 `PRD.md` 尚未落盘 | **已消解**：`spec/PRD.md` 已落盘（692 行），本文件与它互为产品/技术两侧 |
@@ -35,7 +35,7 @@
 一个 DSH 插件包，含**两半**：
 
 - **宿主半边**（`src/dsh/host/index.js`，1110 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **10 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下）。
-- **客户端半边**（`src/dsh/client/client.js`，2332 行，构建产物 `dist/client.js` 129280 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 10 条路由，不持有收据本体。
+- **客户端半边**（`src/dsh/client/client.js`，2339 行，构建产物 `dist/client.js` 129315 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 10 条路由，不持有收据本体。
 
 纯函数逻辑放在 `src/core/`（24 个模块，7342 行），落盘放在 `src/storage/`（4 个模块，694 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
 
@@ -622,17 +622,17 @@ definition-unavailable · bundle-unreadable · write-failed
 
 ## 9. 模块清单
 
-行数为 `wc -l` 实测（v0.7.0）。
+行数为 `wc -l` 实测（v0.7.1；`0.7.1` 只改用户可见文案，`src/` 下除 `src/dsh/client/client.js` 外行数未变）。
 
 ### 9.1 `src/dsh/`（3 个文件）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
 | `src/dsh/host/index.js` | 1110 | 宿主半边：10 条路由、事件订阅与归约编排、收据/偏好/译文三个 store、复刻的校验与回读、loopback 门禁 |
-| `src/dsh/client/client.js` | 2332 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 整份样式表 |
+| `src/dsh/client/client.js` | 2339 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 整份样式表 |
 | `src/dsh/client/package.json` | — | 把该目录标记为 `commonjs`（包根是 `type: module`），不依赖打包器的猜测 |
 
-构建产物 `dist/client.js` 为 **129280 字节**，提交进仓库。
+构建产物 `dist/client.js` 为 **129315 字节**，提交进仓库。
 
 ### 9.2 `src/core/`（24 个文件、7342 行）
 

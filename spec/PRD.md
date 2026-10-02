@@ -1,12 +1,12 @@
-# DSH Skill Intelligence · DSH Skill 智能实验室 · 产品需求文档（当前版 0.7.0）
+# DSH Skill Intelligence · DSH Skill 智能实验室 · 产品需求文档（当前版 0.7.1）
 
 > **这份文件是什么**：DSH Skill Intelligence（DSH Skill 智能实验室）**当前版本的产品语义唯一权威**。目标、业务对象、状态语义、范围、功能需求与验收标准都以本文件为准；技术实现以 `spec/SDD.md` 为准，界面视觉与组件以 `design.md` 为准。
 >
-> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 v0.7.0 为真的事实，不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
+> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 v0.7.1 为真的事实，不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
 >
 > **一句话职责**：把「这次对话加载了哪些 Skill」与「这台机器上有哪些 Skill」变成两个可读页面，点进唯一的详情页，看这个 Skill **声明了什么**，以及本次会话**观察到了什么**。它是**只读观察者**。
 >
-> **版本与实测状态**：插件包 `dsh-skill-trace` **`0.7.0`**（2026-10-02 已发布：GitHub Release 与 npm 是同一份构建，npm 的 `beta` 与 `latest` 均指向它）· 自动化测试 **429 项**（`npm test`）· 静态契约守卫 **23 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **2332 行** · bundle `dist/client.js` **129280 字节** · 宿主路由 **10 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。
+> **版本与实测状态**：插件包 `dsh-skill-trace` **`0.7.1`**（2026-10-02 已发布：GitHub Release 与 npm 是同一份构建，npm 的 `beta` 与 `latest` 均指向它；这一版是**品牌迁移**，产品名改为 **DSH Skill 智能实验室 / DSH Skill Intelligence**，功能逻辑未动）· 自动化测试 **429 项**（`npm test`）· 静态契约守卫 **23 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **2339 行** · bundle `dist/client.js` **129315 字节** · 宿主路由 **10 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。
 >
 > **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **692 行 / 70330 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
 
@@ -639,7 +639,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 | `npm test` | 全绿 | **429 项通过** |
 | `npm run verify` | 全绿 | **23 组 OK** |
 | `node --check src/dsh/client/client.js` | 无语法错误 | 通过 |
-| `dist/client.js` 新鲜度 | 与源码同步 | 129280 字节 |
+| `dist/client.js` 新鲜度 | 与源码同步 | 129315 字节 |
 | 宿主路由 | 恰好 10 条，且 15 条已删路由不复活 | 通过 |
 
 守卫断言的是**源码文本层**的事实，因此它们必须真的跑到那条分支：客户端文案断言跑在「去掉英文字典之后」的源码上（一句只活在 `const EN = { … }` 里的文案不算存在——曾经有 45 条断言因此长期空转）。**改守卫时问一句：这条断言失败过吗？如果它写成 `true` 会怎样？**
@@ -689,4 +689,4 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 | `docs/archive/product-thesis.md` | 产品命题初稿（历史） |
 | `docs/archive/technical-design-v0.1-v0.5.md` | V0.1–V0.5 技术设计（历史） |
 
-> 本文件只描述 0.7.0 为真的事实。任何历史版本的范围声明、修订记录与变更日期都不在本文件内，需要追溯时到 `docs/archive/` 或 `CHANGELOG.md`。
+> 本文件只描述 0.7.1 为真的事实。任何历史版本的范围声明、修订记录与变更日期都不在本文件内，需要追溯时到 `docs/archive/` 或 `CHANGELOG.md`。

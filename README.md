@@ -129,13 +129,13 @@ flowchart LR
 从 GitHub 安装（锚定本次发布的 tag）：
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-intelligence#v0.7.0&path:/"
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-intelligence#v0.7.1&path:/"
 ```
 
-或从 npm 安装（`0.7.0` 已发布，npm 上的 `beta` 与 `latest` 都指向它）：
+或从 npm 安装（`0.7.1` 已发布，npm 上的 `beta` 与 `latest` 都指向它）：
 
 ```bash
-dsh plugin --profile web add dsh-skill-trace@0.7.0
+dsh plugin --profile web add dsh-skill-trace@0.7.1
 ```
 
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **DSH Skill 智能实验室**。
@@ -185,7 +185,7 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开版为 `0.7.0`：GitHub Release（tag `v0.7.0`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。**品牌迁移（Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）已在仓库中完成，尚未发版**——npm 包名仍是 `dsh-skill-trace`，路由、模块与存储结构一个都没动，功能行为不变。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 2332 行，bundle 129280 字节，宿主路由 10 条。
+当前公开版为 `0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）：GitHub Release（tag `v0.7.1`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。这一版**只改产品名、用户可见措辞与仓库元信息**——npm 包名仍是 `dsh-skill-trace`，路由、模块与存储结构一个都没动，功能行为不变。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0` 与 `0.7.1`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 2339 行，bundle 129315 字节，宿主路由 10 条。
 
 **`0.7.0` 把产品从「观察 → 理解」推进到「观察 → 理解 → 阅读 → 复刻 → 让当前 Agent 继续用」，三个能力都落在已有页面里，没有新增一级或二级页面。** 一是**已安装 Skill 的卡片整张可点**：它此前是个纯展示的 `article`，只能看不能进，现在点一下就进**同一个** `SkillDetailPage`，返回键照旧写明是从哪个列表来的；卡片里**没有**再加一个「查看详情」按钮——两个入口指向同一个动作，其中一个必然多余，渲染烟测直接断言这个页面的按钮数恰好等于卡片数。二是**中文阅读版从「临时」变成「资产」**：译文落到 `<dataRoot>/translations/`，按「Skill 名 + 正文指纹 + 语言」索引、**不含会话 ID**（它是资产，不是某次会话的产物），退出 DSH 再打开、正文没变就直接用，正文一变就退回原文并允许重译。保存态是真的写成功才说——宿主在 `/translate` 的响应里回一个 `saved` 布尔，没写成界面就直说「中文阅读版没有保存到本机，下次打开需要重新翻译。」三是**复刻 Skill**：详情页左栏对象区里唯一的对象级动作，弹一个 560px 的紧凑对话框（名字、当前项目还是我的 Skill、复刻整包还是只要 `SKILL.md`）。它只读源、只写新目录，`mkdir` 不带 `recursive`，所以**同名不覆盖**是文件系统的性质而不是一段记得住的判断；`sourceSha256` 随请求提交、宿主重新读源再校验，对不上就 409 让用户重开详情页；副本的 frontmatter `name:` 会被改写成目标名（DSH 认 frontmatter 不认目录名）；写完之后**必须回读**再报成功，并且重新读一遍源比对哈希、如实说源有没有被动过。它**不执行** Skill 里的 `scripts/`、不跑 bash、不触发 Agent，也**不返回任何本地绝对路径**。目录刷新是**观察**出来的——插件拿不到 provider 的 `invalidate`，观察不到就写「待确认」并说明重启后一定可见。
 
@@ -216,7 +216,7 @@ dsh plugin --profile web remove dsh-skill-trace
 `0.4.0-beta.13` 加入**运行图谱画布**——插件里的第三个视图，也是 `beta.5` 以来第一次改动界面。按重构方案的硬约束**先量后决**：本机 56 个真实会话的图谱规模是**中位 61 节点、p90 915、最大 1095**，比扁平画布能承受的量大一个数量级，所以**分组是模型的一部分，不是事后优化**。三条规则依次生效：单个 Turn 超过 12 次调用→按能力折叠；会话超过 36 个 Turn→折成区间；单层超过 26 行→换列。它们把画布稳定压在 **200 节点以内、约 1036px 高**，56 个会话**无一超限**（布局耗时中位 0.3ms，最差 15ms）。
 
 布局是图的纯函数：不存坐标、不记视口与缩放、不改动图本身——同一份收据永远画出同一张图，所以重绘不会被误读成新证据。**检查器**逐节点/逐边回答"这条线为什么存在"，每条关系都同时给出**含义**与**它不表示什么**（`follows` 是日志顺序不是因果；规则派生的 `spawns` 归属不是宿主事实；`retries` 不代表重试更接近成功），并携带 `causal/compliance/correctness: false` 的证据边界。画布只发计数不发 id 列表，细节按需重新推导——最大会话的响应从 **481KB 降到 145KB**（中位 21KB）。
-上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.7.0`）。
+上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.7.1`）。
 以下是 `beta.14` 以来的主线：
 
 - **`beta.14`–`beta.30`**：`My Skills` 目录页、指纹预留结构、五层运行时模型（会话 → Turn → 能力 → 调用 → 结果）、
@@ -286,6 +286,13 @@ dsh plugin --profile web remove dsh-skill-trace
   bundle 108839 → 129280 字节，测试 397 → 429，守卫仍是 23（`TRANSLATION_MEMORY_ONLY_OK` 改写成
   `TRANSLATION_PERSISTENCE_OK`，守的东西从「不许写」变成「哪些东西不许写进去」）。信息架构未动，
   一个页面都没加；**GitHub Release 与 npm 同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.7.0`
+- **`0.7.1`**：**品牌迁移**——产品名从 Skill Trace 改为 **DSH Skill 智能实验室**（英文 **DSH Skill
+  Intelligence**），一句话介绍统一为「探索优秀 Agent Skill 的结构与方法，将成熟 AI 工作流转化为个人能力
+  和企业业务能力。」；GitHub 仓库改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向），
+  README 首屏、DSH 工作栏标签、空态文案、包描述与全部文档抬头一并换名。**只改这一层**：npm 包名
+  `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构一个字没动，
+  客户端 2332 → 2339 行，bundle 129280 → 129315 字节，测试 429 与守卫 23 都不变；**GitHub Release 与
+  npm 同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.7.1`
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 

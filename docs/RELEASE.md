@@ -3,9 +3,9 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**当前没有待发布版本**：`0.7.0`（Skill 理解与复用）已于 2026-10-02 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`），下一版从它开始。`CHANGELOG.md` 顶部那一段仍是刚发出去的那一版。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**当前待发布版本：`0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）。** 上一版 `0.7.0`（Skill 理解与复用）已于 2026-10-02 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`）。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
-**当前有一批未发布的改动：品牌迁移（见 `CHANGELOG.md` 顶部 `## Unreleased — Brand Update`，提交 `176dbcf`）。** 产品名从 Skill Trace 改为 **DSH Skill 智能实验室 / DSH Skill Intelligence**，GitHub 仓库已改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向，本地 `origin` 已同步）。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此这次迁移**不需要 npm 迁移**：下一版（建议 `v0.7.1 Brand Update`）照常走下面的流程即可，发布时 npm 包页的 README 会自动换成新品牌口径。
+**这一版为什么是 patch：** `0.7.1` 只改产品名、用户可见措辞与仓库元信息（`CHANGELOG.md` 顶部 `## 0.7.1`），功能逻辑一个字没改。GitHub 仓库已改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向，本地 `origin` 已同步）。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此这次**不需要 npm 迁移**：照常发布一个版本即可，发布时 npm 包页的 README 会自动换成新品牌口径。**验证点：客户端 2332 → 2339 行、bundle 129280 → 129315 字节，测试 429 与守卫 23 都不变——数字变了就不是纯品牌迁移。**
 
 ---
 
@@ -13,17 +13,17 @@
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `5fac5d9 release: v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走`（= `origin/main`） |
-| `origin/main` | `5fac5d961fa7b01e91ef02f81c76c85a1dcee431` —— 与本地 `main` **0 领先 / 0 落后** |
+| 本地 `HEAD` | `8ec062f docs: 发布清单记下未发布的品牌迁移与「不需要 npm 迁移」的结论`（= `origin/main`；品牌迁移提交 `176dbcf` 在它之前） |
+| `origin/main` | `8ec062f80dea12e6fe6505a1b0fdbe9bec769f9a` —— 与本地 `main` **0 领先 / 0 落后** |
 | 远端最新 tag | `v0.7.0`（`refs/tags/v0.7.0^{}` → `5fac5d9`） |
 | npm | `beta` 与 `latest` **都指向 `0.7.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
-| 工作区 | 干净（`git status --porcelain` 无输出）——下一版从这里开始 |
+| 工作区 | 干净（`git status --porcelain` 无输出）——本次版本号编辑从这里开始 |
 
-**第一个要决定的事是版本号 —— 这次是 `0.7.0`。** 上一版 `0.6.1` 只修了一处布局塌陷，是 patch；这一版加了三条宿主路由、四个新模块、一个对象级动作，并且**改变了译文的生命周期**（从内存搬进本机数据目录），按语义是 minor。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
+**第一个要决定的事是版本号 —— 这次是 `0.7.1`。** 上一版 `0.7.0` 加了三条宿主路由、四个新模块与一个对象级动作，是 minor；这一版**一个功能都没加**：产品名、用户可见措辞、仓库元信息是全部改动，按语义是 patch。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
 
-**第二个要决定的事是 npm —— 这一版发 npm。** npm 上现在是 `0.6.1`，`beta` 与 `latest` 都指向它，所以补上是发布**一个**版本，不是补四个。`0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。
+**第二个要决定的事是 npm —— 这一版发 npm。** npm 上现在是 `0.7.0`，`beta` 与 `latest` 都指向它，所以补上是发布**一个**版本，不是补十个。`0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。npm 包名**不因为品牌迁移而改**——已发布，改名会让安装命令与 `github:` 锚点全部失效。
 
-**第三个要决定的事是路由与页面的预算。** 这一版把宿主路由从 7 条加到 10 条，但**没有新增一级或二级页面**：新能力全部落在已有的「已安装 Skill」与「Skill 详情」里。守卫按字面钉住那 10 条，也反向钉住 15 条已删路由——发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是悄悄把一个被删掉的界面带回来了。
+**第三个要决定的事是「什么都不改」的边界。** 品牌迁移只碰用户理解层：UI 文案、README 与文档抬头、`package.json` 的 description / keywords / URL。**`src/` 的功能逻辑一行不动**——`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]`、storage 结构与 `dsh-skill-trace` 命名空间都属于技术层，保持原样。守卫按字面钉住那 10 条路由与 15 条已删路由：发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是把一个被删掉的界面带回来了。
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 
@@ -74,8 +74,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走"
-git tag -a v0.7.0 -m "v0.7.0"
+git commit -m "release: v0.7.1 — 品牌迁移：DSH Skill 智能实验室"
+git tag -a v0.7.1 -m "v0.7.1"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -86,7 +86,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.7.0
+git push origin v0.7.1
 ```
 
 推送曾经失败过一次——`fatal: unable to access '…': Error in the HTTP2 framing layer`。当时可用的做法是
@@ -94,10 +94,10 @@ git push origin v0.7.0
 
 ```bash
 git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.7.0
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.7.1
 ```
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.7.0`。
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.7.1`。
 `git ls-remote` **也要带同样的两个 `-c`**（HTTP/2 那条路同样会被打断）。
 
 ---
@@ -105,9 +105,9 @@ git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.7.0 \
-  --title "v0.7.0 — Skill 理解与复用：读得懂、存得住、复刻得走" \
-  --notes-file <(sed -n '/^## 0.7.0/,/^## 0.6.1/p' CHANGELOG.md | sed '$d')
+gh release create v0.7.1 \
+  --title "v0.7.1 — 品牌迁移：DSH Skill 智能实验室" \
+  --notes-file <(sed -n '/^## 0.7.1/,/^## 0.7.0/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。
@@ -117,12 +117,12 @@ gh release create v0.7.0 \
 
 ## 5. npm 发布
 
-`0.7.0` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 与 `0.7.0` 都是 GitHub + npm）。
+`0.7.1` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 起每一版都是 GitHub + npm）。
 两条命令，顺序不能换：
 
 ```bash
 npm publish --tag latest --cache=/tmp/npm-cache-dsh                     # 这个版本第一次发布
-npm dist-tag add dsh-skill-trace@0.7.0 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
+npm dist-tag add dsh-skill-trace@0.7.1 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
 ```
 
 **不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未

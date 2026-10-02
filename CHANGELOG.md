@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Brand Update：Skill Trace → DSH Skill Intelligence（DSH Skill 智能实验室）
+## 0.7.1 — 2026-10-02 · 品牌迁移：Skill Trace → DSH Skill Intelligence（DSH Skill 智能实验室）
 
 **这是一次品牌迁移，不是功能重写。** 核心功能逻辑一个字没改：Skill Runtime 分析、Framework Parser、
 Translation Store、Clone 机制、Host API（仍是 10 条路由）与 Storage 结构全部保持原样；改的是产品名、
@@ -26,6 +26,18 @@ DSH Skill Intelligence helps users understand, reproduce and evolve Agent Skills
 | npm 包名 | `dsh-skill-trace` | **不改**：已发布，改名会让安装命令与 `github:` 锚点全部失效 |
 | 技术层 | **Skill Trace** | **保留**：`/skill-trace/*` 路由、`dsh-skill-trace` 命名空间、`[data-plugin="dsh-skill-trace"]`、storage 结构 |
 | 仓库 | `PolinniZhong/dsh-skill-intelligence` | GitHub 仓库改名，旧地址自动重定向 |
+
+### 发布范围与实测
+
+- **GitHub Release 与 npm 同时发布**：tag 打在发布提交上，npm 的 `beta` 与 `latest` 都指向 `0.7.1`。
+  npm 包名仍是 `dsh-skill-trace`，**不需要 npm 迁移**——路由、模块与存储结构一个字没动。
+- **只改用户理解层**：`src/` 的功能逻辑一行未改；改动集中在客户端文案、README 与文档抬头、
+  `package.json` 的 description / keywords / URL，以及 GitHub 仓库元信息。
+- **实测**：客户端 `src/dsh/client/client.js` 2332 → **2339 行**，bundle `dist/client.js`
+  129280 → **129315 字节**（source hash `58ed0ec27f941c3f`），测试 **429 项**与守卫 **23 组**
+  都不变——数字不变正是「纯品牌迁移」的证据。
+- **GitHub 仓库改名**：`PolinniZhong/dsh-skill-trace` → `PolinniZhong/dsh-skill-intelligence`
+  （旧地址自动重定向），description / homepage / topics 同步（`skill-tracing` 换成 `skill-intelligence`）。
 
 ## 0.7.0 — 2026-10-02 · Skill 理解与复用：读得懂、存得住、复刻得走
 
