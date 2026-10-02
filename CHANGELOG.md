@@ -179,8 +179,12 @@
   全 OK · 客户端 `src/dsh/client/client.js` **2735 行** · bundle `dist/client.js` **142672 字节**
   （source hash `f53a7ac5965b38b0`）· 宿主 `src/dsh/host/index.js` **1292 行 / 11 条路由** ·
   `src/core/` 26 个模块 8049 行 · `src/storage/` 5 个模块 884 行 · `dependencies` 仍为空。
-- **发布后的实测结果**（发布提交 / tag 对象 / npm shasum / 净室安装 / 注册表传播）写在
-  `docs/RELEASE.md` §6.0。
+- **实际发布结果**（2026-10-02）：发布提交 / tag `v0.8.0` = `9a61387fb56d47dc5c6be37d540caf09f4fc98f8`
+  （tag 注释对象 `783c4b2ffd1f3aa2ad6913df8afd3bbf623fd091`），`origin/main` 已对齐到同一个提交；
+  GitHub Release <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.8.0>
+  （`Latest`，非 prerelease）；npm `dsh-skill-trace@0.8.0`，`beta` 与 `latest` 都指向它
+  （`gitHead` = `9a61387`，shasum `42a51dca83c74225d5239d34a985f56892e425fe`，40 个文件 / 包体 386.1 kB），
+  净室 `npm i dsh-skill-trace@0.8.0` 安装通过。推送与注册表传播的细节在 `docs/RELEASE.md` §6.0。
 
 ## 0.7.1 — 2026-10-02 · 品牌迁移：Skill Trace → DSH Skill Intelligence（DSH Skill 智能实验室）
 

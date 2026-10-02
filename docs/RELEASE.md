@@ -168,9 +168,11 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | 项 | 结果 |
 |---|---|
 | 本地门槛 | **474 项测试全绿**；**25 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **142672 字节**（source hash `f53a7ac5965b38b0`），重建后 `git status` 无 `dist` 差异 |
-| 发布提交 / tag | 见本节下方的回写（`release: v0.8.0 — Skill 演进：血缘 / 差异 / 界面`）；tag `v0.8.0` 打在发布提交上 |
-| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.8.0>，正文取 `CHANGELOG.md` 的 `## 0.8.0` 段 |
-| npm | **`beta` 与 `latest` 都指向 `0.8.0`**：发布提交**先推**，`gitHead` 就是它；包名仍是 `dsh-skill-trace`；注册表传播有延迟（`0.7.1` 那次约 2.5 分钟） |
+| 发布提交 / tag | `9a61387 release: v0.8.0 — Skill 演进：血缘 / 差异 / 界面`（`package.json` `0.8.0`，2026-10-02 20:51:40 +0800）= `origin/main`；tag `v0.8.0` → 注释对象 `783c4b2ffd1f3aa2ad6913df8afd3bbf623fd091`，解引用到 `9a61387`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.8.0>（2026-10-02 12:52:00 UTC，`Latest`、非 prerelease），正文取 `CHANGELOG.md` 的 `## 0.8.0` 段 |
+| npm | **`beta` 与 `latest` 都指向 `0.8.0`**（注册表 `12:54:23 UTC` 生效，传播约 2 分钟；`npm dist-tag ls` 起初仍回 `0.7.1`，以 cache-busted packument 为准）：发布提交**先推**，`gitHead` 就是 `9a61387`；包名仍是 `dsh-skill-trace`；**40 个文件 / 包体 386.1 kB / 解包 1.2 MB / shasum `42a51dca83c74225d5239d34a985f56892e425fe`** |
+| 净室安装 | `npm i dsh-skill-trace@0.8.0` 通过：`dist/client.js` **142672 字节**、`src/core/skill-lineage.mjs` / `src/core/skill-diff.mjs` / `src/storage/skill-lineage-store.mjs` 都在、宿主入口可 `require`（导出 `apply` / `createSessionMutationQueue` …）、`dependencies` 为空 |
+| 推送 | 2026-10-02 探针：`140.82.121.4` / `140.82.112.3` / `20.27.177.113` / `140.82.113.4` 此刻全回 `200`（前两个在 0.7.1 发版时超时）；用 `20.27.177.113` 推送成功（`3a1bf0a..9a61387`）。**`-c http.curloptResolve` 的写法是 `HOST:PORT:ADDRESS`（冒号分隔）**——写成 `github.com:443,<IP>` 会报 `Couldn't parse CURLOPT_RESOLVE entry 'github.com:443,<IP>'` |
 
 ### 6.0.1 上一版 `v0.7.1` 的实际结果（2026-10-02 已执行）
 
