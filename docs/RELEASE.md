@@ -47,6 +47,12 @@ node --test 2>&1 | tail -8      # 必须 0 fail
 node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_SYNC_OK
 ```
 
+**`git status --porcelain` 为空不是洁癖。** `package.json` 的 `files` 里有 `src`，所以**本地 `npm publish`
+打的是工作区现状**——任何未跟踪或被改动的 `src/**` 都会被装进 tarball。2026-10-02 实测：工作区里多出两个
+未跟踪的新模块时，`npm pack --dry-run --ignore-scripts` 从 40 个文件 / 391.7 kB 变成 **42 个 / 406.2 kB**。
+发布前用同一条命令对一眼 `total files` 与 `package size`（`--ignore-scripts` 是为了不触发 `prepack` 重建
+`dist/`），或者干脆只从干净的 checkout 发布——CI 那条路（§5.2）看得见的只有已提交的内容。
+
 `RELEASE_ASSETS_IN_SYNC_OK` 会钉住两处**会被人照抄**的内容：README 的「当前公开版为 `x`」（旧措辞
 「当前公开预发布版为」也接受）必须等于 `package.json` 的 version，README 的 `github:` 安装示例必须
 `#v<version>` 锚定。这条规则来自一次真实漂移——`package.json` 已到 `beta.52`，README 还写着 `beta.3`，
@@ -229,12 +235,50 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 - **`Allow npm dist-tag`**（2026-09-30 新增，新旧配置**都默认关**）—— 不勾的话能发布，但最后那步把
   `beta` 指到同一版会失败。
 
+**别改用 CLI 建这个连接（2026-10-02 实测）**：`npm trust github <pkg> --file <workflow> --repo <owner/repo>
+--allow-publish --allow-stage-publish -y` 确实存在，但 npm 11.17.0 的 `lib/trust-cmd.js` 只认两个权限常量
+（`createPackage` / `createStagedPackage`，即 `allow-publish` / `allow-stage-publish`）——**没有 `Allow npm dist-tag`
+对应的开关**。而 dist-tag 权限对新旧配置都默认关、字段建好又不能改，用 CLI 建等于先把「最后一步改 `beta`」
+焊死。**只能在网页上勾。** 反过来 `npm trust list <pkg>` 是可以读配置的，但它按写操作要 OTP
+（实测 `EOTP`：不给 `--otp` 时它会打印一个 `https://www.npmjs.com/auth/cli/…` 授权 URL）。
+
 **页面上那句 `Cannot be changed later` 是真的**：`Publisher` 与三个必填字段建好即固定，填错只能删掉重建
 ——所以上表要逐字对。
 
 **在 npm 侧配好之前，推 `v*` tag 会让这个 job 在 publish 那一步失败（`ENEEDAUTH`）。** 所以这一版之后、
 切过去之前的发版仍然按 §5.1 在本地做。切过去之后，§2/§3 不变，只有 §5 从「两条 npm 命令」变成「等 workflow」；
 附录 A 的顺序约束**自动满足**——workflow 检出的就是 tag 指向的那个提交，`gitHead` 天然对齐。
+
+### 5.2b 怎么验「npm 侧配好了没」——不需要 OTP
+
+不用登录网页，用一次**不会改动注册表**的 workflow 运行就能问出答案：
+
+```bash
+# 用一个**已经发布过的**版本号触发（例如刚发完的 0.8.0）：npm 先认证、再校验版本，
+# 于是「认证成没成」与「版本重不重复」在日志里是两个可区分的失败
+gh workflow run publish-npm.yml -f version=0.8.0
+RID=$(gh run list --workflow publish-npm.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RID" && gh run view "$RID" --log > /tmp/oidc-probe.log
+```
+
+判据（只看 publish 那一步的日志）：
+
+| 日志里出现 | 含义 |
+|---|---|
+| `npm verbose oidc Successfully retrieved and set token`，随后 publish 因 `EPUBLISHCONFLICT`（`cannot publish over the previously published versions`）失败 | **配好了**：OIDC 兑换成功，红只是因为该版本已存在（**预期，注册表没被改动**） |
+| `npm http fetch POST 404 …/-/npm/v1/oidc/token/exchange/package/dsh-skill-trace` + `oidc Failed token exchange request with body message: OIDC token exchange error - package not found` + `npm error code ENEEDAUTH` | **还没配好**（npm 故意用 404 表示「没有能匹配这次 OIDC 身份的配置」） |
+| `oidc Skipped because incorrect permissions for id-token within GitHub workflow` | workflow 少了 `permissions.id-token: write` |
+
+上面那种 404 只在 `--loglevel=verbose` 下才打得出来；要复现就在临时分支上把 publish 那步改成
+`npm publish --tag latest --loglevel=verbose`，run 完把分支删掉（2026-10-02 就是这么查的）。
+
+**2026-10-02 的实测结果：`POST …/oidc/token/exchange/package/dsh-skill-trace` 回 `404` +
+`OIDC token exchange error - package not found`，随后 `npm error code ENEEDAUTH`** —— 也就是说，
+那天 npm 侧**一条配置都没有**，`/access` 页面上的表单没有保存成功。
+
+同一个 run 还能顺带体检仓库侧：checkout / setup-node / `npm install -g 'npm@^11.5.1'` / 版本号比对 /
+`npm ci` / 本地闸门（`node --check` + `npm test` + `npm run verify`）都应当是绿的（2026-10-02 那次就是如此）。
+它们全绿、只有 publish 红，说明缺的只是 npm 侧那一下开关，而不是 workflow 有问题。
 
 ### 5.3 备选：staged publishing（本地提交 + 人工批准）
 
