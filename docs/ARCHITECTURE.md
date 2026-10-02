@@ -44,6 +44,8 @@ Ten routes remain. All ten are registered in `src/dsh/host/index.js` and pinned 
 
 The v0.7 additions follow three rules the verifier now enforces. `/skill-trace/translation` takes **no `sessionId`**: the reading version is an asset keyed by content, not a product of one conversation, and requiring a session would both invite the session into the key and imply the wrong lifetime. `/skill-trace/translate` reports a `saved` boolean that comes from an actual `translationStore.write()` — a request that started is not a save that finished — and that boolean is the only thing allowed to produce 「✓ 中文阅读版已保存」 in the interface. `/skill-trace/clone` re-reads the Skill and recomputes `sourceSha256` rather than trusting the value the client read earlier, so a body edited between the detail page loading and the clone being requested cannot slip through.
 
+**Request validation says sentences, and the request body is a two-sided contract.** Both rules came from the same defect: from `0.7.0` the 「复刻 Skill」 button never once worked, because the client built its body without `sessionId` while `handleClone` requires it — the user's reward for clicking was the raw validator string `sessionId 必填`. The host now throws `RequestError(message, status = 400)`, which carries its own status and whose message must read as a full sentence telling the user what to do; the 400-vs-500 split reads `error.status` instead of regex-guessing the message text. That guessing was the cause, not the symptom: it forced every validator message to be a bare field name, and `sendJson` then handed that name to the user. The leftover word list serves only errors that have not been converted yet, and nothing new may be added to it. Two guards watch the seam: one reads `payload.*` out of the host source and requires the client's outgoing body to cover every field the host reads; the other requires that every prop a component destructures without a fallback is actually passed at its render site. Testing each side on its own cannot find this class of bug — the host-side test supplied the very field the client forgot.
+
 Fifteen further routes were deleted with the screens that consumed them: `/runtime`, `/inspect`, `/catalog`, `/history-note`, `/history-receipt`, `/export`, `GET`+`POST` `/backups`, `/backups/preview`, `/backups/restore`, `POST`+`DELETE` `/outputs`, `/continuity`, `/learning-note`, `/validation-result`, `DELETE /receipt`, and `DELETE /receipts`. The verifier asserts the deleted names cannot come back through the host, because a route with no page left is just a door the old information architecture can walk back in through.
 
 ## Evidence model
@@ -274,7 +276,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 ## Client component tree
 
-`src/dsh/client/client.js` is the entire client — about 2343 lines, down from about 3536 before v0.6, with a bundle of about 126 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
+`src/dsh/client/client.js` is the entire client — about 2348 lines, down from about 3536 before v0.6, with a bundle of about 126 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
 ```text
 Workbench                      first-level page switch + host preference
@@ -606,7 +608,7 @@ UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → �
 | 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
 | 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
 
-因此客户端从约 3536 行降到约 2343 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由，
+因此客户端从约 3536 行降到约 2348 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由，
 并且只注册一个 slot（`conversation.view`）。
 
 ### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着

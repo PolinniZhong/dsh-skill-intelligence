@@ -3,7 +3,8 @@
 > 本文件是 Agent 进入本项目的**第一读物**：只说「怎么在这个项目里干活」和「哪些不能动」。
 > 产品需求 `spec/PRD.md` · 技术设计 `spec/SDD.md` · 视觉与组件规格 `design.md`
 > · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md` · 历史规格 `docs/archive/`
-> **最后更新：2026-10-05**（知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步）
+> **最后更新：2026-10-05**（知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步。
+> 同日追记：复刻 Skill 的请求体缺陷已修（`55f092c`，**未发版**），工作区里现在有**两件**等下一版的改动，见 §1「未发版」行）
 >
 > **命名分三层。** ① **产品品牌**：DSH Skill 智能实验室（英文 DSH Skill Intelligence）—— README 首屏、
 > 仓库描述、文档抬头用这一层；② **DSH 会话里的短显示名**：**Skill 洞察**（英文 **Skill Insight**）——
@@ -30,10 +31,11 @@
 | 插件包版本 | **`0.7.1`**（`package.json`）· tag `v0.7.1` · 2026-10-02 · **GitHub Release 与 npm 都已发布** · 发布提交 `74a161d`；上一版 `0.7.0`（发布提交 `5fac5d9`） |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
 | npm | **`beta` 与 `latest` 都指向 `0.7.1`**。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1` |
-| 测试 | **429 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
+| 测试 | **431 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
 | 静态守卫 | **23 组**（`npm run verify`，见 §6.3） |
-| 客户端 | `src/dsh/client/client.js` **2343 行**，bundle `dist/client.js` **129254 字节**（source hash `738c8eb8615e47ef`）；DSH 会话短显示名改为「Skill 洞察」的那次改动**未发版** |
-| 宿主机面 | **10 条路由**，全在 `src/dsh/host/index.js`，由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
+| 客户端 | `src/dsh/client/client.js` **2348 行**，bundle `dist/client.js` **129293 字节**（source hash `6ada68530c1fdcc2`） |
+| 未发版 | 工作区里堆着**两件**改动，都记在 `CHANGELOG.md` 的 `## Unreleased`：①「Skill 洞察」短显示名（`3a1bf0a`，只动显示名）；②「复刻 Skill」请求体缺 `sessionId`（`55f092c`，`0.7.0` 起的功能可用性缺陷）。`package.json` 仍是 `0.7.1`，**没有已批准的新版本号** |
+| 宿主机面 | **10 条路由**，全在 `src/dsh/host/index.js`（**1143 行**），由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
 | 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节）。v0.7 **没有新增一级 / 二级页面** |
 | 详情页四层 | 框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md`，顺序由守卫按字面匹配 |
@@ -51,8 +53,11 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 - `0.6.0`（已发布）：**「Skill 框架」不再等于那条 `01 → 02 → 03 → 04`** —— 框架改由 `src/core/skill-framework.mjs` 从正文**确定性**解析出组成结构；`detail.flow` 降级成它的子模块；新增「渐进披露」（声明资源 ≠ 已读取资源）、「本次运行逻辑」（五段只列可观察事实）、「步骤证据」（`detail.flow.steps[].evidence` 第一次被显示）。
 - **`0.7.0`（已发布：GitHub Release + npm，发布提交 `5fac5d9`）**：三条新能力——已安装卡片整张可点进详情、中文阅读版**落盘为本机资产**（键不含会话）、**复刻 Skill**（详情页唯一的对象级动作）。真机 17 步验收已过（`CHANGELOG.md` `### 九`）。
 - **`0.7.0` 之后的五轮纯界面收口**（`CHANGELOG.md` `### 十`–`### 十三`）：顶栏 68 → 48px 且不画底色与分隔线、状态行只在有话要说时出现、搜索框搬进顶栏、分段控件选中态只留字色与字重、卡片描述统一截到 4 行、元信息行钉在卡片左下角、两个一级列表从同一个位置开始。**信息架构一次没动。**
+- **`55f092c`（未发版）：「复刻 Skill」的请求体缺陷。** 用户真机点「复刻 Skill」拿到一句 `sessionId 必填`——**从 `0.7.0` 起这个按钮一次都没成功过**：宿主 `handleClone` 必需那个字段，而客户端压根没发、详情页也没往下传。修的时候顺手治了成因——宿主的 400/500 分流此前靠正则猜消息，等于逼着校验消息写成裸字段名，现在改由 `RequestError` 自带 `status`。两条新守卫守着这条缝：**宿主读哪些 `payload.*`，客户端就得发哪些**；**组件解构出来又没兜底的 prop，渲染处必须真的传**。教训见 §8.10 —— **请求体有两半，单边测试补不出这条缝。**
 
 **下次动手前的判据**：如果一个新的展示元素需要模型调用来「总结」Skill 的结构，**就不要做**（§6.8）。如果它需要在界面上说「已执行 / 已完成 / 已加载 / 已读取」，**就不要做**（§6.7）。
+
+> **下一版从 `0.7.1` 开始。** 工作区里那两件未发布的改动（短显示名 + 复刻缺陷）跟着下一版一起走，或者先发一个补丁版——**由用户定，不要自己开版本号**。开新版本之前先确认：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径是否一致（§9.1 的六处）。
 
 ---
 
@@ -70,7 +75,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
    - 查历史规格 → `docs/archive/`（**是历史，不是权威**）
    - 要发版 → `docs/RELEASE.md`（**照做，不要凭记忆**）
 
-> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**429 项**，必须全绿）。
+> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**431 项**，必须全绿）。
 
 ---
 
@@ -319,7 +324,7 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 cd "/Users/zhongwentuo/DeepSeek Harness Native/10_DSH_Skill_Trace"
 
 node --check src/dsh/client/client.js   # 改过 CSS/客户端源码先过这一关
-npm test                                # 必须 429 全绿（pretest 会重建 dist）
+npm test                                # 必须 431 全绿（pretest 会重建 dist）
 npm run verify                          # 必须 23 组 OK
 ```
 
@@ -402,7 +407,7 @@ npm run verify                          # 必须 23 组 OK
 ├── scripts/
 │   ├── build-client.mjs      ← esbuild 打包
 │   └── verify-project.mjs    ← 23 组守卫
-├── test/                     ← 429 项
+├── test/                     ← 431 项
 └── 01_重构方案/              ← 本地过程目录，**.gitignore 排除，不发布**
 ```
 

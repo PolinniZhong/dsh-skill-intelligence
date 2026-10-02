@@ -21,7 +21,7 @@
 | D1 | `src/dsh/host/index.js` translate 路由的注释 | 原文写「这里刻意**不**落盘……§12.4 要求译文只存在页面运行时内存里」 | 同文件 `saved: await persistTranslation({...})`，v0.7 起译文落盘 | **已修（2026-10-05）**：注释改成 v0.7 的事实——落盘为本机资产、键不含会话，同时保留不写 receipt / 不动偏好 / 不读正文三条 |
 | D2 | `src/dsh/host/index.js` catalog 路由的注释 | 「名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`」 | 路由字面早就是 `/skill-trace/catalog`，「我的 Skill」工作台也已在 `0.5.0` 删除 | **已修（2026-10-05）**：那段「等改名收口」的注释删掉了，它会让后来的人以为还欠一次改名 |
 | D3 | `docs/ARCHITECTURE.md` 模块表 | 写「the seven routes」 | 宿主有 **10** 条路由 | **已修（2026-10-05）**：改成「the ten routes」 |
-| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 10 条 / 2343 行 / 129254 字节 / 24 个模块 7342 行 | 归档只作追溯，本文件不复用这些数字 |
+| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 10 条 / 2348 行 / 129293 字节 / 24 个模块 7342 行 | 归档只作追溯，本文件不复用这些数字 |
 | D5 | `scripts/verify-project.mjs` 末尾 | `console.log('FIVE_LAYER_MODEL_OK')` / `console.log('FINGERPRINT_RESERVED_OK')` 两句声称两条契约成立 | 两句之前**没有任何断言**。`FIVE_LAYER_MODEL_OK` 守的模块（`src/core/runtime-layout.mjs`、`src/dsh/client/runtime-flow.js`、`test/phase8-five-layer-model.test.mjs`）在 v0.6 删运行图谱画布时一起删了，marker 却留了下来 | **已修（2026-10-05）**：`FIVE_LAYER_MODEL_OK` 删掉（它守的界面不存在了）；`FINGERPRINT_RESERVED_OK` 补上真断言；新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查每一个 marker 之前是否有断言。见 §13.1 |
 | D6 | `AGENTS.md` §6.6 | 客户端 `require` 的 core 模块列举了 6 支 | 实际 `require` **7** 支（多一支 `skill-clone.mjs`，见 §10.3） | **已修（2026-10-05）**：本文改成七支并列出全部七个 |
 | D7 | `spec/PRD.md` | `AGENTS.md` §4 把它列为产品语义权威 | 写本文件时 `PRD.md` 尚未落盘 | **已消解**：`spec/PRD.md` 已落盘（692 行），本文件与它互为产品/技术两侧 |
@@ -34,8 +34,8 @@
 
 一个 DSH 插件包，含**两半**：
 
-- **宿主半边**（`src/dsh/host/index.js`，1110 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **10 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下）。
-- **客户端半边**（`src/dsh/client/client.js`，2343 行，构建产物 `dist/client.js` 129254 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 10 条路由，不持有收据本体。
+- **宿主半边**（`src/dsh/host/index.js`，1143 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **10 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下）。
+- **客户端半边**（`src/dsh/client/client.js`，2348 行，构建产物 `dist/client.js` 129293 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 10 条路由，不持有收据本体。
 
 纯函数逻辑放在 `src/core/`（24 个模块，7342 行），落盘放在 `src/storage/`（4 个模块，694 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
 
@@ -632,17 +632,17 @@ definition-unavailable · bundle-unreadable · write-failed
 
 ## 9. 模块清单
 
-行数为 `wc -l` 实测（v0.7.1；`0.7.1` 只改用户可见文案，`src/` 下除 `src/dsh/client/client.js` 外行数未变）。
+行数为 `wc -l` 实测（v0.7.1 + 两件未发布的改动；`55f092c` 只动了 `src/dsh/client/client.js`（2343 → 2348）与 `src/dsh/host/index.js`（1110 → 1143），`src/core/` 与 `src/storage/` 一行未变）。
 
 ### 9.1 `src/dsh/`（3 个文件）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
-| `src/dsh/host/index.js` | 1110 | 宿主半边：10 条路由、事件订阅与归约编排、收据/偏好/译文三个 store、复刻的校验与回读、loopback 门禁 |
-| `src/dsh/client/client.js` | 2343 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 整份样式表 |
+| `src/dsh/host/index.js` | 1143 | 宿主半边：10 条路由、事件订阅与归约编排、收据/偏好/译文三个 store、复刻的校验与回读、loopback 门禁 |
+| `src/dsh/client/client.js` | 2348 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 整份样式表 |
 | `src/dsh/client/package.json` | — | 把该目录标记为 `commonjs`（包根是 `type: module`），不依赖打包器的猜测 |
 
-构建产物 `dist/client.js` 为 **129254 字节**，提交进仓库。
+构建产物 `dist/client.js` 为 **129293 字节**，提交进仓库。
 
 ### 9.2 `src/core/`（24 个文件、7342 行）
 
@@ -877,7 +877,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ### 14.1 规模与纪律
 
-- `npm test` = `node --test`，**429 项全绿**是改动前的门槛；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
+- `npm test` = `node --test`，**431 项全绿**是改动前的门槛；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
 - `test/` 下 **37** 个 `*.test.mjs`（`ls test | wc -l` 计 38，含一个非测试条目）。
 - 纯函数优先：`src/core/` 的模块都是可单独测的纯函数或纯数据模块，测试不需要起宿主。
 
@@ -887,7 +887,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 |---|---|
 | `test/layout-contract.test.mjs` | 样式表：根规则深度 0、高度链、无视口单位、花括号平衡 |
 | `test/client-style-lifecycle.test.mjs` | 用**构建产物** `dist/client.js` + 假 document 验样式生命周期（插入、替换、移除） |
-| `test/client-render-smoke.test.mjs` | 真实元素树 + 降级器；抓渲染期抛错与「界面真的写了什么」 |
+| `test/client-render-smoke.test.mjs` | 真实元素树 + 降级器；抓渲染期抛错与「界面真的写了什么」。`55f092c` 起还守着**请求体的两半**：从宿主源码读出它真的读哪些 `payload.*` 字段，要求客户端发出去的请求体覆盖它们；以及**组件解构出来、又没有兜底的 prop，渲染处必须真的传** |
 | `test/client-hook-order.test.mjs` | `scanHookOrder(source)` 零违规 |
 | `test/client-bundle.test.mjs` | bundle 契约（seed、externals、注册包装） |
 | `test/phase15-skill-first-ia.test.mjs` | Skill-first IA 的 A1–A12（含锚点必须指向真实 outline entry） |
@@ -908,6 +908,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 2. **CSSOM 层的效果。** 根规则是否真的生效、字号与高度是否真的对，只有读浏览器算出来的样式才知道（历史上的根规则嵌进 `@media` 事故就是测试全绿而桌面全错的典型）。
 3. **宿主缓存造成的假通过。** 不重启打的接口答的是旧代码，而且答得很正常。
 4. **真实 registry 与 watcher 的行为。** 目标根选择、写入稳定窗口、catalog 刷新，都依赖运行中的 DSH 环境。
+
+**这一类缝补上了一条，但教训是通用的。** `0.7.0` 起「复刻 Skill」按钮一次都没成功过，而 429 项测试全绿——因为宿主那一半的测试**自己把客户端漏掉的字段填了进去**，客户端那一半的测试**从没看过真正发出去的 JSON**。`55f092c` 把它变成一条会红的断言（见 §3.3 的「请求体是双边的合同」）。**推论：凡是两个组件各写一半的东西（请求体、回调参数、props、事件名），都要有一条断言横跨那条缝——「两边各自都有测试」不构成覆盖。**
 
 因此，界面的改动还需要一层真机验收：用**复杂 Skill**（`ui-craft`：342 行 / 11 小节 / 39 个引用）而不是四步示例，逐条过 `AGENTS.md` §9.2 的清单。**「测试通过」不等于「测到了」，「渲染台通过」也不等于「用户看到」。**
 

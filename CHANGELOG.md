@@ -1,11 +1,17 @@
 # Changelog
 
-## Unreleased — 短显示名：Skill 洞察（Skill Insight）
+## Unreleased — 短显示名「Skill 洞察」，以及「复刻 Skill」请求体缺陷
 
-**这是一次命名体系调整，不是功能改动。** 产品品牌仍是 **DSH Skill 智能实验室 / DSH Skill
-Intelligence**，技术层 **Skill Trace** 与 npm 包名 `dsh-skill-trace` 一个字没动。变的只有 DSH 会话里那个
-高频入口的短名：工作栏标签（`conversation.view` slot 的 `label`）从长品牌名改为 **Skill
-洞察 / Skill Insight**，面板的 `aria-label` 同步；README 首屏与命名分层表把三层名字写清楚。
+这一节有**两件互不相干**的事，都还没发版：
+
+1. **短显示名**（`3a1bf0a`）：命名体系调整，**不是功能改动**。产品品牌仍是 **DSH Skill 智能实验室 /
+   DSH Skill Intelligence**，技术层 **Skill Trace** 与 npm 包名 `dsh-skill-trace` 一个字没动。变的只有
+   DSH 会话里那个高频入口的短名：工作栏标签（`conversation.view` slot 的 `label`）从长品牌名改为
+   **Skill 洞察 / Skill Insight**，面板的 `aria-label` 同步；README 首屏与命名分层表把三层名字写清楚。
+2. **「复刻 Skill」的请求体缺陷**（`55f092c`）：`0.7.0` 起那个按钮**一次都没成功过**。这是一个功能
+   可用性缺陷，不是文案改动——见下面的 `### Fixed`。
+
+发版时把两件一起带上，或者先发一个只含第 2 条的补丁版；**由用户定**。
 
 ### Changed
 

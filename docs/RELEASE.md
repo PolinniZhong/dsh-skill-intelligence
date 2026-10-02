@@ -3,9 +3,13 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**当前没有待发布版本：`0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）已于 2026-10-02 发布到 GitHub Release 与 npm**（发布提交 `74a161d`，结果见 §6.0）。下一版从它开始：发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**`0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）已于 2026-10-02 发布到 GitHub Release 与 npm**（发布提交 `74a161d`，结果见 §6.0）。**`package.json` 仍是 `0.7.1`，工作区里有两件已提交、未发布的改动**——下一版从 `0.7.1` 开始。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
-> 工作区里已有一处**未发布**的命名调整：DSH 会话短显示名改为「**Skill 洞察** / Skill Insight」（见 `CHANGELOG.md` 的 `## Unreleased`）。它不动品牌、npm 包名、路由与存储，因此下一版把它一起带上即可，`package.json` 仍是 `0.7.1`。
+> 工作区里有两处**未发布**的改动，都在 `CHANGELOG.md` 的 `## Unreleased`：
+> ① 「**Skill 洞察** / Skill Insight」短显示名（`3a1bf0a`）——不动品牌、npm 包名、路由与存储；
+> ② 「复刻 Skill」的请求体缺陷修复（`55f092c`）——`0.7.0` 起那个按钮点不动，客户端补发 `sessionId`，宿主不再回裸字段名。
+> 两件都跟着下一版一起走。**下一版是补丁版还是新特性版，由用户定**；`package.json` 现在仍是 `0.7.1`。
+> 本表里的 429 项 / 2339 行 / 129315 字节是 `0.7.1` **发布当时**的实测值，照做时按当时的 `npm test` 与 `wc -l` 重新取数。
 
 **这一版为什么是 patch：** `0.7.1` 只改产品名、用户可见措辞与仓库元信息（`CHANGELOG.md` 顶部 `## 0.7.1`），功能逻辑一个字没改。GitHub 仓库已改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向，本地 `origin` 已同步）。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此这次**不需要 npm 迁移**：照常发布一个版本即可，发布时 npm 包页的 README 会自动换成新品牌口径。**验证点：客户端 2332 → 2339 行、bundle 129280 → 129315 字节，测试 429 与守卫 23 都不变——数字变了就不是纯品牌迁移。**
 
