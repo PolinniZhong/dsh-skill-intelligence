@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**`0.8.0`（V0.8「Skill 演进」：血缘 / 差异 / 界面，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）已于 2026-10-02 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前没有待发布版本**：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径都是 `0.8.0`，工作区干净。发布前这三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**`0.8.0`（V0.8「Skill 演进」：血缘 / 差异 / 界面，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）已于 2026-10-02 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前没有待发布版本**：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径都是 `0.8.0`，发布当时工作区干净（这条要求不是洁癖，见 §0）。发布前这三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
 > **`0.8.0` 的发布扫描（2026-10-02）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
 > `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.8.0` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`
