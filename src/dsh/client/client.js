@@ -1422,10 +1422,13 @@ function installStyles() {
    *   2. 目标名冲突默认拒绝 —— 没有"覆盖确认"这条捷径。
    *   3. 成功态来自宿主的回执（写入 + 回读 + 目录发现），不是"按钮点下去了"。
    */
-  function SkillCloneDialog({ skillName, sourceSha256, definitionAvailable, onClose, clone: suppliedResult, targetName: suppliedTargetName }) {
+  function SkillCloneDialog({ sessionId, skillName, sourceSha256, definitionAvailable, onClose, clone: suppliedResult, targetName: suppliedTargetName }) {
     // `clone` / `targetName` 是与 `InstalledSkillsPage` 的 `installed`、`CurrentSkillPage` 的
     // `list` 同一种注入缝：渲染烟测的 React 桩不会执行 `useEffect`、也不会更新 `useState`，
     // 所以"名字不合法"与"宿主回执之后"这两条分支只有注得进去才渲染得出来。
+    //
+    // `sessionId` 是**宿主必需**的字段（`handleClone` 用它解析 registry 与 cwd）。
+    // 它此前没有被传进来，于是这个按钮从 v0.7 起每一次都只换回一句 `sessionId 必填`。
     const [openTarget, setOpenTarget] = React.useState(() => suppliedTargetName ?? cloneTargetName(skillName))
     const [scope, setScope] = React.useState('project')
     const [mode, setMode] = React.useState('bundle')
@@ -1450,6 +1453,7 @@ function installStyles() {
       api('/clone', {
         method: 'POST',
         body: JSON.stringify({
+          sessionId,
           sourceSkillName: skillName,
           sourceSha256,
           targetSkillName: openTarget,
@@ -1909,6 +1913,7 @@ function installStyles() {
         h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)),
       cloneOpen
         ? h(SkillCloneDialog, {
+          sessionId,
           skillName,
           sourceSha256: sha,
           definitionAvailable: Boolean(definition) && definition.available === true,

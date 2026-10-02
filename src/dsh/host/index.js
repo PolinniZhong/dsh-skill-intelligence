@@ -151,13 +151,35 @@ async function readBody(req, maxBytes = 32 * 1024) {
   }
 }
 
+/**
+ * 请求层面的错误：**消息是给人看的句子，状态码由 `status` 明确带着走。**
+ *
+ * 这里以前不是这样。catch 用一个正则去消息里找「必填 / 无效」来猜 400 还是 500，
+ * 于是「状态码是什么」和「消息怎么写」被绑成了一件事，校验消息就只好写成字段名。
+ * 而这条消息会**原样出现在界面上** —— 用户看到的是 `sessionId 必填`，
+ * 不是「发生了什么、怎么恢复」（§29、AGENTS §7）。
+ *
+ * 新写的校验请抛这个：状态码不再靠猜，消息不再受正则约束。
+ */
+class RequestError extends Error {
+  constructor(message, status = 400) {
+    super(message)
+    this.name = 'RequestError'
+    this.status = status
+  }
+}
+
 function requiredSessionId(value) {
-  if (typeof value !== 'string' || value.trim() === '' || value.length > 240) throw new Error('sessionId 必填')
+  if (typeof value !== 'string' || value.trim() === '' || value.length > 240) {
+    throw new RequestError('这次请求没有带上会话标识，无法确认它属于哪个会话。请刷新页面后重试；如果刷新无效，请重启 DSH。')
+  }
   return value.trim()
 }
 
 function requiredSkillName(value) {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/.test(value.trim())) throw new Error('skillName 无效')
+  if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/.test(value.trim())) {
+    throw new RequestError('这次请求没有带上合法的 Skill 名，无法定位 Skill。请刷新页面后重试。')
+  }
   return value.trim()
 }
 
@@ -167,7 +189,9 @@ function requiredSkillName(value) {
  */
 function requiredSourceSha256(value) {
   const text = typeof value === 'string' ? value.trim() : ''
-  if (!/^sha256:[a-f0-9]{64}$/.test(text)) throw new Error('sourceSha256 无效')
+  if (!/^sha256:[a-f0-9]{64}$/.test(text)) {
+    throw new RequestError('这次请求没有带上合法的正文指纹，无法确认译文对应的是哪一版正文。请刷新页面后重试。')
+  }
   return text
 }
 
@@ -862,7 +886,9 @@ export function apply(ctx, config = {}) {
             const sessionId = requiredSessionId(body.sessionId)
             const skillName = requiredSkillName(body.skillName)
             const sourceSha256 = typeof body.sourceSha256 === 'string' ? body.sourceSha256.trim() : ''
-            if (!sourceSha256) throw new Error('sourceSha256 必填')
+            if (!sourceSha256) {
+              throw new RequestError('这次请求没有带上正文指纹，无法确认译文对应的是哪一版正文。请刷新页面后重试。')
+            }
             const targetLanguage = typeof body.targetLanguage === 'string' && body.targetLanguage.trim()
               ? body.targetLanguage.trim().slice(0, 40)
               : DEFAULT_TRANSLATION_LANGUAGE
@@ -1021,7 +1047,9 @@ export function apply(ctx, config = {}) {
             const body = await readBody(req)
             // v0.6 §7：一级页面只有两个。白名单必须和 `preference-store.mjs` 的
             // `DEFAULT_VIEWS` 一致，否则客户端会挑一个宿主随后归零的页面。
-            if (!['current', 'installed'].includes(body.defaultView)) throw new Error('defaultView 无效')
+            if (!['current', 'installed'].includes(body.defaultView)) {
+              throw new RequestError('默认页面只能是「本次 Skill」或「已安装 Skill」，这次请求里的值无法识别。请刷新页面后重试。')
+            }
             const preferences = await preferenceStore.write({ defaultView: body.defaultView })
             sendJson(res, 200, { ok: true, preferences })
             return
@@ -1088,7 +1116,12 @@ export function apply(ctx, config = {}) {
           sendJson(res, 404, { ok: false, error: 'not found' })
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
-          const status = /必填|无效|不能为空|只允许|过大|超限|不受支持|不一致|合法 JSON|状态无效|学习笔记|验证结果|实际观察|成功加载|本地收据不存在|重复会话|输出引用不存在/.test(message) ? 400 : 500
+          // 新写的校验抛 `RequestError`，状态码随对象走。下面这条正则只服务那批还没有
+          // 改成 `RequestError` 的旧错误（`readBody` 的两句 + 收据/搜索那几个）——
+          // **不要再往这条正则里加词**：它的存在会逼着消息写成字段名（见 `RequestError`）。
+          const status = error instanceof RequestError
+            ? error.status
+            : (/必填|无效|不能为空|只允许|过大|超限|不受支持|不一致|合法 JSON|状态无效|学习笔记|验证结果|实际观察|成功加载|本地收据不存在|重复会话|输出引用不存在/.test(message) ? 400 : 500)
           sendJson(res, status, { ok: false, error: message })
         }
       },

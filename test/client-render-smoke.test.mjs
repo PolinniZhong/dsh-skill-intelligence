@@ -118,7 +118,7 @@ function loadClient(overrides = {}) {
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     addEventListener() {}, removeEventListener() {},
-    fetch: async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' }),
+    fetch: overrides.fetch ?? (async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' })),
     setTimeout, clearTimeout, setInterval, clearInterval,
     console,
   }
@@ -648,8 +648,8 @@ const frameFlow = {
   truncated: false, stepCount: 4,
 }
 
-function mountChineseClient() {
-  const client = loadClient()
+function mountChineseClient(overrides = {}) {
+  const client = loadClient(overrides)
   client.apply({
     effect(setup) { return setup?.() },
     locale: {
@@ -1232,4 +1232,104 @@ test('the clone dialog is the only object action, and it claims nothing the Host
   }
   // 已经有一句话说过的不再重复列一遍（目录刷新、不外发绝对路径）。
   assert.equal(limitText.length, 1, 'only the caveats that are not already said above are listed')
+})
+
+test('the clone dialog sends every field the Host reads — a request body has two sides', async () => {
+  // 这条测试来自一次真机事故：「复刻 Skill」从 v0.7 起每一次都只换回一句 `sessionId 必填`。
+  // 宿主读 `payload.sessionId`（它要用会话解析 registry 与 cwd），客户端根本没发这个字段。
+  //
+  // 两边的测试当时都是绿的，而且都"测到了"自己那一半：
+  //   · `phase18-clone-routes.test.mjs` 自己把 `sessionId` 填进 body 再打路由 —— 它验的是宿主；
+  //   · 组件测试只断言渲染出来的文案，从不看**真正发出去的 JSON** —— 它验的是外观。
+  // 中间那条缝（客户端发的字段 ⊇ 宿主要读的字段）没有任何东西盯着。
+  //
+  // 所以这里从两头夹：驱动真的组件拿到真的请求体，再从宿主源码里把它真的读哪些字段挖出来。
+  const requests = []
+  const client = mountChineseClient({
+    fetch: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) })
+      return { ok: true, status: 200, json: async () => ({ ok: true }) }
+    },
+  })
+  const sourceSha256 = `sha256:${'a'.repeat(64)}`
+  const nodes = collect(client.__views.SkillCloneDialog({
+    sessionId: 'session-clone-contract',
+    skillName: 'ui-craft',
+    sourceSha256,
+    definitionAvailable: true,
+    onClose() {},
+  }))
+  const submit = nodes.find((node) => node.props.className === 'st-translate st-clone-submit')
+  assert.equal(submit?.props.disabled, false, 'the form starts submittable, so submitting really sends a request')
+  submit.props.onClick()
+
+  assert.equal(requests.length, 1, 'submitting the form sends exactly one request')
+  assert.equal(requests[0].url, '/skill-trace/clone')
+
+  // `payload.` 在宿主里只有 `handleClone` 用（`sendJson` 那个是局部变量，不带成员访问），
+  // 所以这一条扫出来的就是「复刻」这条路由真正依赖的字段。
+  const hostSource = readFileSync(join(CLIENT_DIR, '../../dsh/host/index.js'), 'utf8')
+  const readFields = [...new Set([...hostSource.matchAll(/payload\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1]))]
+  assert.ok(readFields.includes('sessionId'),
+    'the Host must still read payload.sessionId — otherwise this guard has quietly become vacuous')
+  for (const field of readFields) {
+    assert.ok(Object.prototype.hasOwnProperty.call(requests[0].body, field),
+      `宿主读 payload.${field}，客户端就必须发 ${field}；这次发的是：${Object.keys(requests[0].body).join(', ')}`)
+  }
+})
+
+test('the detail page passes the clone dialog every prop it destructures — "passing undefined" is not passing', () => {
+  // 上面那条测试是**直接**渲染弹窗的，所以它看不见详情页那一层。而这次事故的另一半
+  // 恰好就在那一层：组件已经会往请求体里放 `sessionId`，但详情页渲染它时没传下去 ——
+  // `JSON.stringify` 会把 `sessionId: undefined` 悄悄丢掉，用户看到的错误一字不差。
+  //
+  // 所以这里钉一条通用的合同，不针对某一个 prop：
+  //   **组件解构出来、又没有兜底的 prop，渲染处必须真的传过去。**
+  // "没有兜底"有两个来源，都从源码里读，不靠人记：
+  //   · 写法里有默认值 —— `onClose = () => {}`；
+  //   · 别名 + 函数体里对别名做了兜底 —— `clone: suppliedResult` 且体内有 `suppliedResult ?? …`。
+  // 后者正是这个组件注释里写的"注入缝"：渲染烟测的 React 桩不会跑 `useEffect`，
+  // 那两条分支只有注得进去才渲染得出来，所以它们**必须**允许不传。
+  const matchingBrace = (open) => {
+    let depth = 0
+    for (let index = open; index < source.length; index += 1) {
+      if (source[index] === '{') depth += 1
+      else if (source[index] === '}') { depth -= 1; if (depth === 0) return index }
+    }
+    return assert.fail('花括号不平衡 —— 这条守卫没能读到组件体')
+  }
+  const componentBody = (componentName) => {
+    const signature = new RegExp(`function ${componentName}\\(\\{([\\s\\S]*?)\\}\\s*\\)\\s*\\{`).exec(source)
+    assert.ok(signature, `${componentName} 必须还是一个解构 props 的函数组件`)
+    const brace = signature.index + signature[0].length - 1
+    return { propsText: signature[1], body: source.slice(brace + 1, matchingBrace(brace)) }
+  }
+  const renderBodyOf = (componentName) => {
+    const start = source.indexOf(`h(${componentName}, {`)
+    assert.ok(start > -1, `${componentName} 必须被渲染`)
+    const open = source.indexOf('{', start)
+    return source.slice(open + 1, matchingBrace(open))
+  }
+  const isOptional = (entry, body) => {
+    if (entry.includes('=')) return true                                     // 有默认值
+    const aliased = entry.split(':')
+    if (aliased.length !== 2) return false
+    const local = aliased[1].trim()
+    return new RegExp(`\\b${local}\\s*(\\?\\?|\\|\\|)`).test(body)            // 别名在体内有兜底
+  }
+
+  const { propsText, body } = componentBody('SkillCloneDialog')
+  const declared = propsText.split(',').map((entry) => entry.trim()).filter(Boolean)
+  const required = declared.filter((entry) => !isOptional(entry, body)).map((entry) => entry.split(':')[0].trim())
+
+  assert.ok(required.includes('sessionId'),
+    'sessionId 没有兜底，所以它必须在这一组里 —— 否则这条守卫是空的')
+  assert.ok(required.length < declared.length,
+    '至少要有 prop 被判定为可选，否则「兜底」那条规则可能已经悄悄失效（看一眼 `clone` / `targetName`）')
+
+  const renderBody = renderBodyOf('SkillCloneDialog')
+  for (const prop of required) {
+    assert.ok(new RegExp(`\\b${prop}\\s*[,:}]`).test(renderBody),
+      `SkillCloneDialog 解构了没有兜底的 \`${prop}\`，详情页渲染它时就必须传过去（现在是：${renderBody.replace(/\s+/g, ' ').trim()}）`)
+  }
 })

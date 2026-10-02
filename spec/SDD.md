@@ -226,13 +226,23 @@ const [receipt, preferences] = await Promise.all([
 
 - 响应头由 `sendJson` 统一写：`content-type: application/json; charset=utf-8`、`content-length`、`cache-control: no-store`、`x-content-type-options: nosniff`。
 - 请求体由 `readBody(req, maxBytes = 32 * 1024)` 读；超限 `'请求体过大'`，非 JSON `'请求体不是合法 JSON'`。
-- 校验器（全部返回规范化后的值，或抛中文错误）：
-  - `requiredSessionId`：非空字符串且 ≤ 240 字符，否则 `'sessionId 必填'`；
-  - `requiredSkillName`：`/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/`，否则 `'skillName 无效'`；
-  - `requiredSourceSha256`：`/^sha256:[a-f0-9]{64}$/`，否则 `'sourceSha256 无效'`；
-  - `optionalTargetLanguage`：空 → `DEFAULT_TRANSLATION_LANGUAGE`，否则 `.slice(0,40)`；
-  - `optionalEntryId`：`null`/`''` → `''`，否则 ≤512 且无控制字符，错误 `'entryId 无效'`；
+- 校验器抛 `RequestError`（`status` 随对象走，默认 400）。**消息必须是给人看的完整句子** ——
+  `sendJson` 直接把它当 `error` 发给界面，所以这里不许出现裸字段名（§7「所有『读不到』都必须说人话」）：
+  - `requiredSessionId`：非空字符串且 ≤ 240 字符 → 「这次请求没有带上会话标识，无法确认它属于哪个会话。请刷新页面后重试；如果刷新无效，请重启 DSH。」
+  - `requiredSkillName`：`/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/` → 「这次请求没有带上合法的 Skill 名，无法定位 Skill。请刷新页面后重试。」
+  - `requiredSourceSha256`：`/^sha256:[a-f0-9]{64}$/` → 「这次请求没有带上合法的正文指纹，无法确认译文对应的是哪一版正文。请刷新页面后重试。」
+  - `optionalTargetLanguage`：空 → `DEFAULT_TRANSLATION_LANGUAGE`，否则 `.slice(0,40)`。
   - `optionalSearchQuery`：≤ 500 且无控制字符，错误 `'searchQuery 无效'`。
+  - `optionalEntryId`（`src/dsh/host/index.js:203`）：**当前是死代码** —— 只定义、零调用点。
+    它校验的 `entryId` 属于 v0.6 已删除的页面入口。
+- 400 / 500 的分流是 `error instanceof RequestError ? error.status : 猜词正则`。那条正则
+  （`必填|无效|不能为空|…`）只服务还没改成 `RequestError` 的旧错误，**不要再往里加词**：
+  靠猜消息决定状态码，正是「校验消息被迫写成字段名」的成因（见 `CHANGELOG.md` 的 `### Fixed`）。
+- **请求体是双边的合同**：客户端发出去的字段必须覆盖宿主读的字段。这条缝曾经没人盯 ——
+  `POST /skill-trace/clone` 的客户端请求体漏了 `sessionId`，于是从 v0.7.0 起那个按钮每一次都只换回
+  一句裸字段名，而两边各自的测试都是绿的（路由测试自己填了 `sessionId`；渲染测试只看渲染出来的文案）。
+  现在两道守卫都从**源码**读合同：一条扫 `src/dsh/host/index.js` 里真正被读的 `payload.*` 并要求
+  客户端发出去的请求体覆盖它们；另一条要求「组件解构出来、又没有兜底的 prop，渲染处必须真的传」。
 - 收据**永不出宿主**：`publicReceipt(receipt)` 是白名单投影，字段闭集为
 
 ```
