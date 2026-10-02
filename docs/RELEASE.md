@@ -223,8 +223,14 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | Workflow filename | `publish-npm.yml`（**必须与文件名逐字一致**） |
 | Environment | 留空 |
 
-同一页还要打开 **2026-09-30 新增的 `Allow npm dist-tag`**（新旧配置**都默认关**）：不开的话 workflow
-能发布，但改不了 `latest` / `beta` 指针。
+同一页底部 **Allowed actions** 是**两个复选框**（页面上写着 `npm stage publish` 恒允许），**两个都要勾**：
+
+- **`Allow npm publish`** —— 不勾的话 workflow 里那句 `npm publish` 会被拒；
+- **`Allow npm dist-tag`**（2026-09-30 新增，新旧配置**都默认关**）—— 不勾的话能发布，但最后那步把
+  `beta` 指到同一版会失败。
+
+**页面上那句 `Cannot be changed later` 是真的**：`Publisher` 与三个必填字段建好即固定，填错只能删掉重建
+——所以上表要逐字对。
 
 **在 npm 侧配好之前，推 `v*` tag 会让这个 job 在 publish 那一步失败（`ENEEDAUTH`）。** 所以这一版之后、
 切过去之前的发版仍然按 §5.1 在本地做。切过去之后，§2/§3 不变，只有 §5 从「两条 npm 命令」变成「等 workflow」；

@@ -10,7 +10,8 @@
 #   仓库                  dsh-skill-intelligence
 #   Workflow filename    publish-npm.yml        ← 必须与本文件名逐字一致
 #   Environment          （留空）
-# 同一页还要打开 2026-09-30 新增的 **Allow npm dist-tag**（新旧配置都默认关）：
+# 同一页底部 Allowed actions 的两个复选框都要勾：Allow npm publish（不勾 publish 会被拒）
+# 与 Allow npm dist-tag（不勾则最后那步把 beta 指过去会失败；npm stage publish 恒允许）：
 # 不开的话最后一步改不了 latest / beta 指针。
 #
 # 背景、条款时间线与备选方案（staged publishing）见 docs/RELEASE.md §5.2 / §5.3。

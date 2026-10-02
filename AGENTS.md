@@ -68,7 +68,8 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > 会话凭证：`npm whoami` → `polinni`、`npm profile get` → **exit 0**（`two-factor auth: auth-and-writes`，
 > 发布时会要 OTP），旧 token 备份在 `~/.npmrc.bak-*`（**前缀与 token 清单见 §5.1，不要贴整串**）。
 > 仓库侧已备 `.github/workflows/publish-npm.yml`（OIDC trusted publishing，推 `v*` tag 即发布）；
-> npm 侧的四项 Trusted Publisher 配置与 `Allow npm dist-tag` 开关**只有维护者能在浏览器里点**，
+> npm 侧的四项 Trusted Publisher 配置与 Allowed actions 两个复选框（`Allow npm publish` +
+> `Allow npm dist-tag`，**都默认不勾**）**只有维护者能在浏览器里点**，
 > 配好之前就在本地按 `docs/RELEASE.md` §5.1 发布。**产品内容、包名与版本号都不动**；条款时间线与
 > 备选方案（staged publishing）见 `docs/RELEASE.md` §5.2–§5.4。
 
