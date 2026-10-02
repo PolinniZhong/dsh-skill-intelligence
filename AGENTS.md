@@ -61,6 +61,13 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 **下次动手前的判据**：如果一个新的展示元素需要模型调用来「总结」Skill 的结构，**就不要做**（§6.8）。如果它需要在界面上说「已执行 / 已完成 / 已加载 / 已读取」，**就不要做**（§6.7）。
 
 > **`0.8.0` 已发布（GitHub Release + npm，2026-10-02）。** 这一版把三件改动一起发出去：V0.8「Skill 演进」（血缘 / 差异 / 界面）、「Skill 洞察」短显示名、以及「复刻 Skill」请求体缺陷修复（§1、§2）。发版前的版本号由用户定；下一版的版本号同样**由用户定，不要自己开**。开新版本之前先确认：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径是否一致（§9.1 的六处）。
+>
+> **发布凭证（2026-10-02 实测）**：`~/.npmrc` 里那个长期 token 是 npm 条款里的 **2FA-bypass GAT** ——
+> 账户级操作已经不能做（`npm profile get` → `E403`），**直接 publish 也将在 2027 年 1 月左右失去**。
+> 仓库侧已备 `.github/workflows/publish-npm.yml`（OIDC trusted publishing，推 `v*` tag 即发布）；
+> npm 侧的四项 Trusted Publisher 配置与 `Allow npm dist-tag` 开关**只有维护者能在浏览器里点**，
+> 配好之前按 `docs/RELEASE.md` §5.1 用 `npm login --auth-type=web` 的 2FA 会话在本地发布。
+> **产品内容、包名与版本号都不动**；条款时间线与备选方案（staged publishing）见 `docs/RELEASE.md` §5.2–§5.4。
 
 ---
 
@@ -409,6 +416,8 @@ npm run verify                          # 必须 25 组 OK
 │   ├── dsh/client/client.js  ← 整个客户端（一个工厂闭包）
 │   └── storage/              ← 收据与偏好
 ├── dist/client.js            ← 构建产物，**提交进仓库**
+├── .github/workflows/
+│   └── publish-npm.yml       ← npm 发布（OIDC trusted publishing，见 docs/RELEASE.md §5.2）
 ├── scripts/
 │   ├── build-client.mjs      ← esbuild 打包
 │   └── verify-project.mjs    ← 25 组守卫

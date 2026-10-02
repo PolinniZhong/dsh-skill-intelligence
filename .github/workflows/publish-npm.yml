@@ -1,0 +1,82 @@
+# npm 发布 —— OIDC trusted publishing（不再依赖任何长期 token）
+#
+# 状态：**仓库侧已就绪，npm 侧配置还没做**。在那之前，推 v* tag 会让本 job 在 publish
+# 那一步失败（npm 回 ENEEDAUTH）——那时按 docs/RELEASE.md §5.1 在本地用 2FA 会话发布。
+#
+# npm 侧要填的四项（只有维护者能在浏览器里点：
+# npmjs.com → 包 dsh-skill-trace → Settings → Trusted Publisher）：
+#   Publisher            GitHub Actions
+#   Organization or user PolinniZhong
+#   仓库                  dsh-skill-intelligence
+#   Workflow filename    publish-npm.yml        ← 必须与本文件名逐字一致
+#   Environment          （留空）
+# 同一页还要打开 2026-09-30 新增的 **Allow npm dist-tag**（新旧配置都默认关）：
+# 不开的话最后一步改不了 latest / beta 指针。
+#
+# 背景、条款时间线与备选方案（staged publishing）见 docs/RELEASE.md §5.2 / §5.3。
+
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 要发布的版本（不带 v；必须等于 package.json 的 version）
+        required: true
+
+permissions:
+  contents: read
+  id-token: write # OIDC：trusted publishing 与 provenance 都靠它
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # 不写 registry-url：setup-node 会往 .npmrc 写一个空的 _authToken 占位，
+      # 而 trusted publishing 要的正是「没有 token，走 OIDC」。npm 默认 registry 就是
+      # registry.npmjs.org，不需要额外声明。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # trusted publishing 要求 npm CLI ≥ 11.5.1；Node 22 自带的 10.x 不支持。
+      - name: 把 npm CLI 升到支持 OIDC 的版本
+        run: |
+          npm install -g 'npm@^11.5.1'
+          npm --version
+
+      - name: 版本号必须与 tag 逐字一致（与 docs/RELEASE.md §1 同一判据）
+        env:
+          REF_TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          want="${INPUT_VERSION:-${REF_TAG#v}}"
+          have="$(node -p "require('./package.json').version")"
+          echo "期望 $want / package.json $have"
+          [ "$want" = "$have" ] || { echo "::error::版本不一致：$want != $have"; exit 1; }
+
+      - run: npm ci
+
+      - name: 本地闸门（同 docs/RELEASE.md §0）
+        run: |
+          node --check src/dsh/client/client.js
+          npm test
+          npm run verify
+
+      # trusted publishing 会自动附带 provenance，不需要 --provenance。
+      - name: 发布（latest）
+        run: npm publish --tag latest
+
+      - name: 第二个标签（beta 与 latest 指向同一版）
+        run: npm dist-tag add "dsh-skill-trace@$(node -p "require('./package.json').version")" beta

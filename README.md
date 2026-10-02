@@ -142,6 +142,8 @@ dsh plugin --profile web add dsh-skill-trace@0.8.0
 安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 洞察**。
 
 > 当前功能已通过本地链接安装的 Desktop 验证。`dsh plugin add` 会把包名参数转交 pnpm 解析，所以 npm 包名与 `github:` 源两种写法都可用；如未来 DSH 更新导致源安装行为变化，可使用下方的克隆安装作为回退方式。
+>
+> npm v12 起 `--allow-git` 默认是 `none`。上面两条命令走的是 `dsh plugin`（pnpm 通道），不受影响；只有直接用 **npm** 从 git 装（`npm i github:PolinniZhong/dsh-skill-intelligence#v0.8.0`）才需要加 `--allow-git=all`。本包 `dependencies` 为空、没有任何安装脚本，所以**不需要** `npm approve-scripts` 放行。
 
 ### 2. 跑一次真实任务
 

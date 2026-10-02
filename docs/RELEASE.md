@@ -129,7 +129,31 @@ gh release create v0.8.0 \
 ## 5. npm 发布
 
 `0.8.0` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 起每一版都是 GitHub + npm）。
-两条命令，顺序不能换：
+
+> **发布凭证有两条硬约束，动手前先读 §5.1–§5.4。** `~/.npmrc` 里那个长期 token 是 npm 条款里的
+> **2FA-bypass GAT**：账户级操作**已经**被它失去（2026-10-02 实测 `npm profile get` → `E403`），
+> **直接 publish 也将在 2027 年 1 月左右失去**（条款目标时间）。迁移目标是 §5.2 的
+> **trusted publishing（OIDC）**。
+
+### 5.1 现在怎么发（交互式 2FA，止血）
+
+发布前先自检手里的凭证是不是那个被限制的 bypass token：
+
+```bash
+npm whoami                        # 期望 polinni
+npm profile get                   # 若回 E403 + /-/npm/v1/user ⇒ 你正拿着 bypass-2FA 的旧 token
+```
+
+`npm profile get` 回 403，就先换一张**让 2FA 真正参与**的凭证——**不要再新建 bypass-2FA 的 token**：
+
+```bash
+npm login --auth-type=web         # 浏览器授权，真正过 2FA；会覆盖 ~/.npmrc 里的旧 token
+```
+
+旧 token 备份在 `~/.npmrc.bak-*`（**不要**提交、不要贴进文档或对话）。
+条款限制的是「**绕过 2FA** 的凭证」，让 2FA 真正参与的交互式发布会话不受 2027 年 1 月那条影响。
+
+之后的发布照旧，两条命令，顺序不能换：
 
 ```bash
 npm publish --tag latest --cache=/tmp/npm-cache-dsh                     # 这个版本第一次发布
@@ -154,6 +178,52 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 2. **本机 `~/.npm` 不可写**（DSH 沙箱所致，**不是**属主问题——不要跑 npm 建议的
    `sudo chown -R 501:20 ~/.npm`）：所有 npm 命令都带 `--cache=/tmp/npm-cache-dsh`。注册表**读**会滞后
    几十秒到几分钟，核对时用新 cache 目录加 `--prefer-online`。
+
+临时给 OTP 也可以：`npm publish --otp=<6 位码> --tag latest --cache=/tmp/npm-cache-dsh`。
+
+### 5.2 目标方式：trusted publishing（OIDC）——仓库侧已就绪，等 npm 侧开关
+
+仓库里已经有 `.github/workflows/publish-npm.yml`：推 `v*` tag（或手动 `workflow_dispatch` 填版本号）即触发，
+`permissions.id-token: write`，先跑本地闸门（`node --check` / `npm test` / `npm run verify`）再发布；
+最后一步把 `beta` 也指到同一版。**trusted publishing 会自动附带 provenance，不需要 `--provenance`。**
+它要求 npm CLI ≥ 11.5.1，而 runner 自带的 npm 是 10.x，所以 workflow 里先 `npm install -g 'npm@^11.5.1'`。
+
+**npm 侧四项配置只有维护者能在浏览器里点**（npmjs.com → 包 `dsh-skill-trace` → Settings → Trusted Publisher）：
+
+| 字段 | 值 |
+|---|---|
+| Publisher | GitHub Actions |
+| Organization or user | `PolinniZhong` |
+| Repository | `dsh-skill-intelligence` |
+| Workflow filename | `publish-npm.yml`（**必须与文件名逐字一致**） |
+| Environment | 留空 |
+
+同一页还要打开 **2026-09-30 新增的 `Allow npm dist-tag`**（新旧配置**都默认关**）：不开的话 workflow
+能发布，但改不了 `latest` / `beta` 指针。
+
+**在 npm 侧配好之前，推 `v*` tag 会让这个 job 在 publish 那一步失败（`ENEEDAUTH`）。** 所以这一版之后、
+切过去之前的发版仍然按 §5.1 在本地做。切过去之后，§2/§3 不变，只有 §5 从「两条 npm 命令」变成「等 workflow」；
+附录 A 的顺序约束**自动满足**——workflow 检出的就是 tag 指向的那个提交，`gitHead` 天然对齐。
+
+### 5.3 备选：staged publishing（本地提交 + 人工批准）
+
+2026-09-18 新增的 token 类型 **Read and write (stage only)**：本地 `npm stage publish` 提交，维护者在 npm 上
+**人工 2FA 批准**后才公开。条款明确它**保留 dist-tag 写权限**（所以两个标签仍然摆得动）。
+前置条件：账户有发布权限 + **账户已启用 2FA** + npm CLI ≥ 11.15.0 + Node ≥ 22.14.0（本机 `11.17.0` / `26.5.0` 满足）。
+
+### 5.4 npm v12 的安装期收紧：对本包**不需要任何兼容改动**
+
+npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`allowScripts` 默认关），并且 `--allow-git`
+与 `--allow-remote` 默认都是 `none`。对本包的影响是**零**，理由逐条可查：
+
+- `dependencies` 为空；`scripts` 里**没有** `preinstall` / `install` / `postinstall` / `prepare`
+  ——只有 `prepack`，那是**我们自己的**脚本，不是依赖的安装脚本。
+- `dist/` 是提交进仓库、并随 tarball 发布的（`files` 含 `dist`），消费者装完即可用，
+  **不需要 `npm approve-scripts` 放行任何东西**。
+- README 推荐的两条安装命令走的是 `dsh plugin add`（DSH 自己的 pnpm 通道），不受 npm 这些默认值管辖。
+  只有用 **npm** 直接从 git 装（`npm i github:PolinniZhong/dsh-skill-intelligence#v0.8.0`）才需要
+  `--allow-git=all`；因为本包没有安装脚本，仍然不需要审批脚本。
+- 本项目自身 `npm ci` 只有一个 devDependency（esbuild），与上面几条无关。
 
 ---
 
