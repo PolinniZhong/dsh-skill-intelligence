@@ -5,6 +5,8 @@
 
 **当前没有待发布版本**：`0.7.0`（Skill 理解与复用）已于 2026-10-02 发布到 GitHub Release 与 npm（发布提交 `5fac5d9`），下一版从它开始。`CHANGELOG.md` 顶部那一段仍是刚发出去的那一版。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
+**当前有一批未发布的改动：品牌迁移（见 `CHANGELOG.md` 顶部 `## Unreleased — Brand Update`，提交 `176dbcf`）。** 产品名从 Skill Trace 改为 **DSH Skill 智能实验室 / DSH Skill Intelligence**，GitHub 仓库已改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向，本地 `origin` 已同步）。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此这次迁移**不需要 npm 迁移**：下一版（建议 `v0.7.1 Brand Update`）照常走下面的流程即可，发布时 npm 包页的 README 会自动换成新品牌口径。
+
 ---
 
 ## 本次发布的起点（2026-10-02 实测，发布会话照此核对）
