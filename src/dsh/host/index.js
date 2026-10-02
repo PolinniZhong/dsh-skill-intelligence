@@ -32,17 +32,22 @@ import {
   rewriteSkillName,
 } from '../../core/skill-clone.mjs'
 import { resolveCloneRoot } from '../../core/skill-clone-path.mjs'
+import { buildLineageRecord } from '../../core/skill-lineage.mjs'
+import { buildSkillDiff, DIFF_ERROR } from '../../core/skill-diff.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
 import { createPreferenceStore } from '../../storage/preference-store.mjs'
+import { createSkillLineageStore } from '../../storage/skill-lineage-store.mjs'
 import { createTranslationStore } from '../../storage/translation-store.mjs'
 import {
   cloneTargetTaken,
   findProjectRoot,
+  listSkillFiles,
   probeExistingRoots,
   probePopulatedRoots,
   readBackClone,
   readSkillSource,
   readSkillSourceSha256,
+  readSkillBody,
   removeClone,
   writeClone,
 } from '../../storage/skill-clone-writer.mjs'
@@ -210,6 +215,12 @@ function optionalSearchQuery(value) {
   if (value === null || value === '') return ''
   if (typeof value !== 'string' || value.length > 500 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value)) throw new Error('searchQuery 无效')
   return value.trim()
+}
+
+/** `against` 是可选的比较对象；给了就必须是一个合法的 Skill 名，没有就返回 `null`。 */
+function optionalSkillName(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return text ? requiredSkillName(text) : null
 }
 
 function isLoopbackAddress(value) {
@@ -398,6 +409,9 @@ export function apply(ctx, config = {}) {
     const preferenceStore = createPreferenceStore(dataRoot || undefined)
     // v0.7 §5：中文阅读版落盘。位置跟着 dataRoot 走，与 receipts/preferences 同一套根目录约定。
     const translationStore = createTranslationStore(dataRoot ? join(dataRoot, 'translations') : undefined)
+    // v0.8 §17.3：Skill 复刻血缘。**不是**收据里那个 `lineage`（那是会话父子血统）——
+    // 这里存的是「本插件执行过一次 A → B 的复刻」这条长期资产关系。
+    const lineageStore = createSkillLineageStore(dataRoot ? join(dataRoot, 'lineage') : undefined)
     const cache = new Map()
     const { queues, enqueue, runMaintenance } = createSessionMutationQueue()
     const pruneTask = store.prune(shouldPersistReceipt).then((removed) => {
@@ -440,11 +454,120 @@ export function apply(ctx, config = {}) {
     }
 
     /**
+     * 把一次**已经成功**的复刻记成血缘，并返回真的记上了这个事实。
+     *
+     * 与 `persistTranslation` 同形：绝不抛。走到这里时副本已经在磁盘上、已经回读过、
+     * 源也复核过了，把写血缘的失败报成「复刻失败，没有产生任何副本」是撒谎；所以失败
+     * 只在 `limitations` 里加一条 `lineage-not-recorded`，不回滚也不 500（§17.4）。
+     *
+     * 反方向的纪律同样重要：**回读没通过就不许写血缘**。所以这个函数只在
+     * `readBackClone(` 成功之后才会被调用 —— 守卫按源码顺序把这件事钉住。
+     */
+    async function writeLineage(record) {
+      try {
+        await lineageStore.write(record)
+        return true
+      } catch (error) {
+        console.error('[dsh-skill-trace] lineage persist failed', error)
+        return false
+      }
+    }
+
+    /**
+     * 读差异的一侧。指纹与正文分开取，因为它们是两个口径：
+     *
+     * - 指纹用 registry 投影里的 `content.sha256` —— 与复刻、与血缘记录同一个口径。
+     *   换一个口径，「来源内容已发生变化」这句话就跨不了路由。
+     * - 正文直接从磁盘读 —— 差异要的是**现在**真实的字节，不是给界面看的那份可能被截断的投影。
+     *
+     * 资源清单只在 Skill 真的住在以自己的名字命名的目录里时才列，判据与复刻的
+     * `planCloneSource` 相同（`resourceBase` 的末段就是 Skill 名）。否则退回空清单：
+     * 把一台机器上碰巧相关的别的目录算成它的资源，比说「这里没有可比的文件」更糟。
+     */
+    async function readDiffSide({ registry, skillName, cwd, scope, now }) {
+      const definition = await buildSkillDefinitionView(registry, skillName, { cwd, scope, now })
+      if (!definition.available) {
+        return { skillName, available: false, reason: definition.reason ?? 'definition-unavailable' }
+      }
+      const raw = await registry.get(skillName, { cwd, scope })
+      const skillFile = typeof raw?.path === 'string' ? raw.path : null
+      const body = skillFile ? await readSkillBody({ skillFile }) : { ok: false, reason: 'source-file-missing' }
+      if (!body.ok) return { skillName, available: false, reason: body.reason }
+      const base = typeof raw?.resourceBase?.path === 'string' ? raw.resourceBase.path : ''
+      return {
+        skillName,
+        available: true,
+        reason: null,
+        content: body.body,
+        summary: definition.summary,
+        sha256: definition.content.sha256,
+        files: base && basename(base) === skillName ? await listSkillFiles(base) : [],
+      }
+    }
+
+    /**
+     * 差异比较：只读，不写任何东西，也不缓存。
+     *
+     * 与复刻最重要的区别是**来源变了不是错误**。复刻遇到 `409` 要拒绝，因为它会把一个混合体
+     * 落进目录；差异什么都不写，来源动过恰好是它要说出来的那件事，所以照样 `200`，
+     * 用 `comparison.source.changed` 回答（§17.6）。
+     *
+     * 返回 `{status, body}`，理由与 `handleClone` 相同：每条失败路径要有自己的状态码。
+     */
+    async function handleDiff(searchParams) {
+      const fail = (status, code, error, extra) => ({ status, body: { ok: false, code, error, ...extra } })
+      let sessionId
+      let skillName
+      try {
+        sessionId = requiredSessionId(searchParams.get('sessionId'))
+        skillName = requiredSkillName(searchParams.get('skillName'))
+      } catch (error) {
+        return fail(400, DIFF_ERROR.INVALID_REQUEST, error.message)
+      }
+      let against
+      try {
+        against = optionalSkillName(searchParams.get('against'))
+      } catch (error) {
+        return fail(400, DIFF_ERROR.INVALID_REQUEST, error.message)
+      }
+      const { registry, liveAgent, cwd } = registryContext(sessionId)
+      if (!registry) {
+        return fail(500, DIFF_ERROR.DIFF_FAILED, '差异比较失败：当前宿主没有挂载 Skill 注册表，读不到 Skill 目录。请重启 DSH 后重试。')
+      }
+      const record = await lineageStore.read(skillName)
+      const againstName = against ?? (typeof record?.sourceSkillName === 'string' ? record.sourceSkillName : null)
+      if (!againstName) {
+        return fail(404, DIFF_ERROR.NO_LINEAGE, '这个 Skill 不是由本插件复刻出来的，没有可以比较的来源。')
+      }
+      const now = Date.now()
+      const targetSide = await readDiffSide({ registry, skillName, cwd, scope: liveAgent, now })
+      if (!targetSide.available) {
+        return fail(404, DIFF_ERROR.UNKNOWN_SKILL, `找不到 Skill「${skillName}」，它可能已经被删除或改名。`, { reason: targetSide.reason })
+      }
+      // 只有「与记录里那个直接来源比」时才存在「复刻当初的那一版」。与别的节点比时它是未知的
+      // —— 界面必须说「无法比较这一项」，而不是拿目标现在的指纹凑一个出来（§17.6 边界三）。
+      const againstRecordedSource = againstName === record?.sourceSkillName
+      const sourceSide = againstName === skillName
+        ? { skillName: againstName, content: null, reason: 'same-skill' }
+        : await readDiffSide({ registry, skillName: againstName, cwd, scope: liveAgent, now })
+      const diff = buildSkillDiff({
+        source: sourceSide,
+        target: targetSide,
+        sourceOriginalSha256: againstRecordedSource ? record.sourceSourceSha256 : null,
+        cloneMode: againstRecordedSource ? record.cloneMode : null,
+      })
+      return {
+        status: 200,
+        body: { ok: true, sessionId, skillName, against: againstName, lineage: record, ...diff },
+      }
+    }
+
+    /**
      * 复刻：读源 → 校验指纹 → 写副本 → 回读 → 问 catalog。
      *
      * 返回 `{status, body}` 而不是直接写响应，是为了让每条失败路径都带自己的状态码和
-     * 自己的中文说明 —— §29 要求错误必须写清「发生了什么、怎么恢复」，而 catch-all
-     * 只会把认不出的消息一律当 500。
+     * 自己的中文说明 —— `spec/SDD.md` §3.3 要求错误必须写清「发生了什么、怎么恢复」，
+     * 而 catch-all 只会把认不出的消息一律当 500。
      *
      * 绝对路径在这条路上没有任何出口：响应里只有范围、落点类型与文件数量。
      * 这是产品里唯一会写盘的动作，也是唯一会让界面说出「已创建」的动作，
@@ -606,10 +729,24 @@ export function apply(ctx, config = {}) {
         const reread = await readSkillSourceSha256({ skillFile: raw.path })
         const sourceUnchanged = reread !== null && reread === sourceSha256
 
+        // 血缘：只有走到这里才允许记录 —— 写盘成功、回读通过、源复核过。手动复制与自建
+        // 都不产生这个事实，所以界面上「我从谁来」这一行有据可依。`sourceSourceSha256`
+        // 记的是**当初复制的那一版**；来源后来改成什么样，由 Diff 实时去读，不进记录。
+        const lineageRecorded = await writeLineage(buildLineageRecord({
+          sourceSkillName,
+          sourceSourceSha256: sourceSha256,
+          targetSkillName,
+          cloneMode: mode,
+          targetScope,
+          catalogObservation: discovered ? 'observed' : 'pending',
+          sourceRepository: definition.repository?.label ?? null,
+        }))
+
         const limitations = ['absolute-paths-withheld', 'clone-is-not-attached-to-this-session']
         if (!discovered) limitations.push('catalog-refresh-not-observed')
         else limitations.push('catalog-refresh-observed')
         if (!sourceUnchanged) limitations.push('source-reread-did-not-match')
+        if (!lineageRecorded) limitations.push('lineage-not-recorded')
         if (mode === 'skill-md') limitations.push('bundle-declared-resources-not-copied')
         if (source.plan.truncated) limitations.push('bundle-truncated-by-limit')
         else if (source.plan.skipped.length > 0) limitations.push('bundle-partially-skipped')
@@ -1026,12 +1163,16 @@ export function apply(ctx, config = {}) {
             const lookup = await buildSkillListLookup(registry, receipt, cwd, liveAgent)
             const list = buildSessionSkillList(receipt, { lookup })
             const listEntry = list.skills.find((entry) => entry.name === skillName) ?? null
+            // 血缘与详情一起回，不为它单开路由：它是这个 Skill 的基础事实，跟 summary、
+            // framework 一样属于「这个 Skill 是什么」。`null` 表示本插件没有执行过这次复刻
+            // —— 手动复制的 Skill 得到的也是 `null`，因为那两件事在事实上没有区别。
+            const lineage = await lineageStore.read(skillName)
             sendJson(res, 200, {
               ok: true,
               sessionId,
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
               list,
-              skill: buildSkillDetail({ receipt, view: definition, skillName, listEntry }),
+              skill: buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage }),
             })
             return
           }
@@ -1109,6 +1250,14 @@ export function apply(ctx, config = {}) {
           // 再问 registry 这个新 Skill 到底有没有被看见。任何一步对不上都不算成功。
           if (method === 'POST' && url.pathname === '/skill-trace/clone') {
             const outcome = await handleClone(await readBody(req))
+            sendJson(res, outcome.status, outcome.body)
+            return
+          }
+
+          // v0.8：唯一新增的一条路由。血缘不在这里 —— 它是 Skill 的基础事实，随
+          // `/skill-trace/skill` 回；只有差异是真的要重算（两侧解析 + 行级对比）才值得一条路由。
+          if (method === 'GET' && url.pathname === '/skill-trace/diff') {
+            const outcome = await handleDiff(url.searchParams)
             sendJson(res, outcome.status, outcome.body)
             return
           }

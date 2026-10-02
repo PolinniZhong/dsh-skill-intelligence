@@ -185,6 +185,8 @@ test('a clone writes the Skill, proves the source did not move, and never return
     assert.equal(clone.payload.discovered, false,
       'the fake registry never learns the new name, so discovery must be reported as not observed')
     assert.ok(clone.payload.limitations.includes('catalog-refresh-not-observed'))
+    assert.ok(!clone.payload.limitations.includes('lineage-not-recorded'),
+      '血缘写成功了，界面就不该看到「没记上」')
 
     // 全文里不许出现任何绝对路径。
     assert.ok(!JSON.stringify(clone.payload).includes(workspace.root),
@@ -229,6 +231,37 @@ test('a clone writes the Skill, proves the source did not move, and never return
     })
     assert.equal(missing.status, 422)
     assert.ok(missing.payload.error.length > 8, 'the error tells the user what happened')
+
+    // --- v0.8 血缘：只有这一次**成功的**复刻留下记录，失败那几次一条都不加 ---------------
+    const { createSkillLineageStore } = await import('../src/storage/skill-lineage-store.mjs')
+    const lineageStore = createSkillLineageStore(join(dataRoot, 'lineage'))
+    const list = await lineageStore.list()
+    assert.equal(list.records.length, 1, '三场失败（同名、指纹不对、源不存在）都不该留下血缘')
+    assert.deepEqual(list.records.map((entry) => entry.targetSkillName), ['ui-craft-custom'])
+
+    const lineage = await lineageStore.read('ui-craft-custom')
+    assert.equal(lineage.sourceSkillName, 'ui-craft')
+    assert.equal(lineage.sourceSourceSha256, sourceSha, '记的是当初复制的那一版，不是来源现在的样子')
+    assert.equal(lineage.cloneMode, 'bundle')
+    assert.equal(lineage.targetScope, 'project')
+    assert.equal(lineage.catalogObservation, 'pending',
+      'registry 没观察到就得如实记 pending，不能假装 observed')
+    assert.ok(!JSON.stringify(lineage).includes(workspace.root), '血缘里同样不许出现绝对路径')
+
+    // 详情接口把血缘随 skill 一起回 —— 不另开路由。
+    const detail = await call(route, {
+      method: 'GET', url: `/skill-trace/skill?sessionId=${SESSION_ID}&skillName=ui-craft-custom`,
+    })
+    assert.equal(detail.status, 200, JSON.stringify(detail.payload))
+    assert.equal(detail.payload.skill.lineage.sourceSkillName, 'ui-craft')
+    assert.equal(detail.payload.skill.lineage.targetSkillName, 'ui-craft-custom')
+    assert.ok(!JSON.stringify(detail.payload).includes(dataRoot))
+
+    // 来源自己没有血缘：它本来就不是复刻出来的。手动复制与自建在事实上是同一件事。
+    const sourceDetail = await call(route, {
+      method: 'GET', url: `/skill-trace/skill?sessionId=${SESSION_ID}&skillName=ui-craft`,
+    })
+    assert.equal(sourceDetail.payload.skill.lineage, null)
   } finally {
     await rm(dataRoot, { recursive: true, force: true })
     await rm(workspace.root, { recursive: true, force: true })

@@ -557,6 +557,42 @@ function installStyles() {
       .st-clone-invoke code{font-size:12px;color:var(--st-text)}
       .st-clone-copy{padding:4px 10px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-surface-subtle);color:var(--st-muted);font:inherit;font-size:11px;cursor:pointer}
       .st-clone-copy:hover{border-color:var(--st-border-strong);color:var(--st-text)}
+      .st-evo-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;margin:0;font-size:11px}
+      .st-evo-facts dt{margin:0;color:var(--st-muted)}
+      .st-evo-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+      .st-evo-facts code{font-size:11px;color:var(--st-text)}
+      .st-evo-state{margin:8px 0 0;padding-top:8px;border-top:1px solid var(--st-border-soft);color:var(--st-text);font-size:11.5px;line-height:1.5}
+      .st-evo-state[data-changed="yes"]{color:var(--st-warning)}
+      .st-evo-state[data-changed="pending"]{color:var(--st-faint)}
+      .st-evo-note{margin:0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-evo-open{width:100%;margin-top:10px;padding:6px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;cursor:pointer}
+      .st-evo-open:hover{border-color:var(--st-border-strong)}
+      .st-diff-overlay{position:fixed;inset:0;z-index:41;display:flex;align-items:flex-start;justify-content:center;padding:56px 20px;background:color-mix(in srgb,var(--st-text) 34%,transparent)}
+      .st-diff-dialog{width:720px;max-width:100%;max-height:100%;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--st-border-strong);border-radius:12px;background:var(--st-surface);box-shadow:0 12px 32px color-mix(in srgb,var(--st-text) 18%,transparent)}
+      .st-diff-head{padding:13px 18px;border-bottom:1px solid var(--st-border-soft)}
+      .st-diff-head h2{margin:0;font-size:14px;font-weight:650}
+      .st-diff-sub{margin:4px 0 0;color:var(--st-muted);font-size:11.5px;line-height:1.5}
+      .st-diff-tabs{display:flex;gap:4px;margin-top:10px}
+      .st-diff-tab{padding:5px 11px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--st-muted);font:inherit;font-size:12px;cursor:pointer}
+      .st-diff-tab[data-active="true"]{border-color:var(--st-border);background:var(--st-surface-subtle);color:var(--st-text);font-weight:600}
+      .st-diff-body{flex:1;min-height:0;overflow:auto;padding:0 18px}
+      .st-diff-alert{margin:12px 0;padding:9px 11px;border-left:2px solid var(--st-warning);color:var(--st-text);font-size:11.5px;line-height:1.55}
+      .st-diff-empty{margin:12px 0;color:var(--st-muted);font-size:11.5px;line-height:1.55}
+      .st-diff-counts{display:flex;gap:12px;margin:11px 0 0;color:var(--st-faint);font-size:11px}
+      .st-diff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--st-border-soft)}
+      .st-diff-row-title{min-width:0;overflow-wrap:anywhere;font-size:12px;color:var(--st-text)}
+      .st-diff-kind{color:var(--st-faint);font-size:11px}
+      .st-diff-kind[data-kind="added"]{color:var(--st-accent)}
+      .st-diff-kind[data-kind="removed"]{color:var(--st-warning)}
+      .st-diff-lines{margin:0 0 6px;padding:0;list-style:none;font-size:11px;line-height:1.6}
+      .st-diff-lines li{display:grid;grid-template-columns:14px minmax(0,1fr);gap:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+      .st-diff-lines li[data-kind="added"]{color:var(--st-accent)}
+      .st-diff-lines li[data-kind="removed"]{color:var(--st-warning)}
+      .st-diff-lines code{font-size:11px;color:inherit}
+      .st-diff-path{min-width:0;overflow-wrap:anywhere;font-size:11.5px;color:var(--st-text)}
+      .st-diff-foot{display:flex;justify-content:flex-end;gap:8px;padding:11px 18px;border-top:1px solid var(--st-border-soft)}
+      .st-diff-close{padding:6px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;cursor:pointer}
+      .st-diff-close:hover{border-color:var(--st-border-strong)}
       .st-detail-doc-body{flex:1;min-height:0;display:grid;grid-template-columns:170px minmax(0,1fr)}
       .st-detail-outline{border-right:1px solid var(--st-border-soft);padding:12px 8px;overflow:auto}
       .st-detail-outline-item{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 6px;border-radius:6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -783,6 +819,17 @@ function installStyles() {
     'bundle-declared-resources-not-copied': ['只复制了 SKILL.md，Skill 声明的资源目录没有一起复制。', 'Only SKILL.md was copied; the resource directories the Skill declares were not.'],
     'bundle-truncated-by-limit': ['有文件超过了单次复刻的上限，没有被复制。', 'Some files exceeded the per-clone limit and were not copied.'],
     'bundle-partially-skipped': ['有文件被跳过（例如符号链接或不安全的路径）。', 'Some files were skipped, such as symlinks or unsafe paths.'],
+    // v0.8 差异：同样是**代码**，同样必须说人话（§7）。差异这一层尤其不能把
+    // 「读不到」与「没有变化」混成一句话 —— 这两件事的差别就是这一层的全部意义。
+    'source-unavailable': ['当前无法读取来源 Skill，无法完成差异比较。', 'The source Skill cannot be read right now, so it cannot be compared.'],
+    'target-unavailable': ['当前无法读取这个 Skill 的正文，无法完成差异比较。', 'This Skill\u2019s body cannot be read right now, so it cannot be compared.'],
+    'section-list-truncated': ['小节太多，只列出了前面一部分。', 'There are more sections than fit here; only the first ones are listed.'],
+    'section-too-large-to-compare-line-by-line': ['有小节太大，没有逐行比较。', 'Some sections are too large to be compared line by line.'],
+    'diff-lines-truncated': ['差异行太多，只显示了前面一部分。', 'There are more differing lines than fit here; only the first ones are shown.'],
+    'resource-list-truncated': ['资源文件太多，只列出了前面一部分。', 'There are more resource files than fit here; only the first ones are listed.'],
+    'resources-not-copied-by-skill-md-clone': ['这份副本只复刻了 SKILL.md，来源的其它资源本来就不在本地。', 'This copy cloned SKILL.md only, so the source\u2019s other resources were never local.'],
+    'resource-differences-may-come-from-a-truncated-clone': ['复刻时有文件超过上限没有被复制，资源差异可能来自那里。', 'Files over the per-clone limit were not copied, so some resource differences may come from that.'],
+    'clone-mode-unknown-for-this-comparison': ['这次比较的对象不是当初复刻的来源，资源差异无法按复刻方式解释。', 'This comparison is not against the Skill it was cloned from, so the clone mode cannot explain the resource differences.'],
   }
 
   // 这几条在成功面板里**已经有一句话说过了**（目录刷新、源是否被改动），或者纯粹是
@@ -1562,6 +1609,287 @@ function installStyles() {
       h('div', { className: 'st-clone-dialog', 'data-phase': phase }, header, phase === 'done' ? done : form))
   }
 
+  const DIFF_TABS = Object.freeze([
+    ['structure', '结构', 'Structure'],
+    ['content', '内容', 'Content'],
+    ['resources', '资源', 'Resources'],
+  ])
+
+  // 差异只许说事实（FR-EVO-014）。这四加一个是**闭集**：宿主回的 `status` 一定在这几个里，
+  // 界面不许自己再发明一个「已优化」「更合理」之类的说法。
+  const DIFF_WORD_TEXT = Object.freeze({
+    added: ['新增', 'Added'],
+    removed: ['删除', 'Removed'],
+    modified: ['修改', 'Modified'],
+    unchanged: ['保持不变', 'Unchanged'],
+    unavailable: ['无法比较', 'Cannot be compared'],
+  })
+
+  function diffWord(kind) {
+    const known = DIFF_WORD_TEXT[kind]
+    return known ? localized(known[0], known[1]) : localized('无法比较', 'Cannot be compared')
+  }
+
+  /**
+   * 「来源现在变了吗」只有三句话，全部来自响应里的事实（`FR-EVO-010`）。
+   *
+   * 三态是这一层的全部意义：`changed === true` 是「变了」，`false` 是「没变」，
+   * `null` 是「没有可比的原始指纹」—— 后者既不是变了也不是没变，说成任何一个是编造。
+   */
+  function diffSourceState(source) {
+    if (!source || source.available !== true) {
+      return { text: localized('无法读取来源', 'The source cannot be read'), mark: 'unknown' }
+    }
+    if (source.changed === true) {
+      return { text: localized('来源内容已发生变化', 'The source content has changed'), mark: 'yes' }
+    }
+    if (source.changed === false) {
+      return { text: localized('来源内容未发生变化', 'The source content has not changed'), mark: 'no' }
+    }
+    return { text: localized('无法比较', 'Cannot be compared'), mark: 'unknown' }
+  }
+
+  /**
+   * 演进卡那一行只许有四种来源，而第四种最容易被漏掉：**还没听到回音**。
+   *
+   * 详情页要先读 `/skill` 拿到血缘，再拿血缘里的 `lineageId` 去问 `/diff` —— 中间那一段
+   * `comparison.source` 还不存在。`!source` 落进 `diffSourceState` 的第一格，于是卡片会在
+   * **每一次**打开副本详情页时先说一句「无法读取来源」，再自己改口。那不是装饰性闪烁：
+   * 「读不到」是宿主观测到的事实，「还没问」是客户端自己的状态，把后者渲染成前者，等于
+   * 替宿主宣布了一个它从没说过的话（§6.11 —— 这条规则在本文件里的第四次出现）。
+   *
+   * 失败也另算一格：请求失败时我们确实没读到来源，但那句人话得说成「读取失败」，
+   * 而不是「无法读取来源」——后者听起来像宿主检查过了。
+   */
+  function evolutionSourceState(source, diffPhase) {
+    if (diffPhase === 'error') {
+      return { text: localized('读取来源失败', 'Reading the source failed'), mark: 'unknown' }
+    }
+    if (diffPhase !== 'ready') {
+      return { text: localized('正在读取来源…', 'Reading the source…'), mark: 'pending' }
+    }
+    return diffSourceState(source)
+  }
+
+  /**
+   * v0.8 详情页左栏的「Skill 演进」块。
+   *
+   * 一行事实，不是时间线（`design.md` §24.4）：我是谁 / 我从谁来 / 来源现在变了吗。
+   * 没有血缘就直说没有血缘 —— 手动复制与用户自建在事实上是同一件事：
+   * **本插件没有执行过这次复刻**（`FR-EVO-001`）。所以这里既不猜，也不给一个禁用的按钮。
+   *
+   * 但「没有血缘」有两种成因，`null` 与「读不到」必须分开说（§6.11）：宿主把插件读进内存之后
+   * 不会自动换代码，所以「客户端已经是新版、宿主还是 v0.7」是插件升级的正常路径（§6.2 / 附录 B）。
+   * 那时详情响应里**根本没有 `lineage` 这个键**——把这种情况渲染成「不是由本插件复刻出来的」，
+   * 等于对着一个真的复刻过的 Skill 说假话。
+   */
+  function SkillEvolution({ skillName, lineage, source, diffPhase, onOpenDiff, openRef, lineageFieldMissing }) {
+    const head = h('h3', null, localized('Skill 演进', 'Skill Evolution'))
+    if (!lineage) {
+      return h('section', { className: 'st-detail-card', 'data-role': 'skill-evolution' },
+        head,
+        h('p', { className: 'st-evo-note', 'data-role': 'evolution-note' }, raw(lineageFieldMissing
+          ? localized(
+            '这次详情响应里没有血缘字段。宿主可能还没换到这一版的代码，重启 DSH 后再试。',
+            'This detail response has no lineage field. The host may still be running an older version — restart DSH and try again.',
+          )
+          : localized(
+            '这个 Skill 不是由本插件复刻出来的。',
+            'This Skill was not cloned by this plugin.',
+          ))))
+    }
+    const sourceState = evolutionSourceState(source, diffPhase)
+    return h('section', { className: 'st-detail-card', 'data-role': 'skill-evolution' },
+      head,
+      h('dl', { className: 'st-evo-facts' },
+        h('dt', null, localized('当前 Skill', 'Current Skill')),
+        h('dd', null, h('code', null, raw(skillName))),
+        h('dt', null, localized('来源 Skill', 'Source Skill')),
+        h('dd', null, h('code', null, raw(lineage.sourceSkillName))),
+        h('dt', null, localized('复刻来源指纹', 'Cloned from fingerprint')),
+        h('dd', null, h('code', null, raw(shortHash(lineage.sourceSourceSha256) || '—'))),
+        h('dt', null, localized('当前来源指纹', 'Source fingerprint now')),
+        h('dd', null, h('code', null, raw(shortHash(source?.currentSha256) || '—')))),
+      h('p', { className: 'st-evo-state', 'data-role': 'evolution-source-state', 'data-changed': sourceState.mark }, raw(sourceState.text)),
+      h('button', {
+        className: 'st-evo-open',
+        type: 'button',
+        ref: openRef,
+        'data-role': 'diff-open',
+        onClick: onOpenDiff,
+      }, raw(localized('查看差异', 'View differences'))))
+  }
+
+  /**
+   * v0.8 差异面板：标准模态（`FR-EVO-018`）。
+   *
+   * 它**只读**：没有编辑、没有合并、没有「采用来源的写法」。它也不评价哪一版更好 ——
+   * 三个 Tab 说的是同一件事的三层：结构变了哪些小节、内容变了哪些行、资源多了少了哪些文件。
+   *
+   * 焦点行为不是装饰：打开后焦点进入面板、Tab 在面板内循环、Esc 关闭、关闭后焦点回到
+   * 打开它的那个按钮。少任何一条，键盘用户都会被留在一个已经关闭的浮层后面。
+   * 错误态用 `role="alert"`，因为「读不到来源」必须被辅助技术立刻听到。
+   */
+  function SkillDiffPanel({ sessionId, skillName, diff: suppliedDiff, tab: suppliedTab = 'structure', onClose }) {
+    // `diff` 是和 `SkillCloneDialog` 的 `clone` 同一种注入缝：渲染烟测的 React 桩不跑
+    // `useEffect`，所以「已经拿到差异」的那一帧只有注得进去才渲染得出来。
+    // `tab` 是同一条理由的另一半：`useState` 的更新函数也是空操作，不注入就永远只看得见
+    // 第一个 Tab，另外两层渲染得对不对没有任何东西盯着。
+    const [state, setState] = React.useState(() => (suppliedDiff
+      ? { phase: 'ready', diff: suppliedDiff, error: '' }
+      : { phase: 'loading', diff: null, error: '' }))
+    const [tab, setTab] = React.useState(suppliedTab)
+    const dialogRef = React.useRef(null)
+    const closeRef = React.useRef(null)
+
+    React.useEffect(() => {
+      if (suppliedDiff) return undefined
+      let cancelled = false
+      api(`/diff?sessionId=${encodeURIComponent(sessionId)}&skillName=${encodeURIComponent(skillName)}`)
+        .then((body) => { if (!cancelled) setState({ phase: 'ready', diff: body, error: '' }) })
+        .catch((reason) => { if (!cancelled) setState({ phase: 'error', diff: null, error: String(reason?.message || 'unavailable') }) })
+      return () => { cancelled = true }
+    }, [sessionId, skillName, suppliedDiff])
+
+    React.useEffect(() => {
+      const target = closeRef.current
+      if (target && typeof target.focus === 'function') target.focus()
+    }, [])
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const root = dialogRef.current
+      if (!root || typeof root.querySelectorAll !== 'function') return
+      const nodes = root.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')
+      if (!nodes.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const active = typeof document === 'undefined' ? null : document.activeElement
+      if (event.shiftKey && active === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
+    }
+
+    const header = h('header', { className: 'st-diff-head' },
+      h('h2', null, localized('Skill 差异', 'Skill differences')),
+      h('p', { className: 'st-diff-sub', 'data-role': 'diff-subject' }, raw(localized(
+        `${skillName} 与来源 Skill 的比较`,
+        `${skillName} compared with its source Skill`,
+      ))),
+      h('div', { className: 'st-diff-tabs', role: 'tablist' }, ...DIFF_TABS.map(([key, zh, en]) => h('button', {
+        key,
+        className: 'st-diff-tab',
+        type: 'button',
+        role: 'tab',
+        'data-tab': key,
+        'data-active': tab === key ? 'true' : 'false',
+        'aria-selected': tab === key ? 'true' : 'false',
+        onClick: () => setTab(key),
+      }, raw(localized(zh, en))))))
+
+    const closeButton = h('button', {
+      className: 'st-diff-close',
+      type: 'button',
+      ref: closeRef,
+      'data-role': 'diff-close',
+      onClick: onClose,
+    }, raw(localized('关闭', 'Close')))
+
+    const footer = h('div', { className: 'st-diff-foot' }, closeButton)
+    const shell = (children) => h('div', {
+      className: 'st-diff-overlay',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-label': localized('Skill 差异', 'Skill differences'),
+      onKeyDown,
+    }, h('div', { className: 'st-diff-dialog', ref: dialogRef }, header, children, footer))
+
+    if (state.phase === 'loading') {
+      return shell(h('div', { className: 'st-diff-body' },
+        h('p', { className: 'st-diff-empty' }, raw(localized('正在计算差异…', 'Comparing…')))))
+    }
+    if (state.phase === 'error') {
+      return shell(h('div', { className: 'st-diff-body' },
+        h('p', { className: 'st-diff-alert', role: 'alert', 'data-role': 'diff-error' }, raw(state.error))))
+    }
+
+    const diff = state.diff ?? null
+    const comparison = diff?.comparison ?? null
+    const sourceState = diffSourceState(comparison?.source)
+    const limitations = Array.isArray(comparison?.limitations) ? comparison.limitations : []
+    // 任一侧读不到时三层都是 `unavailable`，但那不是「没有变化」。所以这一屏的正事就是
+    // 把那句话说清楚，而不是显示一条空列表让人以为两边一样（`FR-EVO-015`）。
+    const unavailable = comparison?.status === 'unavailable'
+    const subject = h('div', null,
+      h('p', { className: 'st-diff-sub', 'data-role': 'diff-source-state', 'data-changed': sourceState.mark }, raw(sourceState.text)),
+      h('p', { className: 'st-diff-sub' }, raw(localized(
+        `复刻来源指纹 ${shortHash(comparison?.source?.originalSha256) || '—'} · 当前来源指纹 ${shortHash(comparison?.source?.currentSha256) || '—'}`,
+        `Cloned from ${shortHash(comparison?.source?.originalSha256) || '—'} · source now ${shortHash(comparison?.source?.currentSha256) || '—'}`,
+      ))))
+
+    const countsLine = (layer) => h('p', { className: 'st-diff-counts' },
+      ...['added', 'removed', 'modified', 'unchanged'].map((kind) => h('span', { key: kind, 'data-kind': kind },
+        raw(`${diffWord(kind)} ${Number(layer?.counts?.[kind]) || 0}`))))
+
+    const structureBody = h('div', null,
+      countsLine(diff?.structure),
+      ...(Array.isArray(diff?.structure?.sections) ? diff.structure.sections : []).map((section) => h('div', {
+        key: `${section.anchorId ?? section.title}:${section.sourceLine ?? section.targetLine}`,
+        className: 'st-diff-row',
+        'data-status': section.status,
+      },
+      h('div', { className: 'st-diff-row-title' }, raw(section.title ?? '—')),
+      h('span', { className: 'st-diff-kind', 'data-kind': section.status }, raw(diffWord(section.status))))))
+
+    const contentBody = h('div', null,
+      countsLine(diff?.content),
+      ...(Array.isArray(diff?.content?.sections) ? diff.content.sections : []).map((section) => h('div', {
+        key: `${section.anchorId ?? section.title}:${section.sourceLine ?? section.targetLine}`,
+        className: 'st-diff-row',
+        'data-status': section.status,
+      },
+      h('div', { className: 'st-diff-row-title' },
+        h('div', null, raw(section.title ?? '—')),
+        Array.isArray(section.lines) && section.lines.length
+          ? h('ul', { className: 'st-diff-lines' }, ...section.lines.map((line, index) => h('li', {
+            key: `${line.kind}:${line.sourceLine ?? 'x'}:${line.targetLine ?? 'x'}:${index}`,
+            'data-kind': line.kind,
+          },
+          h('span', { className: 'st-diff-kind', 'data-kind': line.kind }, raw(line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ' ')),
+          h('code', null, raw(line.text)))))
+          : null),
+      h('span', { className: 'st-diff-kind', 'data-kind': section.status }, raw(diffWord(section.status))))))
+
+    const resourcesBody = h('div', null,
+      countsLine(diff?.resources),
+      ...(Array.isArray(diff?.resources?.entries) ? diff.resources.entries : []).map((entry) => h('div', {
+        key: entry.path,
+        className: 'st-diff-row',
+        'data-status': entry.status,
+      },
+      h('span', { className: 'st-diff-path' }, h('code', null, raw(entry.path))),
+      h('span', { className: 'st-diff-kind', 'data-kind': entry.status }, raw(diffWord(entry.status))))))
+
+    const body = tab === 'content' ? contentBody : tab === 'resources' ? resourcesBody : structureBody
+
+    return shell(h('div', { className: 'st-diff-body' },
+      unavailable
+        ? h('p', { className: 'st-diff-alert', role: 'alert', 'data-role': 'diff-unavailable' }, raw(localized(
+          '当前无法读取来源 Skill，无法完成差异比较。',
+          'The source Skill cannot be read right now, so it cannot be compared.',
+        )))
+        : null,
+      subject,
+      unavailable ? null : body,
+      limitations.length
+        ? h('ul', { className: 'st-clone-limits' }, ...limitations.map((item) => h('li', { key: item }, raw(limitationLabel(item)))))
+        : null))
+  }
+
   function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
@@ -1571,6 +1899,11 @@ function installStyles() {
     const [flash, setFlash] = React.useState('')
     const [activeHeading, setActiveHeading] = React.useState('')
     const [cloneOpen, setCloneOpen] = React.useState(false)
+    // v0.8：差异面板与它的数据。`status` 只要一侧 `comparison.source` 就够演进卡那一行用；
+    // 面板打开时复用同一份响应，不为了一句话再打一次路由。
+    const [diffOpen, setDiffOpen] = React.useState(false)
+    const [diffState, setDiffState] = React.useState({ phase: 'idle', diff: null, error: '' })
+    const diffOpenRef = React.useRef(null)
     const docRef = React.useRef(null)
     const scrollRef = React.useRef(null)
     const flashTimer = React.useRef(null)
@@ -1597,6 +1930,12 @@ function installStyles() {
     )
     const summary = detail?.summary ?? null
     const repository = detail?.repository ?? definition?.repository ?? null
+    // v0.8：血缘是宿主给出的**事实**，客户端不推断、不比对、不问相似度。`null` 就是
+    // 「本插件没有执行过这次复刻」——手动复制与用户自建都落在这一格（`FR-EVO-001`）。
+    const lineage = detail?.lineage ?? null
+    // v0.8：老宿主（内存里还是 v0.7 那一代代码）的详情响应里**没有** `lineage` 这个键，
+    // 而「确实没有复刻过」是 `lineage: null`。两者不能都渲染成同一句话（§6.11）。
+    const lineageFieldMissing = Boolean(detail) && !Object.prototype.hasOwnProperty.call(detail, 'lineage')
     const runs = Array.isArray(detail?.runs) ? detail.runs : []
     const observation = detail?.observation ?? null
     const definitionUnavailable = Boolean(definition) && definition.available !== true
@@ -1608,6 +1947,21 @@ function installStyles() {
     // 也不能写成「Skill 已失效」——那是从缺失推出的结论（§10）。
     const matchState = snapshot?.match || observation?.match || 'unavailable'
     const sha = content?.sha256 ?? ''
+
+    // 只有真的复刻过的 Skill 才去问差异。没有血缘时**不发这个请求**：那个 Skill 没有
+    // 可比的对象，问一次只会换回一句「没有来源」，还要让用户在页面上等它。
+    //
+    // 拿整份响应而不是只拿 `source`：这一句状态与面板要的是同一次计算，
+    // 打两次会把「同一个问题有两个答案」变成可能（两次读盘之间来源可能被改）。
+    React.useEffect(() => {
+      if (!lineage) { setDiffState({ phase: 'idle', diff: null, error: '' }); return undefined }
+      let cancelled = false
+      setDiffState({ phase: 'loading', diff: null, error: '' })
+      api(`/diff?sessionId=${encodeURIComponent(sessionId)}&skillName=${encodeURIComponent(skillName)}`)
+        .then((body) => { if (!cancelled) setDiffState({ phase: 'ready', diff: body, error: '' }) })
+        .catch((reason) => { if (!cancelled) setDiffState({ phase: 'error', diff: null, error: String(reason?.message || 'unavailable') }) })
+      return () => { cancelled = true }
+    }, [sessionId, skillName, lineage ? lineage.lineageId : null])
 
     // 定义换了（重新加载、切 Skill）就换一份译文：一份对不上屏幕正文的译文比没有译文更糟。
     // 依赖是 `skillName` + 指纹，不是 `detail` 对象 —— 同一个定义的两次读取不该清掉译文。
@@ -1807,7 +2161,19 @@ function installStyles() {
           h('p', { className: 'st-detail-side-note' }, raw(repositoryLimitation
             || localized('没有找到 git work tree，无法确定仓库来源。', 'No git work tree was found, so the repository source cannot be established.')))))
 
-    const sidePanel = h('aside', { className: 'st-detail-side' }, sideIdentity, sideDefinition, sideRepository)
+    const sideEvolution = h(SkillEvolution, {
+      skillName,
+      lineage,
+      lineageFieldMissing,
+      source: diffState.diff?.comparison?.source ?? null,
+      // 相位要一起传：`source` 为 `null` 有「还没问」和「问到了但读不到」两种成因，
+      // 卡片自己分不出来（`evolutionSourceState`）。
+      diffPhase: diffState.phase,
+      onOpenDiff: () => setDiffOpen(true),
+      openRef: diffOpenRef,
+    })
+
+    const sidePanel = h('aside', { className: 'st-detail-side' }, sideIdentity, sideEvolution, sideDefinition, sideRepository)
 
     const segControl = h('div', { className: 'st-seg', role: 'group', 'aria-label': 'SKILL.md 显示方式' },
       h('button', { type: 'button', 'data-active': !translated, onClick: () => setTab('original') }, localized('原文', 'Original')),
@@ -1908,6 +2274,14 @@ function installStyles() {
     const runtimeLogic = h(RuntimeLogic, { runtimeLogic: detail?.runtimeLogic ?? null })
     const stepEvidence = h(StepEvidence, { flow: detail?.flow ?? null })
 
+    // 关闭后焦点回到打开它的那个按钮（`FR-EVO-018`）。浮层是**局部 UI 状态**：
+    // 按 Esc 不该等于后退，也不该把用户送回列表页 —— 他只是关掉一个面板。
+    const closeDiff = () => {
+      setDiffOpen(false)
+      const target = diffOpenRef.current
+      if (target && typeof target.focus === 'function') target.focus()
+    }
+
     return h('div', { className: 'st-detail' },
       h('div', { className: 'st-detail-body' }, sidePanel,
         h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)),
@@ -1918,6 +2292,16 @@ function installStyles() {
           sourceSha256: sha,
           definitionAvailable: Boolean(definition) && definition.available === true,
           onClose: () => setCloneOpen(false),
+        })
+        : null,
+      diffOpen
+        ? h(SkillDiffPanel, {
+          sessionId,
+          skillName,
+          // 已经在卡片那一步算好的就复用；没算好（还在读、或者上一次失败了）就由面板自己问一次 ——
+          // 那正好也是一次重试。
+          diff: diffState.phase === 'ready' ? diffState.diff : null,
+          onClose: closeDiff,
         })
         : null)
   }
@@ -2345,4 +2729,7 @@ function installStyles() {
     // v0.7：复刻对话框与它的成功态也要能在无浏览器的情况下渲染一遍 —— 「✓ 已创建」这句话
     // 只该出现在宿主的回执之后，而那条分支只有把组件真的渲染出来才会被执行。
     SkillCloneDialog,
+    // v0.8：演进卡与差异面板同样要能离线渲染。理由与上面那条一样，而且这次更硬 ——
+    // 「读不到来源」那一屏是**错误态**，它一旦渲染成空列表，用户看到的就是「没有变化」。
+    SkillEvolution, SkillDiffPanel,
   }

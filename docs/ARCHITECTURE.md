@@ -27,13 +27,13 @@ The receipt kept its evidence role and lost its page identity: it is no longer a
 
 ### Host surface
 
-Ten routes remain. All ten are registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
+Eleven routes are built. The v0.8 work added exactly one — `GET /skill-trace/diff` — and deliberately added no `/lineage`, `/evolution`, `/source`, or `/versions`: lineage travels inside the existing `GET /skill-trace/skill` response, and only a genuinely heavy recomputation earns a route of its own. Every route is registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
 
 | Method | Route | Answers |
 | --- | --- | --- |
 | GET | `/skill-trace/context` | the session receipt (public projection), preferences, and view models |
 | GET | `/skill-trace/skills` | which Skills this conversation loaded |
-| GET | `/skill-trace/skill` | one loaded Skill's detail |
+| GET | `/skill-trace/skill` | one loaded Skill's detail — plus, from v0.8, its lineage record |
 | GET | `/skill-trace/catalog` | which Skills this DSH environment can discover |
 | GET | `/skill-trace/definition` | the live definition body, outline, repository, and fingerprint comparison |
 | POST | `/skill-trace/translate` | a 中文阅读版 for one definition at one `sourceSha256`, and whether it was persisted |
@@ -41,6 +41,7 @@ Ten routes remain. All ten are registered in `src/dsh/host/index.js` and pinned 
 | DELETE | `/skill-trace/translation` | delete exactly that one stored reading version |
 | POST | `/skill-trace/clone` | copy one Skill into a new directory and verify the copy |
 | POST | `/skill-trace/preferences` | persist the default first-level page |
+| GET | `/skill-trace/diff` | **v0.8, shipped.** The deterministic three-layer diff between one Skill and its recorded origin, with both sides' availability and content fingerprints |
 
 The v0.7 additions follow three rules the verifier now enforces. `/skill-trace/translation` takes **no `sessionId`**: the reading version is an asset keyed by content, not a product of one conversation, and requiring a session would both invite the session into the key and imply the wrong lifetime. `/skill-trace/translate` reports a `saved` boolean that comes from an actual `translationStore.write()` — a request that started is not a save that finished — and that boolean is the only thing allowed to produce 「✓ 中文阅读版已保存」 in the interface. `/skill-trace/clone` re-reads the Skill and recomputes `sourceSha256` rather than trusting the value the client read earlier, so a body edited between the detail page loading and the clone being requested cannot slip through.
 
@@ -242,7 +243,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 | Module | Responsibility |
 | --- | --- |
-| `src/dsh/host/index.js` | DSH lifecycle bridge, the ten routes, event observation, privacy policy, local persistence wiring |
+| `src/dsh/host/index.js` | DSH lifecycle bridge, the eleven routes, event observation, privacy policy, local persistence wiring |
 | `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence — the load-evidence layer v0.6 was required not to break |
 | `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations |
 | `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships |
@@ -276,7 +277,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 ## Client component tree
 
-`src/dsh/client/client.js` is the entire client — about 2348 lines, down from about 3536 before v0.6, with a bundle of about 126 KB down from about 421 KB. It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
+`src/dsh/client/client.js` is the entire client — about 2735 lines (v0.6 took it from about 3536 down to about 2348; v0.8 added the Skill Evolution card and the diff panel), with a bundle of about 142 KB (about 421 KB before v0.6). It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
 ```text
 Workbench                      first-level page switch + host preference
@@ -608,7 +609,7 @@ UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → �
 | 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
 | 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
 
-因此客户端从约 3536 行降到约 2348 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由，
+因此客户端从约 3536 行降到约 2348 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由（**这是 v0.6 当时的数字**；v0.8 之后是 2735 行 / 142672 字节 / 11 条），
 并且只注册一个 slot（`conversation.view`）。
 
 ### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着
@@ -648,3 +649,48 @@ Skill Run 与 Evidence 都从后者构建。
 
 旧版本写入的学习笔记与验证结果**仍然留在收据里**，但 v0.6 删除了全部写入入口：没有 note 路由、
 没有 validation 路由、也没有编辑组件。它们只在渲染旧收据时被读到，见上面的「Legacy receipt fields」。
+
+## V0.8 — Skill Evolution
+
+**This whole section is shipped.** All three phases landed on 2026-10-06 and every paragraph below describes code that exists: the lineage modules (`src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs`), the diff module (`src/core/skill-diff.mjs`), the host hook plus `GET /skill-trace/diff` (**eleven** routes), the detail page's 「Skill 演进」 card and its 720px diff modal (`SkillEvolution` / `SkillDiffPanel`), guards 24 and 25 — both halves — and five render smoke tests. `npm test` is 474 green, `npm run verify` is 25 groups. Real-machine acceptance passed on 2026-10-06 — twelve checkpoints, run against a real clone (`deliver-prd-custom-custom`, whose lineage record was the first one this machine ever wrote), not against a fixture; two of the defects recorded in `CHANGELOG.md` were found there and not by the tests. **It is released as `0.8.0`** (2026-10-02, GitHub Release + npm; results in `docs/RELEASE.md` §6.0). `spec/SDD.md` §0.1 D8 records the boundary and §17 holds the full design.
+
+v0.8 answers one question: after cloning a Skill into your own version, **where did it come from, what did you change, and has the origin moved since**. Three capabilities — lineage, diff, and one compact evolution block — all inside the existing Skill detail page. No new first-level page, no history page, no version centre, and no second registry, invocation engine, or Agent runtime. Behavioural evaluation (baseline vs with-Skill, regression) is V0.9.
+
+### Lineage has exactly one source: a clone this plugin performed
+
+A lineage record is **not** "B looks like it came from A". It is "this plugin ran a clone from A to B". Similar content, a similar name, the same GitHub repository, a file the user copied by hand, and a Skill the user wrote from scratch all produce **no record**, because the plugin has no evidence for them. That is the same discipline the runtime side already follows: a declaration is not an execution.
+
+The record holds identity and provenance only — `lineageId`, `sourceSkillName`, `sourceSourceSha256`, `targetSkillName`, `cloneMode`, `targetScope`, `catalogObservation`, timestamps, and an optional `sourceRepository` when the origin could actually be confirmed. It never holds a Skill body, a resource file's contents, a session id, a conversation, tool arguments or results, or an absolute path. It lives in `<plugin data area>/lineage/<sha256(targetSkillName)>.json`, directory `0700`, file `0600`, written by temp file plus rename. The filename is the whole concurrency story: **one target Skill has exactly one direct origin**, and editing that Skill later adds no records — those changes are the diff's business.
+
+Lineage is never written into a Skill directory (that would pollute the Skill's own bundle and be copied along by the next full clone), never into a receipt, and never into the session log. The `lineage` field a receipt already carries is unrelated: it is the **session** parent/child lineage taken from the session header, read by `trace-reducer.mjs` and consumed by `host/index.js` and `runtime-graph.mjs`. The two share no field names and never read or write each other.
+
+### The hook sits after read-back, and fails soft
+
+`handleClone` already runs `writeClone` → `readBackClone` → rollback-or-continue → catalog observation → success. The lineage write goes after the observation and before the success return, for two reasons that are both about not lying:
+
+- **A failed read-back produces no lineage**, because that path removes the copy and fails the request — there is no directory on disk for a record to describe. The `SKILL_LINEAGE_OK` guard pins this with a source-order assertion (`writeLineage(` must appear after `readBackClone(`) rather than trusting memory.
+- **A failed lineage write does not fail the clone.** The copy is already on disk; reporting "the clone failed and nothing was created" would be false. The write follows the same shape as `persistTranslation` and returns a boolean, and a failure only adds `lineage-not-recorded` to `limitations`.
+
+A directory the watcher did not observe in time is not a failure either: the response's existing `discovered` boolean maps onto `catalogObservation: observed | pending`.
+
+### Diff is deterministic, and both sides are read live
+
+The comparison is always **the current target against the current origin**, never against a stored snapshot of the origin as it was at clone time — the plugin does not persist Skill bodies, and `spec/PRD.md` `FR-EVO-002` forbids it. Three layers, none of which involves a model:
+
+| Layer | Built from | Reports |
+| --- | --- | --- |
+| Structure | `buildDefinitionOutline()` then `buildSkillFramework()` on each side | sections and roles added, removed, or changed |
+| Content | both `SKILL.md` bodies, aligned by Markdown structure | lines added, removed, modified, with line numbers for anchors |
+| Resources | each side's relative file list | paths added, removed, changed |
+
+Three implementation traps came out of reading the existing parser, and each one produces a wrong answer rather than a crash:
+
+1. **Pass each side its own `summary`, or pass `null` for both.** `buildSkillFramework` synthesises a trigger section from `summary.whenToUse || summary.description` when no body section classifies as one. Feeding the two sides different summaries fabricates a structural difference that does not exist.
+2. **Call `buildDefinitionOutline(side.content.text)` for both sides.** `buildSkillFramework` consumes an outline; it does not build one. Skipping this yields empty `sections`.
+3. **Do not render the diff with `renderSkillMarkdown(`.** The `SKILL_FRAMEWORK_OK` guard pins the client to a single call site of that function.
+
+Two honest limits are designed in rather than discovered later. First, because no snapshot is kept, the two sides' content fingerprints decide what the diff means: when they match, the difference **is** what the user changed; when they differ, part of the difference may come from the origin itself and the interface has to say so — which is why 「来源内容未发生变化」 is the single most informative line in the feature. Second, a `skill-md` clone copies only `SKILL.md`, so the origin's resource files are *absent from the copy by construction*, and the interface must explain that instead of calling them deleted; a `bundle` clone can likewise miss files under `CLONE_MAX_BYTES`. A name is not an identity either: if the origin's name is later taken over by a different Skill, the plugin cannot tell, and does not claim to.
+
+The layering follows the existing one: lineage and diff are host-side domain logic in `src/core/skill-lineage.mjs`, `src/core/skill-diff.mjs`, and `src/storage/skill-lineage-store.mjs`; the host exposes them through one new route and one new field; the client only renders what it is given and requires none of those modules. Reading an unavailable origin returns `unavailable` with 「当前无法读取来源 Skill，无法完成差异比较。」 in an `role="alert"` region — never `unchanged`.
+
+`SKILL_LINEAGE_OK` and `SKILL_DIFF_NO_JUDGEMENT_OK` raise the verifier's guard count from 23 to two dozen plus one, and the wording itself is in the contract: the diff may say 新增 / 删除 / 修改 / 保持不变 and nothing that ranks, praises, or recommends.

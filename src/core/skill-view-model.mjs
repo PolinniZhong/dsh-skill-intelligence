@@ -233,6 +233,10 @@ export function projectSkillEvidence(receipt, skillName) {
  *   not read it. The definition body is read live by the host; this function never reads it.
  * @param options.skillName - the Skill being viewed.
  * @param options.listEntry - the matching entry from `buildSessionSkillList`, when available.
+ * @param options.lineage - the Skill's clone lineage record (v0.8), or `null`. It is a passed-in
+ *   fact, not something this function derives: lineage comes from the plugin's own successful
+ *   clones, never from similarity, a shared name, or a shared repository. `null` means "this
+ *   plugin did not clone this Skill", which is also what a hand-copied Skill honestly is.
  */
 export function buildSkillDetail(options = {}) {
   const receipt = options.receipt ?? null
@@ -336,6 +340,8 @@ export function buildSkillDetail(options = {}) {
     evidence,
     runtimeLogic,
     repository: view?.repository ?? null,
+    // v0.8：血缘是宿主的落盘事实，不是从运行证据推出来的，所以它原样透传。
+    lineage: options.lineage ?? null,
     observation,
     limitations,
   }

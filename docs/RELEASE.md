@@ -3,33 +3,33 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**`0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）已于 2026-10-02 发布到 GitHub Release 与 npm**（发布提交 `74a161d`，结果见 §6.0）。**`package.json` 仍是 `0.7.1`，工作区里有两件已提交、未发布的改动**——下一版从 `0.7.1` 开始。发布前 `package.json`、`README.md`、`CHANGELOG.md` 三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
+**`0.8.0`（V0.8「Skill 演进」：血缘 / 差异 / 界面，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）已于 2026-10-02 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前没有待发布版本**：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径都是 `0.8.0`，工作区干净。发布前这三者必须已经一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住前两者。
 
-> 工作区里有两处**未发布**的改动，都在 `CHANGELOG.md` 的 `## Unreleased`：
-> ① 「**Skill 洞察** / Skill Insight」短显示名（`3a1bf0a`）——不动品牌、npm 包名、路由与存储；
-> ② 「复刻 Skill」的请求体缺陷修复（`55f092c`）——`0.7.0` 起那个按钮点不动，客户端补发 `sessionId`，宿主不再回裸字段名。
-> 两件都跟着下一版一起走。**下一版是补丁版还是新特性版，由用户定**；`package.json` 现在仍是 `0.7.1`。
-> 本表里的 429 项 / 2339 行 / 129315 字节是 `0.7.1` **发布当时**的实测值，照做时按当时的 `npm test` 与 `wc -l` 重新取数。
+> **`0.8.0` 的发布扫描（2026-10-02）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
+> `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.8.0` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`
+> 里的实测数字（客户端 2735 行 / bundle 142672 字节 / 测试 474 项 / 守卫 25 组 / 宿主 11 条路由）与
+> `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致。
+> 本表里的 429 项 / 2343 行 / 129315 字节是 `0.7.1` **发布当时**的实测值，只作历史参照。
 
-**这一版为什么是 patch：** `0.7.1` 只改产品名、用户可见措辞与仓库元信息（`CHANGELOG.md` 顶部 `## 0.7.1`），功能逻辑一个字没改。GitHub 仓库已改名为 `PolinniZhong/dsh-skill-intelligence`（旧地址自动重定向，本地 `origin` 已同步）。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此这次**不需要 npm 迁移**：照常发布一个版本即可，发布时 npm 包页的 README 会自动换成新品牌口径。**验证点：客户端 2332 → 2339 行、bundle 129280 → 129315 字节，测试 429 与守卫 23 都不变——数字变了就不是纯品牌迁移。**
+**这一版为什么是 minor：** `0.8.0` 加了一条宿主路由（`GET /skill-trace/diff`，10 → 11 条）、三个模块（`src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs` / `src/core/skill-diff.mjs`）与两块界面（「Skill 演进」卡 + 「Skill 差异」面板），按语义是 minor。命名调整（「Skill 洞察」短显示名）与「复刻 Skill」请求体缺陷修复本身是 patch 级的，一起搭这班车发出去。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此**不需要 npm 迁移**。**验证点：客户端 2348 → 2735 行、宿主 1143 → 1292 行、bundle 129293 → 142672 字节、测试 431 → 474、守卫 23 → 25 组、宿主路由 10 → 11 条。**
 
 ---
 
-## 本次发布的起点（2026-10-02 实测，发布会话照此核对）
+## 本次发布的起点（`0.8.0` 发布后实测 2026-10-02）
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `74a161d release: v0.7.1 — 品牌迁移：DSH Skill Intelligence（DSH Skill 智能实验室）`（= `origin/main`） |
-| `origin/main` | `74a161de0ca1b619a1389a942ddbe88b78fa5f7c` —— 与本地 `main` **0 领先 / 0 落后** |
-| 远端最新 tag | `v0.7.1`（`refs/tags/v0.7.1^{}` → `74a161d`） |
-| npm | `beta` 与 `latest` **都指向 `0.7.1`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 本地 `HEAD` | `0.8.0` 的发布提交（`package.json` `0.8.0`）= `origin/main`，见 §6.0 |
+| `origin/main` | 与本地 `main` **0 领先 / 0 落后** |
+| 远端最新 tag | `v0.8.0`（打在发布提交上） |
+| npm | `beta` 与 `latest` **都指向 `0.8.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
 | 工作区 | 干净（`git status --porcelain` 无输出） |
 
-**第一个要决定的事是版本号 —— 这次是 `0.7.1`。** 上一版 `0.7.0` 加了三条宿主路由、四个新模块与一个对象级动作，是 minor；这一版**一个功能都没加**：产品名、用户可见措辞、仓库元信息是全部改动，按语义是 patch。落点必须逐字相同：`package.json`、`README.md` 的「当前公开版为」与 `github:` 安装示例的 `#v…` 锚点、`CHANGELOG.md` 标题、tag 五处。**注意 `0.6.0` 与文档里通行的 `SDD v0.6`（信息架构规格自身的版本）撞名**——说规格时写「SDD v0.6」，说版本时一律带 `v`。
+**第一个要决定的事是版本号 —— 由用户定。** `0.8.0` 是 minor（新路由 + 三个模块 + 两块界面）；下一个版本是补丁还是 minor 同样**由用户定，不要自己开版本号**（`AGENTS.md` §2 末尾）。
 
-**第二个要决定的事是 npm —— 这一版发 npm。** npm 上现在是 `0.7.0`，`beta` 与 `latest` 都指向它，所以补上是发布**一个**版本，不是补十个。`0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。npm 包名**不因为品牌迁移而改**——已发布，改名会让安装命令与 `github:` 锚点全部失效。
+**第二个要决定的事是 npm —— 从 `0.6.1` 起每一版都是 GitHub + npm 两边一起发。** `0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。npm 包名**不因为品牌迁移而改**——已发布，改名会让安装命令与 `github:` 锚点全部失效。
 
-**第三个要决定的事是「什么都不改」的边界。** 品牌迁移只碰用户理解层：UI 文案、README 与文档抬头、`package.json` 的 description / keywords / URL。**`src/` 的功能逻辑一行不动**——`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]`、storage 结构与 `dsh-skill-trace` 命名空间都属于技术层，保持原样。守卫按字面钉住那 10 条路由与 15 条已删路由：发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是把一个被删掉的界面带回来了。
+**第三个要决定的事是「什么都不改」的边界。** 技术层（`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]`、storage 结构与 `dsh-skill-trace` 命名空间）与用户理解层是两层；改用户可见措辞时，不要顺手改技术层。守卫按字面钉住那 11 条路由与 15 条已删路由：发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是把一个被删掉的界面带回来了。
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 
@@ -80,8 +80,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v0.7.1 — 品牌迁移：DSH Skill 智能实验室"
-git tag -a v0.7.1 -m "v0.7.1"
+git commit -m "release: v0.8.0 — Skill 演进：血缘 / 差异 / 界面"
+git tag -a v0.8.0 -m "v0.8.0"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -92,18 +92,23 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v0.7.1
+git push origin v0.8.0
 ```
 
-推送曾经失败过一次——`fatal: unable to access '…': Error in the HTTP2 framing layer`。当时可用的做法是
-降级协议并指定实测可达的 GitHub 地址：
+推送失败过两次：`fatal: unable to access '…': Error in the HTTP2 framing layer`，以及
+`Empty reply from server` / `Failed to connect to github.com port 443 after 75001 ms`。当时可用的做法是
+降级协议并指定**实测可达**的 GitHub 地址——**可达 IP 会变，推之前先探一次**：
 
 ```bash
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 push origin v0.7.1
+curl -s -o /dev/null -w "%{http_code} %{time_total}\n" --max-time 8 --resolve github.com:443:140.82.113.4 https://github.com/
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.113.4 push origin main
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.113.4 push origin v0.8.0
 ```
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.7.1`。
+`2026-10-02` 实测：`140.82.121.4` 与 `140.82.112.3` 都超时（8.0s / `000`），
+`140.82.113.4`（1.88s / `200`）与 `20.27.177.113`（0.79s / `200`）可用。
+
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v0.8.0`。
 `git ls-remote` **也要带同样的两个 `-c`**（HTTP/2 那条路同样会被打断）。
 
 ---
@@ -111,9 +116,9 @@ git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.121.4 
 ## 4. GitHub Release
 
 ```bash
-gh release create v0.7.1 \
-  --title "v0.7.1 — 品牌迁移：DSH Skill 智能实验室" \
-  --notes-file <(sed -n '/^## 0.7.1/,/^## 0.7.0/p' CHANGELOG.md | sed '$d')
+gh release create v0.8.0 \
+  --title "v0.8.0 — Skill 演进：复刻出来的东西，现在能倒着看回去" \
+  --notes-file <(sed -n '/^## 0.8.0/,/^## 0.7.1/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。
@@ -123,12 +128,12 @@ gh release create v0.7.1 \
 
 ## 5. npm 发布
 
-`0.7.1` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 起每一版都是 GitHub + npm）。
+`0.8.0` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 起每一版都是 GitHub + npm）。
 两条命令，顺序不能换：
 
 ```bash
 npm publish --tag latest --cache=/tmp/npm-cache-dsh                     # 这个版本第一次发布
-npm dist-tag add dsh-skill-trace@0.7.1 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
+npm dist-tag add dsh-skill-trace@0.8.0 beta --cache=/tmp/npm-cache-dsh  # 第二个标签只能这样加
 ```
 
 **不要连着写 `npm publish --tag beta` 再 `npm publish --tag latest`**（旧版清单就是这么写的，而它从未
@@ -158,7 +163,16 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
-### 6.0 本次 `v0.7.1` 的实际结果（2026-10-02 已执行）
+### 6.0 本次 `v0.8.0` 的实际结果（2026-10-02）
+
+| 项 | 结果 |
+|---|---|
+| 本地门槛 | **474 项测试全绿**；**25 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **142672 字节**（source hash `f53a7ac5965b38b0`），重建后 `git status` 无 `dist` 差异 |
+| 发布提交 / tag | 见本节下方的回写（`release: v0.8.0 — Skill 演进：血缘 / 差异 / 界面`）；tag `v0.8.0` 打在发布提交上 |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.8.0>，正文取 `CHANGELOG.md` 的 `## 0.8.0` 段 |
+| npm | **`beta` 与 `latest` 都指向 `0.8.0`**：发布提交**先推**，`gitHead` 就是它；包名仍是 `dsh-skill-trace`；注册表传播有延迟（`0.7.1` 那次约 2.5 分钟） |
+
+### 6.0.1 上一版 `v0.7.1` 的实际结果（2026-10-02 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -170,7 +184,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129315 字节**（source hash `58ed0ec27f941c3f`），重建后 `git status` 无 `dist` 差异 |
 | 附属产出 | 向 `awesome-dsh-plugin/awesome-dsh-plugin` 投稿：PR [#6351](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6351)，只加 `data/plugins/PolinniZhong__dsh-skill-intelligence.yml`（`category: skill`） |
 
-### 6.0.1 本次 `v0.7.0` 的实际结果（2026-10-02 已执行）
+### 6.0.2 上一版 `v0.7.0` 的实际结果（2026-10-02 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -181,7 +195,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | npm | **`beta` 与 `latest` 都指向 `0.7.0`**（§5 本次已执行）：口径提交 `9800098` **先推**，`gitHead` 就是它；37 个文件 / 346.6 kB / 解包 1070413 字节 / shasum `015bbf75aee07c5dd921fdc093727e2795c1d155`；约 3.5 分钟后注册表才对上；空目录安装验证通过 |
 | 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `GUARD_MARKERS_ARE_BACKED_OK` 与 `RELEASE_ASSETS_IN_SYNC_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129280 字节**（source hash `31d39c71f13aeeb8`），重建后 `git status` 无 `dist` 差异 |
 
-### 6.0.2 本次 `v0.6.1` 的实际结果（2026-10-01 已执行）
+### 6.0.3 上一版 `v0.6.1` 的实际结果（2026-10-01 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -195,7 +209,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 | 渲染台实测 | `.st-detail-doc` 高度 **2px → 640px**，内部滚动区 clientHeight **24 → 539** / scrollHeight 4233；主内容区 scrollHeight 3399 |
 | README 五张截图 | 用 Chrome for Testing 以真实 1600×1050 视口重拍后转 jpg：`skill-list.jpg` 69384B / `installed-skills.jpg` 334705B / `skill-detail.jpg` 266250B / `skill-detail-table.jpg` 289567B / `skill-detail-zh.jpg` 335350B |
 
-### 6.0.3 上一版 `v0.6.0` 的实际结果（2026-10-01）
+### 6.0.4 上一版 `v0.6.0` 的实际结果（2026-10-01）
 
 | 项 | 结果 |
 |---|---|

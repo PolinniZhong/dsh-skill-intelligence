@@ -1,9 +1,9 @@
 # DSH Skill Intelligence · DSH Skill 智能实验室 · 软件设计文档（SDD）
 
-> **当前版本**：`dsh-skill-trace@0.7.1`（`package.json`；`0.7.1` 是品牌迁移版，产品名 **DSH Skill 智能实验室 / DSH Skill Intelligence**，架构与模块清单未变）
+> **当前版本**：`dsh-skill-trace@0.8.0`（`package.json`；`0.8.0` 是 V0.8「Skill 演进」版：血缘 / 差异 / 界面三个 Phase 全部发布，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）
 > **这份文件是什么**：本插件**唯一一份描述当前实现**的技术设计 —— 分层、运行架构、宿主接口面、数据流、存储与隐私、模块清单、契约守卫、验证边界。
 > **目录定位**：
-> - **`spec/SDD.md`（本文件）= 当前架构的唯一权威。** 分层、10 条路由、数据流、存储与隐私、模块清单都以此为准。
+> - **`spec/SDD.md`（本文件）= 当前架构的唯一权威。** 分层、11 条路由、数据流、存储与隐私、模块清单都以此为准。
 > - **`spec/PRD.md` = 当前产品语义的唯一权威**（目标、业务对象、状态语义、范围与验收标准）。本文件不重复「做什么、为什么做」，只在实现需要处引用它。
 > - **`docs/ARCHITECTURE.md`** = 运行时那条链（事件 → 收据 → 定义视图）的深挖、布局合同的由来，以及 v0.6 的组件删除记录。
 > - **`docs/archive/technical-design-v0.1-v0.5.md` = pre-0.7 的技术设计，已冻结。** 它只用于追溯；其中的 §0「当前架构」写于 V0.6，数字与路由数都已过时（见 §0.1）。
@@ -20,11 +20,13 @@
 |---|---|---|---|---|
 | D1 | `src/dsh/host/index.js` translate 路由的注释 | 原文写「这里刻意**不**落盘……§12.4 要求译文只存在页面运行时内存里」 | 同文件 `saved: await persistTranslation({...})`，v0.7 起译文落盘 | **已修（2026-10-05）**：注释改成 v0.7 的事实——落盘为本机资产、键不含会话，同时保留不写 receipt / 不动偏好 / 不读正文三条 |
 | D2 | `src/dsh/host/index.js` catalog 路由的注释 | 「名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`」 | 路由字面早就是 `/skill-trace/catalog`，「我的 Skill」工作台也已在 `0.5.0` 删除 | **已修（2026-10-05）**：那段「等改名收口」的注释删掉了，它会让后来的人以为还欠一次改名 |
-| D3 | `docs/ARCHITECTURE.md` 模块表 | 写「the seven routes」 | 宿主有 **10** 条路由 | **已修（2026-10-05）**：改成「the ten routes」 |
-| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 10 条 / 2348 行 / 129293 字节 / 24 个模块 7342 行 | 归档只作追溯，本文件不复用这些数字 |
+| D3 | `docs/ARCHITECTURE.md` 模块表 | 写「the seven routes」 | 宿主有 **11** 条路由（V0.8 加 `GET /skill-trace/diff`） | **已修（2026-10-05）**：改成「the ten routes」；**2026-10-06 再修**为「the eleven routes」 |
+| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 11 条 / 2735 行 / 142672 字节 / 26 个模块 8049 行 | 归档只作追溯，本文件不复用这些数字 |
 | D5 | `scripts/verify-project.mjs` 末尾 | `console.log('FIVE_LAYER_MODEL_OK')` / `console.log('FINGERPRINT_RESERVED_OK')` 两句声称两条契约成立 | 两句之前**没有任何断言**。`FIVE_LAYER_MODEL_OK` 守的模块（`src/core/runtime-layout.mjs`、`src/dsh/client/runtime-flow.js`、`test/phase8-five-layer-model.test.mjs`）在 v0.6 删运行图谱画布时一起删了，marker 却留了下来 | **已修（2026-10-05）**：`FIVE_LAYER_MODEL_OK` 删掉（它守的界面不存在了）；`FINGERPRINT_RESERVED_OK` 补上真断言；新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查每一个 marker 之前是否有断言。见 §13.1 |
 | D6 | `AGENTS.md` §6.6 | 客户端 `require` 的 core 模块列举了 6 支 | 实际 `require` **7** 支（多一支 `skill-clone.mjs`，见 §10.3） | **已修（2026-10-05）**：本文改成七支并列出全部七个 |
 | D7 | `spec/PRD.md` | `AGENTS.md` §4 把它列为产品语义权威 | 写本文件时 `PRD.md` 尚未落盘 | **已消解**：`spec/PRD.md` 已落盘（692 行），本文件与它互为产品/技术两侧 |
+| D8 | 本文件 §3 标题 / §3.1 第 11 行 / §11.1 / §13 / §14.2 / §17，以及 `spec/PRD.md` §5.7 | 写完 V0.8.0 的设计之后，这些位置写的是 **11 条路由**、`FR-EVO-*`、`<dataRoot>/lineage/`、**25 组**守卫、4 个新测试文件 | **Phase 1、Phase 2 与 Phase 3 都已落地**（2026-10-06）：三个新模块 `src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs` / `src/core/skill-diff.mjs` 都已存在；`handleClone` 会写血缘（fail-soft）；`/skill-trace/skill` 会回 `lineage`；宿主新增 `GET /skill-trace/diff`，**共 11 条**路由；详情页左栏有「Skill 演进」卡、它打开 720px 的差异面板（`SkillEvolution` / `SkillDiffPanel`，只在 `__views` 上导出以便烟测）；守卫 **25 组**全绿（第 25 条的客户端那半 Phase 3 补齐）；4 个新测试文件都在（`test/` 共 41 个 `*.test.mjs`，`npm test` **474 项**）。**这一版的设计已全部落地，并随 `0.8.0` 发布**（2026-10-02，GitHub Release + npm） | **本次登记（2026-10-06）**：本文件描述的是**已冻结的设计**（`AGENTS.md` §4：规格写的是意图，源码写的是事实）。落地已完成，真机验收也已于 2026-10-06 通过（12 个检查点，清单在 `01_重构方案/v0.8-真机验收清单.md`），**已随 `0.8.0` 发布**（2026-10-02）：六处状态文字已按 §9.1 同步，本文件 §9 与 §14 的实测值即为发布时口径 |
+| D9 | 本文件 §13 前言 | 写「`scripts/verify-project.mjs`（**962 行**）」 | 实测 **1068 行** | **本次登记（2026-10-06）**：§13 前言改成不带行数的说法，行数属实测值，改代码就会过期 |
 
 ---
 
@@ -34,10 +36,10 @@
 
 一个 DSH 插件包，含**两半**：
 
-- **宿主半边**（`src/dsh/host/index.js`，1143 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **10 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下）。
-- **客户端半边**（`src/dsh/client/client.js`，2348 行，构建产物 `dist/client.js` 129293 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 10 条路由，不持有收据本体。
+- **宿主半边**（`src/dsh/host/index.js`，1292 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **11 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下）。
+- **客户端半边**（`src/dsh/client/client.js`，2735 行，构建产物 `dist/client.js` 142672 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 11 条路由，不持有收据本体。
 
-纯函数逻辑放在 `src/core/`（24 个模块，7342 行），落盘放在 `src/storage/`（4 个模块，694 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
+纯函数逻辑放在 `src/core/`（26 个模块，8049 行），落盘放在 `src/storage/`（5 个模块，884 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
 
 ### 1.2 三层模块与不可逆方向
 
@@ -135,7 +137,7 @@ export function apply(ctx, config = {}) {
 
 ---
 
-## 3. 宿主接口面（10 条路由）
+## 3. 宿主接口面（11 条路由）
 
 全部在 `src/dsh/host/index.js`，全部挂在 `/skill-trace` 前缀下，全部先过 §2.1 的 loopback 门禁。
 
@@ -153,12 +155,14 @@ export function apply(ctx, config = {}) {
 | 8 | `GET` | `/skill-trace/translation` | **不要 `sessionId`** | query `skillName`、`sourceSha256`、可选 `targetLanguage` | 已存的阅读版，否则 `translation: null` |
 | 9 | `DELETE` | `/skill-trace/translation` | **不要 `sessionId`** | 同 8 | `deleted: boolean` |
 | 10 | `POST` | `/skill-trace/clone` | **需要 `sessionId`**（body，用来解析 registry） | body 见 §8.2 | 复刻结果 + `verified` + `discovered` + `limitations` |
+| 11 | `GET` | `/skill-trace/diff` | **需要 `sessionId`**（只用来解析 registry 与 `cwd`） | query `sessionId`、`skillName`（目标）、可选 `against`（来源名，缺省取血缘里的来源） | `lineage` 摘要 + `source` / `target` 两侧可用性与指纹 + `comparison` + `structure` / `content` / `resources` 三层差异。**不含绝对路径**；正文本就是详情页已有的可见内容，这里只多返回「哪几行变了」 |
 
 **会话作用域的三条判据**（v0.7 新增路由为什么这样定）：
 
 1. `GET`/`DELETE /skill-trace/translation` **刻意不带 `sessionId`**：中文阅读版是按内容键的资产，不是某次会话的产物；把会话放进请求里既让缓存无法复用，又暗示了错误的生命周期。
 2. `/skill-trace/catalog` 虽然要 `sessionId`，但只用它解析 registry（`registryContext`），与「本次会话发生过什么」无关。
 3. `/skill-trace/clone` 的 `sessionId` 只用于解析 registry 与 `cwd`，复刻本身**不挂到这次会话**（响应里 `clone-is-not-attached-to-this-session`）。
+4. `/skill-trace/diff` 的 `sessionId` 同样只用于 `registryContext` 解析两侧 Skill 的目录：**差异是文件系统两侧的事实，与「本次会话发生过什么」无关**。也正因如此，血缘与演进**不单独开路由**——它们是 Skill 详情的基础事实，随 `/skill-trace/skill` 一起返回；只有真正的重计算（两侧解析 + 行级差异 + 资源遍历）才值得一条独立路由（`FR-EVO-020`）。
 
 ### 3.2 逐条说明
 
@@ -207,6 +211,8 @@ const [receipt, preferences] = await Promise.all([
 
 `list` 随详情一起返回，是为了让返回键知道「用户是从哪个列表进来的」。
 
+V0.8 起 `skill` 里多一个 `lineage` 字段（见 §17）：这个 Skill 是不是**由本插件复刻出来的**、从谁来、复刻模式与时间、来源内容有没有变化。**它不新增路由**。`lineage: null` 表示「没有血缘记录」——这既包括「手动复制的」，也包括「用户自己新建的」；两者在事实上是同一件事：**本插件没有执行过这次复刻**（`FR-EVO-001`）。
+
 **7. `POST /skill-trace/preferences`** —— `defaultView` 必须 ∈ `['current','installed']`（与 `DEFAULT_VIEWS` 一致），否则 `throw new Error('defaultView 无效')`；写盘时 `normalizeChosen` 一律盖章 `PREFERENCES_VERSION = 3`。**不需要 `sessionId`**：默认一级页面是机器级偏好。客户端侧有对应的 `const PREFERENCE_VERSION = 3`，守卫 `PREFERENCE_VERSION_OK` 要求两处数字相等。
 
 **8/9. `GET` / `DELETE /skill-trace/translation`** —— 三个字段：`requiredSkillName(skillName)` + `requiredSourceSha256(sourceSha256)` + `optionalTargetLanguage(...)`。
@@ -221,6 +227,40 @@ const [receipt, preferences] = await Promise.all([
 **精确到三个字段**：没有「清空这个 Skill 的所有译文」这种模糊删除。
 
 **10. `POST /skill-trace/clone`** —— `const outcome = await handleClone(await readBody(req)); sendJson(res, outcome.status, outcome.body)`；校验顺序、错误码与成功响应见 §8。
+
+**11. `GET /skill-trace/diff`** —— 唯一新增的路由（§17.4）。`requiredSessionId` + `requiredSkillName` + 可选 `against`（缺省从血缘记录里取 `sourceSkillName`）。
+
+```js
+// → { ok, sessionId, skillName, against,
+//     lineage: { lineageId, sourceSkillName, sourceSourceSha256, targetSkillName, cloneMode,
+//                targetScope, catalogObservation, createdAt, updatedAt } | null,
+//     comparison: { status: 'unchanged' | 'changed' | 'unavailable',
+//                   source: { skillName, available, reason, originalSha256, currentSha256, changed },
+//                   target: { skillName, available, reason, currentSha256 },
+//                   limitations: [...] },
+//     structure: { status, counts: {added, removed, modified, unchanged}, sectionCount,
+//                  sections: [{ title, level, role, status, changed: [...shapeFields], anchorId,
+//                               side, sourceLine, targetLine }] },
+//     content:   { status, counts, sections: [{ title, status, anchorId, side, sourceLine,
+//                                              targetLine, sourceLineCount, targetLineCount,
+//                                              lines: [{kind, text, sourceLine, targetLine}],
+//                                              linesTruncated }], limitations: [...] },
+//     resources: { status, mode: 'bundle' | 'skill-md' | null, counts,
+//                  entries: [{ path, status, sourceSha256, targetSha256 }] } }
+```
+
+三条硬约束之外的**状态码分界**（实测，`FR-EVO-013`）：
+
+- **目标侧读不到** → `404 unknown-skill`：「找不到 Skill「…」，它可能已经被删除或改名。」+ `reason`。比较的一方没了，这不是一次可以作答的请求。
+- **来源侧读不到** → **`200`** 且 `comparison.status = 'unavailable'`、三层全部 `unavailable`、`source.changed = null`、`limitations` 含 `source-unavailable`。请求本身是成立的：用户问的问题有答案，答案是「读不到来源」。
+- **源在复刻之后又改过** → **仍然是 `200`**，`comparison.source.changed = true`、`originalSha256` 与 `currentSha256` 并列给出。**这条路径里没有 409**：复刻遇到源变了要拒绝（拒绝的是「把一个混合体落盘」），而差异什么都不写，源动过恰好是它要报告的那件事。两者共用「来源变了」这句话，但意思相反 —— 所以 `DIFF_ERROR` 与 `CLONE_ERROR` 是两套码。
+- **没有血缘可依** → `404 no-lineage`：「这个 Skill 不是由本插件复刻出来的，没有可以比较的来源。」
+
+三条硬约束：
+
+1. **只在两侧都真的读到时才算差异**；任一侧读不到 → `comparison.status = 'unavailable'` 并把原因说清楚，**不许退化成「没有变化」**（`FR-EVO-015`）。
+2. **不返回绝对路径**：资源差异只给相对于 Skill 目录的路径（`references/tokens.md`），范围只说「当前项目 Skill」/「用户级 Skill」（`FR-EVO-019`）。
+3. **`mode` 必须跟着资源差异一起回**：`skill-md` 复刻出来的副本本来就只有 `SKILL.md`，来源的其它资源不在本地是**复刻方式决定的**，不是用户删的（`FR-EVO-016`）。
 
 ### 3.3 请求与响应的公共约定
 
@@ -253,6 +293,13 @@ learningNotes, validationResults, continuity
 ```
 
 `traceEvents[]` 的投影再收一层：`eventId, sessionId, turn, step, skillName, status, invocationType, callId, callSeq, resultSeq, requestedAt, resolvedAt, consumer, consumerIdentity, coverage, errorCode, evidenceFingerprint, continuityCandidate, runtimeIdentity`。
+
+> ⚠️ **`lineage` 这个词在这个仓库里有两个互不相关的意思**，读到它时先分清：
+>
+> - **上面那张表里的 `lineage`（会话血统）**：收据里的 `{ parentSessionId, delegationDepth }`，来自 DSH 会话头部这条**持久事实**，由 `src/core/trace-reducer.mjs` 的 `normalizeLineage` / `setRuntimeLineage` 维护（`src/dsh/host/index.js:255`、`src/core/runtime-graph.mjs:294` 也会读）。它回答「这个会话是不是某个会话的子会话」。
+> - **V0.8 的「Skill 复刻血缘」（§17）**：`<dataRoot>/lineage/` 里的本地记录，回答「这个 Skill 是从哪个 Skill 复刻出来的」。
+>
+> 两者**不得互相读写、不得共用字段名、不得互相解释**（`FR-EVO-008`）。会话血统留在收据里；**复刻血缘永不进收据** —— 它是跨会话的资产关系，不属于任何一次会话。
 
 ---
 
@@ -632,19 +679,19 @@ definition-unavailable · bundle-unreadable · write-failed
 
 ## 9. 模块清单
 
-行数为 `wc -l` 实测（v0.7.1 + 两件未发布的改动；`55f092c` 只动了 `src/dsh/client/client.js`（2343 → 2348）与 `src/dsh/host/index.js`（1110 → 1143），`src/core/` 与 `src/storage/` 一行未变）。
+行数为 `wc -l` 实测（v0.8.0）。`55f092c` 只动了 `src/dsh/client/client.js`（2343 → 2348）与 `src/dsh/host/index.js`（1110 → 1143）；V0.8 三个 Phase 又动了客户端（2348 → 2735）、宿主（1143 → 1292），并给 `src/core/` 加了 `skill-lineage.mjs`（174）与 `skill-diff.mjs`（527）、给 `src/storage/` 加了 `skill-lineage-store.mjs`（139）。
 
 ### 9.1 `src/dsh/`（3 个文件）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
-| `src/dsh/host/index.js` | 1143 | 宿主半边：10 条路由、事件订阅与归约编排、收据/偏好/译文三个 store、复刻的校验与回读、loopback 门禁 |
-| `src/dsh/client/client.js` | 2348 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 整份样式表 |
+| `src/dsh/host/index.js` | 1292 | 宿主半边：11 条路由、事件订阅与归约编排、收据/偏好/译文/血缘四个 store、复刻的校验与回读、loopback 门禁 |
+| `src/dsh/client/client.js` | 2735 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 「Skill 演进」卡 + 「Skill 差异」面板 + 整份样式表 |
 | `src/dsh/client/package.json` | — | 把该目录标记为 `commonjs`（包根是 `type: module`），不依赖打包器的猜测 |
 
-构建产物 `dist/client.js` 为 **129293 字节**，提交进仓库。
+构建产物 `dist/client.js` 为 **142672 字节**（source hash `f53a7ac5965b38b0`），提交进仓库。
 
-### 9.2 `src/core/`（24 个文件、7342 行）
+### 9.2 `src/core/`（26 个文件、8049 行）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
@@ -654,12 +701,14 @@ definition-unavailable · bundle-unreadable · write-failed
 | `src/core/skill-framework.mjs` | 579 | 从正文确定性解析八角色框架、缺席角色、渐进披露 |
 | `src/core/runtime-alignment.mjs` | 541 | 声明步骤抽取 + 与运行证据对齐；`scored: false` |
 | `src/core/skill-runtime-scope.mjs` | 497 | 运行证据对「这个 Skill」的归属范围与边界 |
-| `src/core/skill-view-model.mjs` | 342 | 列表/详情模型；`attachEvidenceToFlow`（运行时只能标注） |
+| `src/core/skill-view-model.mjs` | 348 | 列表/详情模型；`attachEvidenceToFlow`（运行时只能标注） |
 | `src/core/runtime-graph.mjs` | 308 | 关联图谱：节点/边、优先级、丢弃计数；读时派生，不持久化 |
 | `src/core/skill-definition.mjs` | 264 | 现读定义视图 + `compareDefinitionToRun` |
 | `src/core/skill-flow.mjs` | 259 | 声明流程抽取（heading / ordered-list 两通道） |
 | `src/core/repository-resolver.mjs` | 258 | 仓库来源解析（frontmatter / git origin / 用户配置），三态 |
 | `src/core/skill-clone.mjs` | 213 | 复刻的纯逻辑：计划、frontmatter 改名、条目筛选、错误码 |
+| `src/core/skill-diff.mjs` | 527 | 差异的三层比较：结构 / 内容 / 资源；只用可观察事实，绝不给出好坏判断 |
+| `src/core/skill-lineage.mjs` | 174 | 血缘：从复刻记录还原「这个副本来自哪一版来源」与来源指纹三态 |
 | `src/core/session-log.mjs` | 216 | 会话日志读取：找文件、多 frame zstd 解压、上限与路径穿越防护 |
 | `src/core/definition-outline.mjs` | 202 | frontmatter 解析、标题规范化、outline 与锚点 |
 | `src/core/runtime-evidence.mjs` | 195 | 唯一读取工具参数的接缝：命令/文件目标分类 |
@@ -673,11 +722,12 @@ definition-unavailable · bundle-unreadable · write-failed
 | `src/core/translation-cache.mjs` | 48 | 内存译文缓存：模块级 `Map`、`LIMIT = 8`、键含 `sessionId` |
 | `src/core/skill-runtime-logic.mjs` | 256 | 本次运行逻辑五段：阶段 ID、事实、limitations |
 
-### 9.3 `src/storage/`（4 个文件、694 行）
+### 9.3 `src/storage/`（5 个文件、884 行）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
-| `src/storage/skill-clone-writer.mjs` | 297 | 复刻落盘：探测、`mkdir`（不带 `recursive`）、拷贝、回读、回滚；用 `node:fs/promises` 而不用 `ctx.fs` |
+| `src/storage/skill-clone-writer.mjs` | 348 | 复刻落盘：探测、`mkdir`（不带 `recursive`）、拷贝、回读、回滚、写血缘记录；用 `node:fs/promises` 而不用 `ctx.fs` |
+| `src/storage/skill-lineage-store.mjs` | 139 | 血缘记录落盘：`0700`/`0600`、原子 `rename`，只记来源名与来源指纹，不记绝对路径 |
 | `src/storage/translation-store.mjs` | 208 | 译文落盘：`0700`/`0600`、原子 `rename`、只增不覆盖的版本清理、禁止字段 |
 | `src/storage/receipt-store.mjs` | 115 | 收据落盘：默认根 `~/.dsh/skill-trace/receipts`，文件名 `sha256(sessionId)`；`prune` 与原子写 |
 | `src/storage/preference-store.mjs` | 74 | 机器级偏好：`PREFERENCES_VERSION = 3`、`DEFAULT_VIEWS = ['current','installed']`、回落语义 |
@@ -708,7 +758,7 @@ Workbench                       一级页面切换 + 宿主偏好
     └── SkillCloneDialog        560px，仅在打开时渲染，POST /clone
 ```
 
-客户端**只调这 10 条存活路由**；它不持有收据本体、不持有图、没有草稿缓冲、没有备份状态。取不到东西时渲染 `TraceState`，而不是渲染一个空列表。
+客户端**只调那 11 条存活路由**；它不持有收据本体、不持有图、没有草稿缓冲、没有备份状态。取不到东西时渲染 `TraceState`，而不是渲染一个空列表。
 
 ### 10.2 hooks 顺序是渲染合同
 
@@ -764,8 +814,9 @@ export { a, b }                 // ✗ 直接抛错
 | `<dataRoot>/receipts/` | 会话收据 | 默认 | `sha256(sessionId)` |
 | `<dataRoot>/preferences…` | 机器级偏好（版本 3） | 默认 | 固定文件 |
 | `<dataRoot>/translations/` | 中文阅读版 | 目录 `0700`、文件 `0600` | `sha256(skillName\0sourceSha256\0targetLanguage)` |
+| `<dataRoot>/lineage/` | **Skill 复刻血缘**（V0.8，一个目标 Skill 一条记录） | 目录 `0700`、文件 `0600` | `sha256(targetSkillName)` |
 
-`dataRoot` 来自 `config.dataRoot`；`receipt-store.mjs` 的默认根是 `~/.dsh/skill-trace/receipts`。译文写盘一律「临时文件 + `rename`」。
+`dataRoot` 来自 `config.dataRoot`；`receipt-store.mjs` 的默认根是 `~/.dsh/skill-trace/receipts`。译文写盘一律「临时文件 + `rename`」。**血缘用同一套原子写**（`mkdir({recursive:true,mode:0o700})` → 带 pid 与随机后缀的 `.tmp` → `writeFile(...,{mode:0o600})` → `rename`），并且**不复用 translation store**：两者的键、生命周期与拒绝字段都不同（`FR-EVO-007`）。
 
 ### 11.2 明确不落盘 / 不外发的东西
 
@@ -828,9 +879,9 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ---
 
-## 13. 契约守卫（23 组）
+## 13. 契约守卫（25 组）
 
-`npm run verify` 跑 `scripts/verify-project.mjs`（962 行）。这些断言全部是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**每一条红都对应一次真实事故。**
+`npm run verify` 跑 `scripts/verify-project.mjs`。这些断言全部是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**每一条红都对应一次真实事故。**（该文件的行数不在本文里写死，见 §0.1 D9。）
 
 ### 13.1 守卫表
 
@@ -859,6 +910,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 | 21 | `RELEASE_ASSETS_IN_SYNC_OK` | README 的「当前公开版为 `x`」等于 `package.json` 版本；README 的 `github:` 安装示例 `#v…` 锚点等于同一版本 |
 | 22 | `FINGERPRINT_RESERVED_OK` | 六 个 Pattern 逐字按序；两张表与之一一对应；给一个**有内容的图**之后仍必须 `derived: false` / `status: 'reserved'` / 每个 slot `value === null` 且 `status === 'not-yet-derived'`；`sources` 非空；`note` 必须含「尚未派生」；`evidenceAvailable` 如实报数 |
 | 23 | `GUARD_MARKERS_ARE_BACKED_OK` | 扫 `scripts/verify-project.mjs` 自己：每个 `console.log('…_OK')` 所在的那一段（段界是**顶格的 `}`**）里必须出现过 `throw new Error`；且带断言的 marker 少于 15 条也报错（防止这条守卫自己退化成永远为真的空循环） |
+| 24 | `SKILL_LINEAGE_OK` | **血缘的 schema 与落盘面**（V0.8）：记录字段是闭集，禁 `content` / `body` / `sessionId` / 绝对路径；`skill-lineage-store.mjs` 必须含 `0o700` / `0o600` / `rename(` / 键函数 / 拒绝字段清单；`src/core/skill-lineage.mjs` 与 store **都不得出现 `receipt` / `localStorage` / `sessionStorage`**；宿主里 `writeLineage(` 的调用点**必须排在 `readBackClone(` 之后**（顺序断言，挡住「没回读就写血缘」）；收据的 `publicReceipt` 字段表**不得新增键**（复刻血缘永不进收据） |
+| 25 | `SKILL_DIFF_NO_JUDGEMENT_OK`（**两个半都已落地**：宿主那半 Phase 2、客户端那半 Phase 3） | **差异的判断边界**（V0.8）：`/skill-trace/diff` 这个字面必须进宿主的 `requiredText`（否则新路由**没有任何守卫**）；`src/core/skill-diff.mjs` 必须导出 `DIFF_WORDS` / `DIFF_SOURCE_WORDS` / `DIFF_UNAVAILABLE_MESSAGE` / `DIFF_CHANGE_KINDS` / `DIFF_SHAPE_FIELDS`；五个事实词（`新增` `删除` `修改` `保持不变` `无法比较`）必须逐字在；`来源内容已发生变化` 与 `当前无法读取来源 Skill，无法完成差异比较。` 必须逐字在；去注释后的模型里**不得出现** 12 个判断词（`更优秀` `更完整` `更合理` `质量提升` `质量下降` `优化成功` `改进成功` `推荐保留` `建议删除` `建议采用` `最佳` `落后`）；宿主必须注册 `'/skill-trace/diff'`、必须调用 `buildSkillDiff(`、必须有 `DIFF_ERROR.NO_LINEAGE`；`handleDiff` 的函数体**不得出现 409**（源动过是事实，不是失败请求），且必须含 `sourceOriginalSha256`。**客户端那半**（Phase 3 补齐）跑在**去掉英文字典之后**的源码上：`查看差异` 与三句来源状态（`来源内容已发生变化` / `来源内容未发生变化` / `无法读取来源`）必须逐字在；那句读不到时的完整话必须逐字在；`diff-unavailable` 与 `diff-error` **两处各自**都要有 `role="alert"`（只查一次的话，删掉一个另一处还在，断言照样为真）；界面词表的键名必须正好是 `added,modified,removed,unavailable,unchanged` 五个；从 `const DIFF_TABS` 到 `SkillDetailPage` 的**v0.8 界面切片**（去注释后）里一个判断词都不许有；没有血缘时**不许**去问差异路由 |
 
 > **诚实记录（D5，2026-10-05 修）**：这份文件此前有**两个没有断言的 marker**。`FIVE_LAYER_MODEL_OK` 守的模块在 v0.6 删运行图谱画布时一起删掉了，marker 却留在输出里继续宣布契约成立 —— 正是同一份守卫文件在 `572-578` 行自己写下的那个反模式。处理方式分两种：**守的东西已经不存在 → 删掉 marker**；**守的东西还在 → 补上真断言**（`FINGERPRINT_RESERVED_OK`）。另外新增 `GUARD_MARKERS_ARE_BACKED_OK` 把这整类事故变成不可能的：它每次运行都会重新扫一遍本文件，任何「只有 `console.log` 没有断言」的 marker 都会让它红。组数仍是 **23**（删一、补一）。
 
@@ -877,8 +930,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ### 14.1 规模与纪律
 
-- `npm test` = `node --test`，**431 项全绿**是改动前的门槛；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
-- `test/` 下 **37** 个 `*.test.mjs`（`ls test | wc -l` 计 38，含一个非测试条目）。
+- `npm test` = `node --test`，**474 项全绿**（`0.7.1` 发版时是 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
+- `test/` 下 **41** 个 `*.test.mjs`（`ls test | wc -l` 计 42，含一个非测试条目 `helpers/`）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。
 - 纯函数优先：`src/core/` 的模块都是可单独测的纯函数或纯数据模块，测试不需要起宿主。
 
 ### 14.2 测试文件分工
@@ -887,7 +940,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 |---|---|
 | `test/layout-contract.test.mjs` | 样式表：根规则深度 0、高度链、无视口单位、花括号平衡 |
 | `test/client-style-lifecycle.test.mjs` | 用**构建产物** `dist/client.js` + 假 document 验样式生命周期（插入、替换、移除） |
-| `test/client-render-smoke.test.mjs` | 真实元素树 + 降级器；抓渲染期抛错与「界面真的写了什么」。`55f092c` 起还守着**请求体的两半**：从宿主源码读出它真的读哪些 `payload.*` 字段，要求客户端发出去的请求体覆盖它们；以及**组件解构出来、又没有兜底的 prop，渲染处必须真的传** |
+| `test/client-render-smoke.test.mjs` | 真实元素树 + 降级器；抓渲染期抛错与「界面真的写了什么」。`55f092c` 起还守着**请求体的两半**：从宿主源码读出它真的读哪些 `payload.*` 字段，要求客户端发出去的请求体覆盖它们；以及**组件解构出来、又没有兜底的 prop，渲染处必须真的传**。V0.8 起另守三条：没有血缘时**不许猜一个来源**、也不许出现「查看差异」；来源状态的三句话**必须互斥**（「变了」/「没变」/「没有可比的指纹」塌成两句就是从这一行开始的）；读不到来源时**不许渲染成一张空表**（空表读起来就是「没有变化」，而这一屏最坏的失败方式恰恰是看起来最正常） |
 | `test/client-hook-order.test.mjs` | `scanHookOrder(source)` 零违规 |
 | `test/client-bundle.test.mjs` | bundle 契约（seed、externals、注册包装） |
 | `test/phase15-skill-first-ia.test.mjs` | Skill-first IA 的 A1–A12（含锚点必须指向真实 outline entry） |
@@ -898,7 +951,11 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 | `test/receipt-store.test.mjs` / `preference-store.test.mjs` / `source-snapshot.test.mjs` / `installed-view.test.mjs` / `markdown-table.test.mjs` / `flow-evidence.test.mjs` | 各纯模块 |
 | `test/trace-reducer.test.mjs` / `phase0-*` / `phase1-runtime-model` / `phase2-*` / `phase3-alignment` / `phase8-fingerprint-and-thresholds` / `phase9-skill-runtime-scope` / `phase12-evidence-promotion` / `phase13-skill-run-audit` / `phase14-definition-view` / `phase25-v06-acceptance` | 证据模型、关联、对齐、范围、验收 |
 | `test/host-policy.test.mjs` / `host-write-policy.test.mjs` / `host-session-log-contract.test.mjs` | 宿主策略：写盘门禁、隐私边界、日志恢复契约 |
-| `scripts/verify-project.mjs` | 23 组源码文本守卫（§13） |
+| `test/phase19-skill-lineage.test.mjs`（V0.8） | 血缘纯逻辑与 schema：字段闭集、拒绝多余与禁止字段、`sourceRepository` 只在被确认时才有、`catalogObservation` 两态、**手动复制 / 内容相似不产生血缘** |
+| `test/phase19-lineage-store.test.mjs`（V0.8） | 血缘落盘：`0700` / `0600`、原子写、**一个目标一条记录**（同名再复刻是覆盖而不是追加）、`delete`、坏 JSON 不算记录、**绝不读收据** |
+| `test/phase19-skill-diff.test.mjs`（V0.8） | 三层差异纯函数：结构（新增 / 删除 / 改变小节）、内容（按 Markdown 结构组织的行级差异）、资源（新增 / 删除 / 变化）；`unchanged` / `changed` / `unavailable` 三态；`skill-md` 模式的资源解释；词表闭集 |
+| `test/phase19-diff-routes.test.mjs`（V0.8） | `/skill-trace/diff` 的路由契约：缺 `sessionId` / `skillName` 的报文必须是**人话**；来源读不到 → `unavailable` 且**不许谎报「无变化」**；响应**不含绝对路径**；**复刻成功才写血缘**（回读失败 ⇒ 无血缘） |
+| `scripts/verify-project.mjs` | 25 组源码文本守卫（§13） |
 
 ### 14.3 验证边界（诚实声明）
 
@@ -972,11 +1029,132 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 7. 不按视口高度布局。
 8. 不在 CSS 模板字符串（`installStyles()`）里写反引号 —— 一个中文说明里的 `` `data-active` `` 会让 `node --check` 报 `SyntaxError: Unexpected identifier 'data'`；改完 CSS 先跑 `node --check src/dsh/client/client.js`。
 9. 不写 `exports['./client']` 指向 `src/dsh/client/client.js` —— 浏览器跑的是 `dist/client.js`。
+10. **V0.8 不做**（见 §17）：不做相似度推断血缘、不做 Git 历史系统、不做版本实体（没有 `v1` / `v2`，不要求 Skill 有 `version:` 字段）、不做质量评分 / 排名 / 优劣判断、不做自动改写 / 自动优化 / 一键合并 / 一键同步来源、不做自动回归测试或行为评测、不做时间线大页面。差异**只回答「哪里变了」**。
 
 ### 16.3 未解决 / 待确认
 
 - ~~§13.1 第 22、23 条 marker 没有断言（D5）~~ **已修**：`FIVE_LAYER_MODEL_OK` 删除、`FINGERPRINT_RESERVED_OK` 补断言、新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查。
 - ~~`src/dsh/host/index.js` 两条过期注释（D1、D2）与 `docs/ARCHITECTURE.md` 的「seven routes」（D3）~~ **已修**，连同 `AGENTS.md` §6.6 的六支 core 模块（D6）。
+- `0.8.0` **已发布**（V0.8「Skill 演进」+「Skill 洞察」短显示名 + 复刻请求体缺陷修复）：tag `v0.8.0`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它；测试 474、守卫 25、宿主路由 11 条。发布提交与实测结果见 `docs/RELEASE.md` §6.0。
 - `0.7.1` **已发布**（品牌迁移：Skill Trace → DSH Skill Intelligence）：tag `v0.7.1` → 发布提交 `74a161d`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它；功能逻辑与 `0.7.0` 逐字一致。
 - `0.7.0` **已发布**：tag `v0.7.0` → 发布提交 `5fac5d9`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它。
 - 本文件的 §9 模块清单行数与 §14 测试文件数都是**写死的实测值**，`AGENTS.md` §9.1 要求发版时用 `wc -l` 重跑；改代码时容易漏改这里。
+- **V0.8（Skill 演进）的 Phase 1（血缘）、Phase 2（差异）与 Phase 3（界面）都已落地**（§0.1 D8）：三个新模块 `src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs` / `src/core/skill-diff.mjs` 都已存在；`handleClone` 在回读通过之后写血缘（fail-soft）；`/skill-trace/skill` 随详情回 `lineage` 字段；宿主新增 `GET /skill-trace/diff`（**10 → 11 条路由**）；守卫 24 `SKILL_LINEAGE_OK` 与 25 `SKILL_DIFF_NO_JUDGEMENT_OK` 的**两个半**都已落地；客户端 `SkillEvolution` / `SkillDiffPanel` 已接进详情页并有 5 条渲染烟测。**已随 `0.8.0` 发布**（2026-10-02：GitHub Release + npm）。落地顺序见 §17.7。
+
+---
+
+## 17. Skill 血缘与差异（v0.8）
+
+> **本节已经是现状，不再是设计。** 血缘（§17.1–§17.4）、差异（§17.5）与界面（§17.6）的模块、宿主路由与客户端组件都已落地（Phase 1 血缘、Phase 2 差异、Phase 3 界面，2026-10-06：三个模块 + `handleClone` 挂钩 + `GET /skill-trace/diff` + 详情页「Skill 演进」卡与差异面板 + 守卫 24/25 的两个半 + 5 条渲染烟测）。`§0.1 D8` 登记了这条边界；**已随 `0.8.0` 发布**（2026-10-02）。需求侧对立的是 `spec/PRD.md` §5.7 的 `FR-EVO-*`。
+
+V0.8 只回答一个问题：**我把一个 Skill 复刻成自己的版本以后，能不能清楚知道「我从谁来、我改了什么、来源现在变了吗」。** 三个能力：血缘（Lineage）、差异（Diff）、演进视图（Evolution）。它**不是** Skill Creator / Forge / Marketplace / IDE，也**不做**行为评测与自动优化（那些归 V0.9+）。
+
+### 17.1 血缘只有一个数据源：本插件自己成功执行过的复刻
+
+这是本节最重要的一条。**血缘不是「我认为 B 来自 A」，而是「本插件执行过一次 A → B 的复刻」。** 因此下面这些一律**不建立血缘**（`FR-EVO-001`）：
+
+| 情况 | 为什么不算 |
+|---|---|
+| A 与 B 内容很像 | 相似不是来历；插件看不出「复制」与「各自独立写成」的区别 |
+| A 与 B 名字很像 | 命名习惯不是证据 |
+| A、B 都来自同一个 GitHub 仓库 | 同仓库不等于同一条复刻链 |
+| 用户在 Finder / Terminal 里手动复制 | **插件没有执行过那次复刻**，它观察不到 |
+| 用户自己新建了一个 Skill | 没有来源 |
+
+这不是保守，是这条产品线的底线：**观察不到证据，就推不出关系**——与运行时那套「声明不等于执行」是同一条纪律。
+
+### 17.2 血缘记录：字段闭集
+
+```js
+{
+  schemaVersion,                                  // SKILL_LINEAGE_VERSION = 1
+  lineageId,                                      // sha256(targetSkillName)
+  sourceSkillName, sourceSourceSha256,            // 复刻当时校验过的来源正文指纹
+  targetSkillName, cloneMode, targetScope,        // 'bundle' | 'skill-md' · 'project' | 'user'
+  catalogObservation,                             // 'observed' | 'pending'
+  sourceRepository,                               // 可选；只在 frontmatter / git origin 确认过时才有
+  createdAt, updatedAt
+}
+```
+
+**不得出现**：任何 Skill 正文或资源文件内容、会话标识、会话日志、Tool 参数或结果、Token / Cookie、未脱敏绝对路径（`FR-EVO-002`）。
+
+命名说明：`sourceSourceSha256` 这个名字是 `spec/PRD.md` 的 `FR-EVO-002` 与本文共同固定的，读起来别扭是**故意的**——它强调这是「**来源** Skill 的**来源**指纹」（复刻当时那一版），与「来源**现在**的指纹」是两个东西，后者来自实时读取，**不进记录**。
+
+`sourceRepository` 复用既有的 `src/core/repository-resolver.mjs`，**不重新猜**：frontmatter → `git origin` → 用户配置，只记能确认的（`FR-EVO-003`）。今天 `repositoryOverride` 这条用户配置通道**是死代码**（声明了、零读取），所以实际只有前两条。
+
+### 17.3 落盘：`<dataRoot>/lineage/`，一个目标一条记录
+
+- 目录 `0700`、文件 `0600`、原子写（`mkdir` → 带 pid 与随机后缀的 `.tmp` → `writeFile({mode:0o600})` → `rename`）；
+- **文件名 = `sha256(targetSkillName)`**，即**一个目标 Skill 只可能有条记录**（`FR-EVO-004`）。用户改了目标 Skill 的 `SKILL.md` / `references/` / `scripts/` **不产生新记录**——那些变化归 Diff。同一个目标名再次被复刻时**覆盖**（当前目录的来历 = 最近一次由本插件执行的复刻）。
+- **不复用 translation store**：键不同、拒绝字段不同、生命周期不同（`FR-EVO-007`）。
+- **不写进 Skill 目录**（写进去会污染该 Skill 的 bundle，并被后续的完整复刻一起拷走）；**不进收据、不进会话日志**。收据里那个 `lineage` 是**会话血统**，两者无关（§3.3 的警告）。
+
+### 17.4 挂钩点：`readBackClone` 之后，且 fail-soft
+
+`handleClone`（§8.2）的既有顺序是 `writeClone` → `readBackClone` → 回滚或继续 → registry 观察 → 组装成功响应。血缘写在**观察之后、`return` 之前**：
+
+```text
+读源 → 校验 sourceSha256 → 写副本 → read-back → catalog 观察 → success → 写血缘
+```
+
+两条纪律：
+
+1. **回读失败 ⇒ 不写血缘。** 那条路径本来就 `removeClone` 回滚并以 500 失败，副本根本不在磁盘上。守卫 `SKILL_LINEAGE_OK` 用**源码顺序断言**（`writeLineage(` 必须排在 `readBackClone(` 之后）把这件事钉住，不靠记性。
+2. **写血缘失败 ⇒ fail-soft。** 照 `persistTranslation` 的形状返回布尔、绝不抛：副本已经在磁盘上，把这次失败报成「复刻失败，没有产生任何副本」是**撒谎**。失败只在 `limitations` 里加 `lineage-not-recorded`，复刻结果与回滚都不动（`FR-EVO-006`）。
+3. **目录刷新观察不到不是失败。** 既有响应里的 `discovered` 布尔直接映射成 `catalogObservation: 'observed' | 'pending'`（§8.4）。
+
+### 17.5 `/skill-trace/diff`：比较基准与三层差异
+
+**比较基准永远是「当前目标」与「当前来源」两侧的实时事实**（`FR-EVO-013`）。三层全部确定性、无模型参与（`FR-EVO-012`）：
+
+| 层 | 输入 | 输出 |
+|---|---|---|
+| 结构 | 两侧各自 `buildDefinitionOutline()` + `buildSkillFramework()` | 新增 / 删除 / 改变的小节与角色；声明流程与渐进披露的差异 |
+| 内容 | 两侧 `SKILL.md` 正文，按 Markdown 结构分段后在段内做行级差异 | 新增 / 删除 / 修改的行，带行号以便跳转锚点 |
+| 资源 | 两侧 Skill 目录的文件清单（遍历 `SKILL.md` / `references/` / `scripts/` / `assets/` 等） | 新增 / 删除 / 变化的相对路径 |
+
+三个实现坑，都是读源码得出的、**不写下来一定会踩**：
+
+1. **两侧必须各传自己的 `summary`（或都传 `null`）。** `buildSkillFramework` 会在「没有任何正文节被判为 trigger」时**凭空合成一个 trigger 节**，内容来自 registry 的 `summary.whenToUse || summary.description`。两侧喂不同的 summary ⇒ 界面出现一条**根本不存在的结构差异**。
+2. **两侧都要自己 `buildDefinitionOutline(side.content.text)`。** `buildSkillFramework` **只消费 outline，不建 outline**（§6.2）；不建就得到空 `sections`。
+3. **不要用 `renderSkillMarkdown(` 渲染差异。** 守卫 `SKILL_FRAMEWORK_OK` 钉住整个客户端**只有一处** `renderSkillMarkdown(` 调用点。差异的每一行就是纯文本行，按「结构 Diff 用分隔线行、内容 Diff 用 `+/−/␣` 前缀行、资源 Diff 用一行一路径」渲染。
+
+### 17.6 三条诚实边界（V0.8 的成败就在这里）
+
+**① 来源变了，差异就不全是「你改的」。**
+
+插件**不保存**复刻当时的正文快照（`FR-EVO-002` 禁止），所以「我改了什么」**只在来源没动过的时候**才等价于两侧差异：
+
+| 来源状态 | 差异的含义 | 界面必须说 |
+|---|---|---|
+| `currentSha256 === sourceSourceSha256` | 两侧差异**就是**用户改的 | 「来源内容未发生变化」 |
+| 两侧指纹不同 | 差异**可能来自来源一侧** | 「来源内容已发生变化」+ 一句「下列差异里有一部分可能来自来源 Skill 自身的更新」 |
+
+这也是**为什么「来源内容未发生变化」是整个 V0.8 最值得看清的一行**：只有它成立时，差异才是干净的「我的改动」。**不要**用「过期 / 落后 / 版本升级」来描述第二种情况——那些词已经带判断（`FR-EVO-010`）。
+
+**② `skill-md` 复刻出来的副本，本来就没有来源的那些资源。**
+
+`cloneMode === 'skill-md'` 时 `writeClone` 只写 `SKILL.md`。于是资源差异会把来源的全部资源显示成「本地没有」——**那不是用户删的，是复刻方式决定的**。响应里带 `resources.mode`，界面必须按它解释（`FR-EVO-016`）。同理，`bundle` 模式也可能因为 `CLONE_MAX_BYTES` / 跳过规则而**没拷全**（`truncated` / `skippedCount`），界面不许把「没拷到」说成「被删掉」。
+
+**③ 名字不是身份。**
+
+血缘存的是 `sourceSkillName`。如果那个名字后来被**另一个** Skill 占用，插件**无法识别**「名字还是那个名字，但已经不是同一个 Skill 了」（`FR-EVO-022`）。V0.8 不深挖（那要先给来源建立身份），只在血缘里如实带上可确认的 `sourceRepository`，让用户自己看得见来源对不对。**不许声称已经识别。**
+
+### 17.7 分层与落地顺序
+
+| 层 | 新增 / 修改 | 职责 |
+|---|---|---|
+| `src/core/skill-lineage.mjs`（新） | 纯函数：schema、校验、归一化、键 | 不含 fs、不含时间戳来源之外的状态 |
+| `src/core/skill-diff.mjs`（新） | 纯函数：结构 / 内容 / 资源三层差异 + 三态 | 输入是两侧已读到的正文、outline、文件清单；**不碰 fs** |
+| `src/storage/skill-lineage-store.mjs`（新） | `read` / `write` / `list` / `findBySource` / `findByTarget` / `delete` | 唯一落盘处；照 `translation-store.mjs` 的形状 |
+| `src/dsh/host/index.js`（改） | `handleDiff` + 复刻成功路径里的血缘写入 + `/skill` 里嵌 `lineage` | 路由 11 条 |
+| `src/dsh/client/client.js`（改） | 左栏「Skill 演进」卡 + 差异面板（标准模态） | **纯展示**：不 `require` 任何新模块，不自己算差异（`FR-EVO-021`） |
+
+三阶段，**每阶段结束时 `npm test` + `npm run verify` 必须全绿**：
+
+1. **Phase 1 — 血缘**：三个模块里的 `skill-lineage.mjs` + `skill-lineage-store.mjs`、复刻路径挂钩、`/skill` 里嵌 `lineage`、`SKILL_LINEAGE_OK` 守卫；✅ **已落地（2026-10-06）**；
+2. **Phase 2 — 差异**：`skill-diff.mjs` + `handleDiff` + `/skill-trace/diff` 进 `requiredText`、`SKILL_DIFF_NO_JUDGEMENT_OK` 守卫（宿主那半）；✅ **已落地（2026-10-06）**；
+3. **Phase 3 — 界面**：演进卡 + 差异面板 + `design.md` §7 组件合同行 + §24 修订记录 + **真实渲染冒烟测试**（`design.md` §13 的设计变更 Gate 要求，不可省），并补上守卫 25 的客户端那半。✅ **已落地（2026-10-06）**：`SkillEvolution` / `SkillDiffPanel` 接进详情页左栏（`sidePanel` 四项：`sideIdentity` / `sideEvolution` / `sideDefinition` / `sideRepository`），`test/client-render-smoke.test.mjs` 加 8 条烟测（`npm test` 474 项），守卫 25 的客户端那半跑在去英文字典的源码上。
+
+**三个 Phase 都已随 `0.8.0` 发布**（2026-10-02：tag `v0.8.0`，GitHub Release + npm）。落地期间最该记住的一条：**差异界面最坏的失败方式是看起来最正常** —— 读不到来源时渲染成三张空表，用户读到的就是「没有变化」，所以那一屏必须是 `role="alert"` 的完整句子，而且 `npm test` 里有一条烟测专门数 `.st-diff-row` 为 0。

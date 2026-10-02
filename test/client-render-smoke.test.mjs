@@ -403,6 +403,8 @@ test('the client registers and its entry component renders without throwing', as
       catalogPublication: { observedAt: 1, seq: 2, turn: 2, step: 1, update: false, entryCount: 44, entriesDigest: 'sha256:digest' },
     },
     limitations: [],
+    // v0.8：新宿主的详情响应里**总是**有这个键；`null` = 本插件没执行过这次复刻。
+    lineage: null,
   }
   const skillPayload = { ok: true, sessionId: 's', workspaceLabel: '工作区', list: skillListFixture, skill: skillDetailFixture }
   // 定义读不到时的形状：`definition` 只剩可用性字段，`flow.steps` 是**空数组**，
@@ -422,6 +424,7 @@ test('the client registers and its entry component renders without throwing', as
     repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] },
     observation: { match: 'unavailable', observedInstructionSha256: null, currentInstructionSha256: null, loadedDuringRun: true, inPublishedCatalog: false, catalogPublication: null },
     limitations: ['definition-unavailable-so-no-declared-flow-could-be-extracted'],
+    lineage: null,
   }
   // 44 条候选：越过 `AUDIT_CATALOG_LIMIT`（40），逼出「另有 N 个未列出」那条分支。
   const catalogEntries = Array.from({ length: 44 }, (unused, index) => ({ name: `skill-${index}`, description: `候选 ${index}` }))
@@ -1332,4 +1335,396 @@ test('the detail page passes the clone dialog every prop it destructures — "pa
     assert.ok(new RegExp(`\\b${prop}\\s*[,:}]`).test(renderBody),
       `SkillCloneDialog 解构了没有兜底的 \`${prop}\`，详情页渲染它时就必须传过去（现在是：${renderBody.replace(/\s+/g, ' ').trim()}）`)
   }
+})
+
+/**
+ * v0.8：血缘与差异的界面。
+ *
+ * 这一节测的不是「渲染出来了没有」，而是**它说了哪句话**。三件事各自都会在代码看起来
+ * 完全正常的时候坏掉：
+ *
+ * 1. 没有血缘时猜一个来源 —— 「手动复制」和「本插件没执行过」在数据上都是 `null`，
+ *    猜就等于把用户自己写的 Skill 说成别人的衍生物。
+ * 2. 「来源变了 / 没变 / 没法比」退化成两句 —— 三态塌成两态时，「没有可比的原始指纹」
+ *    会被说成「没变」，而那是编造（`FR-EVO-010`）。
+ * 3. 读不到来源时渲染一张空表 —— 空表读起来就是「两边一样」。这条最危险，因为
+ *    **看起来最正常**。
+ */
+function diffFixture(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    comparison: {
+      status: 'changed',
+      source: {
+        skillName: 'ui-craft', available: true, reason: null,
+        originalSha256: `sha256:${'a'.repeat(64)}`, currentSha256: `sha256:${'b'.repeat(64)}`, changed: true,
+      },
+      target: { skillName: 'ui-craft-custom', available: true, reason: null, currentSha256: `sha256:${'c'.repeat(64)}` },
+      limitations: [],
+    },
+    structure: {
+      status: 'changed',
+      counts: { added: 1, removed: 0, modified: 1, unchanged: 2 },
+      sections: [
+        { title: 'Rules', level: 2, role: null, status: 'modified', changed: ['items'], anchorId: 'rules', side: 'target', sourceLine: 5, targetLine: 5 },
+        { title: 'Debugging', level: 2, role: null, status: 'added', changed: ['presence'], anchorId: 'debugging', side: 'target', sourceLine: null, targetLine: 14 },
+      ],
+    },
+    content: {
+      status: 'changed',
+      counts: { added: 1, removed: 0, modified: 0, unchanged: 2 },
+      limitations: [],
+      sections: [
+        {
+          title: 'Rules', status: 'modified', anchorId: 'rules', side: 'target', sourceLine: 5, targetLine: 5,
+          sourceLineCount: 2, targetLineCount: 3, linesTruncated: false,
+          lines: [
+            { kind: 'unchanged', text: '- Be precise', sourceLine: 6, targetLine: 6 },
+            { kind: 'added', text: '- Always check the token table', sourceLine: null, targetLine: 8 },
+          ],
+        },
+      ],
+    },
+    resources: {
+      status: 'changed', mode: 'bundle',
+      counts: { added: 0, removed: 1, modified: 1, unchanged: 1 },
+      entries: [
+        { path: 'references/tokens.md', status: 'modified', sourceSha256: `sha256:${'d'.repeat(64)}`, targetSha256: `sha256:${'e'.repeat(64)}` },
+        { path: 'legacy.md', status: 'removed', sourceSha256: `sha256:${'f'.repeat(64)}`, targetSha256: null },
+      ],
+    },
+    ...overrides,
+  }
+}
+
+/** 读不到任何一侧的响应 —— 宿主真的会这么回（`buildSkillDiff` 的 unavailable 分支）。 */
+function unavailableFixture() {
+  const empty = { status: 'unavailable', counts: { added: 0, removed: 0, modified: 0, unchanged: 0 } }
+  return {
+    schemaVersion: 1,
+    comparison: {
+      status: 'unavailable',
+      source: { skillName: 'ui-craft', available: false, reason: 'source-unavailable', originalSha256: null, currentSha256: null, changed: null },
+      target: { skillName: 'ui-craft-custom', available: true, reason: null, currentSha256: `sha256:${'c'.repeat(64)}` },
+      limitations: ['source-unavailable', 'resource-differences-may-come-from-a-truncated-clone'],
+    },
+    structure: { ...empty, sections: [], sectionCount: 0 },
+    content: { ...empty, sections: [], limitations: [] },
+    resources: { ...empty, mode: null, entries: [] },
+  }
+}
+
+/**
+ * 「复刻完一个字没改」的响应 —— 形状抄自一次**真实**复刻的真机响应（用户把一个真 Skill
+ * 复刻出来、没做任何改动之后，宿主对 `GET /skill-trace/diff` 的回包）。
+ *
+ * 为什么要抄真形状而不是自己编一个：`.st-diff-*` 三层渲染的每一个分支都靠 `counts` 与
+ * `entries`/`sections` 的长度说话，而「全都没变」是**唯一**会让三层的 `+`/`−` 行同时消失的
+ * 输入 —— 也就是唯一能验出「没有变化」会不会被渲染成一张空表的输入。编一个「改过一点」的
+ * 夹具永远走不到这一格。
+ *
+ * 指纹同值是这个夹具的重点：复刻必须改写副本 frontmatter 里的 `name:`，如果指纹算的是整份
+ * 文件，「一个字没改」的复刻也会永远报「来源内容已发生变化」。宿主算的是**正文**，所以这两
+ * 个 sha 必须一模一样。
+ */
+function unchangedFixture() {
+  const body = `sha256:${'7'.repeat(64)}`
+  const titles = [
+    ['Product Requirements Document (PRD)', 1, 'identity', 4],
+    ['When to Use', 2, 'trigger', 6],
+    ['When NOT to Use', 2, null, 14],
+    ['Instructions', 2, null, 21],
+    ['Output Format', 2, 'output', 58],
+    ['Quality Checklist', 2, 'verification', 62],
+    ['Examples', 2, null, 77],
+  ]
+  const section = ([title, level, role, line]) => ({
+    title, level, role, status: 'unchanged', changed: [], side: 'target', sourceLine: line, targetLine: line,
+    anchorId: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+  })
+  return {
+    schemaVersion: 1,
+    comparison: {
+      status: 'unchanged',
+      source: { skillName: 'ui-craft', available: true, reason: null, originalSha256: body, currentSha256: body, changed: false },
+      target: { skillName: 'ui-craft-custom', available: true, reason: null, currentSha256: body },
+      limitations: [],
+    },
+    structure: { status: 'unchanged', counts: { added: 0, removed: 0, modified: 0, unchanged: 7 }, sections: titles.map(section), sectionCount: 7 },
+    content: {
+      status: 'unchanged',
+      counts: { added: 0, removed: 0, modified: 0, unchanged: 7 },
+      limitations: [],
+      // 全部未变 ⇒ 每一节的 `lines` 都是空的。这一层「没有一行」与「没有比较」必须分得开。
+      sections: titles.map((entry) => ({ ...section(entry), sourceLineCount: 3, targetLineCount: 3, lines: [], linesTruncated: false })),
+    },
+    resources: {
+      status: 'unchanged',
+      mode: 'bundle',
+      counts: { added: 0, removed: 0, modified: 0, unchanged: 4 },
+      // 四条都是复刻真的搬过去的文件。`SKILL.md` 不在这一层：它的正文归上面的内容层。
+      entries: ['HISTORY.md', 'evals/trigger-fixtures.json', 'references/EXAMPLE.md', 'references/TEMPLATE.md']
+        .map((path) => ({ path, status: 'unchanged', sourceSha256: `sha256:${'8'.repeat(64)}`, targetSha256: `sha256:${'8'.repeat(64)}` })),
+    },
+  }
+}
+
+const textOf = (nodes) => nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+/** 一个节点**自己**的文本。`collect` 会把子文本摊成平行的 `#text` 条目，所以 `textOf([node])` 拿不到它。 */
+const ownText = (node) => (node.children ?? []).filter((child) => typeof child === 'string').join('')
+/** 一整棵子树的文本 —— 行是嵌套结构（标题格 + 状态格），自己的 `children` 里只有元素。 */
+const subtreeText = (node) => collect(node).filter((n) => n.type === '#text').map((n) => n.text).join('')
+
+test('the evolution card says "not cloned by this plugin" instead of guessing a source', () => {
+  const client = mountChineseClient()
+  const nodes = collect(client.__views.SkillEvolution({
+    skillName: 'ui-craft', lineage: null, source: null, onOpenDiff() {}, openRef: { current: null },
+  }))
+  const text = textOf(nodes)
+
+  assert.ok(text.includes('Skill 演进'), '左栏这一块要有自己的标题')
+  assert.ok(text.includes('这个 Skill 不是由本插件复刻出来的。'),
+    '没有血缘就必须说没有血缘 —— 手动复制与用户自建在这一格里是同一件事')
+  // 一个点了只会告诉你「没有来源」的按钮，比一个不可点的元素更糟（§8.5 的同一条理由）。
+  assert.equal(nodes.filter((node) => node.props['data-role'] === 'diff-open').length, 0,
+    '没有血缘时不许出现「查看差异」')
+
+  // 「没有血缘」有两种成因，渲染出来必须是两句话（§6.11）。宿主把插件读进内存之后不会自动换代码，
+  // 所以「客户端已经是 v0.8、宿主还是 v0.7」是插件升级的正常路径（§6.2 / 附录 B）——那时详情响应里
+  // **根本没有 `lineage` 这个键**。把它渲染成「不是由本插件复刻出来的」，就是对着一个真的复刻过的
+  // Skill 说假话。这一条走的是 `SkillDetailPage` 的真实接缝，不是直接调 `SkillEvolution`。
+  const detailOf = (skill) => textOf(collect(client.__views.SkillDetailPage({
+    sessionId: 's', skillName: 'ui-craft', skill,
+  })))
+  const bare = { skillName: 'ui-craft', summary: null, definition: null, flow: null, anchors: {}, runs: [], evidence: null, repository: null, observation: null, limitations: [] }
+  const noRecord = detailOf({ ...bare, lineage: null })
+  const staleHost = detailOf({ ...bare })
+  assert.ok(noRecord.includes('这个 Skill 不是由本插件复刻出来的。'), '`lineage: null` 才是「本插件没复刻过」')
+  assert.ok(!noRecord.includes('宿主可能还没换到这一版的代码'), '新宿主答了 `null`，就不该提重启')
+  assert.ok(staleHost.includes('宿主可能还没换到这一版的代码'),
+    '详情响应里没有 `lineage` 键 = 读不到 = 老宿主，必须说人话（§6.11）')
+  assert.ok(!staleHost.includes('这个 Skill 不是由本插件复刻出来的。'),
+    '「读不到」不许说成「没有」——那可能是唯一一次真的复刻过的 Skill')
+
+  // 复刻过的 Skill 走同一个接缝：渲染桩不跑 effect，所以这就是**第一帧** —— 详情到了、
+  // `/diff` 还没回来。这一帧说的话不能是「无法读取来源」，否则每一次打开副本详情页，
+  // 用户都会先读到一句关于来源的假话，再眼看着它自己改口（§6.11 的第四次出现）。
+  const cloned = detailOf({
+    ...bare,
+    lineage: {
+      lineageId: `sha256:${'1'.repeat(64)}`,
+      sourceSkillName: 'ui-craft',
+      sourceSourceSha256: `sha256:${'a'.repeat(64)}`,
+      cloneMode: 'bundle',
+    },
+  })
+  assert.ok(cloned.includes('正在读取来源…'), '第一帧还没问回来，只能说「正在读取」，不能说「读不到」')
+  assert.ok(!cloned.includes('无法读取来源'), '「还没问」不是「读不到」')
+})
+
+test('the source state keeps every sentence apart — "cannot compare" is not "unchanged", and "not asked yet" is neither', () => {
+  const client = mountChineseClient()
+  const lineage = {
+    lineageId: `sha256:${'1'.repeat(64)}`,
+    sourceSkillName: 'ui-craft',
+    sourceSourceSha256: `sha256:${'a'.repeat(64)}`,
+    cloneMode: 'bundle',
+  }
+  const opened = []
+  const stateOf = (source, diffPhase = 'ready') => {
+    const nodes = collect(client.__views.SkillEvolution({
+      skillName: 'ui-craft-custom', lineage, source, diffPhase, onOpenDiff: () => opened.push(true), openRef: { current: null },
+    }))
+    return {
+      nodes,
+      mark: nodes.find((node) => node.props['data-role'] === 'evolution-source-state')?.props['data-changed'],
+      text: textOf(nodes),
+    }
+  }
+
+  const moved = stateOf({ available: true, changed: true, currentSha256: `sha256:${'b'.repeat(64)}` })
+  const still = stateOf({ available: true, changed: false, currentSha256: `sha256:${'a'.repeat(64)}` })
+  // 来源**读得到**，但这一对没有「复刻当初那一版」的指纹（拿别的 Skill 当 `against` 时
+  // 宿主就是这么回的）。它既不是变了也不是没变 —— 这正是三态里最容易塌掉的一格。
+  const noFingerprint = stateOf({ available: true, changed: null, currentSha256: `sha256:${'c'.repeat(64)}` })
+  const unreadable = stateOf({ available: false, changed: null, currentSha256: null, reason: 'source-unavailable' })
+
+  assert.deepEqual([moved.mark, still.mark, noFingerprint.mark, unreadable.mark], ['yes', 'no', 'unknown', 'unknown'])
+  assert.ok(moved.text.includes('来源内容已发生变化'))
+  assert.ok(still.text.includes('来源内容未发生变化'))
+  assert.ok(noFingerprint.text.includes('无法比较'))
+  assert.ok(unreadable.text.includes('无法读取来源'))
+  // 四句说法必须互斥：三态塌成两态就是从这一行开始的。
+  assert.ok(!moved.text.includes('来源内容未发生变化'), '「变了」不能同时说「没变」')
+  assert.ok(!still.text.includes('来源内容已发生变化'))
+  assert.ok(!noFingerprint.text.includes('来源内容未发生变化'),
+    '「没有可比的指纹」不许说成「没变」—— 那是从缺失推出的结论')
+  assert.ok(!noFingerprint.text.includes('来源内容已发生变化'))
+  assert.ok(!unreadable.text.includes('来源内容未发生变化'))
+
+  // 第四态：**还没听到回音**。详情页要先拿 `/skill` 的血缘、再去问 `/diff`，中间这一段
+  // `comparison.source` 根本不存在 —— 那时说的话不能是「无法读取来源」，因为没有人检查过。
+  // 这一格漏掉的话，每一次打开副本详情页都会先蹦出一句关于来源的假话。
+  const pending = stateOf(null, 'loading')
+  const failed = stateOf(null, 'error')
+  assert.equal(pending.mark, 'pending')
+  assert.ok(pending.text.includes('正在读取来源…'), '还没问就说「读不到」，是替宿主宣布它没说过的话')
+  assert.ok(!pending.text.includes('无法读取来源'), '「还没问」与「读不到」是两句话（§6.11）')
+  assert.ok(!pending.text.includes('来源内容未发生变化'))
+  assert.ok(failed.text.includes('读取来源失败'), '请求失败要说是「读取失败」，不能听起来像宿主检查过了')
+  assert.ok(!failed.text.includes('正在读取来源…'), '已经失败了就不能还挂着「正在读取」')
+
+  // 四组事实与出口都在，且出口真的接上了处理器。
+  for (const fact of ['当前 Skill', '来源 Skill', '复刻来源指纹', '当前来源指纹']) {
+    assert.ok(moved.text.includes(fact), `演进卡要说清 ${fact}`)
+  }
+  const open = moved.nodes.find((node) => node.props['data-role'] === 'diff-open')
+  assert.equal(ownText(open), '查看差异')
+  open.props.onClick()
+  assert.equal(opened.length, 1, '「查看差异」必须真的打开面板')
+})
+
+test('an unreadable source is an alert with a sentence — never an empty list that reads as "no changes"', () => {
+  const client = mountChineseClient()
+  const nodes = collect(client.__views.SkillDiffPanel({
+    sessionId: 's-unavailable', skillName: 'ui-craft-custom', diff: unavailableFixture(), onClose() {},
+  }))
+
+  const alert = nodes.find((node) => node.props['data-role'] === 'diff-unavailable')
+  assert.ok(alert, '读不到来源必须**说出来**')
+  assert.equal(alert.props.role, 'alert', '要说给辅助技术听，不是画一行灰字')
+  assert.deepEqual(alert.children, ['当前无法读取来源 Skill，无法完成差异比较。'])
+
+  // 三层一条都不许渲染。空表是这一屏最坏的失败方式：它看起来完全正常。
+  assert.equal(nodes.filter((node) => node.props.className === 'st-diff-row').length, 0,
+    '读不到来源时不许靠一张空列表把「无法比较」画成「没有变化」')
+  const text = textOf(nodes)
+  assert.ok(!text.includes('新增 0'), '「新增 0」本身就是一句「比较过了，没变化」')
+
+  // limitation 代码必须都有人话 —— 裸代码是 v0.6 就定下的禁区（`test/phase16` 的 R6）。
+  assert.ok(text.includes('当前无法读取来源 Skill，无法完成差异比较。'))
+  assert.ok(!/source-unavailable|resource-differences-may-come-from-a-truncated-clone/.test(text),
+    'limitation 不许以代码形式出现在界面上')
+})
+
+test('the diff panel renders all three layers, and every word it uses is a fact word', () => {
+  const client = mountChineseClient()
+  const renderPanel = (tab) => collect(client.__views.SkillDiffPanel({
+    sessionId: 's-diff', skillName: 'ui-craft-custom', diff: diffFixture(), tab, onClose() {},
+  }))
+
+  const structure = renderPanel('structure')
+  assert.deepEqual(
+    structure.filter((node) => node.props.className === 'st-diff-tab').map(ownText),
+    ['结构', '内容', '资源'],
+    '一个模态，三个入口',
+  )
+  const rows = structure.filter((node) => node.props.className === 'st-diff-row')
+  assert.deepEqual(rows.map(subtreeText), ['Rules修改', 'Debugging新增'])
+  const structureText = textOf(structure)
+  for (const word of ['新增', '删除', '修改', '保持不变']) {
+    assert.ok(structureText.includes(word), `计数行要用事实词「${word}」`)
+  }
+
+  // 内容层给的是行，行首是 + / − / 空格 —— 增删不能只靠颜色说。
+  const content = renderPanel('content')
+  const lines = content.filter((node) => node.props.className === 'st-diff-lines').flatMap((node) => node.children)
+  // 三个字符位：`+` 新增、`−` 删除、空格未变。增删不能只靠颜色说。
+  assert.deepEqual(lines.map(subtreeText), [' - Be precise', '+- Always check the token table'])
+
+  // 资源层给的是相对路径，且**不含 SKILL.md**（正文归内容层）。
+  const resources = renderPanel('resources')
+  const resourceText = textOf(resources)
+  assert.ok(resourceText.includes('references/tokens.md'))
+  assert.ok(resourceText.includes('legacy.md'))
+  assert.ok(!resourceText.includes('SKILL.md'))
+
+  // 三层渲染出来的每一个字都不许是判断（`FR-EVO-014`）。这一条要跑在**渲染结果**上，
+  // 不是源码上：源码里那些词根本不存在，而字典接错一行就可能冒出来。
+  const all = textOf([...structure, ...content, ...resources])
+  for (const forbidden of ['更优秀', '更完整', '更合理', '质量', '优化', '推荐', '建议保留', '建议删除', '最佳', '落后', '过期', '旧版本', '最新版本']) {
+    assert.ok(!all.includes(forbidden), `差异面板不许出现判断词「${forbidden}」`)
+  }
+  for (const path of ['/Users/', '/home/']) {
+    assert.ok(!all.includes(path), '绝对路径一个都不许出网（`docs/PRIVACY.md`）')
+  }
+})
+
+/**
+ * 这一条是「什么都没改的复刻」走一遍三层渲染。
+ *
+ * 它是差异功能存在的理由，也是最容易悄悄坏掉的一格：三层全都是「保持不变」时，行数、计数、
+ * 空行列表三样东西**同时**变空，而一个渲染成空的面板与一个渲染成「没有变化」的面板在屏幕上
+ * 长得一模一样（`FR-EVO-015`）。所以这里逐层数行，不接受「看起来对」。
+ */
+test('a clone with nothing changed renders as "nothing changed" — in all three layers, not as an empty panel', () => {
+  const client = mountChineseClient()
+  const diff = unchangedFixture()
+  const renderPanel = (tab) => collect(client.__views.SkillDiffPanel({
+    sessionId: 's-unchanged', skillName: 'ui-craft-custom', diff, tab, onClose() {},
+  }))
+
+  // ① 卡片那一句。复刻强制改写副本的 frontmatter `name:`，所以指纹必须算正文 ——
+  //    否则这一句会永远说「来源内容已发生变化」，而用户一个字都没动过。
+  const card = collect(client.__views.SkillEvolution({
+    skillName: 'ui-craft-custom', lineage: diff, source: diff.comparison.source, diffPhase: 'ready',
+    onOpenDiff() {}, openRef: { current: null },
+  }))
+  const cardText = textOf(card)
+  assert.ok(cardText.includes('来源内容未发生变化'))
+  assert.ok(!cardText.includes('来源内容已发生变化'), '一个字没改的复刻不许报「来源变了」')
+
+  // ② 结构层：七个小节都要**列出来**并各自说「保持不变」，不能只留一行计数。
+  const structure = renderPanel('structure')
+  const structureRows = structure.filter((node) => node.props.className === 'st-diff-row')
+  assert.equal(structureRows.length, 7, '结构层要逐节说话，不是一句「没有变化」了事')
+  assert.deepEqual([...new Set(structureRows.map((node) => node.props['data-status']))], ['unchanged'])
+  for (const row of structureRows) assert.ok(subtreeText(row).endsWith('保持不变'))
+  const structureText = textOf(structure)
+  assert.ok(structureText.includes('修改 0'), '计数行要给事实数字')
+  assert.ok(structureText.includes('保持不变 7'))
+  assert.ok(structureText.includes('Product Requirements Document (PRD)'), '真实的节标题要原样出现')
+
+  // ③ 内容层：一行 `+` / `−` 都不许有 —— 那就是「哪儿都没改」的唯一证据。
+  const content = renderPanel('content')
+  assert.equal(content.filter((node) => node.props.className === 'st-diff-lines').length, 0,
+    '一个字没改就不该有任何增删行')
+  assert.equal(content.filter((node) => node.props.className === 'st-diff-row').length, 7,
+    '内容层也要逐节列出来，否则用户分不清「没有差异」与「没有比较」')
+
+  // ④ 资源层：四条，四条都在，`SKILL.md` 不在（它的正文归内容层）。
+  const resources = renderPanel('resources')
+  const resourceRows = resources.filter((node) => node.props.className === 'st-diff-row')
+  assert.deepEqual(
+    resourceRows.map((node) => ownText(node.children[0].children[0])),
+    ['HISTORY.md', 'evals/trigger-fixtures.json', 'references/EXAMPLE.md', 'references/TEMPLATE.md'],
+  )
+  assert.ok(!textOf(resources).includes('SKILL.md'), 'SKILL.md 是正文，不属于资源层')
+
+  // ⑤ 三层合起来仍不许出现判断词：全是「保持不变」时最容易顺手加一句「完全一致，无需处理」。
+  const all = textOf([...structure, ...content, ...resources])
+  for (const forbidden of ['更优秀', '更完整', '更合理', '质量', '优化', '推荐', '建议', '最佳', '落后', '过期', '一致', '无需']) {
+    assert.ok(!all.includes(forbidden), `「没有变化」也不许带判断词「${forbidden}」`)
+  }
+})
+
+test('closing the diff panel is Escape, and it stops there — closing a panel is not going back', () => {
+  const client = mountChineseClient()
+  let closed = 0
+  const nodes = collect(client.__views.SkillDiffPanel({
+    sessionId: 's-esc', skillName: 'ui-craft-custom', diff: diffFixture(), onClose: () => { closed += 1 },
+  }))
+
+  const overlay = nodes.find((node) => node.props.className === 'st-diff-overlay')
+  assert.equal(overlay.props.role, 'dialog')
+  assert.equal(overlay.props['aria-modal'], 'true')
+  assert.equal(typeof overlay.props.onKeyDown, 'function')
+
+  let stopped = 0
+  overlay.props.onKeyDown({ key: 'Escape', stopPropagation: () => { stopped += 1 } })
+  assert.equal(closed, 1, 'Esc 关掉面板')
+  // stopPropagation 不是装饰：外层还有别的 Esc 处理器，让事件冒上去就等于
+  // 「关一个面板」顺手把用户带回了列表页。
+  assert.equal(stopped, 1, 'Esc 到此为止，不许继续冒泡')
+  assert.equal(textOf(nodes).includes('关闭'), true, '键盘之外也得有出口')
 })

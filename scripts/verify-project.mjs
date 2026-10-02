@@ -11,6 +11,9 @@ const required = [
   'src/core/source-snapshot.mjs',
   'src/storage/receipt-store.mjs',
   'src/storage/preference-store.mjs',
+  'src/storage/skill-lineage-store.mjs',
+  'src/core/skill-lineage.mjs',
+  'src/core/skill-diff.mjs',
   'src/dsh/host/index.js',
   'src/dsh/client/client.js',
 ]
@@ -22,7 +25,7 @@ if (packageJson.name !== 'dsh-skill-trace') throw new Error('package name mismat
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-ui-conversation')) throw new Error('conversation client injection missing')
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-locale')) throw new Error('locale client injection missing')
 
-for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
+for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/core/skill-lineage.mjs', 'src/core/skill-diff.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/storage/skill-lineage-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
   const result = spawnSync(process.execPath, ['--check', resolve(root, file)], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(`${file} syntax check failed:\n${result.stderr}`)
 }
@@ -132,6 +135,8 @@ for (const requiredText of [
   "'/skill-trace/context'",
   "'/skill-trace/skills'",
   "'/skill-trace/skill'",
+  // v0.8 新增的唯一一条路由。新路由不进这张表就等于没有守卫：删掉它没人会失败。
+  "'/skill-trace/diff'",
   "'/skill-trace/catalog'",
   "'/skill-trace/definition'",
   "'/skill-trace/translate'",
@@ -1022,6 +1027,224 @@ console.log('VISUAL_TOKENS_OK')
   }
 
   console.log('FINGERPRINT_RESERVED_OK')
+}
+
+// --- 24. Skill 复刻血缘（v0.8 §17）------------------------------------------------
+// 血缘是「关系本身也是一种需要证据支持的事实」这句话的落点，所以这条守卫守四件事：
+// 记录里能出现的字段是闭集、落盘只有一处且权限与原子写齐全、写血缘的时机必须在回读
+// 成功之后、以及**复刻血缘绝不许漏进收据**（收据里那个 `lineage` 是会话父子血统）。
+{
+  const lineageModel = await readFile(resolve(root, 'src/core/skill-lineage.mjs'), 'utf8')
+  const lineageStore = await readFile(resolve(root, 'src/storage/skill-lineage-store.mjs'), 'utf8')
+
+  // 顺序断言必须在**去注释后的代码**上做。
+  //
+  // 实测事故：这条守卫的第一版直接在原文里 `indexOf('readBackClone(')`，而 `writeLineage`
+  // 的文档注释里恰好写着一句「只在 `readBackClone(` 成功之后才会被调用」—— 注释比真正的
+  // 调用点早，于是把写血缘挪到回读之前，守卫照样绿。注释不是代码，顺序断言必须看不见它。
+  const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const modelCode = stripComments(lineageModel)
+  const storeCode = stripComments(lineageStore)
+  const hostCode = stripComments(host)
+
+  // 字段是闭集。正文、会话标识、绝对路径都是隐私边界，不是命名风格 —— 缺一个，
+  // 将来有人往记录里塞内容时就不会失败，而是悄悄落盘。
+  for (const field of ['content', 'body', 'sessionId', 'absolutePath', 'skillMd', 'toolResult']) {
+    if (!modelCode.includes(`'${field}'`)) {
+      throw new Error(`血缘记录的拒绝字段清单里必须有 ${field}`)
+    }
+  }
+  for (const requiredText of ['FORBIDDEN_LINEAGE_FIELDS', 'inspectLineageRecord', 'lineageIdFor', 'lineageFileName', 'buildLineageRecord']) {
+    if (!modelCode.includes(requiredText)) throw new Error(`血缘模型缺少 ${requiredText}`)
+  }
+
+  // 落盘面：目录 0700、文件 0600、临时文件 + rename 的原子写、文件键由目标名派生。
+  for (const requiredText of ['0o700', '0o600', 'rename(', 'lineageFileName(', 'forbiddenFields']) {
+    if (!storeCode.includes(requiredText)) throw new Error(`血缘落盘面缺少 ${requiredText}`)
+  }
+
+  // 血缘不是收据的一部分，也不许借浏览器存储绕道 —— 它是宿主侧的本地资产关系。
+  // 注释里写一句「与 receipt-store 同一套原子写约定」是正当的文档；要钉住的是代码。
+  for (const [name, code] of [['skill-lineage.mjs', modelCode], ['skill-lineage-store.mjs', storeCode]]) {
+    for (const forbidden of ['receipt', 'localStorage', 'sessionStorage']) {
+      if (code.includes(forbidden)) {
+        throw new Error(`${name} 不得出现 ${forbidden}：复刻血缘与收据里的会话血统是两个对象`)
+      }
+    }
+  }
+
+  // 同名不同物：收据里那个 `lineage` 必须是会话父子血统，且复刻血缘的字段一个都不许进去。
+  // 两者一旦被合并，收据就会开始记录 Skill 的资产关系 —— 那不是会话日志该有的东西。
+  const receiptStart = hostCode.indexOf('function publicReceipt(')
+  if (receiptStart < 0) throw new Error('收据投影函数不见了')
+  const receiptBody = hostCode.slice(receiptStart, hostCode.indexOf('\n}', receiptStart))
+  if (!receiptBody.includes('parentSessionId')) {
+    throw new Error('收据里的 lineage 必须是会话父子血统（parentSessionId）')
+  }
+  for (const field of ['sourceSkillName', 'sourceSourceSha256', 'targetSkillName', 'cloneMode']) {
+    if (receiptBody.includes(field)) throw new Error(`复刻血缘的字段 ${field} 不得进收据`)
+  }
+
+  // 时机是源码事实，不是注释：副本必须已经写盘并**回读通过**，才允许记录血缘。
+  // 这里查的是调用点（`await writeLineage(`）—— 函数定义按语言就必须排在前面，
+  // 拿定义去比顺序会得到一个永远为真的断言。
+  const readBackAt = hostCode.indexOf('readBackClone(')
+  const writeLineageAt = hostCode.indexOf('await writeLineage(')
+  if (readBackAt < 0) throw new Error('复刻链路里找不到回读')
+  if (writeLineageAt < 0) throw new Error('复刻链路里没有写血缘这一步')
+  if (writeLineageAt < readBackAt) {
+    throw new Error('写血缘必须排在回读成功之后：回读没通过的副本不该留下血缘')
+  }
+
+  // 界面要知道「血缘没记上」，也要拿到观察结果 —— 观察不到 catalog 不是失败，
+  // 但必须如实写成 pending，而不是假装观察到了。
+  if (!hostCode.includes("'lineage-not-recorded'")) throw new Error('写血缘失败必须留下 lineage-not-recorded')
+  if (!hostCode.includes("discovered ? 'observed' : 'pending'")) {
+    throw new Error('catalog 观察结果必须如实写进血缘（observed / pending）')
+  }
+  if (!hostCode.includes('lineageStore.read(skillName)')) {
+    throw new Error('/skill-trace/skill 必须把血缘随详情一起返回，不另开路由')
+  }
+
+  console.log('SKILL_LINEAGE_OK')
+}
+
+// --- 25. 差异只说事实（v0.8 §17.5 / §17.6）----------------------------------------
+// 差异是这一版里最容易被写成"评审"的地方：一旦有一行代码开始说哪个版本更好，产品就从
+// 「把事实摆出来」滑到「替用户下结论」。所以这条守卫守的是**词汇边界**，不是功能。
+//
+// 这条守卫分两半，而且**两半都必须真的对着存在的源码**：
+//   · 模型与宿主那一半（词表闭集、判断词不得出现、路由里不许有 409）随 Phase 2 落地；
+//   · 界面那一半（`查看差异`、三句来源状态、读不到来源那句完整的话、错误态 `role="alert"`）
+//     Phase 2 时还没写出来，当时刻意**留空**而不是写一条永远为真的假守卫（§8.10）。
+//     Phase 3 的组件落盘后，这一半在下面补齐。
+{
+  const diffModel = await readFile(resolve(root, 'src/core/skill-diff.mjs'), 'utf8')
+  const diffCode = diffModel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const hostCode = host.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+  // 词表是闭集，而且是导出的：界面拿它当权威，就不会自己造词。
+  for (const requiredText of ['DIFF_WORDS', 'DIFF_SOURCE_WORDS', 'DIFF_UNAVAILABLE_MESSAGE', 'DIFF_CHANGE_KINDS', 'DIFF_SHAPE_FIELDS']) {
+    if (!diffCode.includes(requiredText)) throw new Error(`差异模型缺少 ${requiredText}`)
+  }
+  for (const word of ['新增', '删除', '修改', '保持不变', '无法比较']) {
+    if (!diffCode.includes(`'${word}'`)) throw new Error(`差异层的词表里必须有「${word}」`)
+  }
+  if (!diffCode.includes("'来源内容已发生变化'")) {
+    throw new Error('来源动了必须说「来源内容已发生变化」—— 不是「过期」，那已经带判断了')
+  }
+  if (!diffCode.includes("'当前无法读取来源 Skill，无法完成差异比较。'")) {
+    throw new Error('读不到来源时必须逐字给出那句完整的话')
+  }
+
+  // 判断词一个都不许出现在模型里。这是"只说事实"的机械边界：写不出「更优秀」，
+  // 就不可能报出「更优秀」。
+  for (const forbidden of ['更优秀', '更完整', '更合理', '质量提升', '质量下降', '优化成功', '改进成功', '推荐保留', '建议删除', '建议采用', '最佳', '落后']) {
+    if (diffCode.includes(forbidden)) throw new Error(`差异模型里不得出现判断词「${forbidden}」`)
+  }
+
+  // 新路由必须真的被注册，且校验挂在同一条路上。
+  if (!hostCode.includes("'/skill-trace/diff'")) throw new Error('宿主里没有注册 /skill-trace/diff')
+  if (!hostCode.includes('buildSkillDiff(')) throw new Error('宿主必须调用 buildSkillDiff 而不是自己实现一套差异')
+  if (!hostCode.includes('DIFF_ERROR.NO_LINEAGE')) {
+    throw new Error('没有血缘就没有来源可比 —— 这条失败路径必须有名字')
+  }
+
+  // 来源变了不是错误：差异路由里不许有 409。复刻要拒绝，因为它会写下一个混合体；
+  // 差异什么都不写，来源动过恰好是它要说出来的那件事。
+  const diffHandlerAt = hostCode.indexOf('async function handleDiff(')
+  if (diffHandlerAt < 0) throw new Error('差异路由的处理函数不见了')
+  const diffHandler = hostCode.slice(diffHandlerAt, hostCode.indexOf('\n    }', diffHandlerAt))
+  if (/fail\(409|409,/.test(diffHandler)) {
+    throw new Error('差异比较不得用 409 回答「来源已变化」：那是复刻的规矩，差异是只读的')
+  }
+  if (!diffHandler.includes('sourceOriginalSha256')) {
+    throw new Error('差异必须把「复刻当初那一版」的指纹传下去，否则「来源内容已发生变化」无从判断')
+  }
+
+  // --- 界面那一半 --------------------------------------------------------------
+  // 词表再干净，界面自己拼一句「已优化」也照样是判断。所以这几条跑在**去掉英文字典之后**
+  // 的客户端源码上（§6.3 的第 1 条纪律）：一句只活在 `EN` 里的文案不算存在，界面上的才算。
+  for (const sentence of ['查看差异', "'来源内容已发生变化'", "'来源内容未发生变化'", "'无法读取来源'"]) {
+    if (!clientCode.includes(sentence)) throw new Error(`差异界面少了「${sentence}」`)
+  }
+  if (!clientCode.includes("'当前无法读取来源 Skill，无法完成差异比较。'")) {
+    throw new Error('读不到来源时界面必须逐字说出那句完整的话，而不是画一张空表')
+  }
+  // 两个错误态都要 `role="alert"`，而且要**各自**检查：只查一次的话，删掉其中一个
+  // 另一处还留着，断言照样为真（这条守卫第一次写出来就是这样空转的）。
+  for (const state of ['diff-unavailable', 'diff-error']) {
+    const roleAt = clientCode.indexOf(`'data-role': '${state}'`)
+    if (roleAt < 0) throw new Error(`差异面板缺少 ${state} 这一态`)
+    if (!clientCode.slice(Math.max(0, roleAt - 200), roleAt).includes("role: 'alert'")) {
+      throw new Error(`${state} 必须 role="alert"：「读不到来源」是要被辅助技术说出来的，不是画一行灰字`)
+    }
+  }
+  if (!clientCode.includes('/diff?sessionId=')) throw new Error('界面没有调用差异路由')
+  if (!clientCode.includes('if (!lineage) { setDiffState(')) {
+    throw new Error('没有血缘的 Skill 不该去问差异路由：它没有可比的对象，问了只会换回一句「没有来源」')
+  }
+  // 「读不到」与「没有」是两句话（§6.11）。宿主把插件读进内存之后不会自动换代码，所以
+  // 「客户端已是 v0.8、宿主还是 v0.7」是升级的正常路径（§6.2 / 附录 B），那时详情响应里
+  // **没有** `lineage` 这个键 —— 与「`lineage: null`（本插件确实没复刻过）」不是一件事。
+  if (!clientCode.includes("hasOwnProperty.call(detail, 'lineage')")) {
+    throw new Error('详情响应里没有 lineage 键必须与 `lineage: null` 分开说：前者是老宿主，后者才是没复刻过')
+  }
+  if (!clientCode.includes("'这次详情响应里没有血缘字段。宿主可能还没换到这一版的代码，重启 DSH 后再试。'")) {
+    throw new Error('老宿主必须说人话：界面得逐字告诉用户重启 DSH，而不是说这个 Skill 不是复刻来的')
+  }
+  // §6.11 的同一条规则的第四次出现：**「还没问」不是「读不到」**。
+  // 详情页要先读 `/skill` 拿到血缘、再拿 `lineageId` 去问 `/diff`，中间那一段
+  // `comparison.source` 根本不存在 —— 那时说的话不能是「无法读取来源」，因为没有人检查过。
+  // 这一格漏掉的话，**每一次**打开副本详情页都会先蹦出一句关于来源的假话再自己改口。
+  if (!clientCode.includes("if (diffPhase !== 'ready')")) {
+    throw new Error('「还没听到回音」必须与「读了但读不到」分开：前者是客户端的状态，后者是宿主的观测')
+  }
+  // 断言要落在**调用点**上，不能只落在函数名上：`evolutionSourceState(source, diffPhase)`
+  // 这个串在函数签名里就有一份，所以只查它的话，卡片绕过这个函数直接调 `diffSourceState`
+  // 照样为真 —— 而两者的区别正是「这一格有没有在用户面前生效」。这条守卫第一版就是这么
+  // 空转的（连同前面三条：§8.10 的「这条断言失败过吗？」要一条一条问）。
+  if (!clientCode.includes('const sourceState = evolutionSourceState(source, diffPhase)')) {
+    throw new Error('演进卡必须真的调 evolutionSourceState：函数写对了却没接上，等于没修')
+  }
+  if (!clientCode.includes("'正在读取来源…'")) {
+    throw new Error('来源还没问回来时必须说「正在读取来源…」，不许替宿主宣布「读不到」')
+  }
+  if (!clientCode.includes("'读取来源失败'")) {
+    throw new Error('请求失败要说是「读取失败」；说成「无法读取来源」听起来像宿主已经检查过了')
+  }
+  if (!clientCode.includes('diffPhase: diffState.phase')) {
+    throw new Error('演进卡必须拿到差异请求的相位：`source` 为 null 有「还没问」与「问到了但读不到」两种成因')
+  }
+
+  // 界面自己的词表也必须是**那五个事实词**的闭集。这里比的是键名不是文案：
+  // 文案可以改，词汇边界不能改。
+  const wordTable = /const DIFF_WORD_TEXT = Object\.freeze\(\{([\s\S]*?)\n  \}\)/.exec(clientCode)
+  if (!wordTable) throw new Error('界面必须有一张差异词表，而不是在渲染时现拼「新增」两个字')
+  const clientWords = [...wordTable[1].matchAll(/([A-Za-z]+): \[/g)].map((match) => match[1]).sort().join(',')
+  if (clientWords !== 'added,modified,removed,unavailable,unchanged') {
+    throw new Error(`界面词表必须正好是那五个事实词（现在是 ${clientWords}）`)
+  }
+
+  // 判断词在**差异界面这一片**里一个都不许有。整份客户端里早就有别的中文用词（框架说明里
+  // 就出现过「更合理」），所以这里量的是 v0.8 新加的那一段，不是整份源码。
+  // 切片从 `DIFF_TABS` 起 —— 那是这一版界面的第一行；从 `SkillEvolution` 起会漏掉定义在
+  // 它前面的词表与 `diffSourceState`，而那两处正是最该盯的地方。
+  // 注释和上面两处一样先去掉：说得出「不许写更合理」的注释本身不该算违规，
+  // 会被用户读到的是**字符串**。
+  const panelAt = clientCode.indexOf('const DIFF_TABS = Object.freeze(')
+  const panelEnd = clientCode.indexOf('\n  function SkillDetailPage(', panelAt)
+  if (panelAt < 0 || panelEnd < 0) throw new Error('找不到 v0.8 的差异界面组件')
+  const panelCode = clientCode.slice(panelAt, panelEnd)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+  if (!panelCode.includes('function SkillDiffPanel(')) throw new Error('差异面板与演进卡必须挨在一起，这条切片才有意义')
+  if (!panelCode.includes('function diffSourceState(')) throw new Error('三态的来源状态判定必须在这一片里，否则判断词可以藏在它前面')
+  for (const forbidden of ['更优秀', '更完整', '更合理', '质量提升', '质量下降', '优化成功', '改进成功', '推荐保留', '建议删除', '建议采用', '最佳', '落后', '来源版本过期', '版本落后', '最新版本', '旧版本']) {
+    if (panelCode.includes(forbidden)) throw new Error(`差异界面里不得出现判断词「${forbidden}」`)
+  }
+
+  console.log('SKILL_DIFF_NO_JUDGEMENT_OK')
 }
 
 // --- 有断言的 marker 才算数 --------------------------------------------------------

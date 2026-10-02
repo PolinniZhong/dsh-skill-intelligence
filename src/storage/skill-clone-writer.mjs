@@ -276,6 +276,57 @@ export async function readSkillSourceSha256({ skillFile }) {
 }
 
 /**
+ * 读一个 Skill 的 SKILL.md 正文（frontmatter 之后、已 trim）。差异比较要的是**现在**的字节，
+ * 不是 registry 里的投影。
+ *
+ * **取的是正文而不是整份文件**，口径与 registry 的 `SkillDefinition.content` 完全一致：
+ * 复刻会把副本 frontmatter 里的 `name:` 改成目标名，如果拿整份文件去比，每一次复刻都会
+ * 凭空多出一处「前言被修改」；而且正文的行号也要和详情页既有锚点对得上。
+ *
+ * 与 `readSkillSourceSha256` 分开，是因为指纹与正文是两件事：指纹用来判断"变没变"，
+ * 正文用来判断"哪儿变了"。前者算完就扔，后者要在内存里活到比较结束。
+ */
+export async function readSkillBody({ skillFile }) {
+  let text
+  try {
+    text = await readFile(skillFile, 'utf8')
+  } catch (error) {
+    return { ok: false, reason: error?.code === 'ENOENT' ? 'source-file-missing' : 'source-read-failed' }
+  }
+  const split = splitFrontmatter(text)
+  if (!split.ok) return { ok: false, reason: split.reason }
+  return { ok: true, body: split.body }
+}
+
+/**
+ * 列出 Skill 目录里的文件与各自的内容指纹（相对路径，POSIX 分隔）。
+ *
+ * 与复刻共用同一套遍历，但**不过 `CLONE_MAX_*` 的闸**：那是"能拷多少"的限额，而差异看的是
+ * 目录**现在**的样子。一个因为限额没被拷过来的文件，在目标侧本来就不存在 —— 这件事由资源层
+ * 的 `cloneMode` 解释（见 `src/core/skill-diff.mjs`），不在这里假装它被删了。
+ * 读不出内容的文件（权限、悬空链接）仍然列出来，指纹记 `null`，不假装它不存在。
+ */
+export async function listSkillFiles(directory) {
+  if (typeof directory !== 'string' || !directory) return []
+  const entries = await walkBundle(directory)
+  const files = []
+  for (const entry of entries) {
+    if (entry.type !== 'file') continue
+    try {
+      const bytes = await readFile(join(directory, entry.path))
+      files.push({
+        path: entry.path,
+        sha256: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
+        bytes: bytes.length,
+      })
+    } catch {
+      files.push({ path: entry.path, sha256: null, bytes: entry.size ?? 0 })
+    }
+  }
+  return files.sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
+}
+
+/**
  * 回读副本：SKILL.md 必须存在、frontmatter 里的名字必须是目标名。
  *
  * 这一步是 §十七 的核心 —— "点击成功"不等于成功，只有读回来对得上才算写完。
