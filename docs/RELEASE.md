@@ -130,10 +130,10 @@ gh release create v0.8.0 \
 
 `0.8.0` 这次**发布到了 npm**（`0.5.0` 与 `0.6.0` 只在 GitHub，`0.6.1` 起每一版都是 GitHub + npm）。
 
-> **发布凭证有两条硬约束，动手前先读 §5.1–§5.4。** `~/.npmrc` 里那个长期 token 是 npm 条款里的
-> **2FA-bypass GAT**：账户级操作**已经**被它失去（2026-10-02 实测 `npm profile get` → `E403`），
-> **直接 publish 也将在 2027 年 1 月左右失去**（条款目标时间）。迁移目标是 §5.2 的
-> **trusted publishing（OIDC）**。
+> **发布凭证有两条硬约束，动手前先读 §5.1–§5.4。** 2026-10-02 之前 `~/.npmrc` 里那张长期 token 是 npm
+> 条款里的 **2FA-bypass GAT**：账户级操作**已经**被它失去（实测 `npm profile get` → `E403`），
+> **直接 publish 也将在 2027 年 1 月左右失去**（条款目标时间）。**本机已按 §5.1 换成交互式 2FA 会话凭证**
+> （`npm profile get` → exit 0），迁移目标仍是 §5.2 的 **trusted publishing（OIDC）**。
 
 ### 5.1 现在怎么发（交互式 2FA，止血）
 
@@ -152,6 +152,31 @@ npm login --auth-type=web         # 浏览器授权，真正过 2FA；会覆盖 
 
 旧 token 备份在 `~/.npmrc.bak-*`（**不要**提交、不要贴进文档或对话）。
 条款限制的是「**绕过 2FA** 的凭证」，让 2FA 真正参与的交互式发布会话不受 2027 年 1 月那条影响。
+
+**2026-10-02 已在本机执行过一次**（记录证据，便于下次判断手里的是什么）：
+
+- `npm login --auth-type=web` 在后台跑到退出码 0，先把
+  `https://www.npmjs.com/login?next=/login/cli/<uuid>` 打印出来，浏览器授权后写回 `~/.npmrc`。
+- 换完实测：`npm whoami` → `polinni`；`npm profile get` → **exit 0**（`two-factor auth: auth-and-writes`
+  ⇒ 写操作会要 OTP）；`npm dist-tag ls dsh-skill-trace` → `beta: 0.8.0` / `latest: 0.8.0`。
+- 新凭证前缀 `npm_bjUA…`（**只记前缀**）；旧的那张备份在
+  `~/.npmrc.bak-before-2fa-login-20261002-2137`。**这个 web 会话凭证不出现在 `npm token list` 里**
+  ——那张表列的是网站上的 granular access token，别因为看不到就以为没换成功。
+
+**账户里现在有哪些 token**（2026-10-02 用注册表 API 实测，只列前缀、名称与 `bypass_2fa`）：
+
+| 前缀 | 名称 | `bypass_2fa` | 到期 |
+|---|---|---|---|
+| `npm_UJBD…` | `DSH_Skill_Trace` | **false** | 2026-12-28 |
+| `npm_DSFd…` | `ci-publish` | **true** | 2026-12-25 |
+| `npm_iFm2…` | `sh-session-workbench@1.0.0` | **true** | 2026-11-28 |
+| `npm_gXNZ…` | `dsh-publish` | **false** | 2026-11-28 |
+| `npm_vjm4…` | `dsh-personal-center` | false | 2026-09-05（**已过期**，且只对该包可写） |
+| `npm_2Ahf…` | `dsh-session-kb` | **true** | 2026-08-28（**已过期**） |
+
+三张 `bypass_2fa: true` 的正是条款要淘汰的那批（2027-01 之后连 publish 都做不了）：**别再新建**，
+可撤销或让它自然过期；`npm_UJBD…`（`DSH_Skill_Trace`，非 bypass，12-28 到期）是现成的包写权限 token，
+做 CI 备选时要配 `--otp`。
 
 之后的发布照旧，两条命令，顺序不能换：
 
