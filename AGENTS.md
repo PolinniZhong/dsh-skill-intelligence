@@ -5,9 +5,11 @@
 > · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md` · 历史规格 `docs/archive/`
 > **最后更新：2026-10-05**（知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步）
 >
-> **产品名：DSH Skill 智能实验室（DSH Skill Intelligence）。** npm 包名与插件标识仍是 `dsh-skill-trace`
-> （已发布，不改）；`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]` 与 storage 结构属于
-> 技术层 **Skill Trace**，同样不随品牌改名。
+> **命名分三层。** ① **产品品牌**：DSH Skill 智能实验室（英文 DSH Skill Intelligence）—— README 首屏、
+> 仓库描述、文档抬头用这一层；② **DSH 会话里的短显示名**：**Skill 洞察**（英文 **Skill Insight**）——
+> 侧边栏 / 工作栏标签（`conversation.view` slot 的 `label`）与面板 `aria-label` 这类高频入口用这一层；
+> ③ **技术层**：**Skill Trace** —— npm 包名 `dsh-skill-trace`（已发布，不改）、`/skill-trace/*` 路由、
+> 模块名、`[data-plugin="dsh-skill-trace"]` 与 storage 结构，都不随命名调整而改。
 
 ---
 
@@ -30,7 +32,7 @@
 | npm | **`beta` 与 `latest` 都指向 `0.7.1`**。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1` |
 | 测试 | **429 项全绿**（`npm test`，`pretest` 会先重建 `dist/client.js`） |
 | 静态守卫 | **23 组**（`npm run verify`，见 §6.3） |
-| 客户端 | `src/dsh/client/client.js` **2339 行**，bundle `dist/client.js` **129315 字节** |
+| 客户端 | `src/dsh/client/client.js` **2343 行**，bundle `dist/client.js` **129254 字节**（source hash `738c8eb8615e47ef`）；DSH 会话短显示名改为「Skill 洞察」的那次改动**未发版** |
 | 宿主机面 | **10 条路由**，全在 `src/dsh/host/index.js`，由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
 | 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节）。v0.7 **没有新增一级 / 二级页面** |

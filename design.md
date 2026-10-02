@@ -655,7 +655,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 
 ## 16. 当前实现与证据
 
-- 实现入口：`src/dsh/client/client.js`（客户端，2339 行）、`src/dsh/host/index.js`（宿主，10 条路由）；
+- 实现入口：`src/dsh/client/client.js`（客户端，2343 行）、`src/dsh/host/index.js`（宿主，10 条路由）；
 - 定义侧：`src/core/skill-definition.mjs`、`skill-flow.mjs`、`definition-outline.mjs`、`repository-resolver.mjs`、`markdown-table.mjs`、`step-kind.mjs`；
 - 运行时侧：`src/core/runtime-events.mjs`、`runtime-graph.mjs`、`runtime-evidence.mjs`、`runtime-fingerprint.mjs`、`skill-runtime-scope.mjs`、`source-snapshot.mjs`、`session-log.mjs`、`trace-reducer.mjs`；
 - 组合侧：`src/core/skill-view-model.mjs`、`runtime-alignment.mjs`、`flow-evidence.mjs`、`installed-view.mjs`、`skill-translation.mjs`、`translation-cache.mjs`；

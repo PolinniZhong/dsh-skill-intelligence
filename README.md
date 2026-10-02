@@ -8,7 +8,7 @@
 
 DSH Skill Intelligence 是面向 DeepSeek Harness 的 Agent Skill 研究与演进工具。
 
-它帮助用户：
+通过 **Skill 洞察**，用户可以：
 
 - 理解优秀 Skill 的设计结构
 - 分析 Skill 的运行逻辑
@@ -16,7 +16,7 @@ DSH Skill Intelligence 是面向 DeepSeek Harness 的 Agent Skill 研究与演�
 - 复刻已有 Skill
 - 持续沉淀个人与企业 AI 能力
 
-DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**DSH Skill 智能实验室**
+DeepSeek Harness 插件 · 本地优先 · MIT · DSH 会话里的显示名：**Skill 洞察**（品牌：**DSH Skill 智能实验室**）
 
 **它仍然只做一件事，只是名字换了：** Skill 是一级对象 —— 它声明了什么、这次会话到底加载过它、以及它的 `SKILL.md` 原文。底层能力是 **Skill Trace**（本地加载证据：`/skill-trace/*` 路由、npm 包名 `dsh-skill-trace`、存储结构都不改名），产品层是**理解 → 阅读 → 翻译 → 复刻 → 演进**。
 
@@ -33,6 +33,7 @@ DeepSeek Harness 插件 · 本地优先 · MIT · 中文界面名：**DSH Skill 
 | 项目 | 说明 |
 | --- | --- |
 | 产品名称 | **DSH Skill 智能实验室**（英文：DSH Skill Intelligence） |
+| 会话显示名 | **Skill 洞察**（英文：Skill Insight）—— DSH 侧边栏 / 工作栏 / 插件入口这类高频位置用的短名；产品品牌仍是 **DSH Skill 智能实验室** |
 | 插件名称（npm / 目录 / 路由） | `dsh-skill-trace` —— **保持不变**：npm 上已发布，改名会让所有安装命令与已锚定的 `github:` 源失效 |
 | 技术底座 | **Skill Trace** —— 本地加载证据；`/skill-trace/*` 路由、模块名与存储结构都属于内部技术层，不随品牌改名 |
 | 适配平台 | DeepSeek Harness `web` Profile / Desktop（当前运行基线：DSH Desktop `0.11.3` / runtime `0.1.5-rc.2`；此前基线验证于 Desktop `0.8.3` / runtime `0.1.1-rc.2`） |
@@ -138,7 +139,7 @@ dsh plugin --profile web add "github:PolinniZhong/dsh-skill-intelligence#v0.7.1&
 dsh plugin --profile web add dsh-skill-trace@0.7.1
 ```
 
-安装后重启 DeepSeek Harness Desktop，在会话中打开 **DSH Skill 智能实验室**。
+安装后重启 DeepSeek Harness Desktop，在会话中打开 **Skill 洞察**。
 
 > 当前功能已通过本地链接安装的 Desktop 验证。`dsh plugin add` 会把包名参数转交 pnpm 解析，所以 npm 包名与 `github:` 源两种写法都可用；如未来 DSH 更新导致源安装行为变化，可使用下方的克隆安装作为回退方式。
 
@@ -185,7 +186,9 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开版为 `0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）：GitHub Release（tag `v0.7.1`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。这一版**只改产品名、用户可见措辞与仓库元信息**——npm 包名仍是 `dsh-skill-trace`，路由、模块与存储结构一个都没动，功能行为不变。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0` 与 `0.7.1`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 2339 行，bundle 129315 字节，宿主路由 10 条。
+当前公开版为 `0.7.1`（品牌迁移：Skill Trace → DSH Skill Intelligence / DSH Skill 智能实验室）：GitHub Release（tag `v0.7.1`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。这一版**只改产品名、用户可见措辞与仓库元信息**——npm 包名仍是 `dsh-skill-trace`，路由、模块与存储结构一个都没动，功能行为不变。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0` 与 `0.7.1`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 2343 行，bundle 129254 字节，宿主路由 10 条。
+
+**仓库里还有一处尚未发布的命名调整：DSH 会话内的短显示名从「DSH Skill 智能实验室」改为「Skill 洞察」（英文 **Skill Insight**）。** 只影响侧边栏 / 工作栏标签与面板的无障碍名称——产品品牌、npm 包名、路由与存储结构都不变。发布前你在运行中的 DSH 里看到的仍是旧标签。
 
 **`0.7.0` 把产品从「观察 → 理解」推进到「观察 → 理解 → 阅读 → 复刻 → 让当前 Agent 继续用」，三个能力都落在已有页面里，没有新增一级或二级页面。** 一是**已安装 Skill 的卡片整张可点**：它此前是个纯展示的 `article`，只能看不能进，现在点一下就进**同一个** `SkillDetailPage`，返回键照旧写明是从哪个列表来的；卡片里**没有**再加一个「查看详情」按钮——两个入口指向同一个动作，其中一个必然多余，渲染烟测直接断言这个页面的按钮数恰好等于卡片数。二是**中文阅读版从「临时」变成「资产」**：译文落到 `<dataRoot>/translations/`，按「Skill 名 + 正文指纹 + 语言」索引、**不含会话 ID**（它是资产，不是某次会话的产物），退出 DSH 再打开、正文没变就直接用，正文一变就退回原文并允许重译。保存态是真的写成功才说——宿主在 `/translate` 的响应里回一个 `saved` 布尔，没写成界面就直说「中文阅读版没有保存到本机，下次打开需要重新翻译。」三是**复刻 Skill**：详情页左栏对象区里唯一的对象级动作，弹一个 560px 的紧凑对话框（名字、当前项目还是我的 Skill、复刻整包还是只要 `SKILL.md`）。它只读源、只写新目录，`mkdir` 不带 `recursive`，所以**同名不覆盖**是文件系统的性质而不是一段记得住的判断；`sourceSha256` 随请求提交、宿主重新读源再校验，对不上就 409 让用户重开详情页；副本的 frontmatter `name:` 会被改写成目标名（DSH 认 frontmatter 不认目录名）；写完之后**必须回读**再报成功，并且重新读一遍源比对哈希、如实说源有没有被动过。它**不执行** Skill 里的 `scripts/`、不跑 bash、不触发 Agent，也**不返回任何本地绝对路径**。目录刷新是**观察**出来的——插件拿不到 provider 的 `invalidate`，观察不到就写「待确认」并说明重启后一定可见。
 
@@ -293,6 +296,9 @@ dsh plugin --profile web remove dsh-skill-trace
   `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构一个字没动，
   客户端 2332 → 2339 行，bundle 129280 → 129315 字节，测试 429 与守卫 23 都不变；**GitHub Release 与
   npm 同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.7.1`
+- **Unreleased**：**短显示名**——DSH 会话里的显示名从长品牌名改为 **Skill 洞察**（英文 **Skill Insight**），
+  面板 `aria-label` 同步；产品品牌 DSH Skill 智能实验室、npm 包名 `dsh-skill-trace`、路由与存储结构一个没动，
+  客户端 2339 → 2343 行，bundle 129315 → 129254 字节，测试 429 与守卫 23 都不变
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 

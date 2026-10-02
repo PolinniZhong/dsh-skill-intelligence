@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — 短显示名：Skill 洞察（Skill Insight）
+
+**这是一次命名体系调整，不是功能改动。** 产品品牌仍是 **DSH Skill 智能实验室 / DSH Skill
+Intelligence**，技术层 **Skill Trace** 与 npm 包名 `dsh-skill-trace` 一个字没动。变的只有 DSH 会话里那个
+高频入口的短名：工作栏标签（`conversation.view` slot 的 `label`）从长品牌名改为 **Skill
+洞察 / Skill Insight**，面板的 `aria-label` 同步；README 首屏与命名分层表把三层名字写清楚。
+
+### Changed
+
+- Shortened the DSH session display name to Skill 洞察 / Skill Insight; the product brand stays DSH Skill 智能实验室 / DSH Skill Intelligence.
+- Panel accessibility names and the README naming table now use the same three layers: brand, session display name, technical module names.
+
+| 层 | 名称 | 说明 |
+|---|---|---|
+| 产品品牌 | **DSH Skill 智能实验室** / **DSH Skill Intelligence** | README 首屏、仓库描述、文档抬头 |
+| DSH 会话短显示名 | **Skill 洞察** / **Skill Insight** | 侧边栏 / 工作栏标签 / 面板 `aria-label` |
+| npm 包名 | `dsh-skill-trace` | **不改**：已发布，改名会让安装命令与 `github:` 锚点失效 |
+| 技术层 | **Skill Trace** | **保留**：`/skill-trace/*` 路由、命名空间、`[data-plugin]` 与 storage 结构 |
+
 ## 0.7.1 — 2026-10-02 · 品牌迁移：Skill Trace → DSH Skill Intelligence（DSH Skill 智能实验室）
 
 **这是一次品牌迁移，不是功能重写。** 核心功能逻辑一个字没改：Skill Runtime 分析、Framework Parser、

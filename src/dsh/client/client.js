@@ -1,9 +1,11 @@
 // DSH Skill Intelligence（中文名：DSH Skill 智能实验室）— conversation view client.
 //
-// 命名分层（2026-10-02 品牌迁移）：**产品名**是 DSH Skill 智能实验室 / DSH Skill
-// Intelligence；**npm 包名**仍是 `dsh-skill-trace`（已发布，不能改）；**技术概念**
-// Skill Trace（本地加载证据）保留 —— 路由 `/skill-trace/*`、命名空间
-// `dsh-skill-trace`、`[data-plugin="dsh-skill-trace"]`、storage 结构都不随品牌改名。
+// 命名分层（2026-10-02 品牌迁移；2026-10-05 短显示名）：**产品品牌**是 DSH Skill 智能实验室 /
+// DSH Skill Intelligence —— README 首屏、仓库描述、文档抬头用这一层；**DSH 会话里的短显示名**
+// 是 Skill 洞察 / Skill Insight —— 侧边栏、工作栏标签这类高频入口用这一层（见文件末尾
+// `conversation.view` 的 slot label）；**npm 包名**仍是 `dsh-skill-trace`（已发布，不能改）；
+// **技术概念** Skill Trace（本地加载证据）保留 —— 路由 `/skill-trace/*`、命名空间
+// `dsh-skill-trace`、`[data-plugin="dsh-skill-trace"]`、storage 结构都不随命名调整而改。
 //
 // This file is the *implementation*: a plain CommonJS module. It is bundled by
 // `scripts/build-client.mjs` into `dist/client.js`, which wraps it in the
@@ -45,7 +47,7 @@ const { RUNTIME_LOGIC_NOTE } = require('../../core/skill-runtime-logic.mjs')
   const EN = {
     '当前会话': 'Current session',
     '本次 Skill 使用记录': 'Skill usage this session',
-    'DSH Skill 智能实验室': 'DSH Skill Intelligence', '刷新': 'Refresh',
+    'Skill 洞察': 'Skill Insight', '刷新': 'Refresh',
     '工作区未连接': 'No workspace connected', '正在读取当前会话…': 'Reading current session…',
     '当前目录无法确认': 'Current catalog cannot be confirmed', '目录可能不完整': 'Catalog may be incomplete',
     '返回 Skill 列表': 'Back to Skill list', 'Skill 列表': 'Skill list',
@@ -2273,7 +2275,7 @@ function installStyles() {
       // custom properties, so an absent measurement simply falls back in CSS.
       ...(hostComposerHeight ? { '--st-host-composer-h': `${hostComposerHeight}px` } : null),
       ...(hostHeight ? { '--st-host-h': `${hostHeight}px` } : null),
-    }, 'aria-label': view === 'installed' ? 'DSH Skill 智能实验室 已安装 Skill' : 'DSH Skill 智能实验室 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
+    }, 'aria-label': view === 'installed' ? 'Skill 洞察 已安装 Skill' : 'Skill 洞察 本次 Skill 使用记录' }, h('div', { className: 'st-shell' },
       h('header', { className: 'st-topbar' },
         // §7：一级导航**只有两个**，而且是顶栏里最左的东西 —— 顶栏的读法固定成
         // 「导航 → 这一页的状态 →（右侧）搜索 → 刷新」。运行流程 / 运行图谱 / Skill 收据在
@@ -2315,9 +2317,11 @@ function installStyles() {
     translate = ctx.locale.bind(NS)
     ctx.effect(() => ctx.locale.register(NS, { zh: ZH, en: EN }), 'dsh-skill-trace: locale dictionaries')
     ctx.effect(() => installStyles(), 'dsh-skill-trace: stylesheet')
-    // 工作栏标签就是**插件显示名**：品牌迁移后这里读 DSH Skill 智能实验室 / DSH Skill
-    // Intelligence。`id: 'skill-trace'` 与 `locale: NS` 是技术标识，不随品牌改名。
-    ctx.slots.inject('conversation.view', () => ctx.slots.register({ name: 'conversation.view', id: 'skill-trace', order: 70, label: () => t('DSH Skill 智能实验室'), locale: NS }, (props) => h(Workbench, props)))
+    // 工作栏标签就是**插件显示名**，也是本项目唯一的「DSH 会话内短显示名」：命名调整后这里读
+    // **Skill 洞察 / Skill Insight**（产品品牌 DSH Skill 智能实验室 / DSH Skill Intelligence
+    // 是文档层与包描述层的事，不进这个高频入口）。`id: 'skill-trace'` 与 `locale: NS` 是技术
+    // 标识，不随命名调整而改。
+    ctx.slots.inject('conversation.view', () => ctx.slots.register({ name: 'conversation.view', id: 'skill-trace', order: 70, label: () => t('Skill 洞察'), locale: NS }, (props) => h(Workbench, props)))
   }
 
   // Test seam. The shell reads only `inject` and `apply`; exposing the views lets the
