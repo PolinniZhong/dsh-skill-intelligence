@@ -309,6 +309,17 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
+### 6.0 本次 `v0.9.2` 的实际结果（2026-10-03）
+
+| 项 | 结果 |
+|---|---|
+| 本地门槛 | **561 项测试全绿**；**28 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **170324 字节**（source hash `66dd0b76118e7b85`），重建后 `git status` 无 `dist` 差异 |
+| 发布提交 / tag | `1811d98 release: v0.9.2 — Skill 验收 / Skill Modify / 已安装列表排序`（`package.json` `0.9.2`，2026-10-03 10:26:02 +0800，33 个文件 / +7308 −255）= `origin/main`；tag `v0.9.2` → 注释对象 `b5f1e0c414e2e5d6020689b54745ef6ee517d3c3`，解引用到 `1811d986979423d4b03324293851314ad5665d11`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.9.2>（2026-10-03 02:26:24 UTC，`Latest`、非 prerelease、非 draft），正文取 `CHANGELOG.md` 的 `## 0.9.2` 段（72 行） |
+| npm | **`beta` 与 `latest` 都指向 `0.9.2`**（`npm publish` 与 `npm dist-tag add` 都立即返回成功，注册表读侧约 2 分钟内可见）：发布提交**先推**，`gitHead` 就是 `1811d986979423d4b03324293851314ad5665d11`；包名仍是 `dsh-skill-trace`；**44 个文件 / 包体 463.1 kB / 解包 1474857 字节 / shasum `db47bdb987fc2cfb2eaa9c2e8dc4aeb6c6009c02`** |
+| 净室安装 | 空目录 `npm i dsh-skill-trace@0.9.2` 通过：版本 `0.9.2`、`dependencies` 为空、`dist/client.js` **170324 字节**、`src/core/` **29 个 `.mjs`**（含新增的 `skill-profiles.mjs` / `skill-validation.mjs` / `skill-modification.mjs`）、`src/storage/modification-snapshot-store.mjs` 在、宿主入口可 `import`（导出 `apply` / `createSessionMutationQueue` / `name` …） |
+| 推送 / 凭证 | 2026-10-03 探针：四个地址（`20.27.177.113` / `140.82.113.4` / `140.82.121.4` / `140.82.112.3`）此刻全回 `200`；用 `20.27.177.113` 推送成功（`fc12276..1811d98 main -> main`，tag 为新推）。**凭证踩坑**：`~/.npmrc` 里 2026-10-02 换上的 web-login token 已失效（`https://registry.npmjs.org/-/whoami` 回 **401**），本次改用备份里的旧 GAT（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` 200 / 账户级 `/-/npm/v1/user` 403）发布 —— 它到 2027-01 前仍能直接 publish；使用时写进 `/tmp/npmrc-dsh-publish`（`600`，不进仓库），`~/.npmrc` 保持原样。**下一版发布前先跑一次 `npm whoami`，401 就重新 `npm login --auth-type=web`**（§5.1） |
+
 ### 6.0.1 本次 `v0.8.0` 的实际结果（2026-10-02）
 
 | 项 | 结果 |

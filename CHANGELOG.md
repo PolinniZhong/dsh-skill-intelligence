@@ -68,8 +68,13 @@
   全 OK · 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节**
   （source hash `66dd0b76118e7b85`）· 宿主 `src/dsh/host/index.js` **1625 行 / 12 条路由** ·
   `src/core/` 29 个模块 10353 行 · `src/storage/` 6 个模块 1117 行 · `dependencies` 仍为空。
-- **实际发布结果**（2026-10-03）：见 `docs/RELEASE.md` §6.0 —— 发布提交 / tag、GitHub Release、
-  npm 的 `gitHead` 与 shasum、净室安装、推送区间都在那张表里。
+- **实际发布结果**（2026-10-03）：发布提交 `1811d98`（33 个文件 / +7308 −255）与注释 tag `v0.9.2`
+  （对象 `b5f1e0c`）都已推送；GitHub Release 是 `Latest`（非 prerelease、非 draft，正文 72 行，
+  <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.9.2>）；npm 上 **`beta` 与
+  `latest` 都指向 `0.9.2`**，注册表里的 `gitHead` 就是 `1811d98`（**先推成功再 publish**），
+  **44 个文件 / 包体 463.1 kB / 解包 1474857 字节**、shasum
+  `db47bdb987fc2cfb2eaa9c2e8dc4aeb6c6009c02`；空目录净室 `npm i dsh-skill-trace@0.9.2` 已验证
+  （0 依赖、`dist/client.js` 170324 字节、29 个 core 模块）。完整表格见 `docs/RELEASE.md` §6.0。
 
 ## 0.8.0 — 2026-10-02 · Skill 演进：复刻出来的东西，现在能倒着看回去
 
