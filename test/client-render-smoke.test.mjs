@@ -2105,3 +2105,121 @@ test('the modification card says "not comparable" instead of an empty result tha
     assert.ok(!text.includes(code), '理由码不许以代码形式出现在界面上')
   }
 })
+
+// v0.10.0 §5.12：实例验收那一段只做一件事 —— 把这次修改变成一段能拿去真跑的任务。
+// 这一屏有两处「少说一句就出事」的地方，所以两处都断言：生成的 Prompt 里**必须**没有观察项
+// （有的话等于我们在 Prompt 里重新教 Agent 该怎么做，测试被自己污染），以及拿不到东西时
+// 界面说出来、而不是给一段看起来哪儿都能用的通用任务。
+test('the instance-test block hands over a task, never a verdict, and never merges the observation list into it', async () => {
+  const client = mountChineseClient()
+  const core = await import('../src/core/skill-instance-test.mjs')
+  const comparison = {
+    available: true,
+    status: 'changed',
+    scopeIds: ['skill-md-workflow'],
+    scopes: [{ id: 'skill-md-workflow', label: '运行逻辑', target: 'workflow', section: '## 运行逻辑', state: 'changed', changed: true }],
+    sections: { added: [], removed: [], truncated: false },
+    resources: { available: true, added: [], removed: [], modified: [] },
+    outOfScope: [],
+    identity: { state: 'unchanged' },
+    source: { state: 'unchanged', message: '来源 Skill 没有发生变化。' },
+    summary: { scopesChanged: 1, scopesUnchanged: 0, scopesUnknown: 0, outOfScopeCount: 0, addedLines: 2, removedLines: 1 },
+    contentChanged: true,
+    limitations: [],
+    notes: [],
+    lines: { added: 2, removed: 1, exact: true },
+  }
+  const definitionText = ['# demo-skill', '', '## 运行逻辑', '', '1. 先读资料再动手。', '', '## 输出', '', '一份会议纪要。'].join('\n')
+  const ready = core.buildSkillInstanceTest({
+    skillName: 'demo-skill',
+    comparison,
+    definitionText,
+    description: '当用户需要整理会议纪要时使用。',
+    validation: null,
+  })
+  assert.equal(ready.available, true)
+
+  const card = collect(client.__views.SkillModificationPanel({
+    modification: { phase: 'ready', released: false, comparison },
+    instanceTest: { phase: 'ready', test: ready },
+    onCompare() {},
+    onGenerateInstanceTest() {},
+    onOpenModify() {},
+  }))
+
+  const promptNode = card.find((node) => node.props['data-role'] === 'mod-instance-prompt')
+  assert.ok(promptNode, '生成好了就要把 Prompt 摆出来 —— 用户要复制的是它')
+  const promptText = ownText(promptNode)
+  assert.ok(promptText.includes('【任务】') && promptText.includes('【注意】'))
+
+  // 规格 §19 的卡面结构与 §21 那条最核心的验收标准（Prompt 与这次修改的对应关系要看得见）：
+  // 两块抬头 + 一行「这个任务用了哪些输入」，都在这一屏里。
+  const wholeText = textOf(card)
+  assert.ok(wholeText.includes('验证目标'), '实例验收卡要有「验证目标」抬头（规格 §19）')
+  assert.ok(wholeText.includes('测试 Prompt'), 'Prompt 那块要写明它是「测试 Prompt」')
+  const traces = card.filter((node) => node.props['data-role'] === 'mod-instance-trace')
+  assert.ok(traces.length > 0, '要说清这个任务用了哪些输入 —— 那条最核心的验收标准靠它')
+  const traceText = traces.map((node) => ownText(node)).join(' ')
+  assert.ok(traceText.includes('这个任务用了这些输入'), `来源行要摆出输入清单，实际「${traceText}」`)
+  assert.ok(traceText.includes('任务形状由主范围决定'), '要说明任务形状是从哪个范围来的')
+  assert.ok(!wholeText.includes('你这次的意图点名了它'), '没拿到意图时不许说意图点名了它')
+  for (const line of ready.trace.sources) {
+    assert.ok(!traceText.includes(line), `trace 里递的是人话标签，不该出现内部 id「${line}」`)
+  }
+
+  for (const entry of ready.observations) {
+    assert.ok(!promptText.includes(entry.text), `观察项「${entry.text}」不许进 Prompt`)
+  }
+  const observations = card.filter((node) => node.props['data-role'] === 'mod-instance-observation')
+  assert.equal(observations.length, ready.observations.length, '观察项要一条不少地摆给用户看')
+  for (const node of observations) assert.ok(ownText(node).endsWith('？'))
+
+  const whole = textOf(card)
+  for (const forbidden of ['成功率', '通过率', '评分', '得分', '优秀', '合格', '成功', '失败', '有效', '无效']) {
+    assert.ok(!whole.includes(forbidden), `实例验收这一屏不许出现结论性词汇「${forbidden}」`)
+  }
+
+  // 还没点：只给一个入口；生成不了：说清楚为什么，且一个 Prompt 都不画。
+  const idle = collect(client.__views.SkillModificationPanel({
+    modification: { phase: 'ready', released: false, comparison },
+    instanceTest: { phase: 'idle' },
+    onCompare() {},
+    onGenerateInstanceTest() {},
+    onOpenModify() {},
+  }))
+  assert.ok(idle.some((node) => node.props['data-role'] === 'mod-instance-generate'))
+  assert.equal(idle.filter((node) => node.props['data-role'] === 'mod-instance-prompt').length, 0)
+
+  let generated = 0
+  const clickable = collect(client.__views.SkillModificationPanel({
+    modification: { phase: 'ready', released: false, comparison },
+    instanceTest: { phase: 'idle' },
+    onCompare() {},
+    onGenerateInstanceTest: () => { generated += 1 },
+    onOpenModify() {},
+  }))
+  clickable.find((node) => node.props['data-role'] === 'mod-instance-generate').props.onClick()
+  assert.equal(generated, 1, '「生成实例验收」必须真的去生成')
+
+  const unavailable = collect(client.__views.SkillModificationPanel({
+    modification: { phase: 'ready', released: false, comparison },
+    instanceTest: { phase: 'unavailable', message: '这次改动没有落在可以生成实例验收的范围里，因此没有可生成的任务。' },
+    onCompare() {},
+    onGenerateInstanceTest() {},
+    onOpenModify() {},
+  }))
+  const alert = unavailable.find((node) => node.props['data-role'] === 'mod-instance-unavailable')
+  assert.ok(alert, '生成不了就要说出来，而不是退回一个什么都能用的通用任务')
+  assert.equal(alert.props.role, 'alert')
+  assert.equal(unavailable.filter((node) => node.props['data-role'] === 'mod-instance-prompt').length, 0)
+
+  // 只有真的存在「本次修改」时这一段才出现（规格 §十三）。
+  const idleModification = collect(client.__views.SkillModificationPanel({
+    modification: { phase: 'idle' },
+    instanceTest: { phase: 'idle' },
+    onCompare() {},
+    onGenerateInstanceTest() {},
+    onOpenModify() {},
+  }))
+  assert.equal(idleModification.length, 0, '没有修改事务时，连实例验收这一段都不该出现')
+})

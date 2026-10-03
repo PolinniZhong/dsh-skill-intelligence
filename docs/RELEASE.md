@@ -274,6 +274,10 @@ gh run watch "$RID" && gh run view "$RID" --log > /tmp/oidc-probe.log
 上面那种 404 只在 `--loglevel=verbose` 下才打得出来；要复现就在临时分支上把 publish 那步改成
 `npm publish --tag latest --loglevel=verbose`，run 完把分支删掉（2026-10-02 就是这么查的）。
 
+**探针 run 一定以红色收场，那是预期，不是 CI 失败**：它本来就不该真的发布。看它时只看两件事——
+publish 那一步的报错属于上表哪一类，以及它前面的 checkout / `npm ci` / 闸门是不是全绿。
+2026-10-03 的三条红 run（`37089810443` / `37091112501` / `37091307449`）都属于这一类，逐条说明见 §6.0 的 CI 行。
+
 **2026-10-02 的实测结果：`POST …/oidc/token/exchange/package/dsh-skill-trace` 回 `404` +
 `OIDC token exchange error - package not found`，随后 `npm error code ENEEDAUTH`** —— 也就是说，
 那天 npm 侧**一条配置都没有**，`/access` 页面上的表单没有保存成功。
@@ -325,6 +329,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | npm | **`beta` 与 `latest` 都指向 `0.9.2`**（`npm publish` 与 `npm dist-tag add` 都立即返回成功，注册表读侧约 2 分钟内可见）：发布提交**先推**，`gitHead` 就是 `1811d986979423d4b03324293851314ad5665d11`；包名仍是 `dsh-skill-trace`；**44 个文件 / 包体 463.1 kB / 解包 1474857 字节 / shasum `db47bdb987fc2cfb2eaa9c2e8dc4aeb6c6009c02`** |
 | 净室安装 | 空目录 `npm i dsh-skill-trace@0.9.2` 通过：版本 `0.9.2`、`dependencies` 为空、`dist/client.js` **170324 字节**、`src/core/` **29 个 `.mjs`**（含新增的 `skill-profiles.mjs` / `skill-validation.mjs` / `skill-modification.mjs`）、`src/storage/modification-snapshot-store.mjs` 在、宿主入口可 `import`（导出 `apply` / `createSessionMutationQueue` / `name` …） |
 | 推送 / 凭证 | 2026-10-03 探针：四个地址（`20.27.177.113` / `140.82.113.4` / `140.82.121.4` / `140.82.112.3`）此刻全回 `200`；用 `20.27.177.113` 推送成功（`fc12276..1811d98 main -> main`，tag 为新推）。**凭证踩坑**：`~/.npmrc` 里 2026-10-02 换上的 web-login token 已失效（`https://registry.npmjs.org/-/whoami` 回 **401**），本次改用备份里的旧 GAT（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` 200 / 账户级 `/-/npm/v1/user` 403）发布 —— 它到 2027-01 前仍能直接 publish；使用时写进 `/tmp/npmrc-dsh-publish`（`600`，不进仓库），`~/.npmrc` 保持原样。**下一版发布前先跑一次 `npm whoami`，401 就重新 `npm login --auth-type=web`**（§5.1） |
+| CI（`.github/workflows/publish-npm.yml`） | **那天的三条红色 run 都不是「CI 验证失败」，红的只有 `发布（latest）` 这一步**：① `37089810443`（`push` tag `v0.9.2`，02:26:18 UTC，sha `1811d98`）→ `npm error code ENEEDAUTH`，因为那时 npm 侧还没配 trusted publisher —— 真正的发布是随后按上一条用本地凭证做的；② `37091112501`（手动探针 10:49）→ 同样 `ENEEDAUTH`；③ `37091307449`（手动探针 10:52，npm 侧配好之后）→ `cannot publish over the previously published versions: 0.9.2`，**这是成功信号**（OIDC 兑换成功，红只因版本已存在）。三条里的 checkout / setup-node / `npm install -g npm@^11.5.1` / 版本号比对 / `npm ci` / 闸门（`node --check` + `npm test` + `npm run verify`）**全部是绿的**。下一版推 tag 时这条 workflow 会一路走完（publish + `beta`）。 |
 
 ### 6.0.1 本次 `v0.8.0` 的实际结果（2026-10-02）
 

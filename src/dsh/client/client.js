@@ -41,6 +41,14 @@ const {
   DISCLOSURE_NOTE, FRAMEWORK_NOTE, FRAMEWORK_ROLE_LABELS, FRAMEWORK_ROLE_HINTS, FRAMEWORK_UNCLASSIFIED_LABEL,
 } = require('../../core/skill-framework.mjs')
 const { RUNTIME_LOGIC_NOTE } = require('../../core/skill-runtime-logic.mjs')
+// 实例验收（V0.10.0）：把「这次修改」变成一段能拿去真跑的真实任务。它零依赖、不读时间、
+// 不掷骰子 —— 同一份输入永远得到同一份 Prompt，规格里「必须能证明生成出来的 Prompt 真的是
+// 针对这次修改的」那条终验判据，只有在这种形态下才是可断言、可复核的。
+const {
+  INSTANCE_TEST_GOAL_TEXT, INSTANCE_TEST_GOAL_TITLE, INSTANCE_TEST_HEADLINE, INSTANCE_TEST_LIMITATION_NOTE,
+  INSTANCE_TEST_OBSERVATION_NOTE, INSTANCE_TEST_OBSERVATION_TITLE, INSTANCE_TEST_PROMPT_TITLE,
+  INSTANCE_TEST_SCOPE_FOCUS, INSTANCE_TEST_UNAVAILABLE_MESSAGES, buildSkillInstanceTest,
+} = require('../../core/skill-instance-test.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -638,6 +646,17 @@ function installStyles() {
       .st-mod-limits summary{cursor:pointer;color:var(--st-text-secondary)}
       .st-mod-limits ul{margin:6px 0 0;padding-left:16px;line-height:1.55}
       .st-mod-actions{display:flex;flex-wrap:wrap;gap:8px}
+      .st-mod-instance{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--st-border-soft)}
+      .st-mod-instance h4{margin:0;font-size:12px;font-weight:600}
+      .st-mod-instance h5{margin:0;font-size:11.5px;font-weight:600;color:var(--st-text-secondary)}
+      .st-mod-instance-hint{margin:0;color:var(--st-text-secondary);font-size:11.5px;line-height:1.55}
+      .st-mod-instance-body{display:flex;flex-direction:column;gap:8px}
+      .st-mod-instance-scope{margin:0;color:var(--st-muted);font-size:11px;line-height:1.5}
+      .st-mod-instance-prompt{margin:0;max-height:240px;overflow:auto;padding:10px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+      .st-mod-instance-actions{display:flex;flex-wrap:wrap;gap:8px}
+      .st-mod-instance-note{margin:0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-mod-instance-goal,.st-mod-instance-prompt-block,.st-mod-instance-observations,.st-mod-instance-regression{display:flex;flex-direction:column;gap:4px}
+      .st-mod-instance-observations ul,.st-mod-instance-regression ul{margin:0;padding-left:16px;color:var(--st-text-secondary);font-size:11.5px;line-height:1.55}
       .st-mod-cancel,.st-mod-submit{padding:6px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;cursor:pointer}
       .st-mod-submit{border-color:var(--st-border-strong);background:var(--st-accent-soft);font-weight:600}
       .st-mod-cancel:hover,.st-mod-submit:hover{border-color:var(--st-border-strong)}
@@ -1987,6 +2006,26 @@ function installStyles() {
     return entry ? localized(entry[1], entry[2]) : String(id ?? '')
   }
 
+  /**
+   * 实例验收的六个输入 → 界面上那句人话（规格 §18.1 的逐项）。
+   *
+   * 它存在的理由是那条最核心的验收标准：**生成的 Prompt 与这次修改之间的对应关系要能被看见**。
+   * 所以这一段说的是「这个任务用了哪几样输入」，而不是「这个任务好不好」。
+   */
+  const INSTANCE_SOURCE_TEXT = {
+    intent: ['用户修改意图', 'what you asked for'],
+    scopeIds: ['修改范围', 'the declared scopes'],
+    comparison: ['修改前后对比', 'the before/after comparison'],
+    description: ['Skill 描述', 'the Skill description'],
+    framework: ['框架结构', 'the parsed framework'],
+    validation: ['静态验收结论', 'the static validation'],
+  }
+  const instanceSourceText = (id, language) => {
+    const entry = INSTANCE_SOURCE_TEXT[id]
+    if (!entry) return String(id ?? '')
+    return language === 'en' ? entry[1] : entry[0]
+  }
+
   /** 这一次「改前 → 改后」的三态说法。与验收一样：没有分数、没有「优秀」。 */
   const modifyDiffText = (status) => {
     if (status === 'changed') return localized('有变化', 'Changed')
@@ -2063,7 +2102,7 @@ function installStyles() {
           profiles: ['common', ...profiles],
         }),
       })
-        .then((body) => { onDispatched(body) })
+        .then((body) => { onDispatched(body, intent) })
         .catch((reason) => { setState({ phase: 'error', error: String(reason?.message || 'unavailable') }) })
     }
 
@@ -2150,7 +2189,9 @@ function installStyles() {
    * 对比完就释放 —— 所以这一屏没有「历史版本」、没有时间线、也没有版本选择器。
    * 拿不到「改前」时它说「无法比较」，绝不显示一份看起来像「没有变化」的空结果。
    */
-  function SkillModificationPanel({ modification, onCompare, onOpenModify }) {
+  function SkillModificationPanel({ modification, instanceTest, onCompare, onGenerateInstanceTest, onOpenModify }) {
+    // hook 必须落在下面那句 idle 早退之前：早退之后再挂 hook，React 的调用顺序就会错位。
+    const [instancePromptCopied, setInstancePromptCopied] = React.useState(false)
     const phase = modification?.phase ?? 'idle'
     if (phase === 'idle') return null
     const head = h('div', { className: 'st-mod-top' },
@@ -2221,6 +2262,111 @@ function installStyles() {
         ...paths.map((path) => h('code', { key: path }, raw(path))))
       : null)
 
+    // ── 实例验收（V0.10.0，`FR-INST-*`） ────────────────────────────────
+    // 它只做一件事：把这次修改变成一段可以拿去真跑的真实任务。**不运行、不判定、不打分** ——
+    // 规格里「没有观察到证据，不代表没有执行」那句话，就是这一屏不许多说一个字的原因。
+    // 生成的 Prompt 与看结果的观察项是**两样东西**：观察项一个字都不进 Prompt（否则等于在
+    // Prompt 里重新教 Agent 该做什么，测试就被我们自己污染了）。
+    const instancePhase = instanceTest?.phase ?? 'idle'
+    const instance = instanceTest?.test ?? null
+    const language = isEnglish() ? 'en' : 'zh'
+    const changedScopeLabels = scopes.filter((scope) => scope.changed).map((scope) => modifyScopeText(scope.id))
+    // 「这个任务是怎么来的」：把六样输入与主范围摆在明面上 —— 规格 §21 那条最核心的验收标准
+    // （Prompt 与这次修改之间的对应关系可追溯）靠的就是这一段，而不是靠一句「已针对本次修改」。
+    const traceLines = []
+    if (Array.isArray(instance?.trace?.sources) && instance.trace.sources.length > 0) {
+      traceLines.push(localized(
+        `这个任务用了这些输入：${instance.trace.sources.map((id) => instanceSourceText(id, language)).join(' · ')}。`,
+        `Built from: ${instance.trace.sources.map((id) => instanceSourceText(id, 'en')).join(' · ')}.`,
+      ))
+    }
+    if (instance?.primaryScopeId && INSTANCE_TEST_SCOPE_FOCUS[instance.primaryScopeId]) {
+      traceLines.push(localized(
+        `任务形状由主范围决定：${modifyScopeText(instance.primaryScopeId)}${instance.trace?.hintedScopeId ? '（你这次的意图点名了它）' : ''}。`,
+        `The task shape follows the primary scope: ${modifyScopeText(instance.primaryScopeId)}.`,
+      ))
+    }
+    const copyInstancePrompt = () => {
+      const text = instance?.prompt?.text
+      if (!text) return
+      const done = () => { setInstancePromptCopied(true); setTimeout(() => setInstancePromptCopied(false), 1600) }
+      // 只复制文本：绝不往输入框注入命令、绝不发消息、绝不触发 Agent（§十九）。
+      // 实例验收把这条纪律推到最前面：V0.10.0 的第一条边界就是「不自动运行」。
+      if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(() => {})
+    }
+    const instanceBlock = h('div', { className: 'st-mod-instance', 'data-role': 'mod-instance' },
+      h('h4', null, raw(localized('实例验收', 'Skill instance test'))),
+      h('p', { className: 'st-mod-instance-hint', 'data-role': 'mod-instance-hint' }, raw(localized(
+        INSTANCE_TEST_HEADLINE,
+        'A task built from this specific modification, to run in a new conversation.',
+      ))),
+      instancePhase === 'unavailable'
+        ? h('p', { className: 'st-mod-alert', role: 'alert', 'data-role': 'mod-instance-unavailable' }, raw(
+          instanceTest?.message
+            || localized(INSTANCE_TEST_UNAVAILABLE_MESSAGES['no-changed-scope'], 'This change did not name a scope, so there is nothing specific to verify.'),
+        ))
+        : instancePhase === 'ready' && instance?.available
+          ? h('div', { className: 'st-mod-instance-body' },
+            h('div', { className: 'st-mod-instance-goal' },
+              h('h5', null, raw(localized(INSTANCE_TEST_GOAL_TITLE, 'What this verifies'))),
+              h('p', { className: 'st-mod-instance-hint' }, raw(localized(
+                INSTANCE_TEST_GOAL_TEXT,
+                'Whether this modification changed how the Skill behaves in a real task.',
+              )))),
+            h('p', { className: 'st-mod-instance-scope', 'data-role': 'mod-instance-scope' }, raw(localized(
+              `本次修改：${changedScopeLabels.join(' / ') || '没有点名范围'}`,
+              `This modification: ${changedScopeLabels.join(' / ') || 'no declared scope'}`,
+            ))),
+            h('div', { className: 'st-mod-instance-prompt-block' },
+              h('h5', null, raw(localized(INSTANCE_TEST_PROMPT_TITLE, 'Test prompt'))),
+              h('pre', { className: 'st-mod-instance-prompt', 'data-role': 'mod-instance-prompt' }, raw(instance.prompt.text))),
+            h('div', { className: 'st-mod-instance-actions' },
+              h('button', {
+                className: 'st-mod-submit',
+                type: 'button',
+                'data-role': 'mod-instance-copy',
+                onClick: copyInstancePrompt,
+              }, raw(instancePromptCopied
+                ? localized('已复制', 'Copied')
+                : localized('复制测试 Prompt', 'Copy the test prompt')))),
+            h('p', { className: 'st-mod-instance-note', 'data-role': 'mod-instance-run-hint' }, raw(localized(
+              '建议在新的 DSH 会话中运行，以避免当前修改对话中的上下文影响测试结果。',
+              'Run it in a new DSH conversation, so this conversation does not colour the result.',
+            ))),
+            h('div', { className: 'st-mod-instance-observations', 'data-role': 'mod-instance-observations' },
+              h('h5', null, raw(localized(INSTANCE_TEST_OBSERVATION_TITLE, 'What to look at'))),
+              h('p', { className: 'st-mod-instance-note' }, raw(localized(
+                INSTANCE_TEST_OBSERVATION_NOTE,
+                'Not seeing it happen is not proof that it did not happen.',
+              ))),
+              h('ul', null, ...instance.observations.map((entry) => h('li', {
+                key: entry.id,
+                'data-role': 'mod-instance-observation',
+                'data-id': entry.id,
+              }, raw(entry.text))))),
+            h('div', { className: 'st-mod-instance-regression', 'data-role': 'mod-instance-regression' },
+              h('h5', null, raw(localized('回归约束', 'Regression constraints'))),
+              instance.regression.available
+                ? h('ul', null, ...instance.regression.constraints.map((line) => h('li', { key: line }, raw(line))))
+                : h('p', { className: 'st-mod-instance-note', 'data-role': 'mod-instance-regression-unavailable' }, raw(instance.regression.unavailable.join(' ')))),
+            (instance.limitations.length || traceLines.length)
+              ? h('details', { className: 'st-mod-limits', 'data-role': 'mod-instance-limitations' },
+                h('summary', null, raw(localized(INSTANCE_TEST_LIMITATION_NOTE, 'How this task was produced, and what it does not do'))),
+                h('ul', null,
+                  ...traceLines.map((line) => h('li', { key: line, 'data-role': 'mod-instance-trace' }, raw(line))),
+                  ...instance.limitations.map((line) => h('li', { key: line }, raw(line)))))
+              : null)
+          : h('div', { className: 'st-mod-instance-actions' },
+            h('button', {
+              className: 'st-mod-submit',
+              type: 'button',
+              'data-role': 'mod-instance-generate',
+              disabled: instancePhase === 'loading',
+              onClick: onGenerateInstanceTest,
+            }, raw(instancePhase === 'loading'
+              ? localized('正在生成实例验收…', 'Generating the instance test…')
+              : localized('生成实例验收', 'Generate an instance test')))))
+
     return h('section', { className: 'st-detail-card st-mod', 'data-role': 'skill-modification' },
       head,
       h('p', { className: 'st-mod-lines', 'data-role': 'mod-lines' }, raw(localized(
@@ -2269,6 +2415,7 @@ function installStyles() {
           h('summary', null, raw(localized('这次对比算了什么、没算什么', 'What this comparison does and does not cover'))),
           h('ul', null, ...limitations.map((item) => h('li', { key: item }, raw(item)))))
         : null,
+      instanceBlock,
       h('div', { className: 'st-mod-actions' },
         h('button', { className: 'st-mod-cancel', type: 'button', 'data-role': 'mod-again', onClick: onOpenModify }, raw(localized('再改一次', 'Modify again')))))
   }
@@ -2443,7 +2590,7 @@ function installStyles() {
         : null))
   }
 
-  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification }) {
+  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification, instanceTest: suppliedInstanceTest }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
     const [error, setError] = React.useState('')
@@ -2461,6 +2608,12 @@ function installStyles() {
     // —— 渲染烟测的 React 桩不跑 `useEffect`，所以这一帧必须能由 props 直接给出来。
     const [modifyOpen, setModifyOpen] = React.useState(false)
     const [modifyState, setModifyState] = React.useState(() => suppliedModification ?? { phase: 'idle' })
+    // v0.10.0：实例验收与 `modification` 同一种注入缝（React 桩不跑 `useEffect`）。
+    // 它只是前端状态：刷新页面就没了，重新生成一次即可 —— 这里不存测试历史（§十二）。
+    const [instanceTest, setInstanceTest] = React.useState(() => suppliedInstanceTest ?? { phase: 'idle' })
+    // 用户这次说的修改意图。它是实例验收的六样输入之一，但**只活在页面上**：宿主不回传它，
+    // 插件也不落盘 —— 页面一刷新就没了，那时生成器照样能跑（只少一样来源，trace 里如实少一项）。
+    const [lastIntent, setLastIntent] = React.useState('')
     const modifyOpenRef = React.useRef(null)
     const docRef = React.useRef(null)
     const scrollRef = React.useRef(null)
@@ -2857,8 +3010,10 @@ function installStyles() {
     // 「交给 Agent」成功 = 一条带协议的修改任务已经发到**当前会话**，接下来是 Agent 在
     // 原生对话里读文件、提方案、问一次、再改。界面从这一刻起不轮询、不假装知道对方什么时候
     // 收工，只把「对比本次修改」摆在那里，由用户决定什么时候看结果。
-    const onDispatched = () => {
+    const onDispatched = (body, dispatchedIntent) => {
       setModifyOpen(false)
+      // 这次说的话要留下来：实例验收要按「用户想怎么改」对齐任务形状（规格 §18.1）。
+      setLastIntent(typeof dispatchedIntent === 'string' ? dispatchedIntent : '')
       setModifyState({ phase: 'waiting' })
     }
 
@@ -2885,13 +3040,35 @@ function installStyles() {
         })
     }
 
+    // 实例验收的生成入口。它是一支纯函数：喂进去的是规格 §18.1 的那六样 —— 用户这次的修改意图、
+    // 修改范围、改动前后的对比、Skill 自己的正文与描述、宿主解析好的框架结构、静态验收结论。
+    // 出来一段 Prompt；没有任何网络调用、没有模型、没有第二次读盘，所以「生成」永远不可能
+    // 悄悄改变别的状态。（意图只用于对齐任务形状与记录来源，**一个字都不进 Prompt** ——
+    // 把「你刚才改了什么」写进 Prompt，等于在 Prompt 里把 Skill 该怎么做重新教一遍。）
+    const generateInstanceTest = () => {
+      const built = buildSkillInstanceTest({
+        skillName,
+        intent: lastIntent || null,
+        comparison: modifyState?.comparison ?? null,
+        definitionText: content?.text ?? null,
+        description: summary?.description ?? null,
+        framework: detail?.framework ?? null,
+        validation: validation ?? null,
+      })
+      setInstanceTest(built.available
+        ? { phase: 'ready', test: built }
+        : { phase: 'unavailable', test: built, message: built.message })
+    }
+
     // v0.9.1：这一块只在一次修改事务里出现（`phase: 'idle'` 时它自己返回 `null`），
     // 排在验收卡后面 —— 那两句回答的是同一个问题：「这次改完，现在是什么样」。
     // 它必须写在两个处理器之后：`const` 是暂时性死区，往前挪一格就会在渲染那一帧抛
     // 「Cannot access 'compareModification' before initialization」，而那是整页白屏。
     const skillModification = h(SkillModificationPanel, {
       modification: modifyState,
+      instanceTest,
       onCompare: compareModification,
+      onGenerateInstanceTest: generateInstanceTest,
       onOpenModify: () => setModifyOpen(true),
     })
 

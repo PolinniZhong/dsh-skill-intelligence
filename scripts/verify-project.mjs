@@ -18,6 +18,7 @@ const required = [
   'src/core/skill-validation.mjs',
   'src/core/skill-modification.mjs',
   'src/storage/modification-snapshot-store.mjs',
+  'src/core/skill-instance-test.mjs',
   'src/dsh/host/index.js',
   'src/dsh/client/client.js',
 ]
@@ -29,7 +30,7 @@ if (packageJson.name !== 'dsh-skill-trace') throw new Error('package name mismat
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-ui-conversation')) throw new Error('conversation client injection missing')
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-locale')) throw new Error('locale client injection missing')
 
-for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/core/skill-lineage.mjs', 'src/core/skill-diff.mjs', 'src/core/skill-profiles.mjs', 'src/core/skill-validation.mjs', 'src/core/skill-modification.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/storage/skill-lineage-store.mjs', 'src/storage/skill-clone-writer.mjs', 'src/storage/modification-snapshot-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
+for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/core/skill-lineage.mjs', 'src/core/skill-diff.mjs', 'src/core/skill-profiles.mjs', 'src/core/skill-validation.mjs', 'src/core/skill-modification.mjs', 'src/core/skill-instance-test.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/storage/skill-lineage-store.mjs', 'src/storage/skill-clone-writer.mjs', 'src/storage/modification-snapshot-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
   const result = spawnSync(process.execPath, ['--check', resolve(root, file)], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(`${file} syntax check failed:\n${result.stderr}`)
 }
@@ -1632,6 +1633,11 @@ console.log('VISUAL_TOKENS_OK')
     'mod-status', 'mod-lines', 'mod-scopes', 'mod-scope', 'mod-sections',
     'mod-resources', 'mod-resource', 'mod-out-of-scope', 'mod-out-of-scope-item',
     'mod-source', 'mod-identity', 'mod-notes', 'mod-unavailable', 'mod-released', 'mod-limitations',
+    'mod-instance', 'mod-instance-hint', 'mod-instance-scope', 'mod-instance-prompt',
+    'mod-instance-copy', 'mod-instance-generate', 'mod-instance-run-hint',
+    'mod-instance-observations', 'mod-instance-observation', 'mod-instance-regression',
+    'mod-instance-regression-unavailable', 'mod-instance-limitations', 'mod-instance-unavailable',
+    'mod-instance-trace',
   ].sort()
   // 一个 `data-role` 可以写成三元（`locked ? 'modify-locked' : 'modify-scope'`），所以按**行**取：
   // 凡是带 `data-role` 的行，行内所有像角色名的字符串都算这一处事实。
@@ -1707,6 +1713,212 @@ console.log('VISUAL_TOKENS_OK')
   }
 
   console.log('SKILL_MODIFICATION_OK')
+}
+
+// --- v0.10.0「Skill 实例验收」：生成一段真能验证这次修改的任务 ---------------------------
+// 规格把这一版写成一句终验判据：「V0.10 最终必须能证明『生成出来的 Prompt 真的是针对这次
+// 修改的』，而不是做了一个漂亮的通用测试 Prompt 生成器」。这一组就守这句话，外加三条不许
+// 破的边界：
+//   1. Prompt 与观察项**物理分离** —— 观察项一个字都不进 Prompt（进了就等于我们在 Prompt 里
+//      重新教 Agent 该怎么做，测试被我们自己污染了）；
+//   2. 生成器零依赖、不调模型、不读时间、不掷骰子：同一份输入**永远**得到同一份 Prompt；
+//   3. 不运行、不判定、不打分 —— 生成出来的东西里不许出现任何结论性词汇。
+{
+  const instancePath = resolve(root, 'src/core/skill-instance-test.mjs')
+  const instanceSource = await readFile(instancePath, 'utf8')
+  // 纯函数这条边界只能在**代码**上验：注释里当然可以出现「import / Date」这些词。
+  const instanceCode = instanceSource
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/, ''))
+    .join('\n')
+  for (const forbidden of ['import ', 'require(', 'Math.random', 'Date.now', 'new Date', 'navigator', 'fetch(', 'setTimeout']) {
+    if (instanceCode.includes(forbidden)) {
+      throw new Error(`实例验收生成器必须是零依赖纯函数，代码里不许出现「${forbidden}」`)
+    }
+  }
+
+  const {
+    INSTANCE_TEST_PROMPT_BLOCKS, INSTANCE_TEST_PROMPT_FORBIDDEN_WORDS, buildSkillInstanceTest,
+  } = await import(pathToFileURL(instancePath).href)
+
+  const comparison = {
+    available: true,
+    status: 'changed',
+    skillName: 'demo-skill',
+    scopeIds: ['skill-md-workflow', 'references'],
+    scopes: [
+      { id: 'skill-md-workflow', label: '运行逻辑', target: 'workflow', section: '## 运行逻辑', state: 'changed', changed: true, reason: '' },
+      { id: 'references', label: '资料文件', target: 'references', section: 'references/', state: 'unchanged', changed: false, reason: '' },
+    ],
+    sections: { added: ['步骤 4'], removed: [], truncated: false },
+    resources: { available: true, added: [], removed: [], modified: [] },
+    outOfScope: [],
+    identity: { state: 'unchanged' },
+    source: { state: 'fresh', message: '' },
+    summary: { scopesChanged: 1, scopesUnchanged: 1, scopesUnknown: 0, outOfScopeCount: 0, addedLines: 3, removedLines: 1 },
+    contentChanged: true,
+    limitations: [],
+    notes: [],
+    lines: { added: 3, removed: 1, exact: true },
+    before: null,
+    after: null,
+  }
+  const definitionText = [
+    '---',
+    'name: demo-skill',
+    'description: 当用户需要整理会议纪要时使用。',
+    '---',
+    '',
+    '# demo-skill',
+    '',
+    '## 运行逻辑',
+    '',
+    '1. 先读 references/format.md，再按格式整理。',
+    '',
+    '## 输出',
+    '',
+    '一份会议纪要。',
+  ].join('\n')
+  const input = {
+    skillName: 'demo-skill',
+    comparison,
+    definitionText,
+    description: '当用户需要整理会议纪要时使用。',
+    validation: null,
+  }
+  const built = buildSkillInstanceTest(input)
+  if (built.available !== true) throw new Error(`这次改动落在可测范围里，实例验收应当生成得出来，实际 reason=${built.reason}`)
+  if (typeof built.prompt?.text !== 'string' || built.prompt.text.length === 0) throw new Error('实例验收必须给出 Prompt 正文')
+
+  // 1. 四块结构，顺序固定（规格 §八 的逐字结构）。
+  let cursor = -1
+  for (const block of INSTANCE_TEST_PROMPT_BLOCKS) {
+    const at = built.prompt.text.indexOf(`【${block}】`)
+    if (at < 0) throw new Error(`Prompt 里缺少【${block}】这一段`)
+    if (at < cursor) throw new Error(`Prompt 的四块顺序应当固定为 ${INSTANCE_TEST_PROMPT_BLOCKS.join(' → ')}`)
+    cursor = at
+  }
+  if (!built.prompt.text.includes('请直接完成任务，不需要解释你为什么选择某个 Skill。')) {
+    throw new Error('Prompt 的【注意】段必须逐字带上规格里那句固定句式')
+  }
+
+  // 2. Prompt 里不许出现「这是哪一次修改」的元信息，也不许出现禁用词表里的词。
+  for (const word of ['本次修改', '这次修改', '刚才的修改', ...INSTANCE_TEST_PROMPT_FORBIDDEN_WORDS]) {
+    if (built.prompt.text.includes(word)) {
+      throw new Error(`Prompt 里不许出现「${word}」：那是说给用户听的话，不是交给 Agent 的任务`)
+    }
+  }
+  for (const id of ['skill-md-workflow', 'skill-md-rules', 'skill-md-description', 'references/', 'assets/', 'scripts/']) {
+    if (built.prompt.text.includes(id)) {
+      throw new Error(`Prompt 里不许点名修改范围「${id}」：那等于让 Agent 照着改动清单干活`)
+    }
+  }
+
+  // 3. 观察项与 Prompt 物理分离：每一个观察项都不许出现在 Prompt 里，且必须是疑问句。
+  if (built.observations.length < 3) throw new Error('观察项至少要覆盖「用没用上 / 流程 / 这次改动」三类')
+  for (const entry of built.observations) {
+    if (!entry.text.endsWith('？')) throw new Error(`观察项必须是疑问句：「${entry.text}」`)
+    if (built.prompt.text.includes(entry.text)) throw new Error(`观察项「${entry.text}」不许进 Prompt`)
+  }
+
+  // 4. 确定性：同一份输入两次调用逐字节一致。
+  if (JSON.stringify(buildSkillInstanceTest(input)) !== JSON.stringify(built)) {
+    throw new Error('实例验收生成器必须对同一份输入给出同一份结果')
+  }
+
+  // 5. 不判定、不打分：整份结果里不许出现结论性词汇。
+  const judgement = ['成功率', '通过率', '评分', '得分', '优秀', '合格', '有效', '无效', '成功', '失败', '已执行', '未执行', '已通过']
+  const flat = JSON.stringify(built)
+  for (const word of judgement) {
+    if (flat.includes(word)) throw new Error(`实例验收的输出里不许出现结论性词汇「${word}」`)
+  }
+
+  // 6. 拿不到东西时如实说生成不了，而不是退回去编一个通用任务。
+  const bare = buildSkillInstanceTest({ skillName: 'demo-skill', comparison: null, definitionText, description: '' })
+  if (bare.available !== false || bare.reason !== 'no-comparison') throw new Error('没有本次修改时，实例验收必须如实说生成不了')
+  const noScope = buildSkillInstanceTest({
+    ...input,
+    comparison: { ...comparison, scopes: [{ id: 'skill-md-workflow', changed: false, state: 'unchanged' }] },
+  })
+  if (noScope.available !== false || noScope.reason !== 'no-changed-scope') throw new Error('这次改动没落在可测范围时，实例验收必须如实说生成不了')
+  const noDefinition = buildSkillInstanceTest({ ...input, definitionText: '', description: '' })
+  if (noDefinition.available !== false || noDefinition.reason !== 'no-definition') throw new Error('读不到 Skill 正文时，实例验收必须如实说生成不了')
+
+  // 6b. 规格 §18.1 的六个来源：意图用来对齐主范围、框架用来挤掉被碰过的能力、在场情况如实记录 ——
+  // 而意图原文与 diff 的小节标题一个字都不进结果（它们说的就是「改了什么」）。
+  const hinted = buildSkillInstanceTest({
+    ...input,
+    intent: '把 references 的使用要求写清楚',
+    // 意图能左右主范围的前提是：它点名的那个范围**这次真的改过**（改没改由 diff 说了算）。
+    comparison: {
+      ...comparison,
+      scopes: [
+        comparison.scopes[0],
+        { ...comparison.scopes[1], state: 'changed', changed: true },
+      ],
+    },
+    framework: {
+      sections: [
+        { id: 'a', title: '运行逻辑', role: 'workflow', opening: '先读 references/format.md，再按格式整理。' },
+        { id: 'b', title: '输出', role: 'output', opening: '一份会议纪要。' },
+      ],
+    },
+  })
+  if (hinted.trace.hintedScopeId !== 'references') {
+    throw new Error('意图点名了某个确实改过的范围时，主范围应当跟着用户说的话走')
+  }
+  const regressionText = hinted.regression.constraints.join('\n')
+  if (regressionText.includes('运行逻辑')) throw new Error('被这次改动碰过的能力不许出现在回归约束里')
+  if (!regressionText.includes('输出')) throw new Error('没被碰过的声明能力应当成为回归约束')
+  if (hinted.regression.source !== 'framework') throw new Error('有框架时回归约束应当来自框架，而不是重新解析正文')
+  if (JSON.stringify(hinted).includes('把 references 的使用要求写清楚')) {
+    throw new Error('用户修改意图的原文不许出现在结果里：它只用来对齐任务形状')
+  }
+  const expectedSources = 'intent scopeIds comparison description framework'
+  if (hinted.trace.sources.join(' ') !== expectedSources) {
+    throw new Error(`六个来源的在场情况要如实记录，期望「${expectedSources}」，实际「${hinted.trace.sources.join(' ')}」`)
+  }
+  if (built.prompt.text.includes('步骤 4')) throw new Error('diff 里的变更小节标题不许进 Prompt')
+  if (!instanceCode.includes('export const buildInstanceTest = buildSkillInstanceTest')) {
+    throw new Error('模块要同时导出规格 §15 建议的名字 buildInstanceTest')
+  }
+
+  // 7. 客户端：它是第 8 支 require，而且界面把 Prompt 与观察项画成两块。
+  const needed = [
+    "require('../../core/skill-instance-test.mjs')",
+    "'data-role': 'mod-instance-generate'",
+    "'data-role': 'mod-instance-copy'",
+    "'data-role': 'mod-instance-prompt'",
+    "'data-role': 'mod-instance-observation'",
+    "'data-role': 'mod-instance-regression'",
+    "'data-role': 'mod-instance-unavailable'",
+    '建议在新的 DSH 会话中运行，以避免当前修改对话中的上下文影响测试结果。',
+    // §19 的两处抬头（规格把它们列成卡面结构的一部分）与 §21 那条最核心的「可追溯」：
+    // 界面上必须有「验证目标 / 测试 Prompt」两块，以及那几行说明这个任务用了哪些输入。
+    'INSTANCE_TEST_GOAL_TITLE',
+    'INSTANCE_TEST_PROMPT_TITLE',
+    "'data-role': 'mod-instance-trace'",
+    // §18.1 的六个输入里，意图与框架这两样必须真的从页面流到生成器（以前只传了四样）。
+    'intent: lastIntent || null',
+    'framework: detail?.framework ?? null',
+  ]
+  for (const needle of needed) {
+    if (!client.includes(needle)) throw new Error(`客户端缺少实例验收的「${needle}」`)
+  }
+  const coreRequires = client.match(/require\('\.\.\/\.\.\/core\/[^']+'\)/g) ?? []
+  if (coreRequires.length !== 8) {
+    throw new Error(`客户端只允许 require 八支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
+  }
+
+  // 8. 本版的名字是「实例验收」：界面与模块里不许留下被禁用的产品名。
+  for (const banned of ['Skill Run', 'Skill Execute', 'Skill Benchmark', 'Skill Evaluation', '测试中心']) {
+    if (client.includes(banned) || instanceCode.includes(banned)) {
+      throw new Error(`V0.10.0 不许出现被禁用的名字「${banned}」`)
+    }
+  }
+
+  console.log('SKILL_INSTANCE_TEST_OK')
 }
 
 // --- v0.9.2「已安装列表的顺序」：刚复刻出来的必须第一眼就看到 -------------------------

@@ -1,6 +1,7 @@
 # DSH Skill Intelligence · DSH Skill 智能实验室 · 软件设计文档（SDD）
 
 > **当前版本**：`dsh-skill-trace@0.9.2`（`package.json`；`0.9.2` 把三批设计合成一版发布：V0.9.0「Skill 验收」（§18）、V0.9.1「Skill Modify」（§19）与 V0.9.2「已安装列表排序」（§20），2026-10-03 发到 GitHub Release 与 npm，tag `v0.9.2`）。上一版是 `0.8.0`（V0.8「Skill 演进」：血缘 / 差异 / 界面三个 Phase，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）
+> **工作树，未发版**：**V0.10.0「Skill 实例验收（Skill Instance Test）」** 已在工作树落地（2026-10-03，`package.json` 仍是 `0.9.2`，见 §21）——把「这次修改」变成一段可以真的拿去跑一遍的真实测试任务与一组观察项。**不新增路由**（宿主仍 12 条、`src/dsh/host/index.js` 一行未动）、不新增页面 / 导航 / 第二套 Agent Runtime、不调模型：生成器是客户端**第 8 支 `require`** 的**零依赖纯函数** `src/core/skill-instance-test.mjs`（**571 行**、零 `import`）。
 > **这份文件是什么**：本插件**唯一一份描述当前实现**的技术设计 —— 分层、运行架构、宿主接口面、数据流、存储与隐私、模块清单、契约守卫、验证边界。
 > **目录定位**：
 > - **`spec/SDD.md`（本文件）= 当前架构的唯一权威。** 分层、12 条路由、数据流、存储与隐私、模块清单都以此为准。
@@ -21,7 +22,7 @@
 | D1 | `src/dsh/host/index.js` translate 路由的注释 | 原文写「这里刻意**不**落盘……§12.4 要求译文只存在页面运行时内存里」 | 同文件 `saved: await persistTranslation({...})`，v0.7 起译文落盘 | **已修（2026-10-02）**：注释改成 v0.7 的事实——落盘为本机资产、键不含会话，同时保留不写 receipt / 不动偏好 / 不读正文三条 |
 | D2 | `src/dsh/host/index.js` catalog 路由的注释 | 「名字暂用 `/installed` 而不是 SDD §16 写的 `/catalog`」 | 路由字面早就是 `/skill-trace/catalog`，「我的 Skill」工作台也已在 `0.5.0` 删除 | **已修（2026-10-02）**：那段「等改名收口」的注释删掉了，它会让后来的人以为还欠一次改名 |
 | D3 | `docs/ARCHITECTURE.md` 模块表 | 写「the seven routes」 | 宿主有 **12** 条路由（V0.8 加 `GET /skill-trace/diff`，V0.9.1 加 `POST /skill-trace/modify`） | **已修（2026-10-02）**：改成「the ten routes」；**2026-10-03 再修**为「the eleven routes」；**V0.9.1 登记**：现为 **12** 条，该文件仍写「the eleven routes」，尚未同步（见 D11） |
-| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 12 条 / 3448 行 / 170324 字节 / 29 个模块 10353 行（V0.9.1 工作树时为 3356 行 / 167506 字节 / 10263 行） | 归档只作追溯，本文件不复用这些数字 |
+| D4 | `docs/archive/technical-design-v0.1-v0.5.md` §0 | 宿主只注册 **7 条**路由、客户端约 1500 行 / 约 62 KB、`src/core/` 20 个模块约 6164 行 | 12 条 / **3625 行** / **189256 字节** / **30 个模块 10924 行**（V0.10.0 早期工作树为 3569 行 / 184471 字节 / 30 个模块 10774 行 / source hash `2d202a05030a1d58`；V0.9.2 发布口径为 3448 行 / 170324 字节 / 29 个模块 10353 行；V0.9.1 工作树时为 3356 行 / 167506 字节 / 10263 行） | 归档只作追溯，本文件不复用这些数字 |
 | D5 | `scripts/verify-project.mjs` 末尾 | `console.log('FIVE_LAYER_MODEL_OK')` / `console.log('FINGERPRINT_RESERVED_OK')` 两句声称两条契约成立 | 两句之前**没有任何断言**。`FIVE_LAYER_MODEL_OK` 守的模块（`src/core/runtime-layout.mjs`、`src/dsh/client/runtime-flow.js`、`test/phase8-five-layer-model.test.mjs`）在 v0.6 删运行图谱画布时一起删了，marker 却留了下来 | **已修（2026-10-02）**：`FIVE_LAYER_MODEL_OK` 删掉（它守的界面不存在了）；`FINGERPRINT_RESERVED_OK` 补上真断言；新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查每一个 marker 之前是否有断言。见 §13.1 |
 | D6 | `AGENTS.md` §6.6 | 客户端 `require` 的 core 模块列举了 6 支 | 实际 `require` **7** 支（多一支 `skill-clone.mjs`，见 §10.3） | **已修（2026-10-02）**：本文改成七支并列出全部七个 |
 | D7 | `spec/PRD.md` | `AGENTS.md` §4 把它列为产品语义权威 | 写本文件时 `PRD.md` 尚未落盘 | **已消解**：`spec/PRD.md` 已落盘（692 行），本文件与它互为产品/技术两侧 |
@@ -30,6 +31,7 @@
 | D9 | 本文件 §13 前言 | 写「`scripts/verify-project.mjs`（**962 行**）」 | 实测 **1068 行** | **本次登记（2026-10-02）**：§13 前言改成不带行数的说法，行数属实测值，改代码就会过期 |
 | D11 | 本文件 §0.1 D3 / §1.1 / §3 / §6.1 / §9 / §11.2 / §13 / §14 / §16.3 / §18.4 / §18.5 / §19，以及 `spec/PRD.md` | V0.9.0 工作树口径：**11 条路由**、**26 组**守卫、**510 项**测试、客户端 **2910 行**、`dist/client.js` **150750 字节**、`src/core/` **28 个模块 9671 行** | **V0.9.1「Skill Modify」已在工作树落地**（2026-10-03）：新增 `src/core/skill-modification.mjs`（592）与 `src/storage/modification-snapshot-store.mjs`（157）；宿主新增 `POST /skill-trace/modify`（**11 → 恰好 12 条**），它只把「改前」写进宿主内存、**不写任何文件**；详情页新增 `SkillModifyDialog` 与「本次修改对比」（`SkillModificationPanel`）；守卫 **27 组**（第 27 条 `SKILL_MODIFICATION_OK`）；`npm test` **553 项**（`test/*.test.mjs` 47 个）；`src/core/` **29 个模块 10263 行**、`src/storage/` **6 个 1062 行**、客户端 **3356 行**、`dist/client.js` **167506 字节**（source hash `b391ec909986207a`） | **本次登记（2026-10-03）**：本文件已按工作树重跑数字并新增 §19；`package.json` 已是 `0.9.2`、README 的版本声明也已锚到 `0.9.2`（待发布口径）、CHANGELOG 在 `## Unreleased` 里逐条登记了这三批改动（标题等发版那天再换成版本号） ⇒ **已随 `0.9.2` 发布**（2026-10-03，GitHub Release + npm，tag `v0.9.2`）。V0.9.0 与 V0.8.0 的发布口径保留在各处括注里；`docs/ARCHITECTURE.md` 的路由数尚未跟上（见 D3） |
 | D12 | 本文件 §1.1 / §3.2 / §9 / §10.1 / §10.3 / §11.2 / §13 / §14 / §16.2 / §16.3 / §19.7 / §20，以及 `spec/PRD.md` 的 `FR-ORD-*` | V0.9.1 工作树口径：已安装列表按**名称 A–Z** 排列（`compareInstalledSkills` 只比 name），卡片 meta 只有名字与描述；投影白名单是 `{name, description, provider, invocation}`；**27 组**守卫、**553 项**测试、客户端 **3356 行**、`dist/client.js` **167506 字节** | **V0.9.2「已安装列表排序」已在工作树落地**（2026-10-03，需求原文见 §20）：已安装列表按**「这个 Skill 什么时候出现在本机」倒序**（规则名 `INSTALLED_ORDERING_RULE = 'added-desc-then-name'`，经 `ordering.rule` 下发），时间取**候选根下 Skill 目录的 `birthtimeMs`**（不是 mtime/ctime，也不是文件级 —— 见 §20.1）；`src/core/installed-view.mjs` **151 行**，投影新增 `addedAt` 与 `lineage`，`limitations` 新增 `added-at-unavailable` / `added-at-partial` / `lineage-unavailable`；`src/storage/skill-clone-writer.mjs` 新增只读的 `skillAddedAtByName()` 与 `skillRootCandidates()`（**424 行**）；`GET /skill-trace/catalog` 多读两处盘（都不抛错），**路由仍恰好 12 条**；客户端新增 `InstalledOrderNote` 与卡片上两条分开的事实（**只念不排**；2026-10-03 又按用户要求改成**只说例外**：默认成立的调用方式与 `filesystem` 不写、日期只到 `MM-DD`，见 §20.4 与 `FR-ORD-013`）；守卫 **28 组**（第 28 条 `INSTALLED_ORDERING_OK`）；`npm test` **561 项**；`src/core/` **29 个模块 10353 行**、`src/storage/` **6 个 1117 行**、客户端 **3448 行**、`dist/client.js` **170324 字节**（source hash `66dd0b76118e7b85`） | **本次登记（2026-10-03）**：本文件已按工作树重跑数字并新增 §20；`package.json` 已是 `0.9.2`、README 的版本声明也已锚到 `0.9.2`（待发布口径）、CHANGELOG 在 `## Unreleased` 里逐条登记了这三批改动（标题等发版那天再换成版本号） ⇒ **已随 `0.9.2` 发布**（2026-10-03，GitHub Release + npm，tag `v0.9.2`）。V0.9.1 / V0.9.0 / V0.8.0 的旧口径保留在各处括注里 |
+| D13 | 本文件 §1.1 / §3.2 / §9 / §9.1 / §9.2 / §10.1 / §10.3 / §11.2 / §13 / §14 / §16.3 / §21，以及 `spec/PRD.md` §5.12 的 `FR-INST-*` | V0.9.2 发布口径：**28 组**守卫、**561 项**测试（`test/*.test.mjs` 47 个）、客户端 **3448 行**、`dist/client.js` **170324 字节**（source hash `66dd0b76118e7b85`）、`src/core/` **29 个模块 10353 行** | **V0.10.0「Skill 实例验收（Skill Instance Test）」已在工作树落地**（2026-10-03，需求原文见 `spec/PRD.md` §5.12）：新增 `src/core/skill-instance-test.mjs`（**571 行，零 `import` / 零依赖**：`buildSkillInstanceTest()` 由六个输入**确定性**生成四块结构的 Prompt 与一组观察项，导出 `INSTANCE_TEST_SOURCES`（六项输入的顺序清单）、`INSTANCE_TEST_SCOPE_ROLES`（六个范围 id → 框架角色）、`INSTANCE_TEST_GOAL_TITLE` / `INSTANCE_TEST_GOAL_TEXT` / `INSTANCE_TEST_PROMPT_TITLE`（卡面抬头）与别名 `buildInstanceTest`；签名收 `{skillName, intent, comparison, definitionText, description, framework, validation}`，回 `trace = {sources, frameworkAvailable, validationStatus, validationUnknownCount, hintedScopeId}`）；客户端新增**第 8 支 `require`** 与 `SkillModificationPanel` 里 `data-role="mod-instance"` 一整段（**14 个 `mod-instance*` data-role**，含新增的 `mod-instance-trace`）⇒ 客户端 3448 → **3625 行**、`dist/client.js` 170324 → **189256 字节**（source hash `faed5e9cef7db24c`）；`src/core/` 29 → **30 个模块**、10353 → **10924 行**；`src/storage/` **6 个 1117 行不变**；**宿主 `src/dsh/host/index.js` 1625 行不变 —— 路由仍恰好 12 条**（原计划里的 `POST /skill-trace/instance-test` 已取消，`spec/PRD.md` 的 `FR-INST-015` 记了这件事：实例验收**完全发生在客户端**）；守卫 28 → **29 组**（第 29 条 `SKILL_INSTANCE_TEST_OK`，本轮在它里面加「6b」段：意图点名**且真的改过**的范围决定主范围、回归约束按框架产出且不含被碰过的角色、`regression.source === 'framework'`、意图原文不出现在结果的 `JSON.stringify` 里、`trace.sources` 按固定顺序、diff 自己的小节标题不许出现在 `prompt.text`、源码里必须有别名导出，另加 5 条客户端 needle）；`npm test` 561 → **590 项**（`test/*.test.mjs` 47 → **48 个**：新增 `test/skill-instance-test.test.mjs` **27 例**，`test/client-render-smoke.test.mjs` 原有的实例验收用例里补断言、该文件仍 **26** 项） | **本次登记（2026-10-03）**：`package.json` **仍是 `0.9.2`**（工作树未发版），本文件已按工作树重跑数字并新增 §21；旧值（561 项 / 28 组 / 3448 行 / 170324 字节 / `66dd0b76118e7b85` / 29 个模块 10353 行；V0.10.0 早期工作树为 **584 项** / **3569 行** / **184471 字节** / `2d202a05030a1d58` / **30 个模块 10774 行** / `mod-instance*` **13 个** / 测试文件 **21 例**）在各处作历史括注保留 |
 
 ---
 
@@ -40,9 +42,9 @@
 一个 DSH 插件包，含**两半**：
 
 - **宿主半边**（`src/dsh/host/index.js`，1625 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **12 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下）。
-- **客户端半边**（`src/dsh/client/client.js`，3448 行，构建产物 `dist/client.js` 170324 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 12 条路由，不持有收据本体。
+- **客户端半边**（`src/dsh/client/client.js`，3625 行，构建产物 `dist/client.js` 189256 字节）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 12 条路由，不持有收据本体。
 
-纯函数逻辑放在 `src/core/`（29 个模块，10353 行），落盘放在 `src/storage/`（6 个模块，1117 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
+纯函数逻辑放在 `src/core/`（30 个模块，10924 行），落盘放在 `src/storage/`（6 个模块，1117 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
 
 ### 1.2 三层模块与不可逆方向
 
@@ -287,6 +289,8 @@ V0.8 起 `skill` 里多一个 `lineage` 字段（见 §17）：这个 Skill 是�
 **内存快照的四条硬边界**：**不写盘、不进收据、不进会话日志、重启即消失**。它不是持久资产，也不是「版本」—— 本版没有版本实体、没有版本号、没有历史时间线（§19 的「不做」清单）。
 
 **它不是插件在改文件。** 这条路由里没有任何 `writeFile` / `ctx.fs.write`：插件只把「用户的原话 + 结构化后的修改范围 + 验收目标 + Modification Contract」交给当前会话的 Agent，真正的修改由 Agent 用 DSH 原生文件工具、在 DSH 权限下完成。用户点「交给 Agent」这个动作本身就是授权。消息里另有一句要求 Agent **动手之前先说明打算怎么改、拿不准就用提问工具问用户**（见 §19.5）：于是「提出方案 → 用户确认 → 动手」发生在原生对话里 —— 插件只提这个要求，不代办，也不解析它的方案。
+
+**V0.10.0 不新增任何路由**（仍 **12 条**）：Skill 实例验收**完全发生在客户端** —— 生成器就是客户端**第 8 支 `require`** 的 `src/core/skill-instance-test.mjs`（**571 行**、零依赖、零 `import`、不读时间、不掷骰子），宿主既不参与生成也不参与判定。原设计里的 `POST /skill-trace/instance-test` 已取消（`spec/PRD.md` 的 `FR-INST-015` 记了这件事，见 §21.7），`src/dsh/host/index.js` 因此**一行未动**（仍 **1625 行**）。§3.1 的路由表因此**一字未变**。
 
 ### 3.3 请求与响应的公共约定
 
@@ -713,17 +717,19 @@ definition-unavailable · bundle-unreadable · write-failed
 
 **V0.9.2「已安装列表排序」增量（已随 `0.9.2` 发布，§20）**：`src/core/installed-view.mjs` 72 → **151**（排序、`addedAt` / `lineage` 投影与三个新限制码）；`src/storage/skill-clone-writer.mjs` 369 → **424**（新增两个只读导出 `skillAddedAtByName()` / `skillRootCandidates()`）⇒ `src/core/` **29 个文件 / 10353 行** 与 `src/storage/` **6 个文件 / 1117 行**（模块数不变，长的是上面这两个文件）；宿主 1590 → **1625**（`/catalog` 多读两处盘、多一个 `lineageByTargetName()`，**不新增路由**）、客户端 3356 → **3448**（`formatAddedAt()` / `InstalledOrderNote` / 卡片上两条分开的事实；2026-10-03 又按用户要求把日期收到 `MM-DD`、默认成立的标签不再写，行数净增 17）；`dist/client.js` 167506 → **170324 字节**（source hash `66dd0b76118e7b85`）。
 
+**V0.10.0「Skill 实例验收」增量（工作树，未发版，§21）**：`src/core/` 加 `skill-instance-test.mjs`（**571 行、零依赖、零 `import`**；导出 `INSTANCE_TEST_SOURCES` / `INSTANCE_TEST_SCOPE_ROLES` / 三个卡面抬头常量与别名 `buildInstanceTest`，生成器接了 `intent` / `framework` 两个新输入并回 `trace`）⇒ **30 个文件 / 10924 行**（`src/storage/` 仍是 **6 个文件 / 1117 行**，本版**不新增任何落盘**）；**宿主一行未动**（仍 **1625 行**、**12 条路由**）；客户端 3448 → **3625**（`SkillModificationPanel` 里多出 `data-role="mod-instance"` 一整段 + 第 8 支 `require` + 该段 CSS，含「验证目标」/「测试 Prompt」两块抬头与 `mod-instance-trace`）；`dist/client.js` 170324 → **189256 字节**（source hash **`faed5e9cef7db24c`**）。
+
 ### 9.1 `src/dsh/`（3 个文件）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
 | `src/dsh/host/index.js` | 1625 | 宿主半边：12 条路由、事件订阅与归约编排、收据/偏好/译文/血缘四个 store、复刻的校验与回读、**`validationFor()`（两条路由共用，§18）**、**`handleModify()`（`begin` 记内存快照 + `followup()` 代发，`compare` 出对比并释放快照，§19）**、**`lineageByTargetName()` 与 `/catalog` 的两处只读读盘（§20）**、loopback 门禁 |
-| `src/dsh/client/client.js` | 3448 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 「Skill 演进」卡 + 「Skill 差异」面板 + 「Skill 验收」卡（§18）+ 「修改 Skill」对话框与「本次修改对比」块（§19）+ 已安装列表头 `InstalledOrderNote` 与卡片上的「加入本机 / 复刻自」两条事实（§20）+ 整份样式表 |
+| `src/dsh/client/client.js` | 3625 | 整个客户端（一个工厂闭包）：两个一级页面 + 一个详情页 + 复刻对话框 + 「Skill 演进」卡 + 「Skill 差异」面板 + 「Skill 验收」卡（§18）+ 「修改 Skill」对话框与「本次修改对比」块（§19）+ 该块里的**实例验收**段（§21，`data-role="mod-instance"`，只有存在本次修改时才随它出现；含「验证目标」/「测试 Prompt」两块抬头与 `mod-instance-trace`）+ 已安装列表头 `InstalledOrderNote` 与卡片上的「加入本机 / 复刻自」两条事实（§20）+ 整份样式表 |
 | `src/dsh/client/package.json` | — | 把该目录标记为 `commonjs`（包根是 `type: module`），不依赖打包器的猜测 |
 
-构建产物 `dist/client.js` 为 **170324 字节**（工作树 source hash `66dd0b76118e7b85`；V0.9.1 工作树时为 167506 字节 / `b391ec909986207a`，V0.9.0 工作树时为 150750 字节 / `808afdc7cca990cb`，V0.8.0 发布时为 142672 字节 / `f53a7ac5965b38b0`），提交进仓库。
+构建产物 `dist/client.js` 为 **189256 字节**（工作树 source hash **`faed5e9cef7db24c`**；V0.10.0 早期工作树为 184471 字节 / `2d202a05030a1d58`，V0.9.2 工作树时为 170324 字节 / `66dd0b76118e7b85`，V0.9.1 工作树时为 167506 字节 / `b391ec909986207a`，V0.9.0 工作树时为 150750 字节 / `808afdc7cca990cb`，V0.8.0 发布时为 142672 字节 / `f53a7ac5965b38b0`），提交进仓库。
 
-### 9.2 `src/core/`（29 个文件、10353 行）
+### 9.2 `src/core/`（30 个文件、10924 行）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
@@ -756,6 +762,7 @@ definition-unavailable · bundle-unreadable · write-failed
 | `src/core/skill-profiles.mjs`（新） | 590 | **V0.9.0 规则表**：5 个 Profile、32 条规则（`{id, profile, severity, title, fact, source}`）、数字常量与 `resolveSkillProfiles`。纯常量 + 纯函数，零依赖 |
 | `src/core/skill-modification.mjs`（新） | 592 | **V0.9.1 修改契约与差异模型**：`MODIFICATION_SCOPE_OPTIONS`（6 个范围 id，顺序固定）、`MODIFICATION_CONTRACT_RULES`（12 条）、`buildModificationMessageText`（代发那一条消息的正文）、`diffSkillModification`（三态 + 行级 / 小节级 / 资源级 + 超出授权范围的变化）、`modificationSnapshotKey`。**纯函数**：零 IO、零模型调用、零时钟、零随机 |
 | `src/core/skill-validation.mjs`（新） | 1025 | **V0.9.0 验收器**：自带 frontmatter 扫描器、Markdown 围栏/引用扫描、凭据与外传模式扫描；`buildSkillValidation` 出三态结论与逐规则状态。唯一 import 是 `./skill-profiles.mjs` |
+| `src/core/skill-instance-test.mjs`（新） | 571 | **V0.10.0 实例验收生成器**（§21）：`SKILL_INSTANCE_TEST_SCHEMA_VERSION = 1`、`INSTANCE_TEST_INTENTS`（`core` / `boundary` / `regression`，只是内部清单，界面只有一个按钮）、`INSTANCE_TEST_SOURCES = ['intent','scopeIds','comparison','description','framework','validation']`（六项输入的固定顺序，`trace.sources` 按它筛出**这次真的在场**的项）、`INSTANCE_TEST_SCOPE_FOCUS`（六个范围各自的观察重点）、`INSTANCE_TEST_SCOPE_IDS`、`INSTANCE_TEST_SCOPE_ROLES`（六个范围 id → 框架角色：`skill-md-rules`→`rules`、`skill-md-workflow`→`workflow`、`skill-md-description`→`trigger`、`references`/`scripts`/`assets`→`resources`）、`INSTANCE_TEST_PRIMARY_SCOPE_ORDER`、`INSTANCE_TEST_PROMPT_BLOCKS = ['任务','工作目标','输出要求','注意']`、`INSTANCE_TEST_PROMPT_FORBIDDEN_WORDS`、`INSTANCE_TEST_RELATIVE_TIME_WORDS`、`INSTANCE_TEST_UNAVAILABLE_REASONS` / `INSTANCE_TEST_UNAVAILABLE_MESSAGES`（四种「生成不出来」各自的实话）、`INSTANCE_TEST_HEADLINE` / `INSTANCE_TEST_OBSERVATION_TITLE` / `INSTANCE_TEST_OBSERVATION_NOTE` / `INSTANCE_TEST_GOAL_TITLE = '验证目标'` / `INSTANCE_TEST_GOAL_TEXT = '验证本次修改是否改变了这个 Skill 的实际行为。'` / `INSTANCE_TEST_PROMPT_TITLE = '测试 Prompt'` / `INSTANCE_TEST_LIMITATION_NOTE`，以及 `buildSkillInstanceTest(input)`（签名收 `{skillName, intent, comparison, definitionText, description, framework, validation}`，回 `trace = {sources, frameworkAvailable, validationStatus, validationUnknownCount, hintedScopeId}`）与**别名** `buildInstanceTest`（规格 §15 建议的名字；实现保留原名是因为测试与守卫在用它）。**零 `import`、零依赖、零 IO、零时钟、零随机、零模型调用** —— 同一份输入永远得到同一份结果 |
 
 ### 9.3 `src/storage/`（6 个文件、1117 行）
 
@@ -792,6 +799,8 @@ Workbench                       一级页面切换 + 宿主偏好
     ├── RuntimeLogic            五段可观察阶段
     ├── StepEvidence            detail.flow.steps[].evidence
     ├── renderSkillMarkdown     原文与阅读版唯一调用点
+    ├── SkillModificationPanel  「本次修改对比」卡（§19；`phase: 'idle'` 时整块返回 null）
+    │   └── 实例验收段（§21）      `data-role="mod-instance"` —— **不是新组件**，只是这张卡内部的一整段；只有存在本次修改时才随它出现
     └── SkillCloneDialog        560px，仅在打开时渲染，POST /clone
 ```
 
@@ -821,7 +830,7 @@ export { a, b }                 // ✗ 直接抛错
 
 **新 core 模块要么无依赖，要么只用单行具名 import** —— 能不能被客户端读，不该取决于它恰好有几个依赖。
 
-当前客户端 `require` 的 **7** 支：
+当前客户端 `require` 的 **8** 支（V0.10.0 起由七支变八支，`AGENTS.md` §6.6 的白名单因此也是八支；`SKILL_INSTANCE_TEST_OK` 直接数 `require('../../core/…')` 的条数，必须**恰为 8**）：
 
 | core 模块 | 用到的导出 |
 |---|---|
@@ -832,6 +841,7 @@ export { a, b }                 // ✗ 直接抛错
 | `installed-view.mjs` | `matchesInstalledQuery`（**V0.9.2 起仍只 `require` 这一支**；排序规则名随响应的 `ordering.rule` 下发，客户端不写死，见 §20.4） |
 | `translation-cache.mjs` | `readCachedTranslation, translationCacheKey, writeCachedTranslation` |
 | `skill-clone.mjs` | `CLONE_MAX_BYTES, CLONE_MODES, CLONE_SCOPES, cloneTargetName, isSkillName` |
+| `skill-instance-test.mjs` | `INSTANCE_TEST_GOAL_TEXT, INSTANCE_TEST_GOAL_TITLE, INSTANCE_TEST_HEADLINE, INSTANCE_TEST_LIMITATION_NOTE, INSTANCE_TEST_OBSERVATION_NOTE, INSTANCE_TEST_OBSERVATION_TITLE, INSTANCE_TEST_PROMPT_TITLE, INSTANCE_TEST_SCOPE_FOCUS, INSTANCE_TEST_UNAVAILABLE_MESSAGES, buildSkillInstanceTest`（**V0.10.0 的第 8 支**；零依赖纯函数，见 §21） |
 
 ### 10.4 文案与本地化
 
@@ -863,6 +873,7 @@ export { a, b }                 // ✗ 直接抛错
 4. **`sessionId` 不进译文键、不进内存缓存之外的任何持久结构**；`translationStoreKey` 的实现体里连 `session` 这个词都不许出现。
 5. **`learningNotes[]` / `validationResults[]` 是遗留数据**：只读、不迁移、不派生状态 —— 当前产品没有任何写入入口（既没有笔记路由，也没有验证结果路由，也没有编辑组件）。
 6. **「改前」的修改快照**（V0.9.1，§19）：只在**宿主内存**里活 30 分钟（上限 32 份）。不落盘、不进收据、不进会话日志、不上传；进程一重启就消失，这时界面只说「本次修改前状态不可用，暂时无法比较本次修改的内容。」。
+7. **实例验收的生成结果与用户意图**（V0.10.0，§21）：`prompt.text`、`promptText`、观察项、回归约束、`unavailable`、`limitations`，以及用户写的那句修改意图（页面 state `lastIntent`）**只活在详情页的前端状态里**（与本次修改、本次 diff、静态验收同级），不落盘、不进收据、不进会话日志、不上传、不新增任何持久结构；页面刷新后重新生成（同一份输入必然得到同一份结果）。**观察项一个字都不进 Prompt** —— 这两样东西在载荷里就是两个字段（`prompt.text` / `observations`），不是同一段文本的两半。
 
 唯一离开本机的东西，是用户在详情页主动点「中文阅读版」时**发给用户自己配置的模型 provider**的定义正文。V0.9.1 的「交给 Agent」另有一条出边，但口径不同：那条代发的消息里只有**用户自己写的意图**、结构化后的修改范围与验收目标（**不含 `SKILL.md` 正文**），而它进入会话这件事本身就是用户点那个按钮的动作。
 
@@ -917,7 +928,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ---
 
-## 13. 契约守卫（28 组）
+## 13. 契约守卫（29 组）
 
 `npm run verify` 跑 `scripts/verify-project.mjs`。这些断言全部是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**每一条红都对应一次真实事故。**（该文件的行数不在本文里写死，见 §0.1 D9。）
 
@@ -955,6 +966,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 | 27 | `SKILL_MODIFICATION_OK` | **修改的边界与代发接线**（V0.9.1，§19）：`MODIFICATION_SOURCE_KIND` 必须是字面常量 `'skill-intelligence-modify'`（不许拼出来），代发的消息必须带自己的 source kind，**且消息里必须有一句「动手之前：先说明你打算怎么改……有拿不准的地方就用提问工具问用户」，顺序必须是 12 条协议 → 动手之前 → 做完之后**（`FR-MOD-003` 只提这个要求、不代办也不解析，但不提就等于 Agent 直接动手）；`MODIFICATION_CONTRACT_RULES` **恰好 12 条**，其中 read-back、第 12 条「不得自动改会话标题」、以及**协议里不许写 `/name`**（DSH 只有 `/rename`，那是会话标题）逐条断言；6 个范围 id 与 `scripts` / `assets` 两项锁死（**界面锁死的两项必须就是核心模块锁死的那两项**，且锁死项画出来但不可点）；三态恰好 `unchanged` / `changed` / `unavailable`，没有快照时必须给 `available: false` + `snapshot-missing` + `unavailable`（既不许抛错，也不许空口比较），快照丢了的固定句逐字在；来源指纹不同时的说法逐字是「来源 Skill 在本次修改期间发生变化」；快照 TTL 30 分钟、坏输入返回 `null` 而不抛；宿主必须注册 `POST /skill-trace/modify`、必须用**当前会话**的 `followup()` 代发（不许另起 Agent、不许开第二套会话）、代发失败**必须先释放刚存下的快照**；**客户端**：四个组件齐（演进卡 / 修改对话框 / 本次修改对比 / 差异面板）且顺序为 演进卡 → 修改对话框 → 本次修改对比 → 差异面板，有血缘与没有血缘**两个分支都要有「修改 Skill」入口**（按钮定义一次、两个分支各用一次），「交给 Agent」与「对比本次修改」都必须真的打 `/skill-trace/modify`，没有修改事务时整块**不渲染**，详情页主列顺序为 验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → `SKILL.md`，界面 `data-role` 集合与核心模块的锁死项对账 |
 
 | 28 | `INSTALLED_ORDERING_OK` | **已安装列表排序的边界与接线**（V0.9.2，§20）：`src/core/installed-view.mjs` **不得有 `import`**（客户端要 `require` 它）；三个限制码 `added-at-unavailable` / `added-at-partial` / `lineage-unavailable` 逐字在；宿主必须含 `roots: await skillRootCandidates({ cwd })`、`lineageByName: await lineageByTargetName(),`、血缘读失败那句 `console.error('[dsh-skill-trace] lineage read failed', error)` 与投影字面 `{ sourceSkillName: source, createdAt: record.createdAt }`；**客户端切片**（`function formatAddedAt(` 到 `function Workbench(`）里必须含 `'data-role': 'installed-order'`、`if (!ordering \|\| typeof ordering !== 'object') return null`、`formatAddedAt(skill.addedAt) ? h('span'` 与 `` `复刻自 ${skill.lineage.sourceSkillName}` ``，且**不得出现 `.sort(`**（客户端只念不排）、**整份客户端不得出现 `added-desc-then-name`**（规则名不写死）、切片里不得出现「今天 / 昨天 / 刚刚 / 几分钟前」（时间戳只能是绝对值） |
+| 29 | `SKILL_INSTANCE_TEST_OK` | **实例验收的生成边界与接线**（V0.10.0，§21）：生成器**代码级零依赖**（去注释后不许出现 `import ` / `require(` / `Math.random` / `Date.now` / `new Date` / `navigator` / `fetch(` / `setTimeout`）；四块结构 `【任务】【工作目标】【输出要求】【注意】` **顺序固定**，且 Prompt 必须逐字含「请直接完成任务，不需要解释你为什么选择某个 Skill。」；**Prompt 里不许出现范围 id**（`skill-md-workflow` / `skill-md-rules` / `skill-md-description` / `references/` / `assets/` / `scripts/`）与元信息 / 禁用词（`本次修改` / `这次修改` / `刚才的修改` …）；观察项**必须是疑问句**、**一条都不许进 Prompt**（两样东西必须是两个字段）；同一份输入两次调用逐字节一致；结果里不许出现结论性词汇（`成功率` / `通过率` / `评分` / `得分` / `优秀` / `合格` / `成功` / `失败` / `已执行` …）；三种不可用如实说（`no-comparison` / `no-changed-scope` / `no-definition`；第四种 `comparison-unavailable` 由测试文件覆盖），且**绝不退回一个什么都能用的通用任务**；**「6b」段（本轮新增）**：意图点名了某个**确实被 diff 改动过**的范围时，主范围跟着用户说的话走（`trace.hintedScopeId` 命中；点到了没改过的范围则不作数）、回归约束**按框架产出**且不含被碰过的角色（fixture 里「运行逻辑」被碰过、「输出」没碰过）、`regression.source === 'framework'`、**意图原文不出现在结果的 `JSON.stringify` 里**、`trace.sources.join(' ') === 'intent scopeIds comparison description framework'`（不在场的不出现）、diff 自己的变更小节标题（fixture 里是「步骤 4」）不许出现在 `prompt.text`、源码里必须有 `export const buildInstanceTest = buildSkillInstanceTest`；**客户端**：第 8 支 `require('../../core/skill-instance-test.mjs')` 在，且 `require('../../core/…')` 总数**恰为 8**，`mod-instance-generate` / `-copy` / `-prompt` / `-observation` / `-regression` / `-unavailable` 六个 `data-role`（这一屏一共 **14** 个 `mod-instance*` data-role，新增的 `mod-instance-trace` 已进 `guardedRoles` 白名单）与那句弱提示逐字在，另加 5 条 needle（`INSTANCE_TEST_GOAL_TITLE` / `INSTANCE_TEST_PROMPT_TITLE` / `'data-role': 'mod-instance-trace'` / `intent: lastIntent || null` / `framework: detail?.framework ?? null`）；界面与模块里不许出现被禁用的产品名（`Skill Run` / `Skill Execute` / `Skill Benchmark` / `Skill Evaluation` / `测试中心`） |
 
 > **诚实记录（D5，2026-10-02 修）**：这份文件此前有**两个没有断言的 marker**。`FIVE_LAYER_MODEL_OK` 守的模块在 v0.6 删运行图谱画布时一起删掉了，marker 却留在输出里继续宣布契约成立 —— 正是同一份守卫文件在 `572-578` 行自己写下的那个反模式。处理方式分两种：**守的东西已经不存在 → 删掉 marker**；**守的东西还在 → 补上真断言**（`FINGERPRINT_RESERVED_OK`）。另外新增 `GUARD_MARKERS_ARE_BACKED_OK` 把这整类事故变成不可能的：它每次运行都会重新扫一遍本文件，任何「只有 `console.log` 没有断言」的 marker 都会让它红。组数仍是 **23**（删一、补一）。
 
@@ -973,8 +985,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ### 14.1 规模与纪律
 
-- `npm test` = `node --test`，**561 项全绿**（`0.9.2` 发布口径，含 V0.9.0 的 36 项与 V0.9.2 的排序 / 加入时间 / 血缘用例；V0.9.1 工作树时为 **553** 项，`0.8.0` 发布时是 **474** 项，`0.7.1` 发版时 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
-- `test/` 下 **47** 个 `*.test.mjs`（`0.9.2` 发布口径；`0.8.0` 发布时 41，`ls test | wc -l` 还会多算一个非测试条目 `helpers/`）。**V0.9.1 新增 3 个文件**：`test/skill-modification.test.mjs`（22 项，修改契约 / 范围解析 / 差异三态与三层）、`test/modification-snapshot-store.test.mjs`（9 项，TTL / 上限 / 释放 / 坏输入）、`test/skill-modification-route.test.mjs`（9 项，路由的两个动作与五条失败路径，含**代发失败必须先释放快照**），另给 `test/client-render-smoke.test.mjs` 加了 **2 条烟测**（V0.9.1 落地时为 24 项）。**V0.9.0 新增 3 个文件**：`test/skill-profiles.test.mjs`（9 项，规则表的机械守卫）、`test/skill-validation.test.mjs`（21 项，纯函数行为 + 假指控回归）、`test/skill-validation-route.test.mjs`（6 项，真机式路由驱动：假 registry **刻意只给正文**，与真 provider 一致）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。**V0.9.2 不新增文件**：用例补在 `test/installed-view.test.mjs`（该文件现 **17** 项：倒序与两种兜底、加入时间三态、`addedAt` / `lineage` 的形状校验）与 `test/client-render-smoke.test.mjs`（该文件现 **25** 项：有 `ordering` 时列表头渲染、没有时不渲染、读不到时间时文案含「读不到加入本机的时间」）。
+- `npm test` = `node --test`，**590 项全绿**（V0.10.0 工作树口径；`0.9.2` 发布口径是 **561** 项，含 V0.9.0 的 36 项与 V0.9.2 的排序 / 加入时间 / 血缘用例；V0.10.0 早期工作树时为 **584 项**，V0.9.1 工作树时为 **553** 项，`0.8.0` 发布时是 **474** 项，`0.7.1` 发版时 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
+- `test/` 下 **48** 个 `*.test.mjs`（V0.10.0 工作树口径；`0.9.2` 发布口径是 47 个，`0.8.0` 发布时 41，`ls test | wc -l` 还会多算一个非测试条目 `helpers/`）。**V0.10.0 新增 1 个文件**：`test/skill-instance-test.test.mjs`（**27 项**，实例验收的生成边界与纯函数纪律，见 §21.6），另在 `test/client-render-smoke.test.mjs` 原有的实例验收渲染用例里补断言（该文件仍 **26** 项）。**V0.9.1 新增 3 个文件**：`test/skill-modification.test.mjs`（22 项，修改契约 / 范围解析 / 差异三态与三层）、`test/modification-snapshot-store.test.mjs`（9 项，TTL / 上限 / 释放 / 坏输入）、`test/skill-modification-route.test.mjs`（9 项，路由的两个动作与五条失败路径，含**代发失败必须先释放快照**），另给 `test/client-render-smoke.test.mjs` 加了 **2 条烟测**（V0.9.1 落地时为 24 项）。**V0.9.0 新增 3 个文件**：`test/skill-profiles.test.mjs`（9 项，规则表的机械守卫）、`test/skill-validation.test.mjs`（21 项，纯函数行为 + 假指控回归）、`test/skill-validation-route.test.mjs`（6 项，真机式路由驱动：假 registry **刻意只给正文**，与真 provider 一致）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。**V0.9.2 不新增文件**：用例补在 `test/installed-view.test.mjs`（该文件现 **17** 项：倒序与两种兜底、加入时间三态、`addedAt` / `lineage` 的形状校验）与 `test/client-render-smoke.test.mjs`（该文件现 **26** 项：有 `ordering` 时列表头渲染、没有时不渲染、读不到时间时文案含「读不到加入本机的时间」；V0.10.0 再加一条实例验收渲染测试，见 §21.6）。
 - 纯函数优先：`src/core/` 的模块都是可单独测的纯函数或纯数据模块，测试不需要起宿主。
 
 ### 14.2 测试文件分工
@@ -983,7 +995,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 |---|---|
 | `test/layout-contract.test.mjs` | 样式表：根规则深度 0、高度链、无视口单位、花括号平衡 |
 | `test/client-style-lifecycle.test.mjs` | 用**构建产物** `dist/client.js` + 假 document 验样式生命周期（插入、替换、移除） |
-| `test/client-render-smoke.test.mjs` | 真实元素树 + 降级器；抓渲染期抛错与「界面真的写了什么」。`55f092c` 起还守着**请求体的两半**：从宿主源码读出它真的读哪些 `payload.*` 字段，要求客户端发出去的请求体覆盖它们；以及**组件解构出来、又没有兜底的 prop，渲染处必须真的传**。V0.8 起另守三条：没有血缘时**不许猜一个来源**、也不许出现「查看差异」；来源状态的三句话**必须互斥**（「变了」/「没变」/「没有可比的指纹」塌成两句就是从这一行开始的）；读不到来源时**不许渲染成一张空表**（空表读起来就是「没有变化」，而这一屏最坏的失败方式恰恰是看起来最正常）。V0.9.1 起另加两条：没有修改事务时「本次修改对比」**整块不渲染**；「交给 Agent」与「对比本次修改」都必须真的打 `/skill-trace/modify`。V0.9.2 起另加一条：列表头只在 `ordering` 真的来了才说话 —— 没有 `ordering` 时 `InstalledOrderNote` 返回 `null`，一个字的顺序都不宣称 |
+| `test/client-render-smoke.test.mjs` | 真实元素树 + 降级器；抓渲染期抛错与「界面真的写了什么」。`55f092c` 起还守着**请求体的两半**：从宿主源码读出它真的读哪些 `payload.*` 字段，要求客户端发出去的请求体覆盖它们；以及**组件解构出来、又没有兜底的 prop，渲染处必须真的传**。V0.8 起另守三条：没有血缘时**不许猜一个来源**、也不许出现「查看差异」；来源状态的三句话**必须互斥**（「变了」/「没变」/「没有可比的指纹」塌成两句就是从这一行开始的）；读不到来源时**不许渲染成一张空表**（空表读起来就是「没有变化」，而这一屏最坏的失败方式恰恰是看起来最正常）。V0.9.1 起另加两条：没有修改事务时「本次修改对比」**整块不渲染**；「交给 Agent」与「对比本次修改」都必须真的打 `/skill-trace/modify`。V0.9.2 起另加一条：列表头只在 `ordering` 真的来了才说话 —— 没有 `ordering` 时 `InstalledOrderNote` 返回 `null`，一个字的顺序都不宣称。V0.10.0 起另加一条：实例验收那一屏**交出去的是任务，不是结论** —— 生成的 Prompt 里一条观察项都不许有，拿不到东西时如实说出来、而不是退回一个什么都能用的通用任务（该文件现 **26** 项，见 §21.6） |
 | `test/client-hook-order.test.mjs` | `scanHookOrder(source)` 零违规 |
 | `test/client-bundle.test.mjs` | bundle 契约（seed、externals、注册包装） |
 | `test/phase15-skill-first-ia.test.mjs` | Skill-first IA 的 A1–A12（含锚点必须指向真实 outline entry） |
@@ -999,7 +1011,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 | `test/phase19-skill-diff.test.mjs`（V0.8） | 三层差异纯函数：结构（新增 / 删除 / 改变小节）、内容（按 Markdown 结构组织的行级差异）、资源（新增 / 删除 / 变化）；`unchanged` / `changed` / `unavailable` 三态；`skill-md` 模式的资源解释；词表闭集 |
 | `test/phase19-diff-routes.test.mjs`（V0.8） | `/skill-trace/diff` 的路由契约：缺 `sessionId` / `skillName` 的报文必须是**人话**；来源读不到 → `unavailable` 且**不许谎报「无变化」**；响应**不含绝对路径**；**复刻成功才写血缘**（回读失败 ⇒ 无血缘） |
 | `test/skill-modification.test.mjs` / `test/modification-snapshot-store.test.mjs` / `test/skill-modification-route.test.mjs`（V0.9.1） | 修改契约（12 条 + 6 个范围 id + `scripts` / `assets` 锁死）、代发消息的正文、差异三态与三层变化、来源三态措辞；快照库的 TTL / 上限 / 释放 / 坏输入；路由的两个动作与各条失败路径（`invalid-request` / `missing-intent` / `unknown-skill` / `session-not-live` / `skill-file-unreadable` / `registry-unavailable` / `snapshot-failed` / `dispatch-failed`），含**代发失败必须先释放快照**（留着它，界面会以为任务已经发出去了） |
-| `scripts/verify-project.mjs` | 28 组源码文本守卫（§13；V0.9.1 工作树时为 27 组） |
+| `test/skill-instance-test.test.mjs`（V0.10.0，**27 项**） | 实例验收纯函数（§21）：四块结构与顺序、范围 id / 元信息 / 禁用词不许进 Prompt、观察项只给用户且必须是疑问句、六个范围各自决定任务形状且互不相同、主范围优先级、意图点名**且改过**的范围决定主范围、`trace.sources` 按固定顺序只列在场项、意图原文不进结果、回归约束按框架产出且不含被碰过的角色（`regression.source` 三态）、四种「生成不出来」各说各话且都不抛异常、缺框架 / 缺 validation 只加 limitation 不进 `unavailable`、坏输入只降级、同一份输入同一份结果、零依赖（不 `import` / 不读时间 / 不掷骰子）、别名导出、结果里没有判断词 / 分数 / 相对时间 |
+| `scripts/verify-project.mjs` | 29 组源码文本守卫（§13；V0.10.0 工作树时为 29 组，`0.9.2` 发布口径是 28 组、V0.9.1 工作树时为 27 组） |
 
 ### 14.3 验证边界（诚实声明）
 
@@ -1076,6 +1089,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 10. **V0.8 不做**（见 §17）：不做相似度推断血缘、不做 Git 历史系统、不做版本实体（没有 `v1` / `v2`，不要求 Skill 有 `version:` 字段）、不做质量评分 / 排名 / 优劣判断、不做自动改写 / 自动优化 / 一键合并 / 一键同步来源、不做自动回归测试或行为评测、不做时间线大页面。差异**只回答「哪里变了」**。
 11. **V0.9.1 不做**（见 §19）：不做第二套 Agent Runtime、不做专属会话、不做结构化 Proposal RPC、不做版本实体 / 历史时间线、不替用户决定 Skill 应该变成什么、不自动跑 `scripts/`、不自动 git、不自动改会话标题。**插件永不改文件。**
 12. **V0.9.2 不做**（见 §20.7）：不做历史版本对比 / 时间线（「加入本机的时间」只有一个数，不是版本史）、不做用户自定义排序（没有排序键选择器，也不记忆排序偏好）、**不动既有的按名称 A–Z 兜底**（读不到时间就按名称，这条一直都在）、不把文件级 birthtime 或 mtime / ctime 当「加入时间」、**不新增路由也不新增依赖**、不在客户端重排也不写死规则名、不把「读不到」写成「没复刻过」。
+13. **V0.10.0 不做**（见 §21.7）：不做 Test History / Test Runs / Evaluation Database / Benchmark Dataset、不自动运行、不自动成功判断、不打分、不建「测试中心」、不新增页面 / 导航 / Route / 第二套 Agent Runtime；Skill Evaluation（Baseline / With Skill 对比、多任务多条件）属于 V1.0。
 
 ### 16.3 未解决 / 待确认
 
@@ -1086,6 +1100,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 - `0.7.0` **已发布**：tag `v0.7.0` → 发布提交 `5fac5d9`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它。
 - **V0.9.1（Skill Modify）已随 `0.9.2` 发布**（§0.1 D11）：`src/core/skill-modification.mjs`（592）与 `src/storage/modification-snapshot-store.mjs`（157）已存在；宿主新增 `POST /skill-trace/modify`（**11 → 恰好 12 条路由**），它只把「改前」写进宿主**内存**、用当前会话的 Agent 代发一条消息、**不写任何文件**；详情页新增「修改 Skill」对话框与「本次修改对比」块；守卫 **27 组**、`npm test` **553 项**。**已随 `0.9.2` 发布**（2026-10-03，GitHub Release + npm；发布说明即 CHANGELOG 的 `## 0.9.2`），**真机验收已于 2026-10-03 通过**（宿主重启后 `POST /skill-trace/modify` 在跑的进程里、`/skill-trace/catalog` 原生返回 `ordering`；同一天也跑通过一次真实的「代发 → Agent 改文件 → 回读」，见 CHANGELOG 的 `## 0.9.2`）。设计、「不做」清单与验收证据见 §19。
 - **V0.9.2（已安装列表排序）已随 `0.9.2` 发布**（§0.1 D12）：规则名 `INSTALLED_ORDERING_RULE = 'added-desc-then-name'`，时间取候选根下 Skill **目录**的 `birthtimeMs`（不是文件级 —— §20.1）；`GET /skill-trace/catalog` 多两处**只读**读盘（都不抛错），**不新增路由**（仍 12 条）；守卫 **28 组**、`npm test` **561 项**。**已随 `0.9.2` 发布**（2026-10-03，GitHub Release + npm；发布说明即 CHANGELOG 的 `## 0.9.2`），**真机验收已于 2026-10-03 通过**（宿主原生返回 `ordering`；真机载荷 73 个 / 34 有 / 39 无，排序四条不变式逐条成立）。设计、「不做」清单与验收证据见 §20。
+- **V0.10.0（Skill 实例验收）已在工作树落地、尚未发版**（§0.1 D13）：新增 `src/core/skill-instance-test.mjs`（**571 行、零依赖、零 `import`**，导出 `INSTANCE_TEST_SOURCES` / `INSTANCE_TEST_SCOPE_ROLES` / 三个卡面抬头常量与别名 `buildInstanceTest`）；生成器收 `{skillName, intent, comparison, definitionText, description, framework, validation}` 并回 `trace`（六项输入的在场情况、`hintedScopeId`、`validationUnknownCount`），**用户意图原文一个字节都不进结果**；回归约束改为**按框架产出**（`regression.source = 'framework' | 'definition' | null`）；客户端新增**第 8 支 `require`** 与 `SkillModificationPanel` 里 `data-role="mod-instance"` 一整段（本屏共 **14** 个 `mod-instance*` data-role，含 `mod-instance-trace`；新加「验证目标」/「测试 Prompt」两块抬头；意图只活在页面 state `lastIntent` 里，刷新即失）⇒ 客户端 3448 → **3625 行**、`dist/client.js` 170324 → **189256 字节**（source hash `faed5e9cef7db24c`）；`src/core/` 29 → **30 个模块 10924 行**、`src/storage/` **6 个 1117 行不变**；**宿主一行未动**（1625 行、**仍 12 条路由**，`POST /skill-trace/instance-test` 已取消）；守卫 **29 组**、`npm test` **590 项**（V0.10.0 早期工作树为 584 项 / 3569 行 / 184471 字节 / `2d202a05030a1d58`）。设计、「不做」清单与验证证据见 §21。
 - 本文件的 §9 模块清单行数与 §14 测试文件数都是**写死的实测值**，`AGENTS.md` §9.1 要求发版时用 `wc -l` 重跑；改代码时容易漏改这里。
 - **V0.8（Skill 演进）的 Phase 1（血缘）、Phase 2（差异）与 Phase 3（界面）都已落地**（§0.1 D8）：三个新模块 `src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs` / `src/core/skill-diff.mjs` 都已存在；`handleClone` 在回读通过之后写血缘（fail-soft）；`/skill-trace/skill` 随详情回 `lineage` 字段；宿主新增 `GET /skill-trace/diff`（**10 → 11 条路由**）；守卫 24 `SKILL_LINEAGE_OK` 与 25 `SKILL_DIFF_NO_JUDGEMENT_OK` 的**两个半**都已落地；客户端 `SkillEvolution` / `SkillDiffPanel` 已接进详情页并有 5 条渲染烟测。**已随 `0.8.0` 发布**（2026-10-02：GitHub Release + npm）。落地顺序见 §17.7。
 
@@ -1499,3 +1514,102 @@ export const INSTALLED_ORDERING_RULE = 'added-desc-then-name'
 - **不用 mtime / ctime / 文件级 birthtime** 冒充「加入时间」（§20.1）。
 - **不在客户端重排、不写死规则名、不说相对时间**（§20.4）。
 - **不把「读不到」写成「没复刻过」**（§20.3）。
+
+---
+
+## 21. Skill 实例验收（V0.10.0，工作树，未发版）
+
+> **状态**：实现、测试与守卫都已在工作树落地（2026-10-03），**尚未发版**（`package.json` 仍是 `0.9.2`）。需求侧对应 `spec/PRD.md` §5.12 的 `FR-INST-001`–`020`。与 §18 / §19 的分工：§18 回答「这个 Skill 当前符不符合规范」、§19 回答「我想让它怎么改、改完到底变了什么」，本节回答**「我刚刚改的这个 Skill，在一个真实任务里有没有按预期工作」** —— 而这个问题**由人在一个干净会话里回答**，插件只负责把可核对的任务交出去。
+
+一句话：**把「这次修改」变成一段可以真的拿去跑一遍的真实测试任务与一组观察项，交给用户；插件不运行它、不读结果、不判定。** 它**不新增页面、不新增导航、不新增 Route、不新增第二套 Agent Runtime**；宿主**一行未动**（仍 1625 行、12 条路由）。
+
+### 21.1 为什么是确定性生成，而不是调模型
+
+`src/core/skill-instance-test.mjs`（**571 行、零 `import`、零依赖**）里的 `buildSkillInstanceTest(input)` 是一支**纯函数**：不读盘、不读时间、不掷骰子、不调模型。守卫 `SKILL_INSTANCE_TEST_OK` 在**代码层**钉死这一点（`import ` / `require(` / `Math.random` / `Date.now` / `new Date` / `navigator` / `fetch(` / `setTimeout` 一个都不许出现），测试另外断言「同一份输入两次调用逐字节一致」。模块同时导出规格 §15 建议的别名 `buildInstanceTest`。
+
+理由就是 `FR-INST-020` 的终验判据：**必须能证明「生成出来的 Prompt 真的是针对这次修改的」**。
+
+- 如果生成过程里有模型或随机，那「针对这次修改」就只是一句要人相信的话；现在它是一条**可以断言的等式**：同一份输入 → 同一份 Prompt。这是「同一份输入同一份 Prompt，才可断言这段 Prompt 是针对这次修改的」的唯一实现方式。
+- `FR-INST-016` 允许模型参与「生成测试任务」，但当前架构里没有合适的入口（生成发生在客户端详情页的纯前端状态里，宿主不参与）。第一版因此**复用现有能力**（确定性纯函数）而不是新开一个模型入口 —— 这也正是「不新增路由」能成立的原因。
+- 生成器接受 `validation`（静态验收结论）作为输入，但**本版只用它说明静态层已经摆在那里，不下任何结论**。
+
+### 21.2 两个物理分离的产物
+
+| 产物 | 给谁 | 形状 | 位置 |
+|---|---|---|---|
+| `prompt.text`（= `promptText`） | **给 Agent** | `【任务】【工作目标】【输出要求】【注意】` 四块，顺序固定 | `data-role="mod-instance-prompt"`，按钮 `[复制测试 Prompt]` |
+| `observations` | **给人** | 每条必是疑问句，顺序固定、最多 6 条（`MAX_OBSERVATIONS = 6`） | `data-role="mod-instance-observations"`，抬头「预期观察点」 |
+
+- 四块结构由 `INSTANCE_TEST_PROMPT_BLOCKS = ['任务','工作目标','输出要求','注意']` 固定；`【注意】` 逐字是：**「请直接完成任务，不需要解释你为什么选择某个 Skill。请按照当前环境中的 Skill 能力完成任务。」**
+- **任务句不再整句照搬 `description`（2026-10-03 用户要求修正）**：`description` 大多写成「当用户……时使用。……」——那是给**模型**看的路由信息，不是一件可以交付的工作。现在 `subjectOf()` 先剥掉触发前缀、再截到第一个句读取出「这件事是什么」，`coreLines()` 把它写成一句真实的**指派**：`请完成下面这件真实工作，要真的做出来，不要只讲怎么做：<subject>。`（拿不到描述时退回一句通用的指派「请完成一件这个能力真正要解决的问题，要真的做出来，不要只讲怎么做。」），而不是把 `description` 原样搬进 Prompt。过长的文字走模块内部新增的私有 `clip()`：**按词边界**截断 —— 先在窗口里找最后一个空格，再丢掉 `to` / `of` / `a` 这类过短的尾词，末尾标点一并去掉后补省略号；中文没有词间空格，**找不到空格时才退回按字符截**。因此此前那种 `…to avo.` 的半个单词不会再出现。
+- 观察项顺序固定：`used`（它是否实际使用了相关 Skill？）→ `flow`（Skill 中的关键流程是否被执行？）→ 按范围顺序的各范围观察重点 → `modified-behaviour`（本次修改涉及的行为是否体现？）→ `kept`（原有核心能力是否保持？），超出 6 条直接截断。
+- **观察项一个字都不进 Prompt。** 这不是排版偏好：把「验收关注点」写进 Prompt，等于在 Prompt 里**重新教 Agent 该怎么做**，于是测的是这段说明而不是 Skill（`FR-INST-005`/`006`）。在载荷里它们就是**两个字段**，守卫要求两边不得互相包含。
+- 同理，Prompt 里不许出现：六个**范围 id**（`skill-md-workflow` / `references/` / `assets/` / `scripts/` …）、`SKILL.md` 里的小节标题与步骤名、「本次修改 / 这次修改 / 刚才的修改」这类**元话语**，以及 `INSTANCE_TEST_PROMPT_FORBIDDEN_WORDS` 里的判断词与工具词。
+- `usableSourceText()` 是兜底：从 Skill 正文摘出的句子一旦撞上禁用词就**整句丢掉**、退回中性说法 —— 正文是别人写的，插件不能保证它不用「成功 / 评分」这类词。
+- 观察项抬头与提示：`INSTANCE_TEST_OBSERVATION_TITLE = '预期观察点'`、`INSTANCE_TEST_OBSERVATION_NOTE = '注意：观察不到痕迹不等于没有被执行；下面只列可以核对的现象。'`
+
+### 21.3 六个输入、`trace`，与四种「生成不出来」
+
+`buildSkillInstanceTest({skillName, intent, comparison, definitionText, description, framework, validation})`：输入由调用方给（客户端 `generateInstanceTest()`，见 `src/dsh/client/client.js`），模块自己不读盘、不请求。`skillName` 与 `definitionText` 决定任务与回归约束，`comparison`（就是 `diffSkillModification()` 的结果）决定改了什么、落在哪个范围，`description` 决定任务的适用场景，`intent`（用户自己写的那句修改意图）**只用于对齐主范围**，`framework`（`skill-framework.mjs` 的解析结果）用于产出回归约束，`validation` 只被记录。
+
+- **`trace` 如实记录这次真的用了哪些输入**：`trace = { sources, frameworkAvailable, validationStatus, validationUnknownCount, hintedScopeId }`。`sources` 按 `INSTANCE_TEST_SOURCES = ['intent','scopeIds','comparison','description','framework','validation']` 的固定顺序，只列出**这次真的在场**的项（不在场的不出现）；`hintedScopeId` 是「用户意图点名了某个**确实被 diff 改动过**的范围」时选中的那个范围，它决定 `primaryScopeId`（否则按 `INSTANCE_TEST_PRIMARY_SCOPE_ORDER` 取第一个改过的范围）。界面「这个任务是怎么来的」里那两行（`data-role="mod-instance-trace"`）念的就是 `sources` 与 `primaryScopeId`。
+- **意图原文一个字节都不进结果**（规格 §17.1 / §20.2）：意图只用于（a）对齐主范围、（b）在 `trace.sources` 里记一笔。理由是硬的：把「你刚才改了什么」写进 Prompt，等于在 Prompt 里把 Skill 该怎么做**重新教一遍**，于是测的是这段说明而不是 Skill。守卫因此断言 `JSON.stringify(结果)` 里不含意图原文。
+- **缺框架 / 缺 validation 不进入 `unavailable`**：生成照样能出，只是 `limitations` 多一条诚实的、无判断的说明 —— 拿不到框架 → 「这次没有拿到这个 Skill 的框架结构，回归约束只从正文小节里找，可能比框架里声明的少。」；没有静态验收结论 → 「这次生成没有静态验收结论可用，实例验收不据此推断实际行为。」；静态验收里有 `unknown` 结论 → 「静态验收里有判不了的结论，实例验收不据此推断实际行为。」（`validationUnknownCount()` 数 `profiles[].status === 'unknown'`，并与 `validation.status === 'unknown'` 取大）。
+
+| reason | 什么时候 | 界面上的实话（`INSTANCE_TEST_UNAVAILABLE_MESSAGES`） |
+|---|---|---|
+| `no-comparison` | 还没有「本次修改对比」 | 还没有可用的本次修改对比，因此没有可生成的任务。 |
+| `comparison-unavailable` | 对比本身不可用（改前快照丢了） | 本次修改前状态不可用，因此没有可生成的任务。（对比自带 `message` 时用它） |
+| `no-changed-scope` | 改动没落在六个可测范围里（含空集合） | 这次改动没有落在可以生成实例验收的范围里，因此没有可生成的任务。 |
+| `no-definition` | 正文与描述都读不到 | 读不到这个 Skill 的正文与描述，因此没有可生成的任务。 |
+
+不可用结果里 `prompt: null` —— **一个 Prompt 都不画**，界面渲染 `role="alert"` 的 `data-role="mod-instance-unavailable"`，**绝不退回一个什么都能用的通用任务**（`FR-INST-018`）。坏输入（`null` / 字符串 / 缺字段）只会走成上面四种之一，**不抛异常**。
+
+### 21.4 六个修改范围：各自的观察重点与证据边界
+
+`INSTANCE_TEST_SCOPE_FOCUS` 的六个键与 `src/core/skill-modification.mjs` 的 `MODIFICATION_SCOPE_IDS` **逐字一致**（测试与守卫都断言）——它刻意**不 import** 那个模块，为的是保住「零依赖」这张入场券。
+
+| 范围 id | 界面标签 | 框架角色（`INSTANCE_TEST_SCOPE_ROLES`） | 观察重点（疑问句） |
+|---|---|---|---|
+| `skill-md-rules` | Rules | `rules` | 它声明的约束在产出里是否被遵守？ |
+| `skill-md-workflow` | Workflow | `workflow` | 产出的形成顺序与步骤要求是否体现？ |
+| `skill-md-description` | Description | `trigger` | 这次任务的描述是否落在它声明的适用场景里？ |
+| `references` | references | `resources` | 它自己的资料是否在任务中被实际用到？ |
+| `scripts` | scripts | `resources` | 它涉及的脚本能力是否被触发并体现在产出里？ |
+| `assets` | assets | `resources` | 它涉及的资源是否真的被用上，而不是只出现在产出旁边？ |
+
+- **主范围优先级**：`INSTANCE_TEST_PRIMARY_SCOPE_ORDER = ['skill-md-workflow','skill-md-rules','skill-md-description','references','assets','scripts']` —— 流程与规则排在最前，因为它们是「任务本身要不要变形」；资源三类只改文件，任务形状通常不变。六个范围各得到**不同**的 Prompt（测试断言六份互不相同）；三个内部意图 `core` / `boundary` / `regression` **只是内部清单**，界面第一版只有一个按钮、只生成一个综合 Prompt（`intent: 'core+boundary+regression'`，`FR-INST-008`）。
+- **证据边界（`FR-INST-011`）**：三个资源类范围**只看得到文件的增删改，看不到文件内容** ⇒ 任务按范围写、不按文件内容写；命中的话 `limitations` 多一条说明。**声明存在不等于运行时用了它**：插件不自动执行 `scripts/`、不判定脚本是否成功、不因为声明了某个资源就推断它被用上。`references` / `scripts` / `assets` 只能作为**观察项**摆出来，**不许**用来推断运行时行为。
+- **「没有观察到证据，不代表没有执行」** —— 这句话直接印在观察项抬头下面（`INSTANCE_TEST_OBSERVATION_NOTE`），也是本版全部判定的边界。
+- **回归约束按框架产出，且只能来自没被这次改动触及的声明能力**（`FR-INST-009`）：`regressionOf({ definitionText, framework, changedTitles, changedScopeIds })` 先看 `framework.sections[]`，排除「标题被 diff 碰过」与「角色映射到改过的范围」（`INSTANCE_TEST_SCOPE_ROLES`）的小节，产出 `这次改动不应影响原有「X」的要求：…`（句子经禁用词过滤并截到 48 字，最多 3 条）；框架里一条都拿不到才退回**正文二级小节**，并如实报 `regression.source = 'framework' | 'definition' | null`。取不到时**如实**进 `unavailable`，**绝不**写「确保原有核心能力没有受到影响」这种泛化句。
+
+### 21.5 界面：位置、出现条件与「做什么、不做什么」
+
+- **位置固定**：`Skill Evolution → 本次修改 → 本次修改对比 → 实例验收`。它是 `SkillModificationPanel`（`data-role="skill-modification"`，「本次修改对比」卡）**内部的一整段**（`data-role="mod-instance"`），**不是新组件**；`phase === 'idle'` 时整块返回 `null`，实例验收随之消失 —— 没有修改事务时连这一段都不出现（`FR-INST-003`/`017`）。**不建「测试中心」，不新增页面、导航或 Route，不新增第二套 Agent Runtime。**
+- **两种状态**：
+  - 生成入口 `[生成实例验收]`（`data-role="mod-instance-generate"`）：调 `onGenerateInstanceTest` → 上面那支纯函数。**无网络调用、无模型、无第二次读盘。**
+  - 生成之后摆出 Prompt（`mod-instance-prompt`）与 `[复制测试 Prompt]`（`data-role="mod-instance-copy"`）：只写剪贴板（复制成功就地显示「已复制」），**绝不注入输入框、绝不发消息、绝不触发 Agent**；旁边一句**弱提示**：「建议在新的 DSH 会话中运行，以避免当前修改对话中的上下文影响测试结果。」
+- 这一屏一共 **14 个 `mod-instance*` data-role**：`mod-instance` / `-hint` / `-unavailable` / `-scope` / `-prompt` / `-copy` / `-run-hint` / `-observations` / `-observation` / `-regression` / `-regression-unavailable` / `-limitations` / `-generate` / `-trace`（新增，已进守卫的 `guardedRoles` 白名单）。抬头是 `INSTANCE_TEST_HEADLINE = '针对你刚才修改的 Skill，这个任务可以直接验证修改是否生效。'`；卡里另有「验证目标」块（`INSTANCE_TEST_GOAL_TITLE = '验证目标'` / `INSTANCE_TEST_GOAL_TEXT = '验证本次修改是否改变了这个 Skill 的实际行为。'`）与「测试 Prompt」块抬头（`INSTANCE_TEST_PROMPT_TITLE = '测试 Prompt'`）；限制折叠是 `INSTANCE_TEST_LIMITATION_NOTE = '这个任务是怎么来的'`。
+- **`mod-instance-trace` 那两行**（画在 `data-role="mod-instance-limitations"` 那个折叠里，排在 `limitations` 各条之前）：`这个任务用了这些输入：<sources 的人话标签，` · ` 分隔>。`（六个 id → 人话：`intent` 用户修改意图 / `scopeIds` 修改范围 / `comparison` 修改前后对比 / `description` Skill 描述 / `framework` 框架结构 / `validation` 静态验收结论）与 `任务形状由主范围决定：<范围标签>（你这次的意图点名了它）。`（只有 `trace.hintedScopeId` 真的命中才追加括号里那半句）。
+- **意图只活在页面状态里**：详情页 `const [lastIntent, setLastIntent] = React.useState('')` 留住用户写的那句话，`SkillModifyDialog` 的 `.then((body) => onDispatched(body, intent))` 与详情页的 `onDispatched(body, dispatchedIntent)` 为它改了签名；生成时传 `intent: lastIntent || null` 与 `framework: detail?.framework ?? null`（此前 `intent` / `framework` 根本没接、`validation` 收了不用）。**宿主从头到尾不知道它**：不落盘、不进 receipt、不进 session log；页面刷新即失，那时 `trace.sources` 少一项（`intent` 不再出现）。
+- 结果**只活在详情页前端状态**里（与本次修改、本次 diff、静态验收同级），刷新后重新生成；本版**不保存测试历史**（`FR-INST-014`）。它**不落盘、不进收据、不进会话日志、不上传**，也不新增任何持久结构（同 §11.2 第 7 条）。
+- **它不替用户运行。** 复制走之后发生的一切都在插件之外：插件不知道那个会话里发生了什么，也不去问。
+
+### 21.6 守卫与测试证据
+
+- **守卫 29** `SKILL_INSTANCE_TEST_OK`（§13.1）：生成器零依赖（代码级）、四块结构顺序、Prompt 禁范围 id / 元信息 / 禁用词、观察项必须疑问句且不进 Prompt、同输入同输出、结果禁结论词、三种不可用如实说、客户端第 8 支 `require`（`require('../../core/…')` 总数恰为 8）与 `mod-instance-*` 六个关键 data-role（本屏共 **14** 个、`mod-instance-trace` 已进 `guardedRoles`）、禁用产品名；**「6b」段（本轮新增）**：意图点名**且真的改过**的范围决定主范围、回归约束按框架产出且不含被碰过的角色（fixture 里「运行逻辑」被碰过、「输出」没碰过）、`regression.source === 'framework'`、意图原文不出现在 `JSON.stringify(结果)` 里、`trace.sources.join(' ') === 'intent scopeIds comparison description framework'`、diff 自己的变更小节标题（fixture 里是「步骤 4」）不许出现在 `prompt.text`、源码里必须有 `export const buildInstanceTest = buildSkillInstanceTest`，另加 5 条客户端 needle（`INSTANCE_TEST_GOAL_TITLE` / `INSTANCE_TEST_PROMPT_TITLE` / `'data-role': 'mod-instance-trace'` / `intent: lastIntent || null` / `framework: detail?.framework ?? null`）。
+- **`test/skill-instance-test.test.mjs`（27 项）**：上表逐条的行为断言，外加「六个范围六种不同 Prompt」「主范围跟着意图点名过的范围走、点到没改过的不算」「`trace.sources` 只列在场项且顺序固定」「意图原文不进结果」「回归约束不含被改小节名 / 被碰过的角色」「缺框架 / 缺 validation 只多一条 limitation、不进 `unavailable`」「坏输入只降级不抛」「结果里没有判断词 / 分数 / 相对时间」「范围清单与 `MODIFICATION_SCOPE_IDS` 逐字一致」「资源类限制 2 → 3 条」「源码零 `import`、不读时间、不掷骰子」「别名导出存在」，以及本轮新增的第 27 例 —— **「任务句按词边界截断：英文描述不会切在半个单词上」（省略号前停在一个完整的词上，且不长的描述不出现省略号）**。
+- **`test/client-render-smoke.test.mjs`（该文件仍 26 项）**：在它原有的实例验收用例里补了断言 —— 「验证目标」与「测试 Prompt」两块抬头真的渲染、`data-role="mod-instance-trace"` 的行存在且至少一行、那两行含有「这个任务用了这些输入」与「任务形状由主范围决定」，并且 `trace.sources` 的**内部 id 不许出现在界面文案里**（界面念的是人话标签）。用例的其余部分仍是「拿到的是一份**任务**而不是一个**结论**」：ready 时 Prompt 与观察项各自渲染且互不包含，idle 时只给入口、连 Prompt 都不画，点 `[生成实例验收]` 真的调到回调，不可用时 `role="alert"` 且不画 Prompt，没有修改事务时整段长度为 0。
+- 工作树口径：`npm test` **590 项**全绿、`npm run verify` **29 组** `_OK`。
+- **source hash 的口径**：`clientSourceHash()` 只哈希 `src/dsh/client/` 下的文件（见 `scripts/build-client.mjs`）。本轮只改 `src/core/skill-instance-test.mjs`，因此 `dist/client.js` 变成 **189256 字节**（bundle 变长，见 §9.1）而 source hash 仍是 **`faed5e9cef7db24c`** —— 改 `src/core/` 不影响这个值，别拿它当「这一版动了什么」的指纹。
+
+### 21.7 本版不做什么
+
+- **不自动运行**：不自动建会话、不自动发 Prompt、不等待 Agent、不读回结果、不判定（`FR-INST-013`）。用户点「复制测试 Prompt」之后发生的一切都在插件之外。
+- **不判定成功**：没有成功率、通过率、评分、得分、优秀、合格、有效、无效；输出平面字符串里出现这些词就是失败（守卫按字面钉死）。最多说「已生成实例验收任务」。
+- **不做 Test History / Test Runs / Evaluation Database / Benchmark Dataset**（`FR-INST-014`/`019`）。
+- **不做三按钮 / 测试任务列表**：内部支持 `core` / `boundary` / `regression` 三种意图，界面第一版**只有一个按钮、只生成一个综合 Prompt**（`FR-INST-008`）。
+- **不做「对任意已安装 Skill 生成泛化测试」**：只针对**本次修改**，必须有修改事务（`FR-INST-003`）。
+- **不新增页面 / 导航 / Route / 第二套 Agent Runtime**（`FR-INST-015`）；原计划的 `POST /skill-trace/instance-test` **已取消**，宿主因此一行未动。
+- **不把实例验收接回 Skill Detail 的判定链路**：不做 Baseline / With Skill 对比、不做多轮自动回归、不做 Evaluation Dashboard —— 那是 **V1.0 的 Skill Evaluation**（`FR-INST-019`）。
+- **不新增依赖、不新增落盘。**
