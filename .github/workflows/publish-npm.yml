@@ -15,6 +15,14 @@
 # 不开的话最后一步改不了 latest / beta 指针。
 #
 # 背景、条款时间线与备选方案（staged publishing）见 docs/RELEASE.md §5.2 / §5.3。
+#
+# 行为：package.json 的版本如果已经在 npm 上，就不再尝试发布（重复发布必然 EPUBLISHCONFLICT），
+# 改为「跳过发布 + 一条黄色通知」，run 是绿的。于是误推 tag（版本号忘了 bump）不再产生红叉；
+# 反过来，真的该发却没发出去（缺权限、OIDC 没配、注册表拒绝）仍然是红的。
+#
+# 想验证 OIDC 本身还通不通，用 `probe` 模式（workflow_dispatch 的第二个输入，见下面那步）：
+# 它拿一个**已经发布过**的版本号故意发出 publish 请求，注册表以「版本已存在」拒绝即为通过
+# （没有令牌的话会先红在 ENEEDAUTH）——注册表因此不会被改动。判据表见 docs/RELEASE.md §5.2b。
 
 name: Publish to npm
 
@@ -26,6 +34,10 @@ on:
       version:
         description: 要发布的版本（不带 v；必须等于 package.json 的 version）
         required: true
+      probe:
+        description: 探针模式：只验证 OIDC 能不能换到发布令牌（版本必须已经发布过，不会真的发布）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -75,9 +87,64 @@ jobs:
           npm test
           npm run verify
 
+      # 版本已经在 npm 上时不再发布：重复发布本来必然失败（EPUBLISHCONFLICT）。
+      # 这一步把两种情况都变成「一条黄色通知 + 绿色 run」，而不是一个红叉：
+      #   ① 探针 —— 用已发布过的版本号触发，就是为了在不给任何凭证的前提下验证 OIDC 是否配好
+      #      （docs/RELEASE.md §5.2b）；
+      #   ② 误推 tag —— 版本号没 bump 就把 tag 推出去了。
+      # 只读注册表，不需要凭证。
+      - name: 这个版本在 npm 上已经有了吗
+        id: published
+        run: |
+          set -euo pipefail
+          v="$(node -p "require('./package.json').version")"
+          if npm view "dsh-skill-trace@$v" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "npm 上已有 dsh-skill-trace@$v"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "npm 上还没有 dsh-skill-trace@$v"
+          fi
+
+      # 探针模式必须拿一个已经发布过的版本号来跑，否则下面那步会真的把它发布出去。
+      - name: 探针模式只允许用已发布过的版本号
+        if: inputs.probe == true && steps.published.outputs.exists == 'false'
+        run: |
+          echo "::error::probe=true 但 package.json 的版本还没发布过 —— 那会真的执行 publish。"
+          echo "请把 version 换成 npm 上已有的版本号（例如已发布的上一版）再跑。"
+          exit 1
+
       # trusted publishing 会自动附带 provenance，不需要 --provenance。
       - name: 发布（latest）
+        if: steps.published.outputs.exists == 'false'
         run: npm publish --tag latest
 
       - name: 第二个标签（beta 与 latest 指向同一版）
+        if: steps.published.outputs.exists == 'false'
         run: npm dist-tag add "dsh-skill-trace@$(node -p "require('./package.json').version")" beta
+
+      # 探针：故意发出 publish 请求，预期被注册表以「版本已存在」拒绝 —— 拿到这个拒绝
+      # 就说明 OIDC 兑换成功（没有任何令牌时会先红在 ENEEDAUTH / 404 package not found）。
+      - name: 探针：OIDC 能不能换到发布令牌（不会真的发布）
+        if: inputs.probe == true && steps.published.outputs.exists == 'true'
+        env:
+          NPM_CONFIG_LOGLEVEL: verbose
+        run: |
+          set +e
+          out="$(npm publish --tag latest --loglevel=verbose 2>&1)"
+          echo "$out"
+          if printf '%s' "$out" | grep -q 'previously published versions'; then
+            echo "::notice::OIDC 通了：认证被接受，注册表以「版本已存在」拒绝，注册表未被改动。"
+            exit 0
+          fi
+          echo "::error::探针失败：没拿到「版本已存在」的拒绝，说明 OIDC 兑换没成功（看上面的 npm error code）。"
+          exit 1
+
+      - name: 版本已存在 —— 跳过发布
+        if: steps.published.outputs.exists == 'true' && inputs.probe != true
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          echo "::warning::dsh-skill-trace@$v 已经在 npm 上，本次跳过 publish 与 dist-tag —— 这个 run 没有发布任何内容。"
+          echo "如果是误推的 tag：先确认 npm 上那一版是不是你要发的东西，再决定要不要补一个新的版本号。"
+          echo "如果只是 beta 指针没跟上：npm dist-tag add dsh-skill-trace@$v beta"
+          echo "想验证 OIDC 本身：用 probe=true 再跑一次（见上一步）。"

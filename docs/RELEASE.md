@@ -253,30 +253,31 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 
 ### 5.2b 怎么验「npm 侧配好了没」——不需要 OTP
 
-不用登录网页，用一次**不会改动注册表**的 workflow 运行就能问出答案：
+不用登录网页，用一次**不会改动注册表**的 workflow 运行就能问出答案（`probe=true`）：
 
 ```bash
-# 用一个**已经发布过的**版本号触发（例如 0.9.2）：npm 先认证、再校验版本，
-# 于是「认证成没成」与「版本重不重复」在日志里是两个可区分的失败
-gh workflow run publish-npm.yml -f version=0.9.2
+# 用一个**已经发布过的**版本号触发（例如 0.9.2）：workflow 会故意发出 publish 请求，
+# 注册表以「版本已存在」拒绝即为通过 —— 注册表因此没有被改动。
+# probe=true 会拒绝「版本还没发布过」的组合，以免探针变成一次真发布。
+gh workflow run publish-npm.yml -f version=0.9.2 -f probe=true
 RID=$(gh run list --workflow publish-npm.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-gh run watch "$RID" && gh run view "$RID" --log > /tmp/oidc-probe.log
+gh run watch "$RID"; gh run view "$RID" --log > /tmp/oidc-probe.log
 ```
 
-判据（只看 publish 那一步的日志）：
+判据（只看「探针：OIDC 能不能换到发布令牌」那一步的日志；`--loglevel=verbose` 已写进那一步）：
 
 | 日志里出现 | 含义 |
 |---|---|
-| `npm verbose oidc Successfully retrieved and set token`，随后 publish 因 `EPUBLISHCONFLICT`（`cannot publish over the previously published versions`）失败 | **配好了**：OIDC 兑换成功，红只是因为该版本已存在（**预期，注册表没被改动**） |
-| `npm http fetch POST 404 …/-/npm/v1/oidc/token/exchange/package/dsh-skill-trace` + `oidc Failed token exchange request with body message: OIDC token exchange error - package not found` + `npm error code ENEEDAUTH` | **还没配好**（npm 故意用 404 表示「没有能匹配这次 OIDC 身份的配置」） |
-| `oidc Skipped because incorrect permissions for id-token within GitHub workflow` | workflow 少了 `permissions.id-token: write` |
+| `npm verbose oidc Successfully retrieved and set token`，随后 publish 因 `EPUBLISHCONFLICT`（`cannot publish over the previously published versions`）被拒 → 该步判为**通过**（绿色 + 一条 `::notice::`） | **配好了**：OIDC 兑换成功，拒绝只因为该版本已存在（**注册表没被改动**） |
+| `npm http fetch POST 404 …/-/npm/v1/oidc/token/exchange/package/dsh-skill-trace` + `oidc Failed token exchange request with body message: OIDC token exchange error - package not found` + `npm error code ENEEDAUTH` → 该步**红**，run 红 | **还没配好**（npm 故意用 404 表示「没有能匹配这次 OIDC 身份的配置」） |
+| `oidc Skipped because incorrect permissions for id-token within GitHub workflow` → 该步**红** | workflow 少了 `permissions.id-token: write` |
 
-上面那种 404 只在 `--loglevel=verbose` 下才打得出来；要复现就在临时分支上把 publish 那步改成
-`npm publish --tag latest --loglevel=verbose`，run 完把分支删掉（2026-10-02 就是这么查的）。
-
-**探针 run 一定以红色收场，那是预期，不是 CI 失败**：它本来就不该真的发布。看它时只看两件事——
-publish 那一步的报错属于上表哪一类，以及它前面的 checkout / `npm ci` / 闸门是不是全绿。
-2026-10-03 的三条红 run（`37089810443` / `37091112501` / `37091307449`）都属于这一类，逐条说明见 §6.0 的 CI 行。
+**版本已经在 npm 上时，推 tag 或普通 dispatch 不再产生红叉**（2026-10-03 起）：workflow 里多了一步
+「这个版本在 npm 上已经有了吗」——版本已存在时 `发布（latest）` 与 `beta` 两步被跳过，替换成一条黄色通知
+（`dsh-skill-trace@x 已经在 npm 上，本次跳过 publish 与 dist-tag —— 这个 run 没有发布任何内容`），run 是绿的。
+于是「版本号忘了 bump 就推 tag」也不会再红；反过来，**真的该发却没发出去**（OIDC 没配、权限没勾、
+注册表拒绝）仍然是红的。2026-10-03 上午那三条红 run（`37089810443` / `37091112501` / `37091307449`）
+是加这一步**之前**的历史，逐条说明见 §6.0 的 CI 行。
 
 **2026-10-02 的实测结果：`POST …/oidc/token/exchange/package/dsh-skill-trace` 回 `404` +
 `OIDC token exchange error - package not found`，随后 `npm error code ENEEDAUTH`** —— 也就是说，
@@ -286,6 +287,8 @@ publish 那一步的报错属于上表哪一类，以及它前面的 checkout / 
 run `37091307449`）这次红在 `npm error You cannot publish over the previously published versions: 0.9.2.`
 （即 `EPUBLISHCONFLICT`）—— OIDC 兑换成功、trusted publisher 生效，红只是因为 `0.9.2` 早已发布
 （**注册表没有被改动**）。同一天 10:49 的那次（run `37091112501`）还是 `ENEEDAUTH`，生效点就在那几分钟之间。
+（当时还没有 `probe` 输入，用的是普通 dispatch，所以那两次都以红色收场；现在同样的验证走 `probe=true`，
+见上面那张表——判为通过时 run 是绿的。）
 
 同一个 run 还能顺带体检仓库侧：checkout / setup-node / `npm install -g 'npm@^11.5.1'` / 版本号比对 /
 `npm ci` / 本地闸门（`node --check` + `npm test` + `npm run verify`）都应当是绿的（2026-10-02 那次就是如此）。

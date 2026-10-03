@@ -83,6 +83,8 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > 那次还是 `ENEEDAUTH`）。**以后发版 = 改版本号 + 提交 + 打 tag + 推 tag**，workflow 自己跑闸门、发布、
 > 并把 `beta` 指到同一版；本地不再需要任何 npm 凭证。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
 > `npm trust github` 只有 `--allow-publish` / `--allow-stage-publish` 两个开关，建出来就没有它，而字段建好不能改。
+> **2026-10-03 起版本已在 npm 上时不再红**：workflow 会跳过 publish 与 dist-tag，改成一条黄色通知（run 绿）；
+> 要专门验 OIDC 就用 `-f probe=true`（拿已发布过的版本号故意发一次请求，「版本已存在」的拒绝即判通过）。
 > 判据表见 `docs/RELEASE.md` §5.2b。
 >
 > **2026-10-03 实测更正：那张 web-login token 已经失效**（`https://registry.npmjs.org/-/whoami` → **401**），
