@@ -14,6 +14,10 @@ const required = [
   'src/storage/skill-lineage-store.mjs',
   'src/core/skill-lineage.mjs',
   'src/core/skill-diff.mjs',
+  'src/core/skill-profiles.mjs',
+  'src/core/skill-validation.mjs',
+  'src/core/skill-modification.mjs',
+  'src/storage/modification-snapshot-store.mjs',
   'src/dsh/host/index.js',
   'src/dsh/client/client.js',
 ]
@@ -25,7 +29,7 @@ if (packageJson.name !== 'dsh-skill-trace') throw new Error('package name mismat
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-ui-conversation')) throw new Error('conversation client injection missing')
 if (!packageJson.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-locale')) throw new Error('locale client injection missing')
 
-for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/core/skill-lineage.mjs', 'src/core/skill-diff.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/storage/skill-lineage-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
+for (const file of ['src/core/trace-reducer.mjs', 'src/core/source-snapshot.mjs', 'src/core/installed-view.mjs', 'src/core/skill-translation.mjs', 'src/core/skill-lineage.mjs', 'src/core/skill-diff.mjs', 'src/core/skill-profiles.mjs', 'src/core/skill-validation.mjs', 'src/core/skill-modification.mjs', 'src/storage/receipt-store.mjs', 'src/storage/preference-store.mjs', 'src/storage/skill-lineage-store.mjs', 'src/storage/skill-clone-writer.mjs', 'src/storage/modification-snapshot-store.mjs', 'src/dsh/host/index.js', 'src/dsh/client/client.js']) {
   const result = spawnSync(process.execPath, ['--check', resolve(root, file)], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(`${file} syntax check failed:\n${result.stderr}`)
 }
@@ -86,6 +90,8 @@ for (const requiredText of [
   // 新界面的样式钩子：卡片、已安装网格、文档面板、状态块。
   'st-skill-card',
   'st-installed-grid',
+  // v0.9.2：列表头那句「按什么排的」。它是样式钩子，也是那句话真的渲染出来的证据。
+  'st-installed-order',
   'st-detail-doc',
   'st-trace-state',
 ]) {
@@ -137,6 +143,9 @@ for (const requiredText of [
   "'/skill-trace/skill'",
   // v0.8 新增的唯一一条路由。新路由不进这张表就等于没有守卫：删掉它没人会失败。
   "'/skill-trace/diff'",
+  // v0.9.1 的第二条非只读路由。它**不写文件**：只把改前记进内存，再用当前会话的 Agent
+  // 代发一条带协议的修改任务。用户点「交给 Agent」这个动作本身就是授权。
+  "'/skill-trace/modify'",
   "'/skill-trace/catalog'",
   "'/skill-trace/definition'",
   "'/skill-trace/translate'",
@@ -388,18 +397,18 @@ if (!builder.shippedBundleIsFresh()) {
   // v0.6 §22 的顶栏曾经是 68px（`height:68px`），`design.md` §6.1 只规定 58px 下限。
   // 这里更早还钉过 72px —— 一个两份文档都没有的数字，谁也说不清它是从哪抄来的。
   //
-  // 2026-10-05（用户：「（两个一级页面入口那块）这个背景占用太多高度，去掉这个背景后，
+  // 2026-10-02（用户：「（两个一级页面入口那块）这个背景占用太多高度，去掉这个背景后，
   // 下方数据上移」）：顶栏收到 48px 并去掉底色。48px 是贴着内容的下限 —— 分段控件本身
   // 36px，上下各留 6px；68px 里有 32px 是纯空白。省下的高度直接给下方列表。
   if (!/\.st-topbar\{[^}]*min-height:48px/.test(css)) throw new Error('§22: the top bar is 48px')
   // 同一件事的另一半，而且是用户真正指出来的那一半：顶栏不许再自己画底色。它现在是
   // 和页面同色的一行。这条守卫是反向的 —— 它守的是「那块底板不许回来」。
   if (/\.st-topbar\{[^}]*background:/.test(css)) throw new Error('§22: the top bar must not paint its own background')
-  // 2026-10-05 同一次改动（用户：「本次 Skill 跟已安装 Skill 下方那条横线，我觉得也不需要了」）：
+  // 2026-10-02 同一次改动（用户：「本次 Skill 跟已安装 Skill 下方那条横线，我觉得也不需要了」）：
   // 顶栏连分隔线也不画了。它上面是宿主的标签条、下面是页面自己的内容，两边本来就有边界，
   // 再补一条线只是在给「这里是一块独立的板子」这件事续命。留一条反向守卫，防止它回来。
   if (/\.st-topbar\{[^}]*border-bottom/.test(css)) throw new Error('§22: the top bar must not draw its own separator')
-  // 2026-10-05（用户：「Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行……用户可以点进去
+  // 2026-10-02（用户：「Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行……用户可以点进去
   // 查看详情」）：两个列表的卡片描述都截到 4 行。这条守的是**两个**类 —— 只截一个的话，
   // 同一份描述在两个页面里会有两种长度，而用户要的恰恰是统一。
   // 截的是绘制，不是文本：DOM 里仍然是完整描述，读屏与卡片可访问名不受影响。
@@ -413,7 +422,7 @@ if (!builder.shippedBundleIsFresh()) {
       throw new Error(`§27: ${cls} clamps to 4 lines but does not hide the overflow`)
     }
   }
-  // 2026-10-05（用户：「模型可调用这块变成固定在左下，没必要根据描述向上响应」）：两个列表卡片的
+  // 2026-10-02（用户：「模型可调用这块变成固定在左下，没必要根据描述向上响应」）：两个列表卡片的
   // 元信息行都钉在卡片左下角。网格默认把同一行的卡片拉到等高，元信息行如果只跟着描述走，
   // 它会停在描述下面、离卡片底边还差一大截 —— 卡片看上去像没写完。
   // 反向守卫：只靠「描述多长就离多远」正是这条要挡掉的旧行为。
@@ -428,13 +437,13 @@ if (!builder.shippedBundleIsFresh()) {
   if (!/\.st-skill-card-meta\{[^}]*padding-top:10px/.test(css)) {
     throw new Error('§27: the session card meta row loses its gap when the card has no spare height')
   }
-  // 2026-10-05（用户：「下方 Skill 列表向上移，距离搜索框跟搜索顶框高度一致就可以了」）：
+  // 2026-10-02（用户：「下方 Skill 列表向上移，距离搜索框跟搜索顶框高度一致就可以了」）：
   // 顶栏不画分隔线之后，列表的顶部内边距就是它与顶栏之间唯一的距离。22px 会留出一条
   // 谁都不认领的空白带；10px 与顶栏自己的垂直节奏（48px 的条里放 30px 控件，上下各 9px）对齐。
   if (!/\.st-installed\{[^}]*padding:10px 24px 28px/.test(css)) {
     throw new Error('§22: the installed list must start one top-bar rhythm below the top bar, not 22px')
   }
-  // 2026-10-05（用户：「本次 Skill 列表跟已安装 Skill 列表应该是平行的」）：两个一级列表
+  // 2026-10-02（用户：「本次 Skill 列表跟已安装 Skill 列表应该是平行的」）：两个一级列表
   // 共用一条顶栏，读者来回点时第一张卡片应当原地不动。两页的内边距必须**逐字相同**——
   // 一个 20/22、一个 10/24，切换页面时内容会横竖各跳一下。这条同时守住两个值。
   if (!/\.st-page\{[^}]*padding:10px 24px 28px/.test(css)) {
@@ -888,10 +897,14 @@ console.log('VISUAL_TOKENS_OK')
   for (const forbidden of ['ReactFlow', 'window.open', 'location.href']) {
     if (framework.includes(forbidden)) throw new Error(`a step click must stay inside this page, but the framework touches ${forbidden}`)
   }
-  // 顺序：框架 → 本次运行逻辑 → 步骤证据 → SKILL.md。位置反过来就是另一种产品（先读文档、
-  // 再猜结构）；把运行逻辑排到框架前面，则是把「声明」读成「观察到」。
-  if (!/className: 'st-detail-main' \}, framework, runtimeLogic, stepEvidence, docPanel/.test(client)) {
-    throw new Error('the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order')
+  // 顺序：验收 → 本次修改对比 → 框架 → 本次运行逻辑 → 步骤证据 → SKILL.md。位置反过来就是另一种产品
+  // （先读文档、再猜结构）；把运行逻辑排到框架前面，则是把「声明」读成「观察到」。
+  // v0.9.0 把「Skill 验收」加在最前：它回答的是「这份 Skill 现在符不符合规范」，是这一版的主问题；
+  // 而它同样是**声明层**的事实（只读 SKILL.md 与目录清单），排在运行逻辑之前不构成「用观测反推声明」。
+  // v0.9.1 的「本次修改对比」紧跟在验收后面：那两句回答的是同一个问题——「这次改完，现在是什么样」。
+  // 它只在一次修改事务里出现（`phase: 'idle'` 时组件自己返回 `null`），所以平时这一行并不占位置。
+  if (!/className: 'st-detail-main' \}, h\(SkillValidationPanel, \{ validation, validationFieldMissing \}\), skillModification, framework, runtimeLogic, stepEvidence, docPanel/.test(client)) {
+    throw new Error('the detail body must read 验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order')
   }
 
   // 3. 表格：一个解析器，两个读者。渲染器和翻译校验共用它，否则"画得出来"与"校验得过"
@@ -1245,6 +1258,583 @@ console.log('VISUAL_TOKENS_OK')
   }
 
   console.log('SKILL_DIFF_NO_JUDGEMENT_OK')
+}
+
+// --- v0.9.0「Skill 验收」：规范事实，不是评分 ---------------------------------------
+// 这一组守的是这个能力的产品底线，每一条都对应一次真实的设计决定：
+//
+//   1. **结论只有三态，严重度只有三档。** 验收不是评分系统：没有分数、没有排名、没有质量
+//      等级。界面上只有「通过 / 需要修正 / 无法判断」。
+//   2. **同一件规范事实在不同平台可以有不同的严重度。** Microsoft 原文写 "Must match the
+//      parent directory name"（error），OpenAI 对同一件事只是「文件夹要跟 Skill 同名」的
+//      建议（warning）—— 把两者抹平成一套「统一标准」，就是规划 §十六 明令禁止的事。
+//   3. **DSH 不看目录名。** `dsh-skill-filesystem` 里没有任何 basename 比对，所以 DSH
+//      Profile 里不许出现目录名规则：那别的平台的事实，不是 DSH 的。
+//   4. **行数永远只是 warning。** 四家的装载阻断清单里都没有行数。
+//   5. **验收器是纯函数。** 只 import 规则表一支，不注册 Skill、不调模型、不读 IO。
+//   6. **宿主把结果并进既有响应，没有为验收新增路由。** 路由清单在别处按字面钉住
+//      （v0.9.0 走的是既有两条，v0.9.1 才加了 `POST /skill-trace/modify`）。
+{
+  const profilesSrc = await readFile(resolve(root, 'src/core/skill-profiles.mjs'), 'utf8')
+  const validationSrc = await readFile(resolve(root, 'src/core/skill-validation.mjs'), 'utf8')
+  const hostSrc = await readFile(resolve(root, 'src/dsh/host/index.js'), 'utf8')
+  const viewModelSrc = await readFile(resolve(root, 'src/core/skill-view-model.mjs'), 'utf8')
+  const strip = (source) => source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+  const profilesCode = strip(profilesSrc)
+  const validationCode = strip(validationSrc)
+  const hostCode = strip(hostSrc)
+
+  // 1. 三态与三档。多一个取值就是把「无法判断」挤成「需要修正」，或者把警告升成失败。
+  if (!profilesCode.includes("SKILL_RULE_SEVERITIES = Object.freeze(['error', 'warning', 'info'])")) {
+    throw new Error('严重度必须恰好是 error / warning / info 三档，不许再加一档')
+  }
+  if (!validationCode.includes("SKILL_VALIDATION_STATUSES = Object.freeze(['pass', 'needs-fix', 'unknown'])")) {
+    throw new Error('验收结论必须恰好是 pass / needs-fix / unknown 三态')
+  }
+  for (const zh of ['通过', '需要修正', '无法判断']) {
+    if (!validationSrc.includes(`zh: '${zh}'`)) {
+      throw new Error(`验收状态的界面文案必须逐字给出「${zh}」，且必须是这一句话而不是拼出来的`)
+    }
+  }
+  // 三态各有自己的分支：落回默认就是把「需要修正」渲染成「无法判断」，两者含义正相反。
+  // （这一条要等 `clientCode` 切出来之后再查，见本段末尾。）
+
+  // 2. 评分禁令：核心模块里不许出现分数、排名、质量等级的词汇。注释不算（注释里写着
+  //    「不是评分系统」是必要的说明），但**代码里的键名与文案**一个字都不许有。
+  const scored = ['score', 'rank', 'quality', 'percent', 'rating', 'grade', 'weight', '评分', '分数', '等级', '优秀', '最佳', '推荐度']
+  for (const word of scored) {
+    for (const [file, code] of [['src/core/skill-profiles.mjs', profilesCode], ['src/core/skill-validation.mjs', validationCode]]) {
+      if (code.toLowerCase().includes(word.toLowerCase())) {
+        throw new Error(`${file} 里出现了「${word}」：验收只给三态结论，不给分数与等级`)
+      }
+    }
+  }
+
+  // 3. 平台差异不许被抹平。同一件事实两条规则、两种严重度，正是「Profile 独立」的落点。
+  if (!/id: 'MS-DIR-001',\s*\n\s*profile: 'microsoft',\s*\n\s*severity: 'error'/.test(profilesCode)) {
+    throw new Error('Microsoft 的「name 必须与父目录同名」原文是 Must，必须是 error')
+  }
+  if (!/id: 'OA-DIR-001',\s*\n\s*profile: 'openai',\s*\n\s*severity: 'warning'/.test(profilesCode)) {
+    throw new Error('OpenAI 对同名的写法只是建议，必须是 warning（抹平平台差异就是另一种产品）')
+  }
+  if (!/id: 'CORE-BODY-001',\s*\n\s*profile: 'common',\s*\n\s*severity: 'warning'/.test(profilesCode)) {
+    throw new Error('SKILL.md 行数四家都只是建议（装载阻断清单里没有它），只能是 warning')
+  }
+  const dshBlockStart = profilesCode.indexOf('dsh: Object.freeze([')
+  const dshBlockEnd = profilesCode.indexOf('microsoft: Object.freeze([')
+  if (dshBlockStart < 0 || dshBlockEnd < dshBlockStart) {
+    throw new Error('找不到 DSH Profile 的规则清单，这条断言就变成了空循环')
+  }
+  const dshBlock = profilesCode.slice(dshBlockStart, dshBlockEnd)
+  for (const forbidden of ['DIR-001', 'directory-name', 'MS-', 'OA-', 'AN-']) {
+    if (dshBlock.includes(forbidden)) {
+      throw new Error(`DSH Profile 里不许出现 ${forbidden}：DSH 认 frontmatter 的 name，不比对目录名`)
+    }
+  }
+
+  // 4. 验收器是纯函数：只允许一支具名 import，且必须是规则表。
+  const importBlock = validationCode.match(/^import\b[\s\S]*?from\s+'[^']+'/m)
+  if (!importBlock || importBlock[0].includes('./skill-profiles.mjs') === false) {
+    throw new Error('验收器必须从规则表具名 import，规则与判定不许各写一份')
+  }
+  if ((validationCode.match(/^import\b/gm) ?? []).length !== 1) {
+    throw new Error('验收器只允许 import 一支（规则表）：多一支依赖就多一处它管不到的事实')
+  }
+  for (const forbidden of ['skills.register', 'registerProvider', 'fetch(', 'process.env', 'readFile', 'writeFile', 'React.']) {
+    if (validationCode.includes(forbidden)) {
+      throw new Error(`验收器不许碰 ${forbidden}：它是纯函数，事实由宿主读好再传进来`)
+    }
+  }
+  if (validationCode.includes('SKILL_VALIDATION_UNIMPLEMENTED_RULES') === false) {
+    throw new Error('必须保留 SKILL_VALIDATION_UNIMPLEMENTED_RULES：规则表加了新规则而没有判定函数时，要能被发现')
+  }
+
+  // 5. 宿主：并进既有响应，不注册 Skill。
+  if (!hostSrc.includes("import { buildSkillValidation } from '../../core/skill-validation.mjs'")) {
+    throw new Error('宿主必须从 core 的验收器取结果，不要自己写一套判定')
+  }
+  if (!hostCode.includes('buildSkillValidation({')) throw new Error('详情路由必须真的调用验收器')
+  if (!hostCode.includes('validation,') || !hostCode.includes("searchParams.get('profiles')")) {
+    throw new Error('详情响应必须带 validation 同级字段，并按 profiles 参数解析验收目标')
+  }
+  // 5.1 验收要判的事实一多半在 frontmatter 里，而 registry 的 `content`（与 `readSkillBody`）
+  //     刻意只给正文 —— 真机上 `definition.content.text` 的第一行就是 `# UI Craft`。宿主若拿它
+  //     去验收，每一份真实 Skill 都会被判「缺少 frontmatter」。这一条钉住那半条缝。
+  if (!hostCode.includes('readSkillFile({ skillFile })')) {
+    throw new Error('验收必须读整份 SKILL.md：registry 的 content 只有正文，拿它判会得出「缺少 frontmatter」的假指控')
+  }
+  if (!hostCode.includes('typeof facts.text === \'string\'')) {
+    throw new Error('读不到 SKILL.md 时必须降级成「无法判断」，不许拿没有 frontmatter 的正文照常判定')
+  }
+  // 读了整份文件却把 registry 的正文交给验收器，是和上面同一类事故：这条钉住**交出去的是哪一份**。
+  if (!hostCode.includes("content: readable ? facts.text : ''")) {
+    throw new Error('交给验收器的必须是刚读到的整份 SKILL.md，不是 registry 投影出来的正文')
+  }
+  // 5.2 另一半缝：详情页读的是 `GET /skill-trace/skill` 的 `body.skill`。验收结果必须长在
+  //     `buildSkillDetail()` 的返回里，只在 `/definition` 上挂同级字段的话界面永远拿不到它。
+  if (!hostCode.includes('buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage, validation })')) {
+    throw new Error('验收结果必须随详情一起回：详情页读的是 skill 里的字段，不是 definition 路由的同级字段')
+  }
+  if (!viewModelSrc.includes('validation: options.validation ?? null')) {
+    throw new Error('buildSkillDetail 必须原样透传 validation（键永远存在，没有时是 null）')
+  }
+  if (hostCode.includes('skills.register') || hostCode.includes('registerProvider')) {
+    throw new Error('本插件是只读观察者：验收不注册 Skill（V0.9 明确不做第二套 Skill Registry）')
+  }
+
+  // 6. 界面：验收卡上的每一句话都要能追到一条规则；三态与三档各有自己的落点。
+  const clientCode = strip(client)
+  // 三态各有自己的分支（见上面第 1 条）：落回默认就是把「需要修正」渲染成「无法判断」。
+  // 断言写成**整行字面**而不是 `status === 'x'` 片段：`if (false && status === 'x')` 也含那个
+  // 片段，却让「需要修正」永远走兜底 —— 那种短路必须被判红（本组的变异测试抓到过这一条）。
+  for (const [status, zh] of [['pass', '通过'], ['needs-fix', '需要修正']]) {
+    if (!clientCode.includes(`if (status === '${status}') return localized('${zh}'`)) {
+      throw new Error(`界面必须把 ${status} 逐字渲染成「${zh}」，并且不许用短路分支绕过这一支`)
+    }
+  }
+  if (!clientCode.includes("return localized('无法判断'")) {
+    throw new Error('三态的兜底必须逐字是「无法判断」')
+  }
+  const panelAt = clientCode.indexOf('function SkillValidationPanel(')
+  const diffAt = clientCode.indexOf('function SkillDiffPanel(')
+  if (panelAt < 0 || diffAt < panelAt) {
+    throw new Error('验收卡必须实现为独立组件，并且排在差异面板之前（既有四层不许重排）')
+  }
+  const panelCode = clientCode.slice(panelAt, diffAt)
+  for (const expected of [
+    "'data-role': 'skill-validation'",
+    "'data-role': 'validation-status'",
+    "'data-status'",
+    "'data-role': 'validation-summary'",
+    "'data-role': 'validation-findings'",
+    "'data-severity'",
+    "'data-role': 'validation-skipped'",
+    "'data-role': 'validation-limitations'",
+    "role: 'status'",
+    "role: 'alert'",
+    'validationSkipText',
+    'st-validation-limits',
+  ]) {
+    if (!panelCode.includes(expected)) throw new Error(`验收卡缺少 ${expected}`)
+  }
+  // 「这次没查」不许渲染成「通过」：skip 的理由必须有独立文案。
+  for (const reason of ['no-directory-listing', 'body-truncated', 'definition-unavailable']) {
+    if (!clientCode.includes(reason)) throw new Error(`没有判定理由 ${reason} 的界面文案，会让「没查」看起来像「通过」`)
+  }
+  // 消费者那一半：详情页读的是 `/skill` 响应的 `body.skill`。这条与上面 5.2 是一对 ——
+  // 宿主把字段挂错路由、客户端读错字段，两个单边测试都会绿。
+  if (!clientCode.includes("api(`/skill?sessionId=${encodeURIComponent(sessionId)}&skillName=")) {
+    throw new Error('详情页必须从 /skill-trace/skill 取详情（验收结果长在那条响应的 skill 里）')
+  }
+  if (!clientCode.includes('setFetched(body?.skill ?? null)')) {
+    throw new Error('详情页读的必须是 body.skill：换成 body.definition 会让验收卡永远显示「没有验收结果」')
+  }
+  if (!clientCode.includes("hasOwnProperty.call(detail, 'validation')")) {
+    throw new Error('界面必须把「宿主没给 validation 字段」与「这份 Skill 读不到」说成两句不同的话（§6.11）')
+  }
+  // prop 接线：参数名与调用处传的名字必须是同一个。曾经写成
+  // `function SkillValidationPanel({ validation, fieldMissing })` 而调用处传 `validationFieldMissing`，
+  // 于是 `fieldMissing` 恒为 undefined —— 面板一辈子说「读不到这个 SKILL.md」，
+  // 「宿主还没换到这一版」那句话永远不会出现。两条分支渲染的是**同一个** data-role，
+  // 所以只有断言文字/接线才抓得住，数节点抓不住。
+  if (!panelCode.includes('function SkillValidationPanel({ validation, validationFieldMissing })')) {
+    throw new Error('验收卡必须解构 validationFieldMissing：参数名与调用处不一致时，缺字段那句提示会静默失效')
+  }
+  if (!clientCode.includes('h(SkillValidationPanel, { validation, validationFieldMissing })')) {
+    throw new Error('详情页必须把 validationFieldMissing 真的传给验收卡')
+  }
+  // 不许把对象当 children：`profiles[].label` 是 `{zh, en}` 双语对象，`raw()` 只打标记不做字符串化，
+  // 对象 children 会让 React 抛 #31，而 `conversation.view` 没有错误边界 —— 整页白屏（§6.11）。
+  if (panelCode.includes('raw(profile.label ?? profile.id)')) {
+    throw new Error('验收卡的 Profile 标签是双语对象，必须显式选一种语言再渲染（对象当 children 会整页白屏）')
+  }
+  if (!panelCode.includes('profile.label?.zh')) {
+    throw new Error('验收卡必须显式取 profile.label.zh 并回退到 id')
+  }
+  // 每条结论都要能追到规则：发现行与未判定行都得给出规则标题，不能只有 id（规划 §四十九）。
+  if (!panelCode.includes('st-validation-finding-title')) {
+    throw new Error('验收卡的每条发现都要显示规则标题，不能只有 rule id')
+  }
+  // 界面词表（§6.7）：验收块里不许出现那些声称「已经发生」的词。
+  for (const forbidden of ['已执行', '未执行', '已完成', '未完成', '执行成功', '执行失败', '已运行', '未运行', '已加载', '已读取', '已注入', '已生效', '评分', '分数', '等级', '优秀', '最佳']) {
+    if (panelCode.includes(forbidden)) throw new Error(`验收卡里不得出现「${forbidden}」`)
+  }
+
+  console.log('SKILL_VALIDATION_OK')
+}
+
+// --- v0.9.1「Skill 修改」：用户点的发送键，插件不碰文件 -------------------------------
+// 这一组守的是 V0.9.1 的边界，每一条都对应一次真实的设计决定：
+//
+//   1. **代发的那条消息必须可识别。** `source.kind` 用 `skill-intelligence-modify`，
+//      运行记录里一眼能看出这条消息来自 Skill 洞察，而不是用户手打的。
+//   2. **修改协议十二条逐字在模块里。** 第 12 条是「不得自动改会话标题」——
+//      DSH 没有 `/name` 这个命令，只有 `/rename`。
+//   3. **改前快照只在内存。** 快照库不许出现任何文件系统调用；丢了就说
+//      「本次修改前状态不可用」，不许拿旧内容冒充「刚刚的修改前」。
+//   4. **来源保护只说事实。** 指纹不同只能说「来源 Skill 在本次修改期间发生变化」，
+//      不许写「Agent 修改了来源」——那是没有直接证据的指控。
+//   5. **坏输入不抛错。** 这两支都会接外部参数（一次 HTTP 请求、一个会话 id），
+//      坏输入要变成一句可读的话，不是一次 500。
+{
+  const modificationSrc = await readFile(resolve(root, 'src/core/skill-modification.mjs'), 'utf8')
+  const snapshotSrc = await readFile(resolve(root, 'src/storage/modification-snapshot-store.mjs'), 'utf8')
+  const strip = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const modificationCode = strip(modificationSrc)
+  const snapshotCode = strip(snapshotSrc)
+  const modification = await import(pathToFileURL(resolve(root, 'src/core/skill-modification.mjs')).href)
+  const snapshot = await import(pathToFileURL(resolve(root, 'src/storage/modification-snapshot-store.mjs')).href)
+
+  if (modification.MODIFICATION_SOURCE_KIND !== 'skill-intelligence-modify') {
+    throw new Error('代发的消息必须带自己的 source kind：运行记录里要能认出它来自 Skill 洞察')
+  }
+  if (!modificationCode.includes("MODIFICATION_SOURCE_KIND = 'skill-intelligence-modify'")) {
+    throw new Error('source kind 必须是字面常量，不能拼出来')
+  }
+  if (modification.MODIFICATION_CONTRACT_RULES.length !== 12) {
+    throw new Error(`修改协议必须是十二条，现在是 ${modification.MODIFICATION_CONTRACT_RULES.length} 条`)
+  }
+  const contractText = modification.MODIFICATION_CONTRACT_RULES.join('\n')
+  if (contractText.includes('/name')) {
+    throw new Error('修改协议里不许写 /name：DSH 没有这个命令，只有 /rename（会话标题）')
+  }
+  if (!contractText.includes('不得自动改会话标题')) {
+    throw new Error('修改协议第 12 条要说清「不得自动改会话标题」')
+  }
+  if (!contractText.includes('read-back')) {
+    throw new Error('修改协议必须包含 read-back 这一条：写了不等于改对了')
+  }
+  // 「提出方案 → 用户确认 → 动手」（FR-MOD-003）留在原生对话里，所以消息里必须**要求**它发生。
+  // 不提就等于 Agent 直接动手 —— 那正是这条链最该避免的失败方式。
+  const dispatched = modification.buildModificationMessageText({ skillName: 'ui-craft', intent: '把规则改严格一点', scopeIds: ['skill-md-rules'], profileIds: ['common', 'dsh'] })
+  const beforeWriteAt = dispatched.indexOf('动手之前：先说明你打算怎么改')
+  const afterWriteAt = dispatched.indexOf('做完之后')
+  if (beforeWriteAt === -1) {
+    throw new Error('代发的消息里必须有一句「动手之前」：插件只提这个要求，但不能不提（FR-MOD-003）')
+  }
+  if (!dispatched.includes('用提问工具问用户')) {
+    throw new Error('「动手之前」那句必须说清有拿不准的就问用户：走 DSH 自己的提问机制，插件不代办')
+  }
+  if (!(dispatched.indexOf('12. 不得自动改会话标题。') < beforeWriteAt && beforeWriteAt < afterWriteAt)) {
+    throw new Error('消息顺序必须是 12 条协议 → 动手之前 → 做完之后：顺序错了读者会看漏前面那半句')
+  }
+  if (modification.MODIFICATION_LOCKED_SCOPE_IDS.join(',') !== 'scripts,assets') {
+    throw new Error('第一版锁死的就是 scripts 与 assets 两项，不能悄悄放开')
+  }
+  if (modification.MODIFICATION_DIFF_STATUSES.join(',') !== 'unchanged,changed,unavailable') {
+    throw new Error('本次修改对比只有三态：没变 / 变了 / 无法比较')
+  }
+  const gone = modification.diffSkillModification(null)
+  if (gone.available !== false || gone.reason !== 'snapshot-missing' || gone.status !== 'unavailable') {
+    throw new Error('没有快照时必须给出 available:false + snapshot-missing + unavailable，既不许抛错也不许空口比较')
+  }
+  if (!gone.message.includes('本次修改前状态不可用')) {
+    throw new Error('快照丢了要说那句固定的实话，不许编造')
+  }
+  if (!modification.MODIFICATION_SOURCE_CHANGED_MESSAGE.includes('来源 Skill 在本次修改期间发生变化')) {
+    throw new Error('来源指纹不同时的说法必须是「来源 Skill 在本次修改期间发生变化」')
+  }
+  for (const accusation of ['Agent 修改了来源', 'Agent 改了来源', '被 Agent 修改', '篡改']) {
+    if (modificationCode.includes(accusation)) {
+      throw new Error(`来源保护不许指控「${accusation}」：没有直接证据就不能指名道姓`)
+    }
+  }
+  for (const verboten of ['node:fs', 'fs/promises', 'writeFile', 'readFile', 'createWriteStream', 'writeFileSync', 'mkdir']) {
+    if (snapshotCode.includes(verboten)) {
+      throw new Error(`改前快照只在内存：快照库里不许出现 ${verboten}`)
+    }
+  }
+  if (snapshot.MODIFICATION_SNAPSHOT_TTL_MS !== 30 * 60 * 1000) {
+    throw new Error('改前快照默认只活 30 分钟：过期就说不知道，不拿旧内容顶替')
+  }
+  if (snapshot.createModificationSnapshotStore().begin(null) !== null) {
+    throw new Error('快照库遇到坏输入要返回 null，不许抛错')
+  }
+  // 对外文案的词表：§6.7 禁用词与一切评分词都不许出现在这两个模块的字符串里。
+  const strings = []
+  const walk = (value) => {
+    if (typeof value === 'string') strings.push(value)
+    else if (Array.isArray(value)) value.forEach(walk)
+    else if (value && typeof value === 'object') Object.values(value).forEach(walk)
+  }
+  walk(modification)
+  walk(snapshot)
+  const exportedText = strings.join('\n')
+  for (const forbidden of ['已执行', '未执行', '已完成', '未完成', '执行成功', '执行失败', '已运行', '未运行', '已加载', '已读取', '已注入', '已生效', '评分', '分数', '等级', '优秀', '最佳', '推荐度', '得分']) {
+    if (exportedText.includes(forbidden)) {
+      throw new Error(`Skill 修改的对外文案里不得出现「${forbidden}」`)
+    }
+  }
+
+  // 6. **落地检查：路由、代发、界面。** 纯模块再对也没有用 —— 用户点的是界面上的按钮，
+  //    走的是宿主那条路由。这一半以前只有「模块级」守卫，而 v0.7 的 `sessionId` 事故正是
+  //    发生在「模块都对、接线错了」这条缝上（§8.10）。
+  if (!host.includes("url.pathname === '/skill-trace/modify'")) {
+    throw new Error('宿主必须注册 POST /skill-trace/modify：没有它，「交给 Agent」就没有发送键')
+  }
+  if (!host.includes('source: { kind: MODIFICATION_SOURCE_KIND }')) {
+    throw new Error('代发的消息必须带 MODIFICATION_SOURCE_KIND，否则运行记录里认不出它来自 Skill 洞察')
+  }
+  if (!host.includes('liveAgent.followup(message)')) {
+    throw new Error('必须用当前会话的 Agent 代发（followup）：不许另起一个 Agent，也不许开第二套会话')
+  }
+  const followupAt = host.indexOf('liveAgent.followup(message)')
+  if (host.indexOf('modificationStore.release({ sessionId, skillName })', followupAt) < 0) {
+    throw new Error('代发失败时必须把刚存下的改前快照释放掉：留着它，界面会以为任务已经发出去了')
+  }
+
+  const sliceClientList = (name) => {
+    const start = clientCode.indexOf(`const ${name} = [`)
+    if (start < 0) throw new Error(`客户端缺少 ${name}`)
+    const end = clientCode.indexOf('\n  ]', start)
+    if (end < 0) throw new Error(`${name} 没有收尾，守卫切不出来`)
+    return clientCode.slice(start, end)
+  }
+  const listIds = (text) => [...text.matchAll(/\['([a-z0-9-]+)'/g)].map((match) => match[1])
+  // 界面上画出来的范围必须就是核心模块那一份：少一项、把锁死的放开、或者自己造一个新范围，
+  // 都会在这里红。**两边对账，而不是各抄一遍。**
+  const clientUnlocked = listIds(sliceClientList('MODIFY_SCOPES'))
+  const clientLocked = listIds(sliceClientList('MODIFY_LOCKED_SCOPES'))
+  if ([...clientUnlocked, ...clientLocked].join(',') !== modification.MODIFICATION_SCOPE_IDS.join(',')) {
+    throw new Error(`界面画出来的修改范围与核心模块不一致：${[...clientUnlocked, ...clientLocked].join(',')} vs ${modification.MODIFICATION_SCOPE_IDS.join(',')}`)
+  }
+  if (clientLocked.join(',') !== modification.MODIFICATION_LOCKED_SCOPE_IDS.join(',')) {
+    throw new Error('界面上锁死的两项必须就是核心模块锁死的那两项')
+  }
+  const profileTable = await import(pathToFileURL(resolve(root, 'src/core/skill-profiles.mjs')).href)
+  const clientProfiles = ['common', ...listIds(sliceClientList('MODIFY_PROFILES'))]
+  if (clientProfiles.join(',') !== profileTable.SKILL_PROFILE_IDS.join(',')) {
+    throw new Error(`验收目标的可选项与 Profile 表不一致：${clientProfiles.join(',')} vs ${profileTable.SKILL_PROFILE_IDS.join(',')}`)
+  }
+
+  const evolutionStart = clientCode.indexOf('function SkillEvolution(')
+  const dialogStart = clientCode.indexOf('function SkillModifyDialog(')
+  const panelStart = clientCode.indexOf('function SkillModificationPanel(')
+  const diffStart = clientCode.indexOf('function SkillDiffPanel(')
+  if (evolutionStart < 0 || dialogStart < 0 || panelStart < 0 || diffStart < 0) {
+    throw new Error('客户端必须同时有演进卡、「修改 Skill」对话框、本次修改对比块与差异面板')
+  }
+  if (!(evolutionStart < dialogStart && dialogStart < panelStart && panelStart < diffStart)) {
+    throw new Error('v0.9.1 的四个组件顺序变了：演进卡 → 修改对话框 → 本次修改对比 → 差异面板')
+  }
+  // 从**演进卡**开始切：入口按钮长在那里，只切对话框会漏掉「有没有出口」这一半。
+  const modifyUi = clientCode.slice(evolutionStart, diffStart)
+  const modifyComponents = clientCode.slice(dialogStart, diffStart)
+  // 界面上的每一处「这段话对应一条事实」，都是靠 data-role 才能被这条守卫点到名。
+  // 这里做的是**集合对账**，不是「清单里有的必须在」——后者删掉清单里的一项就少盯一处，
+  // 而且照样全绿。两个方向都要查：少盯一处（missing）与新画一处没人盯的（unguarded）。
+  const guardedRoles = [
+    'modify-dialog', 'modify-subject', 'modify-intent', 'modify-scope', 'modify-locked',
+    'modify-profile', 'modify-submit', 'modify-error', 'modify-cancel',
+    'skill-modification', 'mod-waiting', 'mod-compare', 'mod-again', 'mod-error',
+    'mod-status', 'mod-lines', 'mod-scopes', 'mod-scope', 'mod-sections',
+    'mod-resources', 'mod-resource', 'mod-out-of-scope', 'mod-out-of-scope-item',
+    'mod-source', 'mod-identity', 'mod-notes', 'mod-unavailable', 'mod-released', 'mod-limitations',
+  ].sort()
+  // 一个 `data-role` 可以写成三元（`locked ? 'modify-locked' : 'modify-scope'`），所以按**行**取：
+  // 凡是带 `data-role` 的行，行内所有像角色名的字符串都算这一处事实。
+  const renderedRoles = [...new Set(
+    modifyComponents
+      .split('\n')
+      .filter((line) => line.includes("'data-role'"))
+      .flatMap((line) => [...line.matchAll(/'((?:modify-|mod-|skill-modification)[a-z0-9-]*)'/g)].map((m) => m[1])),
+  )].sort()
+  const unguardedRoles = renderedRoles.filter((role) => !guardedRoles.includes(role))
+  const missingRoles = guardedRoles.filter((role) => !renderedRoles.includes(role))
+  if (missingRoles.length > 0) {
+    throw new Error(`v0.9.1 的界面缺少这些 data-role：${missingRoles.join(', ')} —— 删掉它，用户就看不到这一段事实`)
+  }
+  if (unguardedRoles.length > 0) {
+    throw new Error(`界面上新画了没人盯着的 data-role：${unguardedRoles.join(', ')} —— 要么补进守卫，要么别画`)
+  }
+  for (const literal of ['function SkillModifyDialog(', 'function SkillModificationPanel(', "'modify-open'"]) {
+    if (!modifyUi.includes(literal)) {
+      throw new Error(`v0.9.1 的界面缺少 ${literal}：删掉它，用户就看不到这一段事实`)
+    }
+  }
+  // 入口按钮必须真的接上，且**两个分支都有**：没有血缘的 Skill（手写的、手动拷进来的）
+  // 同样可以被修改 —— 血缘只决定「有没有来源可比」。只挂在一个分支上，另一类 Skill 就永远改不了。
+  // 按钮是定义一次、两处复用（`const modifyButton`）：出现次数正好是 3（一处定义 + 两处使用）。
+  if (!modifyUi.includes("h('div', { className: 'st-evo-actions' }, modifyButton)")) {
+    throw new Error('没有血缘的分支里也要有「修改 Skill」：手写的 Skill 同样可以被改')
+  }
+  if ((modifyUi.match(/modifyButton/g) ?? []).length !== 3) {
+    throw new Error('「修改 Skill」按钮应当是定义一次、两个分支各用一次 —— 少一处就有一类 Skill 改不了')
+  }
+  for (const wiring of ['onOpenModify: () => setModifyOpen(true)', 'modifyOpenRef', 'h(SkillModifyDialog, {']) {
+    if (!clientCode.includes(wiring)) throw new Error(`「修改 Skill」入口没有接上：缺少 ${wiring}`)
+  }
+  // 锁死的芯片必须真的不可点（`disabled`），而不是画成灰的还能按下去。
+  if (!modifyUi.includes('disabled: locked === true')) {
+    throw new Error('锁死的修改范围必须真的按不动：画出来但不可点，比看不见它更诚实')
+  }
+  if (!modifyUi.includes("if (phase === 'idle') return null")) {
+    throw new Error('没有修改事务时，这一块必须整块不出现 —— 常驻的一张空卡会被读成一种状态')
+  }
+  if (!clientCode.includes("api('/modify'")) {
+    throw new Error('「交给 Agent」与「对比本次修改」都必须真的打 /skill-trace/modify')
+  }
+  if (!clientCode.includes("action: 'begin'") || !clientCode.includes("action: 'compare'")) {
+    throw new Error('一次修改事务有两种动作：begin 发任务、compare 读结果，缺一边都走不通')
+  }
+  if (!clientCode.includes('h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, framework, runtimeLogic, stepEvidence, docPanel')) {
+    throw new Error('详情页主列的顺序变了：验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md')
+  }
+  // 界面词表（§6.7）：这一段与验收卡同一条纪律 —— 不许出现声称「已经发生」的词与评分词。
+  // 扫的是**去掉注释之后**的代码：注释不是消费者（同 §6.3 第 1 条，英文字典那次的教训）。
+  // 这一段里就有一句注释写着「没有分数、没有优秀」—— 它在解释这条纪律，不是在说给人听。
+  const modifyUiCode = modifyUi.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+  for (const forbidden of ['已执行', '未执行', '已完成', '未完成', '执行成功', '执行失败', '已运行', '未运行', '已加载', '已读取', '已注入', '已生效', '评分', '分数', '等级', '优秀', '最佳', '推荐度', '得分']) {
+    if (modifyUiCode.includes(forbidden)) {
+      throw new Error(`修改对话框 / 本次修改对比块里不得出现「${forbidden}」`)
+    }
+  }
+  // 理由码不许直接显示：它们是给代码看的，人要看人话。
+  //
+  // 只查 v0.9.1 自己那两个组件（对话框 + 对比块）。上面那段切出来的范围里还含着验收卡——
+  // 它**拿理由码做比较**是完全正确的写法（`if (reason === 'no-directory-listing') return 人话`），
+  // 而且它有自己的守卫（三个理由码必须都有人话）。这里要防的是另一种写法：把码本身渲染出去。
+  const modifyComponentsCode = modifyUiCode.slice(
+    modifyUiCode.indexOf('function SkillModifyDialog('),
+    modifyUiCode.indexOf('function SkillDiffPanel('),
+  )
+  for (const code of ['snapshot-missing', 'skill-unreadable', 'no-directory-listing']) {
+    if (new RegExp(`['"\`]${code}['"\`]`).test(modifyComponentsCode)) {
+      throw new Error(`界面不许把理由码「${code}」直接摆出来：那是一条读不懂的字符串`)
+    }
+  }
+
+  console.log('SKILL_MODIFICATION_OK')
+}
+
+// --- v0.9.2「已安装列表的顺序」：刚复刻出来的必须第一眼就看到 -------------------------
+// 用户的原话（2026-10-03）：「带 custom 的都是我用复刻 Skill 复刻出来的，现在排序又在后面，
+// 我得翻好几页看名称看得到」。这一组守的是这条需求的三条底线，每一条都对应一次真实的选择：
+//   1. 顺序键是 **Skill 目录的 birthtime**，不是 mtime，也不是文件级时间；
+//   2. 读不到就是读不到 —— 排在最后、并在界面上说出来，不许编一个日期；
+//   3. 顺序**只由宿主算一次**，客户端只念出来（否则界面和宿主会各说各话）。
+{
+  const installedCore = await readFile(resolve(root, 'src/core/installed-view.mjs'), 'utf8')
+  const cloneWriter = await readFile(resolve(root, 'src/storage/skill-clone-writer.mjs'), 'utf8')
+  const hostCode = await readFile(resolve(root, 'src/dsh/host/index.js'), 'utf8')
+
+  // ① 排序键是目录 birthtime。「加入本机」与「最后修改」是两个事实：文件被改写一次
+  // mtime 就变了，而「它什么时候来到这台机器」不该跟着变。
+  if (!cloneWriter.includes('const info = await stat(join(root, name))')) {
+    throw new Error('加入时间只能从 Skill 目录上读：文件级的 birthtime 会被一次编辑改掉')
+  }
+  if (!cloneWriter.includes('info.isDirectory() && Number.isFinite(info.birthtimeMs) && info.birthtimeMs > 0')) {
+    throw new Error('加入时间必须是 birthtime 且要挡住 0：不报 birthtime 的文件系统会给 0，那不是 1970 年')
+  }
+  const addedAtBlock = cloneWriter.slice(cloneWriter.indexOf('export async function skillAddedAtByName'))
+  if (/mtimeMs|ctimeMs/.test(addedAtBlock)) {
+    throw new Error('不许拿 mtime/ctime 冒充「加入本机」的时间：那是另一个事实，说出去就是假话')
+  }
+  // 名字来自 registry，但拼进路径之前必须再筛一次 —— `..` 会跑出根目录。
+  if (!cloneWriter.includes('if (!isSkillName(name) || seen.has(name)) continue')) {
+    throw new Error('拼路径之前必须用 isSkillName 筛名字：目录快照不是可信输入')
+  }
+  // 与复刻写入同一份候选根（rank 顺序一致），否则同一个名字在两个根里各有一份时顺序不定。
+  for (const fragment of ["join(projectRoot, '.dsh', 'skills')", "join(projectRoot, '.agents', 'skills')", "join(dshHome, 'skills')", "join(agentsHome, 'skills')"]) {
+    if (!cloneWriter.includes(fragment)) throw new Error(`候选根清单与复刻写入不一致：缺少 ${fragment}`)
+  }
+
+  // ② 规则只有一条、而且它有名字。客户端照着这个名字说话，不从看到的第一行倒推。
+  if (!installedCore.includes("export const INSTALLED_ORDERING_RULE = 'added-desc-then-name'")) {
+    throw new Error('排序规则必须有名字并导出：客户端与文档都要抄同一句，不能各写各的')
+  }
+  if (!installedCore.includes('function compareInstalledSkills(')) {
+    throw new Error('排序必须只有一处：宿主排完客户端再排一次，两边迟早不一致')
+  }
+  for (const branch of ['if (leftAt !== null && rightAt === null) return -1', 'if (leftAt === null && rightAt !== null) return 1']) {
+    if (!installedCore.includes(branch)) {
+      throw new Error('有时间的必须排在读不到时间的前面 —— 这一条不许靠 A–Z 顺带满足')
+    }
+  }
+  // 计数说的是整个目录，不是这次搜索结果：换一个搜索词不该改变「这台机器上有几个说得出来」。
+  if (!installedCore.includes('const addedAtKnown = skills.filter(')) {
+    throw new Error('「有几个读得到加入时间」必须按整个目录数，不能按搜索结果数')
+  }
+  if (installedCore.includes('addedAtKnown = matched')) {
+    throw new Error('加入时间的计数不许跟着搜索词变：那是两个不同的数量')
+  }
+  for (const code of ["'added-at-unavailable'", "'added-at-partial'", "'lineage-unavailable'"]) {
+    if (!installedCore.includes(code)) throw new Error(`缺少限制码 ${code}：读不到就要说出来`)
+  }
+  // 这个模块**不许**依赖 node 内建：客户端为了 `matchesInstalledQuery` 直接 require 它，
+  // 一个 `node:crypto` 就会让整个浏览器包炸掉（§6.6 的核心白名单）。
+  if (/^import\s/m.test(installedCore)) {
+    throw new Error('installed-view.mjs 必须零依赖：客户端会 require 它')
+  }
+
+  // ③ 宿主接线：两处读盘都不抛错，读不到就交给 core 记成 limitations。
+  if (!hostCode.includes('roots: await skillRootCandidates({ cwd })')) {
+    throw new Error('/catalog 必须真的去读目录 birthtime：不接线的话排序永远是空的')
+  }
+  if (!hostCode.includes('lineageByName: await lineageByTargetName(),')) {
+    throw new Error('/catalog 必须把血缘一起给出去：卡片上「复刻自 X」没有第二个来源')
+  }
+  if (!hostCode.includes("console.error('[dsh-skill-trace] lineage read failed', error)")) {
+    throw new Error('血缘读不到要留痕并如实上报，不许静静当成「没复刻过」')
+  }
+  if (!hostCode.includes('{ sourceSkillName: source, createdAt: record.createdAt }')) {
+    throw new Error('血缘投影只放行来源名与时间：整条记录（含指纹）不进已安装列表')
+  }
+
+  // ④ 客户端：只念不排、缺时间不编日期、没有 ordering 就不宣称顺序。
+  const installedAt = clientCode.indexOf('function formatAddedAt(')
+  const installedEnd = clientCode.indexOf('\n  function Workbench(', installedAt)
+  if (installedAt < 0 || installedEnd < 0) throw new Error('找不到 v0.9.2 的已安装列表界面')
+  const installedUi = clientCode.slice(installedAt, installedEnd)
+  if (!installedUi.includes("'data-role': 'installed-order'")) {
+    throw new Error('列表必须说出它按什么排的：顺序变了而界面不说，读者只会以为列表坏了')
+  }
+  if (!installedUi.includes("if (!ordering || typeof ordering !== 'object') return null")) {
+    throw new Error('宿主给不出 ordering 时不许替它宣称顺序')
+  }
+  if (installedUi.includes('.sort(')) {
+    throw new Error('客户端不许重排：排序只有一处（core 的 compareInstalledSkills）')
+  }
+  if (clientCode.includes('added-desc-then-name')) {
+    throw new Error('排序规则的名字不许在客户端里写死：它跟着宿主下发的 ordering 走')
+  }
+  if (!installedUi.includes("formatAddedAt(skill.addedAt) ? h('span'")) {
+    throw new Error('没有加入时间的卡片不许显示时间：编一个日期比不显示更坏')
+  }
+  if (!installedUi.includes('`复刻自 ${skill.lineage.sourceSkillName}`')) {
+    throw new Error('有血缘的卡片必须说出它复刻自谁 —— 这是「我刚复刻的那个」最好认的特征')
+  }
+  // 2026-10-03（用户：「模型可调用、可用 /name 调用，这两个是不是重复？」）：不是重复 ——
+  // DSH 的两个开关彼此独立，四种组合都合法 —— 但在这份目录上一个都不区分（实测 69 个全是
+  // true/true），于是每张卡都重复同一句恒为真的话。改成**只在例外时说**：说例外，不说默认。
+  if (!installedUi.includes('skill.invocation?.modelInvocable === false')) {
+    throw new Error('调用方式只在例外时说：恒为真的标签在 69 张卡上重复 69 遍，不是信息')
+  }
+  if (!installedUi.includes('skill.invocation?.userInvocable === false')) {
+    throw new Error('「不能用 /name 调用」也只在例外时说，理由同上')
+  }
+  if (installedUi.includes("localized('模型可调用'") || installedUi.includes("localized('可用 /name 调用'")) {
+    throw new Error('默认成立的那两个标签不许再出现：那就是 69 张卡上 69 遍的同一句话')
+  }
+  if (!installedUi.includes("skill.provider && skill.provider !== 'filesystem'")) {
+    throw new Error('provider 只在不是默认的 filesystem 时说：内部词重复 68 遍同样不是信息')
+  }
+  // 时间戳**只到日**（2026-10-03 用户：「我交互体验将来只需要有月日就行」），跨年才带年份。
+  // 「今天 / 刚刚」是相对此刻的说法，同一份载荷在不同时刻会读出不同的字，渲染测试也就没法
+  // 逐字断言。时:分同理不进界面：谁更新由**列表顺序**回答，卡片上的时:分只给出一闪而过的
+  // 精确感，读不出任何可操作的东西。
+  if (installedUi.includes('getHours') || installedUi.includes('getMinutes')) {
+    throw new Error('加入时间只到日：时:分不进界面，代码里也不该再有时钟读数')
+  }
+  for (const relative of ['今天', '昨天', '刚刚', '几分钟前']) {
+    if (installedUi.includes(relative)) {
+      throw new Error(`加入时间不许写成「${relative}」：那是相对此刻的说法，载荷不同时刻读出不同的话`)
+    }
+  }
+
+  console.log('INSTALLED_ORDERING_OK')
 }
 
 // --- 有断言的 marker 才算数 --------------------------------------------------------

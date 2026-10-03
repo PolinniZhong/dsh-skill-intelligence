@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
-import { CLONE_SKIPPED_DIRECTORIES, selectCloneEntries, splitFrontmatter } from '../core/skill-clone.mjs'
+import {
+  CLONE_SKIPPED_DIRECTORIES,
+  isSkillName,
+  selectCloneEntries,
+  splitFrontmatter,
+} from '../core/skill-clone.mjs'
 
 /**
  * 复刻的磁盘半边（v0.7 §十六 / §十七）。
@@ -99,6 +105,55 @@ async function pathExists(target) {
   } catch {
     return false
   }
+}
+
+// v0.9.2：已安装列表的排序要回答「这个 Skill 什么时候出现在本机」。这就是唯一能回答它的
+// 磁盘事实 —— Skill **目录**的 birthtime。
+//
+// 只取目录、不取文件：`SKILL.md` 每被改写一次（编辑器写临时文件再改名）都是一个新文件，
+// 它的 birthtime 会跳到改动那一刻。实测 `deliver-prd-custom-custom-custom/SKILL.md` 的
+// birthtime 是本次修改之后的 23:29，而目录仍是复刻那一刻的 22:39 —— 而「它什么时候来到
+// 这台机器」不应该因为改了正文而改变。目录本身不会被改写，所以这个值对内容修改免疫。
+//
+// 同样的名字在多个根里都存在时，按与复刻写入相同的 rank 顺序取**第一个**命中：顺序必须是
+// 确定的，否则同一个目录刷新两次可能给出两种排法。读不到（文件系统不报 birthtime，或目录
+// 不在任何候选根里）就是没有这一项，调用方据此把该 Skill 排在最后，而不是拿 mtime 顶替。
+export async function skillAddedAtByName({ names, roots }) {
+  const added = {}
+  const seen = new Set()
+  const candidates = Array.isArray(roots) ? roots.filter(Boolean) : []
+  for (const raw of Array.isArray(names) ? names : []) {
+    // `isSkillName` 同时挡住 `..`、`/` 这类会跑出根目录的名字。目录快照里的名字本来
+    // 就来自 registry，这里是第二道。
+    const name = typeof raw === 'string' ? raw.trim() : ''
+    if (!isSkillName(name) || seen.has(name)) continue
+    seen.add(name)
+    for (const root of candidates) {
+      try {
+        const info = await stat(join(root, name))
+        if (info.isDirectory() && Number.isFinite(info.birthtimeMs) && info.birthtimeMs > 0) {
+          added[name] = info.birthtimeMs
+          break
+        }
+      } catch {
+        // 这个根里没有就继续下一个根
+      }
+    }
+  }
+  return added
+}
+
+/** 与复刻写入时同一份候选根清单（rank 顺序一致），只用于**读**。 */
+export async function skillRootCandidates({ cwd }) {
+  const projectRoot = await findProjectRoot(cwd ?? process.cwd())
+  const dshHome = process.env.DSH_HOME && process.env.DSH_HOME.trim() ? process.env.DSH_HOME.trim() : join(homedir(), '.dsh')
+  const agentsHome = process.env.DSH_AGENTS_HOME && process.env.DSH_AGENTS_HOME.trim() ? process.env.DSH_AGENTS_HOME.trim() : join(homedir(), '.agents')
+  return [
+    join(projectRoot, '.dsh', 'skills'),
+    join(projectRoot, '.agents', 'skills'),
+    join(dshHome, 'skills'),
+    join(agentsHome, 'skills'),
+  ]
 }
 
 /** 目标是不是已经被占了：整个 catalog 里、以及目标根下的两种落点，任一处命中都算冲突。 */
@@ -296,6 +351,27 @@ export async function readSkillBody({ skillFile }) {
   const split = splitFrontmatter(text)
   if (!split.ok) return { ok: false, reason: split.reason }
   return { ok: true, body: split.body }
+}
+
+/**
+ * 读一个 Skill 的 SKILL.md **整份文件**（frontmatter + 正文），供 v0.9.0 的规范验收使用。
+ *
+ * 为什么不能复用 `readSkillBody`：那条口径（以及 registry 的 `SkillDefinition.content`）**刻意
+ * 只给正文**，而验收要判的事实有一多半就在 frontmatter 里 —— `name` 的字符集与长度、
+ * `description` 的长度、`compatibility` 的 500 字符上限、重复键、字段大小写。拿正文去判，
+ * 每一份真实 Skill 都会得到一句「缺少 frontmatter」（实测：真机上 `content.text` 的第一行就是
+ * `# UI Craft`），那是**假指控**，比漏报严重得多。
+ *
+ * 与 v0.8 的纪律不冲突：它只在内存里活到这次验收结束，不落盘、不进 receipt、不出进程。
+ * 读不出来就说读不出来（`{ok:false}`），由调用方降级成「无法判断」，绝不假装。
+ */
+export async function readSkillFile({ skillFile }) {
+  try {
+    const text = await readFile(skillFile, 'utf8')
+    return { ok: true, text, bytes: Buffer.byteLength(text, 'utf8') }
+  } catch (error) {
+    return { ok: false, reason: error?.code === 'ENOENT' ? 'source-file-missing' : 'source-read-failed' }
+  }
 }
 
 /**

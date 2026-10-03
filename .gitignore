@@ -13,7 +13,7 @@ coverage/
 # too — it is the pre-0.7 record, and it is history rather than a current entry point.
 #
 # The numbered top-level convention (`/[0-9][0-9]-*.md`, plus three `!` exemptions that pulled
-# 02- / 04- / 05- back in) was retired on 2026-10-05: those three files moved to `docs/archive/`
+# 02- / 04- / 05- back in) was retired on 2026-10-02: those three files moved to `docs/archive/`
 # and were replaced by `spec/PRD.md` + `spec/SDD.md`. The pattern is gone rather than kept as a
 # trap, since a numbered file silently failing to be committed is exactly the failure it used to
 # cause. `/specs/` stays ignored so the retired name cannot come back by accident.

@@ -1,6 +1,6 @@
 // DSH Skill Intelligence（中文名：DSH Skill 智能实验室）— conversation view client.
 //
-// 命名分层（2026-10-02 品牌迁移；2026-10-05 短显示名）：**产品品牌**是 DSH Skill 智能实验室 /
+// 命名分层（2026-10-02 品牌迁移；2026-10-02 短显示名）：**产品品牌**是 DSH Skill 智能实验室 /
 // DSH Skill Intelligence —— README 首屏、仓库描述、文档抬头用这一层；**DSH 会话里的短显示名**
 // 是 Skill 洞察 / Skill Insight —— 侧边栏、工作栏标签这类高频入口用这一层（见文件末尾
 // `conversation.view` 的 slot label）；**npm 包名**仍是 `dsh-skill-trace`（已发布，不能改）；
@@ -226,7 +226,7 @@ function installStyles() {
       [data-plugin="dsh-skill-trace"] *{box-sizing:border-box}[data-plugin="dsh-skill-trace"] button,[data-plugin="dsh-skill-trace"] input{font:inherit}
       .st-shell{height:100%;min-height:0;display:flex;flex-direction:column}.st-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
       /* v0.6 §22 顶栏：两个一级页面入口 + 这一页的状态 + 刷新。
-        2026-10-05（用户：「这个背景占用太多高度，去掉后下方数据上移」）：顶栏不再是一块
+        2026-10-02（用户：「这个背景占用太多高度，去掉后下方数据上移」）：顶栏不再是一块
         有底色的横条，高度收到贴着内容的 48px —— 分段控件本身就 36px，原来的 68px 里有
         32px 是纯空白。它现在靠一条分隔线与下面的内容分开，而不是靠一块和页面不同色的
         底板；省下的 20px 全给了下方列表。 */
@@ -241,7 +241,7 @@ function installStyles() {
       .st-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
       .st-view-switch{display:inline-flex;gap:2px;align-items:center}
       .st-view-button{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:transparent;color:var(--st-muted);cursor:pointer}.st-view-button:hover{color:var(--st-text)}
-      /* 2026-10-05 第三轮（用户：「选中的时候不用背景框，没必要，只要那个字体高亮就行」）：
+      /* 2026-10-02 第三轮（用户：「选中的时候不用背景框，没必要，只要那个字体高亮就行」）：
          选中态从一块 --st-accent-soft 底板改成**纯字色 + 字重**。理由和上一轮去掉容器底板是同一条：
          这一行里已经有两层底色在互相抵消，把选中态也做成色块，三个选项看起来像三块标签而不是一句话。 */
       .st-view-button[aria-pressed="true"]{color:var(--st-brand);font-weight:600}
@@ -291,18 +291,18 @@ function installStyles() {
          Phase 3 之后的调整不必再去猜流程到底挂在哪个复用类上。 */
       /* v0.6 §7「已安装 Skill」：搜索 + 两列卡片。卡片上只有名称、描述、调用方式与来源 ——
        * 没有学习状态、验证状态或 review queue，那些是 v0.5 的学习工作台，按 §4 从主模型消失。 */
-      /* 2026-10-05：顶部内边距 22px → 10px。顶栏自己是 48px 高、里面放一个 30px 的控件，
+      /* 2026-10-02：顶部内边距 22px → 10px。顶栏自己是 48px 高、里面放一个 30px 的控件，
          上下各留 9px —— 列表再隔 22px 才开始，顶栏与内容之间就出现了一条谁都不认领的空白带。
          改成 10px 之后两者读起来是同一块面。（左右与底部不变：那三面没有参考物。） */
       .st-installed{padding:10px 24px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto}
-      /* 2026-10-05 第二轮（用户：「搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，
+      /* 2026-10-02 第二轮（用户：「搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，
          那搜索框宽度可以再缩小一点」）：搜索框从正文的独立一行挪进顶栏右侧、紧挨刷新按钮。
          它因此降了一档：高度对齐同一行的两个 30px 控件，宽度从 520px 收到 220px ——
          搜索是窄输入（名称或描述的几个词），横跨半屏的输入框只会把那一行读成表单。 */
       .st-installed-search{position:relative;display:flex;align-items:center;flex:0 1 220px;min-width:0}
       .st-installed-search input{width:100%;height:30px;padding:0 30px 0 10px;border:1px solid var(--st-border);border-radius:7px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:12.5px}
       .st-installed-search input:focus-visible{outline:2px solid var(--st-accent);outline-offset:1px}
-      /* 2026-10-05（用户：「搜索框搜索 Icon 迁移到搜索框的右侧」）：图标从输入框左边挪到框内右端，
+      /* 2026-10-02（用户：「搜索框搜索 Icon 迁移到搜索框的右侧」）：图标从输入框左边挪到框内右端，
          并且 pointer-events:none —— 它只是个标记，不该抢走点击落点。 */
       .st-search-icon{position:absolute;right:9px;top:50%;transform:translateY(-50%);display:flex;color:var(--st-text-tertiary);pointer-events:none}
       /* 刷新按钮此前**一条样式都没有** —— .st-icon-button 只在 JSX 里出现过，样式全来自宿主默认的
@@ -312,12 +312,15 @@ function installStyles() {
       .st-icon-button{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--st-muted);cursor:pointer}
       .st-icon-button:hover{background:var(--st-surface-subtle);color:var(--st-text)}
       .st-icon-button:disabled{background:transparent;color:var(--st-faint);cursor:default}
+      /* v0.9.2：列表头那句「按什么排的」。顺序变了而界面不说，读者只会以为列表坏了 ——
+         所以这句话是列表的一部分，不是装饰。字色与空态同一档，不与卡片抢注意力。 */
+      .st-installed-order{margin:0 0 14px;color:var(--st-faint);font-size:11.5px;line-height:1.5}
       .st-installed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-content:start}
       .st-installed-card{display:flex;flex-direction:column;gap:7px;width:100%;text-align:left;padding:15px 16px;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);color:inherit;font:inherit;cursor:pointer;transition:border-color .16s ease}
       .st-installed-card:hover{border-color:var(--st-border-strong)}
       .st-installed-card:focus-visible{outline:2px solid var(--st-accent);outline-offset:1px}
       .st-installed-card-name{font-size:14.5px;font-weight:600;color:var(--st-text)}
-      /* 2026-10-05（用户：「Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行……用户
+      /* 2026-10-02（用户：「Skill 列表描述这里，最多显示 4 行。统一，最多显示 4 行……用户
          可以点进去查看详情」）：两个列表的描述都截到 4 行。
          描述是**预览**而不是内容本身 —— 有的 Skill 描述十行八行，卡片被它撑成一个段落，
          一屏放不下几张。整张卡片就是入口，完整描述在详情页一眼可看，所以这里截断不丢信息。
@@ -337,7 +340,7 @@ function installStyles() {
        * 文档，冲突时以仓库里**有牙的那条**为准（scripts/verify-project.mjs 会真的失败），
        * 并把分歧记在评审文档里，而不是偷偷选一个。
        */
-      /* 2026-10-05：两个一级列表必须从**同一个位置**开始。它们共用一条顶栏，读者在这两个
+      /* 2026-10-02：两个一级列表必须从**同一个位置**开始。它们共用一条顶栏，读者在这两个
          入口之间来回点时，第一张卡片的左上角应当原地不动 —— 否则每次切换页面，内容都会
          横竖各跳一下。所以这一页的 padding 与 .st-installed 逐字相同（10px 24px 28px）。 */
       .st-page{height:100%;min-height:0;overflow:auto;padding:10px 24px 28px}
@@ -508,6 +511,43 @@ function installStyles() {
       .st-detail-fact span{color:var(--st-muted)}
       .st-detail-fact code{font-size:11.5px;color:var(--st-text)}
       .st-detail-repo-link{display:inline-block;margin-top:2px;color:var(--st-accent);font-size:12px;font-weight:600}
+      /* v0.9.0「Skill 验收」。整块只用 token 上色：通过 / 需要修正 / 无法判断三态各自一个色，
+       * 但**颜色不承担语义** —— 状态词本身就在旁边写着（role=status 会被辅助技术读出来）。
+       * 结构靠分隔线（§27），所以发现列表用 border-bottom 而不是一张张圆角卡片。 */
+      .st-validation{display:flex;flex-direction:column;gap:8px}
+      .st-validation-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .st-validation-top h3{margin:0}
+      .st-validation-badge{flex:none;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:600;background:var(--st-surface-subtle);color:var(--st-muted)}
+      .st-validation-badge[data-status="pass"]{background:var(--st-success-soft);color:var(--st-success)}
+      .st-validation-badge[data-status="needs-fix"]{background:var(--st-danger-soft);color:var(--st-danger)}
+      .st-validation-badge[data-status="unknown"]{background:var(--st-warning-soft);color:var(--st-warning)}
+      .st-validation-counts{margin:0;color:var(--st-muted);font-size:11.5px}
+      .st-validation-note{margin:0;color:var(--st-danger);font-size:11.5px;line-height:1.55}
+      .st-validation-profiles{list-style:none;margin:0;padding:0}
+      .st-validation-profile{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--st-border-soft);font-size:11.5px}
+      .st-validation-profile code{color:var(--st-text);font-size:11.5px}
+      .st-validation-profile[data-status="pass"] .st-validation-profile-state{color:var(--st-success)}
+      .st-validation-profile[data-status="needs-fix"] .st-validation-profile-state{color:var(--st-danger)}
+      .st-validation-profile[data-status="unknown"] .st-validation-profile-state{color:var(--st-warning)}
+      .st-validation-profile-state{font-weight:600}
+      .st-validation-profile-counts{margin-left:auto;color:var(--st-faint)}
+      .st-validation-findings{list-style:none;margin:0;padding:0}
+      .st-validation-finding{padding:6px 0;border-bottom:1px solid var(--st-border-soft)}
+      .st-validation-finding-head{display:flex;align-items:baseline;gap:8px}
+      .st-validation-finding-head code{font-size:11.5px;color:var(--st-text)}
+      .st-validation-finding-title{font-size:12px;font-weight:600;color:var(--st-text-secondary);min-width:0;flex:1}
+      .st-validation-severity{font-size:11px;font-weight:600;color:var(--st-muted)}
+      .st-validation-finding[data-severity="error"] .st-validation-severity{color:var(--st-danger)}
+      .st-validation-finding[data-severity="warning"] .st-validation-severity{color:var(--st-warning)}
+      .st-validation-detail{margin:3px 0 0;color:var(--st-muted);font-size:11.5px;line-height:1.55}
+      .st-validation-skipped h4{margin:6px 0 4px;font-size:11.5px;color:var(--st-muted)}
+      .st-validation-skipped ul{list-style:none;margin:0;padding:0}
+      .st-validation-skipped li{padding:4px 0;border-bottom:1px solid var(--st-border-soft);color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-validation-skipped code{color:var(--st-muted);font-size:11px}
+      .st-validation-notes{list-style:none;margin:0;padding:0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-validation-limits{margin-top:2px}
+      .st-validation-limits summary{cursor:pointer;color:var(--st-muted);font-size:11.5px}
+      .st-validation-limits ul{margin:6px 0 0;padding-left:16px;color:var(--st-faint);font-size:11px;line-height:1.5}
       /* v0.6.1：文档面板不再用 flex:1 去抢"剩余高度"。框架层长到 1811px 之后剩余高度是负数，
        * 面板被压成 2px —— 中文预览、GFM 表格都在这个面板里，等于整层看不到。
        * 改成面板自己留高度（视口内取 72vh，封顶 640px），内部的目录与正文各自滚动。 */
@@ -567,6 +607,54 @@ function installStyles() {
       .st-evo-note{margin:0;color:var(--st-faint);font-size:11px;line-height:1.5}
       .st-evo-open{width:100%;margin-top:10px;padding:6px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;cursor:pointer}
       .st-evo-open:hover{border-color:var(--st-border-strong)}
+      .st-evo-actions{display:flex;gap:8px;margin-top:10px}
+      .st-evo-actions .st-evo-open{flex:1;margin-top:0}
+      .st-evo-modify{border-color:var(--st-border-strong)}
+      .st-mod{display:flex;flex-direction:column;gap:10px}
+      .st-mod-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .st-mod-top h3{margin:0;font-size:14px;font-weight:650}
+      .st-mod-wait{margin:0;color:var(--st-muted);font-size:11.5px;line-height:1.55}
+      .st-mod-lines{margin:0;color:var(--st-text);font-size:12px}
+      .st-mod-scopes{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;margin:0;padding:0;font-size:11.5px}
+      .st-mod-scopes dt{min-width:0;padding:5px 0;border-bottom:1px solid var(--st-border-soft);color:var(--st-text-secondary);overflow-wrap:anywhere}
+      .st-mod-scopes dd{margin:0;padding:5px 0;border-bottom:1px solid var(--st-border-soft);color:var(--st-text);text-align:right}
+      .st-mod-scopes dd[data-state="changed"]{color:var(--st-warning);font-weight:600}
+      .st-mod-scopes dd[data-state="unknown"]{color:var(--st-faint)}
+      .st-mod-sections p{margin:4px 0;color:var(--st-text-secondary);font-size:11.5px;overflow-wrap:anywhere}
+      .st-mod-sections p[data-kind="added"]{color:var(--st-accent)}
+      .st-mod-sections p[data-kind="removed"]{color:var(--st-warning)}
+      .st-mod-resources{padding-top:8px;border-top:1px solid var(--st-border-soft)}
+      .st-mod-res-line{margin:4px 0;color:var(--st-text-secondary);font-size:11.5px;line-height:1.55;overflow-wrap:anywhere}
+      .st-mod-res-line code{margin-left:6px;font-size:11px;color:var(--st-text)}
+      .st-mod-out{padding-top:8px;border-top:1px solid var(--st-border-soft)}
+      .st-mod-out h4{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--st-warning)}
+      .st-mod-out p{margin:4px 0;color:var(--st-text-secondary);font-size:11.5px;line-height:1.55}
+      .st-mod-state{margin:0;padding-top:8px;border-top:1px solid var(--st-border-soft);color:var(--st-text-secondary);font-size:11.5px;line-height:1.55}
+      .st-mod-state[data-state="changed"]{color:var(--st-warning)}
+      .st-mod-state[data-state="unknown"]{color:var(--st-faint)}
+      .st-mod-notes{margin:0;padding-left:16px;color:var(--st-muted);font-size:11.5px;line-height:1.55}
+      .st-mod-note{margin:0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-mod-limits{font-size:11.5px;color:var(--st-muted)}
+      .st-mod-limits summary{cursor:pointer;color:var(--st-text-secondary)}
+      .st-mod-limits ul{margin:6px 0 0;padding-left:16px;line-height:1.55}
+      .st-mod-actions{display:flex;flex-wrap:wrap;gap:8px}
+      .st-mod-cancel,.st-mod-submit{padding:6px 12px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;cursor:pointer}
+      .st-mod-submit{border-color:var(--st-border-strong);background:var(--st-accent-soft);font-weight:600}
+      .st-mod-cancel:hover,.st-mod-submit:hover{border-color:var(--st-border-strong)}
+      .st-mod-submit:disabled{opacity:.6;cursor:default}
+      .st-mod-overlay{position:fixed;inset:0;z-index:42;display:flex;align-items:flex-start;justify-content:center;padding:56px 20px;background:color-mix(in srgb,var(--st-text) 34%,transparent)}
+      .st-mod-dialog{width:560px;max-width:100%;max-height:100%;display:flex;flex-direction:column;gap:10px;overflow:auto;padding:16px 18px;border:1px solid var(--st-border-strong);border-radius:12px;background:var(--st-surface);box-shadow:0 12px 32px color-mix(in srgb,var(--st-text) 18%,transparent)}
+      .st-mod-head h2{margin:0;font-size:14px;font-weight:650}
+      .st-mod-sub{margin:4px 0 0;color:var(--st-muted);font-size:11.5px}
+      .st-mod-label{margin:0;color:var(--st-text-secondary);font-size:11.5px;font-weight:600}
+      .st-mod-intent{box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:12px;line-height:1.55;resize:vertical}
+      .st-mod-chips{display:flex;flex-wrap:wrap;gap:6px}
+      .st-mod-chip{padding:4px 10px;border:1px solid var(--st-border);border-radius:999px;background:var(--st-surface-subtle);color:var(--st-muted);font:inherit;font-size:11.5px;cursor:pointer}
+      .st-mod-chip[data-on="true"]{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
+      .st-mod-chip[data-locked="true"]{border-style:dashed;color:var(--st-faint);cursor:default}
+      .st-mod-hint{margin:0;color:var(--st-faint);font-size:11px;line-height:1.5}
+      .st-mod-alert{margin:0;padding:8px 10px;border-left:2px solid var(--st-danger);color:var(--st-text);font-size:11.5px;line-height:1.55}
+      .st-mod-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid var(--st-border-soft)}
       .st-diff-overlay{position:fixed;inset:0;z-index:41;display:flex;align-items:flex-start;justify-content:center;padding:56px 20px;background:color-mix(in srgb,var(--st-text) 34%,transparent)}
       .st-diff-dialog{width:720px;max-width:100%;max-height:100%;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--st-border-strong);border-radius:12px;background:var(--st-surface);box-shadow:0 12px 32px color-mix(in srgb,var(--st-text) 18%,transparent)}
       .st-diff-head{padding:13px 18px;border-bottom:1px solid var(--st-border-soft)}
@@ -1683,8 +1771,17 @@ function installStyles() {
    * 那时详情响应里**根本没有 `lineage` 这个键**——把这种情况渲染成「不是由本插件复刻出来的」，
    * 等于对着一个真的复刻过的 Skill 说假话。
    */
-  function SkillEvolution({ skillName, lineage, source, diffPhase, onOpenDiff, openRef, lineageFieldMissing }) {
+  function SkillEvolution({ skillName, lineage, source, diffPhase, onOpenDiff, openRef, onOpenModify, modifyOpenRef, lineageFieldMissing }) {
     const head = h('h3', null, localized('Skill 演进', 'Skill Evolution'))
+    // v0.9.1：「修改 Skill」与「查看差异」并排。两个分支都要有它 —— 没有血缘的 Skill
+    // （自己手写的、手动拷进来的）同样可以被修改，血缘只决定「有没有来源可比」。
+    const modifyButton = h('button', {
+      className: 'st-evo-open st-evo-modify',
+      type: 'button',
+      ref: modifyOpenRef,
+      'data-role': 'modify-open',
+      onClick: onOpenModify,
+    }, raw(localized('修改 Skill', 'Modify this Skill')))
     if (!lineage) {
       return h('section', { className: 'st-detail-card', 'data-role': 'skill-evolution' },
         head,
@@ -1696,7 +1793,8 @@ function installStyles() {
           : localized(
             '这个 Skill 不是由本插件复刻出来的。',
             'This Skill was not cloned by this plugin.',
-          ))))
+          ))),
+        h('div', { className: 'st-evo-actions' }, modifyButton))
     }
     const sourceState = evolutionSourceState(source, diffPhase)
     return h('section', { className: 'st-detail-card', 'data-role': 'skill-evolution' },
@@ -1711,13 +1809,468 @@ function installStyles() {
         h('dt', null, localized('当前来源指纹', 'Source fingerprint now')),
         h('dd', null, h('code', null, raw(shortHash(source?.currentSha256) || '—')))),
       h('p', { className: 'st-evo-state', 'data-role': 'evolution-source-state', 'data-changed': sourceState.mark }, raw(sourceState.text)),
-      h('button', {
-        className: 'st-evo-open',
-        type: 'button',
-        ref: openRef,
-        'data-role': 'diff-open',
-        onClick: onOpenDiff,
-      }, raw(localized('查看差异', 'View differences'))))
+      h('div', { className: 'st-evo-actions' },
+        h('button', {
+          className: 'st-evo-open',
+          type: 'button',
+          ref: openRef,
+          'data-role': 'diff-open',
+          onClick: onOpenDiff,
+        }, raw(localized('查看差异', 'View differences'))),
+        modifyButton))
+  }
+
+  /**
+   * v0.9.0 的三态说法。逐字给常量，不拼接 —— 这一层不许自己长出新词（没有分数、没有「优秀」）。
+   */
+  const validationStatusText = (status) => {
+    if (status === 'pass') return localized('通过', 'Pass')
+    if (status === 'needs-fix') return localized('需要修正', 'Needs fixes')
+    return localized('无法判断', 'Not determinable')
+  }
+  const validationSeverityText = (severity) => {
+    if (severity === 'error') return localized('错误', 'Error')
+    if (severity === 'warning') return localized('警告', 'Warning')
+    if (severity === 'info') return localized('信息', 'Info')
+    return severity
+  }
+  /**
+   * 「这条规则这次为什么没有判定」的人话。
+   *
+   * 理由码由 `src/core/skill-validation.mjs` 给出，界面只负责翻译。这一层存在的全部理由是：
+   * **「这次没查」不许渲染成「通过」**。「拿不到目录清单」和「引用的文件都在」在屏幕上必须是
+   * 两句不同的话，否则用户会把一次没做的检查读成一次通过的检查。
+   */
+  const validationSkipText = (reason) => {
+    if (reason === 'no-directory-listing') return localized('拿不到这个 Skill 的目录清单，无法判断引用的文件在不在。', 'The Skill directory listing is not available, so referenced files cannot be checked.')
+    if (reason === 'no-directory-name') return localized('没能定位到这个 Skill 的目录。', 'The Skill directory could not be located.')
+    if (reason === 'body-truncated') return localized('正文太长，这次只读了一部分。', 'The body was too long and only part of it was read.')
+    if (reason === 'compatibility-absent') return localized('这份 SKILL.md 没有 compatibility 字段。', 'This SKILL.md has no compatibility field.')
+    if (reason === 'name-missing') return localized('没有读到 name 字段。', 'No name field was read.')
+    if (reason === 'definition-unavailable') return localized('现在读不到这个 Skill 的 SKILL.md。', 'The SKILL.md could not be read now.')
+    if (reason === 'no-evaluator') return localized('这条规则还没有判定函数。', 'This rule has no evaluator yet.')
+    return reason
+  }
+
+  /**
+   * v0.9.0 详情页的「Skill 验收」块。
+   *
+   * 它回答的是一组**可以机械判定的事实**：有没有 name 和 description、name 符不符合目标平台的
+   * 命名规则、正文引用的文件在不在、有没有观测到凭据模式。它不回答「这份 Skill 好不好」——
+   * 没有分数、没有排名、没有「优秀」。
+   *
+   * 三态只有一个来源：`status` 由宿主的确定性验收器算好（只有违反 error 规则才是 needs-fix，
+   * `warnings > 0` 不算）。界面**不重新判断**，也不把「判不了」画成「通过」：没判定的规则单独
+   * 列出来并写明理由。`role="status"` 给状态，错误态给 `role="alert"`。
+   */
+  function SkillValidationPanel({ validation, validationFieldMissing }) {
+    const head = h('h3', null, localized('Skill 验收', 'Skill validation'))
+    if (!validation) {
+      return h('section', { className: 'st-detail-card', 'data-role': 'skill-validation' },
+        head,
+        h('p', { className: 'st-validation-note', role: 'alert', 'data-role': 'validation-unavailable' }, raw(
+          validationFieldMissing
+            ? localized(
+              '这次详情响应里没有验收结果。宿主可能还没换到这一版的代码，重启 DSH 后再试。',
+              'This detail response has no validation result. The host may still be running an older version — restart DSH and try again.',
+            )
+            : localized(
+              '现在读不到这个 Skill 的 SKILL.md，因此无法判断它是否符合规范。',
+              'The SKILL.md could not be read now, so it cannot be checked against the specification.',
+            ),
+        )))
+    }
+
+    const summary = validation.summary ?? {}
+    const profiles = Array.isArray(validation.profiles) ? validation.profiles : []
+    const findings = Array.isArray(validation.findings) ? validation.findings : []
+    const rules = Array.isArray(validation.rules) ? validation.rules : []
+    const skipped = Array.isArray(validation.skipped) ? validation.skipped : []
+    const notes = Array.isArray(validation.notes) ? validation.notes : []
+    const limitations = Array.isArray(validation.limitations) ? validation.limitations : []
+    const ruleTitle = (id) => rules.find((rule) => rule.id === id)?.title ?? id
+
+    return h('section', { className: 'st-detail-card st-validation', 'data-role': 'skill-validation' },
+      h('div', { className: 'st-validation-top' }, head,
+        h('span', {
+          className: 'st-validation-badge',
+          role: 'status',
+          'data-role': 'validation-status',
+          'data-status': validation.status ?? 'unknown',
+        }, raw(validationStatusText(validation.status)))),
+      h('p', { className: 'st-validation-counts', 'data-role': 'validation-summary' }, raw(localized(
+        `错误 ${summary.errors ?? 0} · 警告 ${summary.warnings ?? 0} · 信息 ${summary.info ?? 0} · 未判定 ${summary.skipped ?? 0}`,
+        `${summary.errors ?? 0} errors · ${summary.warnings ?? 0} warnings · ${summary.info ?? 0} info · ${summary.skipped ?? 0} not checked`,
+      ))),
+      h('ul', { className: 'st-validation-profiles', 'data-role': 'validation-profiles' },
+        ...profiles.map((profile) => h('li', {
+          key: profile.id,
+          className: 'st-validation-profile',
+          'data-role': `validation-profile-${profile.id}`,
+          'data-status': profile.status,
+        },
+        // `profile.label` 是核心模块给的双语对象（`{zh, en}`），不是字符串：
+        // 直接当 children 交给 React 会抛 #31（Objects are not valid as a React child），
+        // 而 `conversation.view` 没有错误边界，整页会白屏 —— 这一步必须显式选语言。
+        h('code', null, raw(localized(profile.label?.zh ?? profile.id, profile.label?.en ?? profile.id))),
+        h('span', { className: 'st-validation-profile-state' }, raw(validationStatusText(profile.status))),
+        h('span', { className: 'st-validation-profile-counts' }, raw(localized(
+          `错误 ${profile.errors ?? 0} · 警告 ${profile.warnings ?? 0} · 信息 ${profile.info ?? 0}`,
+          `${profile.errors ?? 0} errors · ${profile.warnings ?? 0} warnings · ${profile.info ?? 0} info`,
+        )))))),
+      findings.length > 0
+        ? h('ul', { className: 'st-validation-findings', 'data-role': 'validation-findings' },
+          ...findings.map((finding, index) => h('li', {
+            key: `${finding.id}-${index}`,
+            className: 'st-validation-finding',
+            'data-role': 'validation-finding',
+            'data-severity': finding.severity,
+          },
+          h('div', { className: 'st-validation-finding-head' },
+            h('code', null, raw(finding.id)),
+            h('span', { className: 'st-validation-finding-title' }, raw(ruleTitle(finding.id))),
+            h('span', { className: 'st-validation-severity' }, raw(validationSeverityText(finding.severity)))),
+          h('p', { className: 'st-validation-detail' }, raw(finding.detail)))))
+        : null,
+      skipped.length > 0
+        ? h('div', { className: 'st-validation-skipped', 'data-role': 'validation-skipped' },
+          h('h4', null, localized('这次没有判定', 'Not checked this time')),
+          h('ul', null, ...skipped.map((entry, index) => h('li', {
+            key: `${entry.id}-${index}`,
+            'data-role': 'validation-skipped-rule',
+          },
+          h('code', null, raw(entry.id)),
+          h('span', null, raw(` ${ruleTitle(entry.id)} —— ${validationSkipText(entry.reason)}`))))))
+        : null,
+      notes.length > 0
+        ? h('ul', { className: 'st-validation-notes', 'data-role': 'validation-notes' },
+          ...notes.map((note, index) => h('li', { key: `note-${index}` }, raw(note))))
+        : null,
+      limitations.length > 0
+        ? h('details', { className: 'st-validation-limits', 'data-role': 'validation-limitations' },
+          h('summary', null, localized('这次验收查了什么、没查什么', 'What this check covers and what it does not')),
+          h('ul', null, ...limitations.map((line, index) => h('li', { key: `limit-${index}` }, raw(line)))))
+        : null)
+  }
+
+  /**
+   * v0.9.1 的修改范围与验收目标。
+   *
+   * 这两张表**不能**从 `src/core/skill-modification.mjs` import 进来：§6.6 只允许客户端 require
+   * 七支 core 模块，而界面这一层要的本来就只是 id 与文案。风险是两边漂移，所以由守卫
+   * `SKILL_MODIFICATION_OK` 拿核心模块的 `MODIFICATION_SCOPE_IDS` / `MODIFICATION_LOCKED_SCOPE_IDS`
+   * / `SKILL_PROFILE_IDS` 逐字对账：界面少一项、把锁死的那两项放开，都会红。
+   *
+   * 锁死的两项**画出来但不可点**（`data-locked="true"`）：用户看得见「这里有 scripts/，
+   * 但这一版不让我改」，比看不见它更诚实。
+   */
+  const MODIFY_SCOPES = [
+    ['skill-md-rules', 'SKILL.md / Rules', 'SKILL.md / Rules'],
+    ['skill-md-workflow', 'SKILL.md / Workflow', 'SKILL.md / Workflow'],
+    ['skill-md-description', 'SKILL.md / Description', 'SKILL.md / Description'],
+    ['references', 'references', 'references'],
+  ]
+  const MODIFY_LOCKED_SCOPES = [
+    ['scripts', 'scripts', 'scripts'],
+    ['assets', 'assets', 'assets'],
+  ]
+  const MODIFY_PROFILES = [
+    ['dsh', 'DSH', 'DSH'],
+    ['microsoft', 'Microsoft', 'Microsoft'],
+    ['openai', 'OpenAI', 'OpenAI'],
+    ['anthropic', 'Anthropic', 'Anthropic'],
+  ]
+
+  /** 范围 id → 界面上的说法。认不出来就原样显示，不猜。 */
+  const modifyScopeText = (id) => {
+    const entry = [...MODIFY_SCOPES, ...MODIFY_LOCKED_SCOPES].find(([scopeId]) => scopeId === id)
+    return entry ? localized(entry[1], entry[2]) : String(id ?? '')
+  }
+
+  /** 这一次「改前 → 改后」的三态说法。与验收一样：没有分数、没有「优秀」。 */
+  const modifyDiffText = (status) => {
+    if (status === 'changed') return localized('有变化', 'Changed')
+    if (status === 'unchanged') return localized('没有变化', 'No change')
+    return localized('无法比较', 'Not comparable')
+  }
+
+  const modifyScopeStateText = (state) => {
+    if (state === 'changed') return localized('有变化', 'Changed')
+    if (state === 'unchanged') return localized('没有变化', 'No change')
+    return localized('无法判断', 'Not determinable')
+  }
+
+  /**
+   * v0.9.1 的「修改 Skill」对话框（`FR-MOD-*`）。
+   *
+   * 它只做三件事：让用户写一句意图、勾一个修改范围、按一次「交给 Agent」。
+   * 它**不**编辑 Markdown、不预览 diff、不解析 Agent 的方案、也**不碰任何文件** ——
+   * 写文件是当前会话里的 Agent 用 DSH 原生工具做的事（见核心模块的十二条协议）。
+   *
+   * 「交给 Agent」这个点击**本身就是授权**：插件拿当前会话的 Agent 代发一条带协议的
+   * 修改任务，而不是用户手打。焦点行为与差异面板一致（打开进面板、Tab 循环、Esc 关闭、
+   * 关闭后焦点回到打开它的按钮）。
+   */
+  function SkillModifyDialog({ sessionId, skillName, onClose, onDispatched }) {
+    // 注入缝：渲染烟测的 React 桩不跑 `useEffect`，所以对话框的默认那一帧（空意图 +
+    // 默认范围）必须本身就渲染得出来，不依赖任何异步结果 —— 它是这个组件的正事。
+    const [intent, setIntent] = React.useState('')
+    const [scopes, setScopes] = React.useState(() => MODIFY_SCOPES.map((entry) => entry[0]))
+    const [profiles, setProfiles] = React.useState(['dsh'])
+    const [state, setState] = React.useState({ phase: 'idle', error: '' })
+    const dialogRef = React.useRef(null)
+    const intentRef = React.useRef(null)
+
+    React.useEffect(() => {
+      const target = intentRef.current
+      if (target && typeof target.focus === 'function') target.focus()
+    }, [])
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const root = dialogRef.current
+      if (!root || typeof root.querySelectorAll !== 'function') return
+      const nodes = root.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')
+      if (!nodes.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const active = typeof document === 'undefined' ? null : document.activeElement
+      if (event.shiftKey && active === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
+    }
+
+    const toggle = (list, setList, id) => {
+      setList(list.includes(id) ? list.filter((value) => value !== id) : [...list, id])
+    }
+
+    const submit = () => {
+      if (state.phase === 'sending') return
+      setState({ phase: 'sending', error: '' })
+      api('/modify', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          skillName,
+          action: 'begin',
+          intent,
+          scopes,
+          // `common` 永远在里面：它是共同规范层，不是可选项（V0.9.0 的 `resolveSkillProfiles` 也是这么补的）。
+          profiles: ['common', ...profiles],
+        }),
+      })
+        .then((body) => { onDispatched(body) })
+        .catch((reason) => { setState({ phase: 'error', error: String(reason?.message || 'unavailable') }) })
+    }
+
+    const scopeChip = ([id, zh, en], locked) => h('button', {
+      key: id,
+      className: 'st-mod-chip',
+      type: 'button',
+      'data-role': locked ? 'modify-locked' : 'modify-scope',
+      'data-scope': id,
+      'data-on': !locked && scopes.includes(id) ? 'true' : 'false',
+      'data-locked': locked ? 'true' : 'false',
+      disabled: locked === true,
+      'aria-pressed': locked ? undefined : (scopes.includes(id) ? 'true' : 'false'),
+      onClick: locked ? undefined : () => toggle(scopes, setScopes, id),
+    }, raw(localized(zh, en)))
+
+    const profileChip = ([id, zh, en]) => h('button', {
+      key: id,
+      className: 'st-mod-chip',
+      type: 'button',
+      'data-role': 'modify-profile',
+      'data-profile': id,
+      'data-on': profiles.includes(id) ? 'true' : 'false',
+      'aria-pressed': profiles.includes(id) ? 'true' : 'false',
+      onClick: () => toggle(profiles, setProfiles, id),
+    }, raw(localized(zh, en)))
+
+    return h('div', {
+      className: 'st-mod-overlay',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-label': localized('修改 Skill', 'Modify Skill'),
+      onKeyDown,
+    }, h('div', { className: 'st-mod-dialog', ref: dialogRef, 'data-role': 'modify-dialog' },
+      h('header', { className: 'st-mod-head' },
+        h('h2', null, localized('修改 Skill', 'Modify Skill')),
+        h('p', { className: 'st-mod-sub', 'data-role': 'modify-subject' }, h('code', null, raw(skillName)))),
+      h('label', { className: 'st-mod-label', htmlFor: 'st-modify-intent' }, raw(localized('你希望这个 Skill 怎么改？', 'How should this Skill change?'))),
+      h('textarea', {
+        id: 'st-modify-intent',
+        className: 'st-mod-intent',
+        ref: intentRef,
+        rows: 4,
+        'data-role': 'modify-intent',
+        maxLength: 2000,
+        placeholder: localized('例如：增加一条规则，要求所有渐变都在 tokens 里说明用途。', 'For example: add a rule that every gradient must be justified in tokens.'),
+        value: intent,
+        onChange: (event) => setIntent(String(event.target.value ?? '')),
+      }),
+      h('p', { className: 'st-mod-label' }, raw(localized('修改范围（会被结构化，随消息一起交给 Agent）', 'Scope (structured, sent with the message)'))),
+      h('div', { className: 'st-mod-chips' },
+        ...MODIFY_SCOPES.map((entry) => scopeChip(entry, false)),
+        ...MODIFY_LOCKED_SCOPES.map((entry) => scopeChip(entry, true))),
+      h('p', { className: 'st-mod-hint' }, raw(localized(
+        '勾选的范围就是授权；没勾的就算变了也会被如实报出来。锁着的两项这一版不能授权。',
+        'Checked items are what is authorised; anything else that changes is reported. The locked two cannot be authorised in this version.',
+      ))),
+      h('p', { className: 'st-mod-label' }, raw(localized('这次验收的目标', 'Validation targets'))),
+      h('div', { className: 'st-mod-chips' },
+        h('span', { className: 'st-mod-chip', 'data-role': 'modify-profile', 'data-profile': 'common', 'data-on': 'true', 'data-locked': 'true' }, raw(localized('Common Core', 'Common Core'))),
+        ...MODIFY_PROFILES.map(profileChip)),
+      state.phase === 'error'
+        ? h('p', { className: 'st-mod-alert', role: 'alert', 'data-role': 'modify-error' }, raw(state.error))
+        : null,
+      h('footer', { className: 'st-mod-foot' },
+        h('p', { className: 'st-mod-note' }, raw(localized('插件不会直接改文件，也不会运行 Skill 里的脚本。', 'The plugin does not edit files and does not run the Skill scripts.'))),
+        h('div', { className: 'st-mod-actions' },
+          h('button', { className: 'st-mod-cancel', type: 'button', 'data-role': 'modify-cancel', onClick: onClose }, raw(localized('取消', 'Cancel'))),
+          h('button', {
+            className: 'st-mod-submit',
+            type: 'button',
+            'data-role': 'modify-submit',
+            disabled: state.phase === 'sending',
+            onClick: submit,
+          }, raw(state.phase === 'sending'
+            ? localized('正在交给 Agent…', 'Handing over…')
+            : localized('交给 Agent', 'Hand to the agent')))))))
+  }
+
+  /**
+   * v0.9.1 的「本次修改对比」块（`FR-MOD-*`）。
+   *
+   * 它只说这一件事：**这次修改前后，文件里有什么不一样**。快照只活在宿主内存里，
+   * 对比完就释放 —— 所以这一屏没有「历史版本」、没有时间线、也没有版本选择器。
+   * 拿不到「改前」时它说「无法比较」，绝不显示一份看起来像「没有变化」的空结果。
+   */
+  function SkillModificationPanel({ modification, onCompare, onOpenModify }) {
+    const phase = modification?.phase ?? 'idle'
+    if (phase === 'idle') return null
+    const head = h('div', { className: 'st-mod-top' },
+      h('h3', null, localized('本次修改对比', 'This modification')),
+      phase === 'ready' && modification.comparison
+        ? h('span', {
+          className: 'st-validation-badge',
+          role: 'status',
+          'data-role': 'mod-status',
+          'data-status': modification.comparison.available === false ? 'unavailable' : modification.comparison.status,
+        }, raw(modifyDiffText(modification.comparison.available === false ? 'unavailable' : modification.comparison.status)))
+        : null)
+
+    if (phase === 'waiting' || phase === 'loading') {
+      return h('section', { className: 'st-detail-card st-mod', 'data-role': 'skill-modification' },
+        head,
+        h('p', { className: 'st-mod-wait', 'data-role': 'mod-waiting' }, raw(localized(
+          '修改任务已经发给当前会话的 Agent。它改完之后，点下面这个按钮对比这次修改。',
+          'The task has been sent to the agent in this conversation. Once it has finished, compare this modification below.',
+        ))),
+        h('div', { className: 'st-mod-actions' },
+          h('button', {
+            className: 'st-mod-submit',
+            type: 'button',
+            'data-role': 'mod-compare',
+            disabled: phase === 'loading',
+            onClick: onCompare,
+          }, raw(phase === 'loading'
+            ? localized('正在读这次修改…', 'Reading this modification…')
+            : localized('对比本次修改', 'Compare this modification'))),
+          h('button', { className: 'st-mod-cancel', type: 'button', 'data-role': 'mod-again', onClick: onOpenModify }, raw(localized('再改一次', 'Modify again')))))
+    }
+
+    if (phase === 'error') {
+      return h('section', { className: 'st-detail-card st-mod', 'data-role': 'skill-modification' },
+        head,
+        h('p', { className: 'st-mod-alert', role: 'alert', 'data-role': 'mod-error' }, raw(modification.error || localized('对比失败。', 'Comparison failed.'))),
+        h('div', { className: 'st-mod-actions' },
+          h('button', { className: 'st-mod-cancel', type: 'button', 'data-role': 'mod-again', onClick: onOpenModify }, raw(localized('再改一次', 'Modify again')))))
+    }
+
+    const comparison = modification.comparison
+    if (!comparison) return null
+    if (comparison.available === false) {
+      return h('section', { className: 'st-detail-card st-mod', 'data-role': 'skill-modification' },
+        head,
+        h('p', { className: 'st-mod-alert', role: 'alert', 'data-role': 'mod-unavailable' }, raw(comparison.message || localized('本次修改前状态不可用，暂时无法比较本次修改的内容。', 'The pre-modification state is unavailable, so this modification cannot be compared.'))),
+        h('ul', { className: 'st-mod-notes' },
+          h('li', null, raw(localized(
+            `来源 Skill：${comparison.source?.message ?? ''}`,
+            `Source Skill: ${comparison.source?.message ?? ''}`,
+          )))),
+        h('div', { className: 'st-mod-actions' },
+          h('button', { className: 'st-mod-cancel', type: 'button', 'data-role': 'mod-again', onClick: onOpenModify }, raw(localized('再改一次', 'Modify again')))))
+    }
+
+    const scopes = Array.isArray(comparison.scopes) ? comparison.scopes : []
+    const outOfScope = Array.isArray(comparison.outOfScope) ? comparison.outOfScope : []
+    const notes = Array.isArray(comparison.notes) ? comparison.notes : []
+    const limitations = Array.isArray(comparison.limitations) ? comparison.limitations : []
+    const resources = comparison.resources ?? { available: false, added: [], removed: [], modified: [] }
+    const lines = comparison.lines ?? { added: 0, removed: 0, exact: true }
+    const sections = comparison.sections ?? { added: [], removed: [] }
+
+    const resourceList = (kind, paths) => (Array.isArray(paths) && paths.length
+      ? h('p', { className: 'st-mod-res-line', 'data-role': 'mod-resource', 'data-kind': kind },
+        raw(`${kind === 'added' ? localized('新增', 'Added') : kind === 'removed' ? localized('删除', 'Removed') : localized('修改', 'Modified')}：`),
+        ...paths.map((path) => h('code', { key: path }, raw(path))))
+      : null)
+
+    return h('section', { className: 'st-detail-card st-mod', 'data-role': 'skill-modification' },
+      head,
+      h('p', { className: 'st-mod-lines', 'data-role': 'mod-lines' }, raw(localized(
+        `${lines.exact === false ? '约 ' : ''}新增 ${Number(lines.added) || 0} 行 · 删除 ${Number(lines.removed) || 0} 行`,
+        `${lines.exact === false ? 'about ' : ''}+${Number(lines.added) || 0} · −${Number(lines.removed) || 0} lines`,
+      ))),
+      scopes.length
+        ? h('dl', { className: 'st-mod-scopes', 'data-role': 'mod-scopes' },
+          ...scopes.flatMap((scope) => [
+            h('dt', { key: `${scope.id}:k` }, raw(modifyScopeText(scope.id))),
+            h('dd', { key: `${scope.id}:v`, 'data-role': 'mod-scope', 'data-scope': scope.id, 'data-state': scope.state }, raw(modifyScopeStateText(scope.state))),
+          ]))
+        : null,
+      (sections.added.length || sections.removed.length)
+        ? h('div', { className: 'st-mod-sections', 'data-role': 'mod-sections' },
+          ...sections.added.map((title) => h('p', { key: `a:${title}`, 'data-kind': 'added' }, raw(localized(`新增小节：${title}`, `New section: ${title}`)))),
+          ...sections.removed.map((title) => h('p', { key: `r:${title}`, 'data-kind': 'removed' }, raw(localized(`删除小节：${title}`, `Removed section: ${title}`)))))
+        : null,
+      resources.available
+        ? h('div', { className: 'st-mod-resources', 'data-role': 'mod-resources' },
+          resourceList('added', resources.added),
+          resourceList('removed', resources.removed),
+          resourceList('modified', resources.modified),
+          (!resources.added.length && !resources.removed.length && !resources.modified.length)
+            ? h('p', { className: 'st-mod-res-line' }, raw(localized('资源文件没有变化。', 'No resource files changed.')))
+            : null)
+        : h('p', { className: 'st-mod-res-line', 'data-role': 'mod-resources' }, raw(localized('拿不到这个 Skill 的目录清单，资源层没有参与对比。', 'The directory listing is not available, so resources were not compared.'))),
+      outOfScope.length
+        ? h('div', { className: 'st-mod-out', 'data-role': 'mod-out-of-scope' },
+          h('h4', null, localized('超出修改范围', 'Outside the declared scope')),
+          ...outOfScope.map((entry) => h('p', { key: entry.id, 'data-role': 'mod-out-of-scope-item', 'data-id': entry.id }, raw(entry.detail))))
+        : null,
+      h('p', { className: 'st-mod-state', 'data-role': 'mod-source', 'data-state': comparison.source?.state ?? 'unknown' }, raw(comparison.source?.message ?? '')),
+      h('p', { className: 'st-mod-state', 'data-role': 'mod-identity', 'data-state': comparison.identity?.state ?? 'unknown' }, raw(comparison.identity?.state === 'changed'
+        ? localized('SKILL.md 的 name 字段变了。协议要求保留名称，除非你明确要求改名。', 'The name field changed. The contract keeps the name unless you asked to rename it.')
+        : localized('name 字段没有变。', 'The name field did not change.'))),
+      notes.length ? h('ul', { className: 'st-mod-notes', 'data-role': 'mod-notes' }, ...notes.map((note) => h('li', { key: note }, raw(note)))) : null,
+      modification.released
+        ? h('p', { className: 'st-mod-note', 'data-role': 'mod-released' }, raw(localized(
+          '改前快照只活在宿主内存里，现在已经释放。再想对比，就先再改一次。',
+          'The pre-modification snapshot lived in host memory only and has been released. Modify again to compare another change.',
+        )))
+        : null,
+      limitations.length
+        ? h('details', { className: 'st-mod-limits', 'data-role': 'mod-limitations' },
+          h('summary', null, raw(localized('这次对比算了什么、没算什么', 'What this comparison does and does not cover'))),
+          h('ul', null, ...limitations.map((item) => h('li', { key: item }, raw(item)))))
+        : null,
+      h('div', { className: 'st-mod-actions' },
+        h('button', { className: 'st-mod-cancel', type: 'button', 'data-role': 'mod-again', onClick: onOpenModify }, raw(localized('再改一次', 'Modify again')))))
   }
 
   /**
@@ -1890,7 +2443,7 @@ function installStyles() {
         : null))
   }
 
-  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill }) {
+  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
     const [error, setError] = React.useState('')
@@ -1904,6 +2457,11 @@ function installStyles() {
     const [diffOpen, setDiffOpen] = React.useState(false)
     const [diffState, setDiffState] = React.useState({ phase: 'idle', diff: null, error: '' })
     const diffOpenRef = React.useRef(null)
+    // v0.9.1：一次「修改 Skill」事务的界面状态。`modification` 是和 `skill` / `diff` 同一种注入缝
+    // —— 渲染烟测的 React 桩不跑 `useEffect`，所以这一帧必须能由 props 直接给出来。
+    const [modifyOpen, setModifyOpen] = React.useState(false)
+    const [modifyState, setModifyState] = React.useState(() => suppliedModification ?? { phase: 'idle' })
+    const modifyOpenRef = React.useRef(null)
     const docRef = React.useRef(null)
     const scrollRef = React.useRef(null)
     const flashTimer = React.useRef(null)
@@ -1936,6 +2494,11 @@ function installStyles() {
     // v0.8：老宿主（内存里还是 v0.7 那一代代码）的详情响应里**没有** `lineage` 这个键，
     // 而「确实没有复刻过」是 `lineage: null`。两者不能都渲染成同一句话（§6.11）。
     const lineageFieldMissing = Boolean(detail) && !Object.prototype.hasOwnProperty.call(detail, 'lineage')
+    // v0.9.0：验收结果是宿主在同一份详情响应里给的**规范事实**（不是分数、不是判断）。
+    // 同一条纪律：老宿主（内存里还是 v0.8 那一代代码）根本没有 `validation` 这个键，
+    // 「字段缺失」与「这份 Skill 读不到」必须说成两句不同的话（§6.11）。
+    const validation = detail?.validation ?? null
+    const validationFieldMissing = Boolean(detail) && !Object.prototype.hasOwnProperty.call(detail, 'validation')
     const runs = Array.isArray(detail?.runs) ? detail.runs : []
     const observation = detail?.observation ?? null
     const definitionUnavailable = Boolean(definition) && definition.available !== true
@@ -2171,6 +2734,8 @@ function installStyles() {
       diffPhase: diffState.phase,
       onOpenDiff: () => setDiffOpen(true),
       openRef: diffOpenRef,
+      onOpenModify: () => setModifyOpen(true),
+      modifyOpenRef,
     })
 
     const sidePanel = h('aside', { className: 'st-detail-side' }, sideIdentity, sideEvolution, sideDefinition, sideRepository)
@@ -2282,9 +2847,57 @@ function installStyles() {
       if (target && typeof target.focus === 'function') target.focus()
     }
 
+    // v0.9.1：同一条纪律 —— 关闭对话框后焦点回到「修改 Skill」。
+    const closeModify = () => {
+      setModifyOpen(false)
+      const target = modifyOpenRef.current
+      if (target && typeof target.focus === 'function') target.focus()
+    }
+
+    // 「交给 Agent」成功 = 一条带协议的修改任务已经发到**当前会话**，接下来是 Agent 在
+    // 原生对话里读文件、提方案、问一次、再改。界面从这一刻起不轮询、不假装知道对方什么时候
+    // 收工，只把「对比本次修改」摆在那里，由用户决定什么时候看结果。
+    const onDispatched = () => {
+      setModifyOpen(false)
+      setModifyState({ phase: 'waiting' })
+    }
+
+    const compareModification = () => {
+      setModifyState({ phase: 'loading' })
+      api('/modify', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, skillName, action: 'compare' }),
+      })
+        .then((body) => {
+          setModifyState({
+            phase: 'ready',
+            comparison: body?.comparison ?? null,
+            released: body?.released === true,
+          })
+          // 这一次响应顺带带回了最新的验收结果，直接换掉，不必再打一次 `/skill`：
+          // 两次读盘之间文件可能又变了，同一份事实只该有一个来源。
+          if (body && Object.prototype.hasOwnProperty.call(body, 'validation')) {
+            setFetched((previous) => (previous ? { ...previous, validation: body.validation } : previous))
+          }
+        })
+        .catch((reason) => {
+          setModifyState({ phase: 'error', error: String(reason?.message || 'unavailable') })
+        })
+    }
+
+    // v0.9.1：这一块只在一次修改事务里出现（`phase: 'idle'` 时它自己返回 `null`），
+    // 排在验收卡后面 —— 那两句回答的是同一个问题：「这次改完，现在是什么样」。
+    // 它必须写在两个处理器之后：`const` 是暂时性死区，往前挪一格就会在渲染那一帧抛
+    // 「Cannot access 'compareModification' before initialization」，而那是整页白屏。
+    const skillModification = h(SkillModificationPanel, {
+      modification: modifyState,
+      onCompare: compareModification,
+      onOpenModify: () => setModifyOpen(true),
+    })
+
     return h('div', { className: 'st-detail' },
       h('div', { className: 'st-detail-body' }, sidePanel,
-        h('div', { className: 'st-detail-main' }, framework, runtimeLogic, stepEvidence, docPanel)),
+        h('div', { className: 'st-detail-main' }, h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, framework, runtimeLogic, stepEvidence, docPanel)),
       cloneOpen
         ? h(SkillCloneDialog, {
           sessionId,
@@ -2303,6 +2916,14 @@ function installStyles() {
           diff: diffState.phase === 'ready' ? diffState.diff : null,
           onClose: closeDiff,
         })
+        : null,
+      modifyOpen
+        ? h(SkillModifyDialog, {
+          sessionId,
+          skillName,
+          onClose: closeModify,
+          onDispatched,
+        })
         : null)
   }
 
@@ -2317,6 +2938,69 @@ function installStyles() {
    * （同类事故见 resolveSkillListState 的注释）。整页崩溃更糟：一个页面拿到坏输入就把
    * conversation.view 整个卸载，用户看到的是白屏。
    */
+  /**
+   * 「加入本机」的时间戳：`MM-DD`，**只有跨年**才带年份。
+   *
+   * 2026-10-03（用户：「我交互体验将来只需要有月日就行」）：只到**日**，不再报时:分。
+   * 丢掉的不是信息 —— 「谁更新」由**列表顺序**回答（同一份载荷里同一天的三条，卡片上的字
+   * 一模一样，但顺序仍然是谁新谁在前），而卡片上那串时:分除了一闪而过的精确感之外没有
+   * 任何可操作价值。跨年仍然带年份：`06-13` 与 `2025-06-13` 是两个不同的断言。
+   *
+   * 不写「今天 / 昨天」：那是相对**此时此刻**的说法，同一份载荷在不同时刻会读出不同的字，
+   * 而这个页面要能被渲染测试逐字断言。绝对日期在任何时刻都是同一句话。
+   */
+  function formatAddedAt(value, now = Date.now()) {
+    if (!Number.isFinite(value) || value <= 0) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    const pad = (part) => String(part).padStart(2, '0')
+    const stamp = `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    return date.getFullYear() === new Date(now).getFullYear() ? stamp : `${date.getFullYear()}-${stamp}`
+  }
+
+  /**
+   * v0.9.2 §7：已安装列表头那句「按什么排的」。
+   *
+   * 拆成纯 props 组件有两个理由，都不是审美：①页面组件的正文由 `useState` 决定，
+   * 渲染冒烟测试的 React 桩不跑 `useEffect`；②顺序规则与「有多少个排不出来」都是**宿主
+   * 算好的事实**（`installed.ordering`），客户端只负责把它念出来 —— 从看到的第一行倒推
+   * 顺序、或者在客户端再排一次，都会让界面和宿主各说各话。
+   *
+   * 宿主给不出 `ordering`（旧宿主、或载荷被削过）时**什么都不说**：宁可少一句，也不能
+   * 顺口宣称一个没人证实的顺序。
+   */
+  function InstalledOrderNote({ ordering, limitations }) {
+    if (!ordering || typeof ordering !== 'object') return null
+    const known = Number.isFinite(ordering.addedAtKnown) ? ordering.addedAtKnown : 0
+    const unknown = Number.isFinite(ordering.addedAtUnknown) ? ordering.addedAtUnknown : 0
+    const sentences = []
+    if (known > 0) {
+      sentences.push(localized(
+        '按加入本机的时间倒序：最近加入的排在最前。',
+        'Newest first: sorted by when each Skill was added to this machine.',
+      ))
+      if (unknown > 0) {
+        sentences.push(localized(
+          `另有 ${unknown} 个 Skill 读不到加入时间，按名称排在最后。`,
+          `${unknown} more have no readable add time and are listed last, in name order.`,
+        ))
+      }
+    } else {
+      sentences.push(localized(
+        '读不到加入本机的时间，这里按名称排列。',
+        'No add time is readable on this machine, so this list is in name order.',
+      ))
+    }
+    // 血缘读不到时单独说一句：卡片上少了「复刻自」那一行，不能让读者以为是「没复刻过」。
+    if (Array.isArray(limitations) && limitations.includes('lineage-unavailable')) {
+      sentences.push(localized(
+        '读不到复刻记录，所以卡片上没有「复刻自」那一行。',
+        'The clone records could not be read, so no card shows where it came from.',
+      ))
+    }
+    return h('p', { className: 'st-installed-order', 'data-role': 'installed-order' }, sentences.join(' '))
+  }
+
   function InstalledSkillsPage({ sessionId, query, reloadSignal, onMeta, onRetry, onOpen, installed: suppliedInstalled }) {
     const [state, setState] = React.useState({ loading: !suppliedInstalled, error: '', installed: suppliedInstalled ?? null })
     React.useEffect(() => {
@@ -2362,11 +3046,14 @@ function installStyles() {
 
     return h('div', { className: 'st-installed' },
       title,
+      // 顺序说明放在网格**外面**：过滤到零个结果时它也要在 —— 「为什么是空的」与
+      // 「这张表按什么排的」是两件事。
+      h(InstalledOrderNote, { ordering: state.installed?.ordering, limitations: state.installed?.limitations }),
       h(InstalledSkillGrid, { skills: visible, needle, onOpen }))
   }
 
   /**
-   * 已安装列表的搜索框。2026-10-05 之前它长在正文的第一行；用户要求把它挪到
+   * 已安装列表的搜索框。2026-10-02 之前它长在正文的第一行；用户要求把它挪到
    * 「本次 Skill / 已安装 Skill」同一行、靠近刷新按钮，于是它从页面正文搬进顶栏。
    *
    * 搬走之后**过滤仍然发生在 InstalledSkillsPage 里**（`matchesInstalledQuery` 是宿主共用的
@@ -2410,14 +3097,37 @@ function installStyles() {
     h('div', { className: 'st-installed-card-name' }, skill.name),
     skill.description ? h('p', { className: 'st-installed-card-desc' }, skill.description) : null,
     h('div', { className: 'st-installed-card-meta' },
-      // 可选链不是装饰：宿主投影（`installed-view.mjs`）一定会把 invocation 补成对象，
-      // 但这个组件是**纯 props** 的，任何调用方都能传一份没归一化的载荷进来。
-      // conversation.view 没有错误边界 —— 在 undefined 上取属性 = 整个标签页空白（§6.11）。
-      h('span', null, skill.invocation?.modelInvocable
-        ? localized('模型可调用', 'Model-invocable')
-        : localized('不可由模型调用', 'Not model-invocable')),
-      skill.invocation?.userInvocable ? h('span', null, localized('可用 /name 调用', 'Invocable with /name')) : null,
-      skill.provider ? h('span', null, skill.provider) : null))))
+      // 2026-10-03（用户：「模型可调用、可用 /name 调用，这两个是不是重复？」）：不是重复
+      // —— DSH 的两个开关彼此独立，四种组合都合法 —— 但**在这一份目录上它们一个都不区分**：
+      // 实测 69 个 Skill 全是 `{modelInvocable:true, userInvocable:true}`，于是每张卡都一字
+      // 不差地重复同一句恒为真的话。恒为真的标签不是信息，是噪点（同一个道理见 §4 状态行：
+      // 「一切正常」是唯一可以静默的情况）。所以改成**只在例外时说**：不成立才出字。
+      // 比较用 `=== false` 而不是取反：这个组件是纯 props 的，载荷里少一个字段时
+      // `undefined` 不许被念成「不成立」——那是编出来的断言（conversation.view 没有错误
+      // 边界，所以可选链在这里既是防御也是措辞纪律，§6.11）。
+      skill.invocation?.modelInvocable === false
+        ? h('span', null, localized('不可由模型调用', 'Not model-invocable'))
+        : null,
+      skill.invocation?.userInvocable === false
+        ? h('span', null, localized('不能用 /name 调用', 'Not invocable with /name'))
+        : null,
+      // v0.9.2：两件**不同**的事实分开写。「加入本机」是它什么时候来到这台机器（目录
+      // birthtime，改正文不会变），「复刻自」是它从哪来（v0.8 血缘）。合成一句含糊的
+      // 「创建时间」就等于把两件事都说不清楚。
+      formatAddedAt(skill.addedAt) ? h('span', null, localized(
+        `${formatAddedAt(skill.addedAt)} 加入本机`,
+        `Added ${formatAddedAt(skill.addedAt)}`,
+      )) : null,
+      skill.lineage?.sourceSkillName ? h('span', null, localized(
+        `复刻自 ${skill.lineage.sourceSkillName}`,
+        `Cloned from ${skill.lineage.sourceSkillName}`,
+      )) : null,
+      // provider 同理**只在不是默认值时**说：`filesystem` 是内部词，69 张卡里出现 68 次
+      // 等于没有信息；但换成插件提供时（实测有 1 个 `dsh-tauri-pet`）读者需要知道它不是
+      // 盘上那个目录里的文件。这也是同一个原则：说例外，不说默认。
+      skill.provider && skill.provider !== 'filesystem'
+        ? h('span', null, skill.provider)
+        : null))))
   }
 
   function Workbench(props) {
@@ -2606,7 +3316,7 @@ function installStyles() {
     // 已安装列表的页头只说「这次发现是否完整」与「发现了多少个」。它不引用 receipt，
     // 也不显示学习/验证历史 —— 页头和正文必须说同一件事（见 sessionStatus 的注释）。
     //
-    // 2026-10-05（用户圈出「DSH_Skill_Trace · 可发现 70 个 Skill」说「需要删除」）：
+    // 2026-10-02（用户圈出「DSH_Skill_Trace · 可发现 70 个 Skill」说「需要删除」）：
     // **一切正常时这一行不再说话**。列表本身就摆着那些卡片，再报一次数字是把列表读成统计。
     // 但下面四条一句都不能少：它们说的都是**列表说不出的事** —— 正在读、读不到、
     // 目录不全、目录无法确认。「一切正常」是唯一可以静默的情况，因为那时没有信息可加。
@@ -2732,4 +3442,7 @@ function installStyles() {
     // v0.8：演进卡与差异面板同样要能离线渲染。理由与上面那条一样，而且这次更硬 ——
     // 「读不到来源」那一屏是**错误态**，它一旦渲染成空列表，用户看到的就是「没有变化」。
     SkillEvolution, SkillDiffPanel,
+    // v0.9.1：修改对话框与「本次修改对比」块也要能离线渲染。「无法比较」那一屏尤其要 ——
+    // 它一旦渲染成一份空结果，用户读到的就会是「这次修改什么都没变」。
+    SkillModifyDialog, SkillModificationPanel,
   }

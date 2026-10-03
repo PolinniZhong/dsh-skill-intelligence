@@ -21,6 +21,28 @@ const CLIENT_DIR = join(dirname(fileURLToPath(import.meta.url)), '../src/dsh/cli
 const source = readFileSync(join(CLIENT_DIR, 'client.js'), 'utf8')
 
 /**
+ * Slice one top-level `function`/`async function` body out of the Host source.
+ *
+ * 「宿主读哪些 `payload.*`」那两条测试原来扫的是**整份宿主源码**，并且靠一句注释
+ * （「`payload.` 只有 `handleClone` 用」）来保证扫到的就是那一条路由。v0.9.1 加了第二条
+ * 读 `payload.*` 的路由之后，那句话不再成立，而**悄悄放宽成并集**恰好会放过这条测试
+ * 要防的那种缝（客户端少发一个字段，两边的测试都还是绿的）。
+ *
+ * 边界取「下一个顶格的 `function` / `async function`」：这些处理器都写在模块顶层，
+ * 缩进的嵌套具名函数不会被误当边界。
+ */
+function hostFunctionBody(text, name) {
+  const start = text.search(new RegExp(`^[ \\t]*(?:async )?function ${name}\\(`, 'm'))
+  assert.ok(start >= 0, `the Host must still declare ${name} — otherwise this guard is vacuous`)
+  const indent = (/^[ \t]*/.exec(text.slice(start)) || [''])[0]
+  // 边界必须**同级缩进**：这些处理器都写在同一个工厂函数里（`    async function handleDiff`），
+  // 用「下一个顶格 function」当边界会一路扫到文件末尾，把别人的字段也算进来。
+  const rest = text.slice(start + 1)
+  const next = rest.search(new RegExp(`\\n${indent}(?:async )?function `))
+  return next >= 0 ? text.slice(start, start + 1 + next) : text.slice(start)
+}
+
+/**
  * A require that resolves the seed words, React Flow's stub, stylesheets as text, and
  * the client's own relative modules by evaluating them the same way.
  */
@@ -326,6 +348,31 @@ test('the client registers and its entry component renders without throwing', as
   // 仓库来源住在 `skill.repository`——Host 把它与 `definition` 并列放在详情顶层。
   // 放错一层，「打开仓库 ↗」就永远不渲染，而测试照样绿。
   const resolvedRepository = { status: 'resolved', basis: 'frontmatter', key: 'repository', label: 'example/code-review-skill', relativePath: 'skills/code-review', cloneCommand: 'https://github.com/example/code-review-skill', limitations: [] }
+  // v0.9.0「Skill 验收」：这份形状照 `buildSkillValidation()` 的真实输出写。要害只有一条 ——
+  // `profiles[].label` 是**双语对象**（`{zh, en}`），不是字符串。直接把它当 children 交给 React 会抛
+  // #31（Objects are not valid as a React child），而 `conversation.view` 没有错误边界，整页会白屏。
+  // 真机上就是这样白屏的（渲染台截图只剩背景色）；这份 fixture 让那条岔路真的走一遍。
+  const validationFixture = {
+    schemaVersion: 1, skillName: 'code-review', checkedAt: 1700000000000, available: true, reason: null,
+    status: 'needs-fix', profileIds: ['common', 'dsh'],
+    profiles: [
+      { id: 'common', label: { zh: 'Common Core', en: 'Common Core' }, note: null, status: 'needs-fix', errors: 1, warnings: 0, info: 0, skipped: 2, checked: 17, total: 19 },
+      { id: 'microsoft', label: { zh: 'Microsoft', en: 'Microsoft' }, note: null, status: 'pass', errors: 0, warnings: 0, info: 0, skipped: 0, checked: 4, total: 4 },
+    ],
+    summary: { errors: 1, warnings: 0, info: 0, skipped: 2 },
+    findings: [{ id: 'CORE-REF-002', profile: 'common', severity: 'error', title: '引用路径逃出 Skill 根目录', fact: 'reference-escape', source: 'agentskills', detail: '第 56 行的链接指向 `../../examples/animation-storyboard.md`，已经越过 SKILL.md 所在的目录。' }],
+    rules: [
+      { id: 'CORE-REF-002', profile: 'common', severity: 'error', title: '引用路径逃出 Skill 根目录', fact: 'reference-escape', source: 'agentskills', state: 'fired' },
+      { id: 'CORE-COMPAT-001', profile: 'common', severity: 'error', title: 'compatibility 字段过长', fact: 'compatibility-length', source: 'agentskills', state: 'skipped' },
+    ],
+    skipped: [
+      { id: 'CORE-COMPAT-001', profile: 'common', severity: 'error', title: 'compatibility 字段过长', reason: 'compatibility-absent' },
+      { id: 'CORE-REF-001', profile: 'common', severity: 'error', title: '引用的资源不存在', reason: 'no-directory-listing' },
+    ],
+    notes: ['这次没有拿到这个 Skill 的目录清单，目录类规则没有参与判定。'],
+    limitations: ['静态验收只读 SKILL.md 与目录清单，不执行 Skill 里的任何脚本。', '这里没有被指出问题，不等于这份 Skill 的指令一定有效果 —— 那属于行为验证。'],
+    content: { lineCount: 21, bodyLineCount: 18, bytes: 420, frontmatterPresent: true, frontmatterClosed: true, frontmatterFields: ['name', 'description'], name: 'code-review', descriptionLength: 12, directoryName: 'code-review', resourcePathCount: 1, referenceCount: 1, truncated: false },
+  }
   const skillDetailFixture = {
     schemaVersion: 1, skillName: 'code-review',
     summary: {
@@ -405,6 +452,8 @@ test('the client registers and its entry component renders without throwing', as
     limitations: [],
     // v0.8：新宿主的详情响应里**总是**有这个键；`null` = 本插件没执行过这次复刻。
     lineage: null,
+    // v0.9.0：验收结果随详情一起回（`buildSkillDetail` 的 `validation`）。
+    validation: validationFixture,
   }
   const skillPayload = { ok: true, sessionId: 's', workspaceLabel: '工作区', list: skillListFixture, skill: skillDetailFixture }
   // 定义读不到时的形状：`definition` 只剩可用性字段，`flow.steps` 是**空数组**，
@@ -521,6 +570,30 @@ test('the client registers and its entry component renders without throwing', as
   assert.ok(!unavailableText.includes('文件已改变'), 'an unavailable comparison must never be reported as a mismatch')
   assert.ok(!unavailableText.includes('已失效'), 'an unavailable comparison must never be reported as "the Skill is void"')
   assert.equal(unavailableNodes.filter((node) => node.props.className === 'st-audit-step').length, 0, 'an unavailable definition yields no synthesised flow step')
+
+  // 2d. v0.9.0「Skill 验收」：验收卡必须真的把三项事实渲染成文字 —— 结论、Profile 的双语标签、
+  //     以及那条 fired 的发现（带 rule id）。`profiles[].label` 是 `{zh, en}` 对象，少选一次语言
+  //     就会抛 React #31 并白屏；所以这里断言的是**文字真的出现了**，不是「节点数变了」。
+  assert.ok(detailText.includes('Skill 验收'), 'the detail page states that it validated the Skill')
+  assert.ok(detailText.includes('需要修正'), 'a needs-fix verdict is rendered in words, not as a score')
+  assert.ok(detailText.includes('Common Core') && detailText.includes('Microsoft'), 'each profile label is localized out of its {zh, en} object and rendered')
+  assert.ok(detailText.includes('CORE-REF-002') && detailText.includes('引用路径逃出 Skill 根目录'), 'a finding carries its rule id and title')
+  assert.ok(detailText.includes('../../examples/animation-storyboard.md'), 'the finding says which reference escaped, verbatim')
+  assert.ok(detailText.includes('错误 1') && detailText.includes('未判定 2'), 'the summary counts errors and non-judged rules separately')
+  assert.ok(detailText.includes('这次没有判定') && detailText.includes('这份 SKILL.md 没有 compatibility 字段。'), 'a skipped rule states why it was not judged, instead of looking like a pass')
+  const validationNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }))
+  assert.equal(validationNodes.filter((node) => node.props['data-role'] === 'validation-finding').length, 1, 'one fired rule renders exactly one finding row')
+  assert.equal(validationNodes.filter((node) => node.props['data-role'] === 'validation-skipped-rule').length, 2, 'two skipped rules render two rows')
+  assert.ok(validationNodes.some((node) => node.props['data-role'] === 'validation-limitations'), 'the panel states what the check does not cover')
+  // 字段缺失这一支：宿主还没换到这一版时，响应里**没有** `validation` 这个键 —— 必须说清是宿主旧，
+  // 而不是「这份 Skill 不符合规范」（§6.11）。注意要真的把键去掉：写成 `{ ...fixture, validation: undefined }`
+  // 那个键仍然存在（`hasOwnProperty` 为真），走的是另一条分支。
+  const { validation: omittedValidation, ...detailWithoutValidation } = skillDetailFixture
+  assert.equal(omittedValidation, validationFixture, 'the fixture used below must be the one carrying a validation result')
+  const missingFieldNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: detailWithoutValidation }))
+  const missingFieldText = missingFieldNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.ok(missingFieldText.includes('这次详情响应里没有验收结果。'), 'a response with no validation field says the host is old, not that the Skill failed')
+  assert.ok(!missingFieldText.includes('不符合规范'), 'a missing field must never be read as a verdict')
 
   // 3. 空列表：宿主答了、答案是空的，这才是空态。三种"没有卡片"的原因必须分开说（§6.5）。
   const emptyNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {}, list: { ...skillListFixture, skills: [] } }))
@@ -1066,7 +1139,115 @@ test('an installed Skill card opens the one Skill detail page', () => {
     'the empty state is a sentence, not a bare grid')
 })
 
-// 2026-10-05（用户：「搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，
+// v0.9.2 §7（用户：「已安装 Skill 里带 custom 的都是我复刻出来的，现在排序又在后面，
+// 得翻好几页」）：顺序改成按「加入本机」的时间倒序，并且列表必须**说出**它按什么排的。
+//
+// 断言的是渲染出来的东西，不是源码里的字符串：顺序由宿主算好下发（`installed.ordering`），
+// 客户端只念出来、**不重排**（重排就是第二份排序规则）；卡片上那两行事实来自两个不同的
+// 字段（`addedAt` / `lineage`），任一缺失都不许编一个出来。
+test('the installed list says how it is ordered, and never invents a date', () => {
+  const client = mountChineseClient()
+
+  const ordered = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render',
+    query: '',
+    installed: {
+      ordering: { rule: 'added-desc-then-name', addedAtKnown: 2, addedAtUnknown: 1 },
+      limitations: ['added-at-partial'],
+      skills: [
+        {
+          name: 'deliver-prd-custom-custom-custom',
+          description: 'x',
+          addedAt: Date.now() - 60_000,
+          lineage: { sourceSkillName: 'deliver-prd-custom-custom', createdAt: 1 },
+        },
+        {
+          name: 'deliver-prd-custom-custom',
+          description: 'x',
+          addedAt: Date.now() - 3_600_000,
+          lineage: { sourceSkillName: 'deliver-prd-custom', createdAt: 1 },
+        },
+        { name: 'pinokio', description: 'x', addedAt: null, lineage: null, provider: 'dsh-tauri-pet', invocation: { modelInvocable: true, userInvocable: true } },
+      ],
+    },
+  }))
+
+  const cards = ordered.filter((node) => node.props.className === 'st-installed-card')
+  assert.deepEqual(cards.map((card) => card.props['data-skill']),
+    ['deliver-prd-custom-custom-custom', 'deliver-prd-custom-custom', 'pinokio'],
+    'the client renders the order it was handed — it does not re-sort')
+
+  const orderNote = ordered.find((node) => node.props['data-role'] === 'installed-order')
+  assert.ok(orderNote, 'the list says how it is ordered')
+  assert.match(String(orderNote.children?.[0] ?? ''), /按加入本机的时间倒序/)
+  assert.match(String(orderNote.children?.[0] ?? ''), /另有 1 个 Skill 读不到加入时间/)
+
+  const stampSpans = ordered.filter((node) => node.type === 'span' && /加入本机/.test(String(node.children?.[0] ?? '')))
+  assert.equal(stampSpans.length, 2, 'only the Skills that really have an add time show one')
+  assert.match(String(stampSpans[0].children[0]), /^\d\d-\d\d 加入本机$/)
+
+  const clonedSpans = ordered.filter((node) => node.type === 'span' && /复刻自/.test(String(node.children?.[0] ?? '')))
+  assert.equal(clonedSpans.length, 2, 'only the Skills with a recorded source say where they came from')
+  assert.equal(String(clonedSpans[0].children[0]), '复刻自 deliver-prd-custom-custom')
+
+  // 2026-10-03（用户：「模型可调用、可用 /name 调用，这两个是不是重复？」）：不是重复 —— DSH 的
+  // 两个开关彼此独立 —— 但在这份目录上永远都是 true/true，于是每张卡都在重复一句恒为真的话。
+  // 改成只在例外时说，所以**默认成立的组合一个字都不许出现**（这三张卡的开关都是 true）。
+  const pageText = ordered.map((node) => String(node.children?.[0] ?? '')).join(' ')
+  assert.ok(!/模型可调用|不可由模型调用|\/name 调用/.test(pageText),
+    'a Skill that is model- and user-invocable says nothing: the default is silent')
+  assert.ok(!/\d\d:\d\d/.test(pageText),
+    '加入时间只到日（用户：「我交互体验将来只需要有月日就行」）：卡片上不再出现时:分')
+  let providerSpans = ordered.filter((node) => node.type === 'span' && /dsh-tauri-pet/.test(String(node.children?.[0] ?? '')))
+  assert.equal(providerSpans.length, 1, 'provider 只在不是默认值时才说：插件提供的那个要说出来')
+  assert.ok(!/filesystem/.test(pageText), '`filesystem` 是默认值，重复 68 遍不是信息')
+
+  // 宿主给不出 `ordering`（旧版本、或载荷被削过）时**什么都不说** —— 宁可少一句，
+  // 也不能顺口宣称一个没人证实的顺序。
+  const legacy = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render', query: '', installed: { skills: [{ name: 'ui-craft', description: 'x' }] }, onOpen() {},
+  }))
+  assert.equal(legacy.some((node) => node.props['data-role'] === 'installed-order'), false,
+    'no ordering fact means no claim about ordering')
+
+  // 一个时间都读不到、血缘也读不到：两句都要说，而且说的不是同一件事。
+  const nothing = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render',
+    query: '',
+    installed: {
+      ordering: { rule: 'added-desc-then-name', addedAtKnown: 0, addedAtUnknown: 1 },
+      limitations: ['added-at-unavailable', 'lineage-unavailable'],
+      skills: [{ name: 'ui-craft', description: 'x' }],
+    },
+    onOpen() {},
+  }))
+  const nothingText = String(nothing.find((node) => node.props['data-role'] === 'installed-order')?.children?.[0] ?? '')
+  assert.match(nothingText, /读不到加入本机的时间/)
+  assert.match(nothingText, /读不到复刻记录/)
+
+  // 「只在例外时说」的另一半：把开关真的关掉，字必须出现 —— 否则这套规则就变成了
+  // 「永远不说」，而读者失去的是「这个 Skill 用 /name 调不出来」这类**真会改变行为**的事实。
+  const exceptions = collect(client.__views.InstalledSkillsPage({
+    sessionId: 'session-render',
+    query: '',
+    installed: {
+      ordering: { rule: 'added-desc-then-name', addedAtKnown: 0, addedAtUnknown: 2 },
+      skills: [
+        { name: 'model-hidden', description: 'x', addedAt: null, lineage: null, provider: 'filesystem', invocation: { modelInvocable: false, userInvocable: true } },
+        { name: 'slash-hidden', description: 'x', addedAt: null, lineage: null, provider: 'dsh-tauri-pet', invocation: { modelInvocable: true, userInvocable: false } },
+      ],
+    },
+    onOpen() {},
+  }))
+  const exceptionText = exceptions.map((node) => String(node.children?.[0] ?? '')).join(' ')
+  assert.match(exceptionText, /不可由模型调用/, 'the exception is spelled out when it is real')
+  assert.match(exceptionText, /不能用 \/name 调用/, 'and so is the /name one')
+  providerSpans = exceptions.filter((node) => node.type === 'span' && /dsh-tauri-pet/.test(String(node.children?.[0] ?? '')))
+  assert.equal(providerSpans.length, 1, 'the plugin-provided Skill keeps its provider')
+  assert.ok(!/filesystem/.test(exceptionText), 'the default provider stays silent even next to an exception')
+})
+
+// 2026-10-02（用户：「搜索框移动到本次 Skill 跟已安装 Skill 同一行，靠近刷新那个 Icon，
 // 那搜索框宽度可以再缩小一点」）：搜索框从正文第一行搬进顶栏右侧。
 //
 // 这一条守的不只是"它现在在哪"，还有"它没有留在原地" —— 搬走之后如果页面里还留着一份，
@@ -1269,12 +1450,51 @@ test('the clone dialog sends every field the Host reads — a request body has t
   assert.equal(requests.length, 1, 'submitting the form sends exactly one request')
   assert.equal(requests[0].url, '/skill-trace/clone')
 
-  // `payload.` 在宿主里只有 `handleClone` 用（`sendJson` 那个是局部变量，不带成员访问），
-  // 所以这一条扫出来的就是「复刻」这条路由真正依赖的字段。
+  // `payload.` 在宿主里原先只有 `handleClone` 用（`sendJson` 那个是局部变量，不带成员访问），
+  // 所以「扫全文」曾经等价于「扫这一条路由」。v0.9.1 加了 `POST /skill-trace/modify` 之后
+  // 这条等价关系不再成立 —— 而**悄悄放宽成「两边字段的并集」会更糟**：那正是这条测试要防的
+  // 那种缝。所以先把这个函数体切出来，只查它。
   const hostSource = readFileSync(join(CLIENT_DIR, '../../dsh/host/index.js'), 'utf8')
-  const readFields = [...new Set([...hostSource.matchAll(/payload\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1]))]
+  const readFields = [...new Set([...hostFunctionBody(hostSource, 'handleClone').matchAll(/payload\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1]))]
   assert.ok(readFields.includes('sessionId'),
     'the Host must still read payload.sessionId — otherwise this guard has quietly become vacuous')
+  for (const field of readFields) {
+    assert.ok(Object.prototype.hasOwnProperty.call(requests[0].body, field),
+      `宿主读 payload.${field}，客户端就必须发 ${field}；这次发的是：${Object.keys(requests[0].body).join(', ')}`)
+  }
+})
+
+test('the modify dialog sends every field the Host reads — the same seam, one路由 over', async () => {
+  // 与上一条同一条纪律，只是换成 v0.9.1 的 `POST /skill-trace/modify`：它的 `begin` 支读
+  // `sessionId / skillName / action / intent / scopes / profiles`，少发一个就会在真机上换回
+  // 一句 400 —— 而且**客户端自己的测试仍然全绿**（§8.10）。
+  const requests = []
+  const client = mountChineseClient({
+    fetch: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) })
+      return { ok: true, status: 200, json: async () => ({ ok: true, dispatched: true }) }
+    },
+  })
+  const nodes = collect(client.__views.SkillModifyDialog({
+    sessionId: 'session-modify-contract',
+    skillName: 'ui-craft',
+    onClose() {},
+    onDispatched() {},
+  }))
+  const submit = nodes.find((node) => node.props['data-role'] === 'modify-submit')
+  assert.ok(submit, 'the dialog must still have its 「交给 Agent」 button')
+  // 意图是空的也要发得出去：宿主会回一句「请先写一句你希望这个 Skill 怎么改」，
+  // 而这一条测的是**请求体的两半**，不是校验顺序。
+  submit.props.onClick()
+
+  assert.equal(requests.length, 1, 'submitting the dialog sends exactly one request')
+  assert.equal(requests[0].url, '/skill-trace/modify')
+  assert.equal(requests[0].body.action, 'begin', 'the first call opens a transaction')
+
+  const hostSource = readFileSync(join(CLIENT_DIR, '../../dsh/host/index.js'), 'utf8')
+  const readFields = [...new Set([...hostFunctionBody(hostSource, 'handleModify').matchAll(/payload\.([A-Za-z_$][\w$]*)/g)].map((match) => match[1]))]
+  assert.ok(readFields.includes('sessionId'), 'the modify route must still need the session it dispatches into')
+  assert.ok(readFields.includes('intent'), 'the modify route must still read the user\'s own words')
   for (const field of readFields) {
     assert.ok(Object.prototype.hasOwnProperty.call(requests[0].body, field),
       `宿主读 payload.${field}，客户端就必须发 ${field}；这次发的是：${Object.keys(requests[0].body).join(', ')}`)
@@ -1496,7 +1716,10 @@ test('the evolution card says "not cloned by this plugin" instead of guessing a 
   const detailOf = (skill) => textOf(collect(client.__views.SkillDetailPage({
     sessionId: 's', skillName: 'ui-craft', skill,
   })))
-  const bare = { skillName: 'ui-craft', summary: null, definition: null, flow: null, anchors: {}, runs: [], evidence: null, repository: null, observation: null, limitations: [] }
+  // `validation: null` = 「宿主答了、这次没有验收结果」，与 `lineage: null` 是同一种回答方式。
+  // 缺了它，验收卡会替宿主喊「宿主可能还没换到这一版」，把下面那条**只谈血缘**的断言顶红 ——
+  // 新字段落地时，这些共用 fixture 要一起补齐。
+  const bare = { skillName: 'ui-craft', summary: null, definition: null, flow: null, anchors: {}, runs: [], evidence: null, repository: null, observation: null, limitations: [], validation: null }
   const noRecord = detailOf({ ...bare, lineage: null })
   const staleHost = detailOf({ ...bare })
   assert.ok(noRecord.includes('这个 Skill 不是由本插件复刻出来的。'), '`lineage: null` 才是「本插件没复刻过」')
@@ -1727,4 +1950,158 @@ test('closing the diff panel is Escape, and it stops there — closing a panel i
   // 「关一个面板」顺手把用户带回了列表页。
   assert.equal(stopped, 1, 'Esc 到此为止，不许继续冒泡')
   assert.equal(textOf(nodes).includes('关闭'), true, '键盘之外也得有出口')
+})
+
+// --- v0.9.1 「修改 Skill」：对话框与「本次修改对比」块 ------------------------------------
+// 这两个组件回答的是同一个产品的两个时刻：**发出去之前**（用户授权了什么）与**改完之后**
+// （文件里到底哪里不一样了）。它们最容易坏的两种方式都不长在表面上：
+//   · 对话框把锁死的范围画成可点的 —— 用户以为 scripts/ 也在授权里；
+//   · 对比块在拿不到「改前」时渲染成一份空结果 —— 那一屏读起来就是「这次修改什么都没变」。
+test('the modify dialog offers exactly the scopes the core module grants, and the locked two cannot be armed', async () => {
+  const core = await import('../src/core/skill-modification.mjs')
+  const profiles = await import('../src/core/skill-profiles.mjs')
+  const client = mountChineseClient()
+  const nodes = collect(client.__views.SkillModifyDialog({
+    sessionId: 's-modify', skillName: 'ui-craft', onClose() {}, onDispatched() {},
+  }))
+
+  const unlocked = nodes.filter((node) => node.props['data-role'] === 'modify-scope')
+  const locked = nodes.filter((node) => node.props['data-role'] === 'modify-locked')
+  // **两边对账，不抄一遍**：界面上的 id 与顺序必须就是核心模块那一份。少一项、把锁死的
+  // 那两项放开、或者自己造一个新范围，都会在这里红。
+  assert.deepEqual(
+    [...unlocked, ...locked].map((node) => node.props['data-scope']),
+    [...core.MODIFICATION_SCOPE_IDS],
+    '对话框画出来的范围必须与核心模块逐字逐序相同',
+  )
+  assert.deepEqual(
+    locked.map((node) => node.props['data-scope']),
+    [...core.MODIFICATION_LOCKED_SCOPE_IDS],
+    '默认锁死的就是 scripts 与 assets',
+  )
+  for (const node of locked) {
+    assert.equal(node.props.disabled, true, '锁死的范围必须是按不动的 —— 画出来但不可点，比看不见它更诚实')
+    assert.equal(node.props.onClick, undefined, '不可点的东西不该挂着处理器')
+    assert.equal(node.props['data-locked'], 'true')
+  }
+  // 默认勾上的是**四个未锁的**：默认全不勾会让人以为「不勾就等于不改」。
+  assert.deepEqual(unlocked.filter((node) => node.props['data-on'] === 'true').map((node) => node.props['data-scope']),
+    [...core.MODIFICATION_SCOPE_IDS].filter((id) => !core.MODIFICATION_LOCKED_SCOPE_IDS.includes(id)))
+
+  // 验收目标：Common Core 永远在里面且不可取消，其余四个平台可选。
+  const targetChips = nodes.filter((node) => node.props['data-role'] === 'modify-profile')
+  assert.deepEqual(targetChips.map((node) => node.props['data-profile']), [...profiles.SKILL_PROFILE_IDS])
+  const common = targetChips.find((node) => node.props['data-profile'] === 'common')
+  assert.equal(common.props['data-locked'], 'true', 'Common Core 不是选项，是底座')
+
+  // 意图是**自然语言**，不是结构化表单：一个 textarea，长度上限来自核心模块。
+  const intents = nodes.filter((node) => node.props['data-role'] === 'modify-intent')
+  assert.equal(intents.length, 1, '一次修改只有一个自然语言入口')
+  assert.equal(intents[0].type, 'textarea', '这里要写一整句话，不是填字段')
+  assert.equal(intents[0].props.maxLength, core.MODIFICATION_INTENT_LIMIT)
+
+  // 这个对话框不许长成一个编辑器：没有第二个可输入的控件，没有路径输入框。
+  assert.equal(nodes.filter((node) => node.type === 'textarea' || node.type === 'input').length, 1,
+    '插件不改文件：这里一旦出现第二个输入框，下一步就会有人把它接到写盘上')
+
+  const submit = nodes.find((node) => node.props['data-role'] === 'modify-submit')
+  assert.equal(ownText(submit), '交给 Agent')
+  assert.equal(typeof submit.props.onClick, 'function', '「交给 Agent」这个点击本身就是授权')
+
+  const text = textOf(nodes)
+  for (const forbidden of ['已执行', '已完成', '已加载', '已读取', '优秀', '分数', '等级']) {
+    assert.ok(!text.includes(forbidden), `修改对话框里不许出现「${forbidden}」`)
+  }
+})
+
+test('the modification card says "not comparable" instead of an empty result that reads as "nothing changed"', () => {
+  const client = mountChineseClient()
+  const render = (modification) => collect(client.__views.SkillModificationPanel({
+    modification,
+    onCompare() {},
+    onOpenModify() {},
+  }))
+
+  // 还没开始：它不该占着地方。详情页平时就有这张卡的话，用户会把「没有修改」读成一种状态。
+  assert.equal(render({ phase: 'idle' }).filter((node) => node.props['data-role'] === 'skill-modification').length, 0,
+    '没有修改事务时，这一块根本不出现')
+
+  // 发出去了、Agent 还没改完：只能等，且**不轮询**。
+  let compared = 0
+  const waiting = collect(client.__views.SkillModificationPanel({
+    modification: { phase: 'waiting' },
+    onCompare: () => { compared += 1 },
+    onOpenModify() {},
+  }))
+  assert.ok(textOf(waiting).includes('修改任务已经发给当前会话的 Agent'))
+  const compareButton = waiting.find((node) => node.props['data-role'] === 'mod-compare')
+  assert.equal(ownText(compareButton), '对比本次修改')
+  compareButton.props.onClick()
+  assert.equal(compared, 1, '「对比本次修改」必须真的去问宿主')
+
+  // 拿不到「改前」：说出来，而且**一条结果都不许渲染**。
+  const unavailable = render({
+    phase: 'ready',
+    released: false,
+    comparison: {
+      available: false,
+      reason: 'snapshot-missing',
+      message: '本次修改前状态不可用，暂时无法比较本次修改的内容。',
+      source: { state: 'unknown', message: '这次没有可以对比的来源指纹。' },
+    },
+  })
+  const alert = unavailable.find((node) => node.props['data-role'] === 'mod-unavailable')
+  assert.ok(alert, '快照没了必须**说出来**，不是画一张空表')
+  assert.equal(alert.props.role, 'alert')
+  assert.deepEqual(alert.children, ['本次修改前状态不可用，暂时无法比较本次修改的内容。'])
+  assert.equal(unavailable.filter((node) => node.props['data-role'] === 'mod-scopes').length, 0,
+    '无法比较时不许渲染范围表：一张空表看起来完全正常')
+  assert.equal(unavailable.filter((node) => node.props['data-role'] === 'mod-lines').length, 0,
+    '「新增 0 行 · 删除 0 行」本身就是一句「比较过了，没有变化」')
+
+  // 真的对比出来了：逐项都是**事实**，没有一个判断词。
+  const ready = render({
+    phase: 'ready',
+    released: true,
+    comparison: {
+      available: true,
+      status: 'changed',
+      lines: { added: 3, removed: 2, exact: true },
+      sections: { added: ['Gradients'], removed: [], truncated: false },
+      resources: { available: true, added: [], removed: [], modified: ['references/tokens.md'] },
+      scopes: [
+        { id: 'skill-md-rules', state: 'changed', changed: true },
+        { id: 'references', state: 'unchanged', changed: false },
+      ],
+      outOfScope: [{ id: 'skill-md-workflow', detail: 'SKILL.md / Workflow 发生了变化，但它不在本次指定的修改范围里。' }],
+      identity: { state: 'unchanged' },
+      source: { state: 'unchanged', message: '来源 Skill 没有发生变化。' },
+      notes: ['这次没有指定修改范围，所以任何变化都会被列为超出范围。'],
+      limitations: ['改前快照只活在宿主内存里，DSH 重启之后就没了。'],
+    },
+  })
+  const status = ready.find((node) => node.props['data-role'] === 'mod-status')
+  assert.equal(status.props['data-status'], 'changed')
+  assert.equal(ownText(status), '有变化')
+  assert.ok(textOf(ready).includes('新增 3 行 · 删除 2 行'))
+  assert.deepEqual(
+    ready.filter((node) => node.props['data-role'] === 'mod-scope').map((node) => [node.props['data-scope'], node.props['data-state']]),
+    [['skill-md-rules', 'changed'], ['references', 'unchanged']],
+  )
+  assert.deepEqual(
+    ready.filter((node) => node.props['data-role'] === 'mod-out-of-scope-item').map((node) => node.props['data-id']),
+    ['skill-md-workflow'],
+    '超出范围的变化必须**如实报出来** —— 那是用户确认过的范围，不是插件说了算',
+  )
+  assert.ok(ready.some((node) => node.props['data-role'] === 'mod-resource' && node.props['data-kind'] === 'modified'))
+  assert.ok(ready.some((node) => node.props['data-role'] === 'mod-released'), '快照释放了就要说，否则用户会以为还能再对比一次')
+  assert.ok(ready.some((node) => node.props['data-role'] === 'mod-limitations'))
+
+  const text = textOf(ready)
+  for (const forbidden of ['已执行', '已完成', '已加载', '已读取', '优秀', '最佳', '分数', '等级', '质量']) {
+    assert.ok(!text.includes(forbidden), `对比块里不许出现「${forbidden}」`)
+  }
+  for (const code of ['snapshot-missing', 'skill-unreadable', 'no-directory-listing']) {
+    assert.ok(!text.includes(code), '理由码不许以代码形式出现在界面上')
+  }
 })

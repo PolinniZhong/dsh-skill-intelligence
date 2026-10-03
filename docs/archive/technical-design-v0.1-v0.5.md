@@ -6,7 +6,7 @@ updated: 2026-10-02
 status: v0.6-two-level-ia-skill-framework-desktop-eyeball-pending
 ---
 
-> **🗄 归档文件 —— 不是当前规格。** 本文原是仓库根目录的 `05-technical-design.md`（V0.1–V0.5 的技术设计），已于 **2026-10-05** 随知识库治理移入 `docs/archive/`。它**只用于追溯，不再随产品演进回写**；当前权威是 [`spec/PRD.md`](../../spec/PRD.md)（产品语义）与 [`spec/SDD.md`](../../spec/SDD.md)（当前架构），实现事实以源码与测试为准。要改产品措辞请改 `spec/PRD.md`，**不要回改本文**；本文内部及其对根目录的链接已部分失效，这是归档的代价，不是待修的缺陷。
+> **🗄 归档文件 —— 不是当前规格。** 本文原是仓库根目录的 `05-technical-design.md`（V0.1–V0.5 的技术设计），已于 **2026-10-02** 随知识库治理移入 `docs/archive/`。它**只用于追溯，不再随产品演进回写**；当前权威是 [`spec/PRD.md`](../../spec/PRD.md)（产品语义）与 [`spec/SDD.md`](../../spec/SDD.md)（当前架构），实现事实以源码与测试为准。要改产品措辞请改 `spec/PRD.md`，**不要回改本文**；本文内部及其对根目录的链接已部分失效，这是归档的代价，不是待修的缺陷。
 
 # DSH Skill Trace 技术设计
 

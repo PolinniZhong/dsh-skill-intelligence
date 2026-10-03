@@ -18,7 +18,7 @@ DSH event stream
                       └─ Evidence           declared steps ↔ scoped runtime evidence
 
 DSH Skill registry (read live, never persisted)
-  ├─ GET /installed   → what this environment can discover (never reads the receipt)
+  ├─ GET /installed   → what this environment can discover, newest arrival first (never reads the receipt)
   └─ GET /skills · GET /skill · GET /definition · POST /translate
        └─ Client pages: 本次 Skill · 已安装 Skill ──→ Skill Detail
 ```
@@ -27,21 +27,24 @@ The receipt kept its evidence role and lost its page identity: it is no longer a
 
 ### Host surface
 
-Eleven routes are built. The v0.8 work added exactly one — `GET /skill-trace/diff` — and deliberately added no `/lineage`, `/evolution`, `/source`, or `/versions`: lineage travels inside the existing `GET /skill-trace/skill` response, and only a genuinely heavy recomputation earns a route of its own. Every route is registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
+Twelve routes are built. The v0.8 work added exactly one — `GET /skill-trace/diff` — and deliberately added no `/lineage`, `/evolution`, `/source`, or `/versions`: lineage travels inside the existing `GET /skill-trace/skill` response, and only a genuinely heavy recomputation earns a route of its own. **v0.9.0 added none at all**: Skill validation travels as one sibling field (`validation`) on the two responses that already answer "what is this Skill", produced by one shared `validationFor()`. **v0.9.1 adds one — `POST /skill-trace/modify`** — the second route in this project that is not a pure read (the first is `POST /skill-trace/clone`), and the one that needs the most explaining. **v0.9.2 adds none at all**: installed-list ordering is derived from two read-only lookups and travels as added fields on the response that already answers "what is installed" — `ordering` for the list as a whole, `addedAt` and `lineage` per Skill, all on the existing `GET /skill-trace/catalog`. Every route is registered in `src/dsh/host/index.js` and pinned as literals by `scripts/verify-project.mjs`.
 
 | Method | Route | Answers |
 | --- | --- | --- |
 | GET | `/skill-trace/context` | the session receipt (public projection), preferences, and view models |
 | GET | `/skill-trace/skills` | which Skills this conversation loaded |
-| GET | `/skill-trace/skill` | one loaded Skill's detail — plus, from v0.8, its lineage record |
-| GET | `/skill-trace/catalog` | which Skills this DSH environment can discover |
-| GET | `/skill-trace/definition` | the live definition body, outline, repository, and fingerprint comparison |
+| GET | `/skill-trace/skill` | one loaded Skill's detail — plus, from v0.8, its lineage record, and from v0.9.0 its `validation` result |
+| GET | `/skill-trace/catalog` | which Skills this DSH environment can discover — and, from v0.9.2, in the order they arrived on this machine, newest first |
+| GET | `/skill-trace/definition` | the live definition body, outline, repository, fingerprint comparison, and the same `validation` result |
 | POST | `/skill-trace/translate` | a 中文阅读版 for one definition at one `sourceSha256`, and whether it was persisted |
 | GET | `/skill-trace/translation` | the reading version already stored for `skillName` + `sourceSha256` + `targetLanguage`, or `null` |
 | DELETE | `/skill-trace/translation` | delete exactly that one stored reading version |
 | POST | `/skill-trace/clone` | copy one Skill into a new directory and verify the copy |
 | POST | `/skill-trace/preferences` | persist the default first-level page |
 | GET | `/skill-trace/diff` | **v0.8, shipped.** The deterministic three-layer diff between one Skill and its recorded origin, with both sides' availability and content fingerprints |
+| POST | `/skill-trace/modify` | **v0.9.1, working tree.** One modification, two actions: `begin` stores the pre-modification state in host memory and asks the current session's Agent to carry out the change; `compare` diffs that snapshot against a freshly read current state, releases the snapshot, and returns the same `validation` result as `/skill` and `/definition` |
+
+**`POST /skill-trace/modify` does not break the read-only-observer identity.** It takes `{ sessionId, skillName, action: 'begin' | 'compare', intent?, scopes?, profiles? }` and writes no file at all. `begin` reads the whole `SKILL.md`, the directory listing and the source fingerprint and keeps them **in host memory only** — never on disk, never in a receipt, never in the session log, gone the moment the host restarts — then asks the Agent of the **current** conversation, through `agent.followup(message)`, to carry out the change. That single message carries `source.kind = 'skill-intelligence-modify'`, a custom kind: `MessageSourceMap` is an extensible and-type, consumers fall back to plain rendering for a kind they do not know, and the run record therefore shows at a glance that the message was not typed by hand. There is no second message, no polling of the Agent's output, and no parsing of its reply. The message does state one flow requirement the plugin will never carry out itself: *say what you intend to change before writing, and ask the user through their own question mechanism whenever anything is uncertain* — 「提出方案 → 用户确认 → 动手」 happens in the ordinary conversation, unbrokered and unparsed, but the plugin must ask for it: staying silent would read as permission to edit straight away. `compare` hands the in-memory "before" and a freshly read "now" to the pure `diffSkillModification()` — three states, `unchanged | changed | unavailable`, with line-level, section-level and resource-level changes, out-of-scope changes, and the source-fingerprint comparison — releases the snapshot in the same request, and returns the shared `validation` result alongside. Failure is named, never swallowed: an empty intent is `400 missing-intent`, a session with no running Agent (or no `followup`) is `409 session-not-live`, an unreadable `SKILL.md` is `422 skill-file-unreadable`, an unknown Skill is `404 unknown-skill`, and a dispatcher that throws releases the snapshot it just stored before answering `500 dispatch-failed` — keeping a "before" whose task never left would make the interface believe the change had been sent. What is deliberately absent is what would turn this into a writer: the plugin adds no second Agent Runtime, does not poll the Agent, and runs no file operation of its own. Clicking 「交给 Agent」 is itself the authorization; the files are changed by the current session's Agent using DSH's native file tools under DSH's own permissions. The capability is named **this modification's comparison**（本次修改对比）, not "historical version comparison" — there is no version entity here, only two `sha256` values.
 
 The v0.7 additions follow three rules the verifier now enforces. `/skill-trace/translation` takes **no `sessionId`**: the reading version is an asset keyed by content, not a product of one conversation, and requiring a session would both invite the session into the key and imply the wrong lifetime. `/skill-trace/translate` reports a `saved` boolean that comes from an actual `translationStore.write()` — a request that started is not a save that finished — and that boolean is the only thing allowed to produce 「✓ 中文阅读版已保存」 in the interface. `/skill-trace/clone` re-reads the Skill and recomputes `sourceSha256` rather than trusting the value the client read earlier, so a body edited between the detail page loading and the clone being requested cannot slip through.
 
@@ -204,10 +207,11 @@ the accident it prevents was never about the canvas.
 
 ## Two ways the whole tab goes blank
 
-`conversation.view` is a React slot with no error boundary above it, so a throw anywhere in the tree is not a local error state: React unmounts the entire slot and the user sees a blank tab. Two real occurrences set the rules.
+`conversation.view` is a React slot with no error boundary above it, so a throw anywhere in the tree is not a local error state: React unmounts the entire slot and the user sees a blank tab. Three real occurrences set the rules.
 
 1. **A hook after an early return.** `RuntimeView` and `FlowCanvas` placed `React.useMemo` after a `return` that fired on the first (loading) frame. The first frame called one hook fewer than the second, React threw `Minified React error #310`, and the Skill tab went white. The rule is source-level: no `React.use*` may sit after the first early return in the same component. `scripts/verify-project.mjs` (`HOOK_ORDER_OK`) compares those two line numbers, and `test/client-hook-order.test.mjs` exports `scanHookOrder(source)` and asserts zero violations against the real client. Component tests missed it because `test/client-render-smoke.test.mjs` stubs `useState` and only renders the frame where the data has already arrived — #310 needs two frames.
 2. **Throwing on a missing field.** A page that received a malformed payload read `payload.coverage` off `undefined` and threw `Cannot read properties of undefined (reading 'coverage')` — the same blank tab, from a data bug rather than a hook bug. The rule: a missing field must degrade to a visible error state, and "cannot read it" must never be rendered as "there is nothing". A list that cannot be read says so; it does not render as an honest-looking empty list.
+3. **An object where a React child was expected (v0.9.0).** The validation card rendered a Profile's label with `raw(profile.label ?? profile.id)`. `profiles[].label` is `{zh, en}`, and `raw()` only marks a value as "do not translate" — it does not stringify it, so React threw `Minified React error #31` ("Objects are not valid as a React child (found: object with keys {zh, en})") and the tab went blank. The render smoke test caught it only because it asserts the *text* of the verdict: its stub turns strings and numbers into text nodes and leaves an object child as an untyped node, so the label simply never appears. The rule: pick the language explicitly (`profile.label.zh`) before rendering, and let the guard forbid the bare form.
 
 ## Translation (中文阅读版)
 
@@ -225,15 +229,18 @@ The key is `skillName` + `sourceSha256` + `targetLanguage` and **does not includ
 
 ## Installed Skill view
 
-`GET /skill-trace/catalog` resolves the registry for the session, calls the existing `buildCatalogSnapshot(registry, cwd, liveAgent)`, and projects it through `buildInstalledView({catalogSnapshot, query})` from `src/core/installed-view.mjs`:
+`GET /skill-trace/catalog` resolves the registry for the session, calls the existing `buildCatalogSnapshot(registry, cwd, liveAgent)`, and projects it through `buildInstalledView({catalogSnapshot, query, addedAtByName, lineageByName})` from `src/core/installed-view.mjs`. The last two arguments are the v0.9.2 read-only lookups, and both are optional: `addedAtByName` answers when each Skill's directory arrived on this machine, `lineageByName` answers which name was cloned from which (see §V0.9.2):
 
 ```
 {schemaVersion:1, scope:'installed-skills', query,
  coverage:'complete'|'incomplete'|'unknown', observedAt,
- totalCount, skillCount, skills, limitations}
+ totalCount, skillCount, skills,
+ ordering:{rule, addedAtKnown, addedAtUnknown}, limitations}
 ```
 
-Each skill is `{name, description, provider, invocation:{modelInvocable,userInvocable}}` — a whitelist projection, so a field the host adds later does not silently flow to the client. `sourceFingerprint` is deliberately absent: no card renders it, no search filters on it, and an unread hash in an outbound projection eventually gets used as if it meant something.
+Each skill is `{name, description, provider, invocation:{modelInvocable,userInvocable}, addedAt, lineage}` — a whitelist projection, so a field the host adds later does not silently flow to the client. `addedAt` is a number or `null`, `lineage` is `{sourceSkillName, createdAt}` or `null`, and `sourceFingerprint` is deliberately absent: no card renders it, no search filters on it, and an unread hash in an outbound projection eventually gets used as if it meant something.
+
+The `skills` array is **ordered by when each Skill arrived on this machine, newest first**, and the rule has a name rather than a description: `INSTALLED_ORDERING_RULE = 'added-desc-then-name'`, exported from the module and copied into `ordering.rule`. A Skill whose arrival time cannot be read sorts last, by name; two Skills with the same arrival time also fall back to name. `ordering.addedAtKnown` / `addedAtUnknown` are counted over the **whole catalog**, not the current search results — typing in the search box must not change how many Skills can state an arrival time. The four limitation codes and the reason the time is the directory's `birthtime` are in §V0.9.2; the client only reads this rule, it never re-sorts.
 
 The route **never reads the receipt**: what is installed on this machine has nothing to do with what a conversation happened to load. That is the same boundary `buildSessionSkillList(receipt, {lookup})` draws from the other side — the loaded list uses the registry only to describe names already loaded, never to discover members.
 
@@ -243,7 +250,7 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 
 | Module | Responsibility |
 | --- | --- |
-| `src/dsh/host/index.js` | DSH lifecycle bridge, the eleven routes, event observation, privacy policy, local persistence wiring |
+| `src/dsh/host/index.js` | DSH lifecycle bridge, the twelve routes, event observation, privacy policy, local persistence wiring |
 | `src/core/trace-reducer.mjs` | Converts observed events into bounded session evidence — the load-evidence layer v0.6 was required not to break |
 | `src/core/runtime-events.mjs` | Normalizes session events into the RuntimeEvent model and aggregates invocations |
 | `src/core/runtime-graph.mjs` | Correlates invocations into a provenance-bearing graph; refuses to invent relationships |
@@ -251,12 +258,12 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/core/runtime-fingerprint.mjs` | Builds the definition-fingerprint reservation carried on the receipt |
 | `src/core/skill-runtime-scope.mjs` | Bounds runtime evidence to the Turn in which a Skill loaded; no imports, so it is a leaf |
 | `src/core/skill-flow.mjs` | `Markdown → Declared Flow`, definition-only; imports no runtime module |
-| `src/core/skill-view-model.mjs` | Composition layer; runtime evidence may annotate the declared flow but never add, remove, or reorder a step |
+| `src/core/skill-view-model.mjs` | Composition layer; runtime evidence may annotate the declared flow but never add, remove, or reorder a step. From v0.9.0 it also carries `validation` through unchanged — the key always exists and is `null` when the host had nothing to pass, because the client tells "the host did not send this field" apart from "this Skill could not be read" by `hasOwnProperty` |
 | `src/core/skill-framework.mjs` | `Markdown → Skill Framework`, definition-only and deterministic — no model call, no summary. Splits the body into sections, classifies each heading into one of eight roles, synthesises a preamble section, keeps every unmatched heading as `unclassified` rather than dropping it, reports absent roles as absent instead of inventing them, and extracts declared resources with their tiers. `flow` is one sub-module of the result, not the result |
 | `src/core/skill-definition.mjs` | One live read-only view of a definition, with `currentInstructionSha256`; the body is never persisted |
 | `src/core/definition-outline.mjs` | Markdown outline plus declared-step anchors; pure, and does not interpret the Skill |
 | `src/core/repository-resolver.mjs` | Resolves the repository a definition points at; never derives it from Skill identity, because DSH has no repository field |
-| `src/core/installed-view.mjs` | Projects the catalog snapshot into the installed-skills view; never reads the receipt |
+| `src/core/installed-view.mjs` | Projects the catalog snapshot into the installed-skills view; from v0.9.2 it also sorts by arrival time (`INSTALLED_ORDERING_RULE = 'added-desc-then-name'`, unknowns last by name) and reports `ordering` over the whole catalog; it never reads the receipt and imports nothing, because the client requires it |
 | `src/core/skill-translation.mjs` | Pure translation policy: protected-span masking, blank-line chunking, the per-segment prompt, `checkChunk` (structure **and** "did a translation actually happen"), `alignHeadingLevels` (repair a level the model "helpfully" changed), `splitChunkSource` (cut a failing segment in half instead of losing it whole), and violation inspection; the model call itself is injected as `ask` |
 | `src/core/translation-cache.mjs` | Where a finished translation lives: an in-process `Map`, keyed by `sessionId` + skill + `sourceSha256`, capped at 8 entries, LRU. No storage, no filesystem, no IPC — the plugin unloading is what clears it |
 | `src/core/installed-view.mjs` | The installed-catalog search predicate, shared by the host and the client so "found it" cannot depend on which end answered |
@@ -272,12 +279,16 @@ It is named `/installed` rather than the SDD §16 name `/catalog` because the ol
 | `src/storage/translation-store.mjs` | Stores 中文阅读版 by `skillName` + `sourceSha256` + `targetLanguage` — deliberately **without** `sessionId` — at `0700`/`0600` with an atomic rename, and refuses to write any record carrying a session, conversation, or tool-argument field |
 | `src/core/skill-clone.mjs` | Pure clone logic: name grammar, frontmatter split/rewrite, `<root>/<name>/SKILL.md` versus `<root>/<name>.md` bundle shape, entry selection with limits and named exclusion reasons, and the seven error codes |
 | `src/core/skill-clone-path.mjs` | Which real directory a clone may land in, in DSH's own rank order, plus the two on-disk shapes that count as a name collision |
-| `src/storage/skill-clone-writer.mjs` | The only module that writes a clone. Plain `node:fs/promises`, **not `ctx.fs`** — see below |
-| `src/dsh/client/client.js` | Conversation view: 本次 Skill, 已安装 Skill, Skill Detail, the clone dialog, and the DSH `ctx.locale` adapter |
+| `src/storage/skill-clone-writer.mjs` | The only module that writes a clone. Plain `node:fs/promises`, **not `ctx.fs`** — see below. Since v0.9.0 it also exports `readSkillFile`, the read the validator needs: `readSkillBody` deliberately returns the body only (it matches the registry's `SkillDefinition.content`, which is `parsed.body.trim()`), so validating a real Skill through it would report "frontmatter missing" for every Skill on disk. Since v0.9.2 it also exports the two read-only ordering lookups, `skillAddedAtByName({names, roots})` and `skillRootCandidates({cwd})` — both read `stat` and nothing else, and neither writes, clones, or executes anything (§V0.9.2) |
+| `src/core/skill-profiles.mjs` | **v0.9.0.** The rule table, as data: five Profiles (`common` + `dsh` / `microsoft` / `openai` / `anthropic`), thirty-two rules, each `{id, profile, severity, title, fact, source, note}`. Constants only — no judgement, no IO. A rule's `fact` is unique across the table, so two Profiles can share one rule by reference instead of restating it, and the same fact may legitimately carry a different severity per Profile (`MS-DIR-001` is `error`, `OA-DIR-001` is `warning`, and the DSH Profile has no directory rule at all) |
+| `src/core/skill-validation.mjs` | **v0.9.0.** The deterministic validator, a pure function of data the host read (`{skillName, available, reason, content, truncated, directoryName, resourcePaths, profileIds, now}`). Ships its own `scanFrontmatter` (the display-oriented `parseFrontmatter` truncates values at 300 characters and lets a duplicate key overwrite its predecessor, so it cannot answer "this description is 1200 characters" or "`name` is written twice"), its own fence/link scan, and two literal-pattern security scanners that report the pattern and never echo the matched value. Status is `pass \| needs-fix \| unknown`; only an `error` finding reaches `needs-fix`, and a rule it could not evaluate is `skipped` with a reason rather than clean |
+| `src/core/skill-modification.mjs` | **v0.9.1.** The modification contract and the diff model, as pure functions: `MODIFICATION_CONTRACT_RULES` — the twelve rules, verbatim — the six scope ids in fixed order with `scripts` and `assets` locked, the message builder that carries the user's own words plus the structured scope plus the contract, and `diffSkillModification()`, which takes a stored "before" and a freshly read "now" and returns `unchanged \| changed \| unavailable` with line-level, section-level and resource-level changes, out-of-scope changes, and the source-fingerprint comparison. Zero IO, zero model calls, zero clock, zero randomness — `now` is always passed in |
+| `src/storage/modification-snapshot-store.mjs` | **v0.9.1.** Keeps one modification transaction's "before", and keeps it **in host memory only**: TTL 30 minutes, at most 32 entries, keyed by `${sessionId}\u0000${skillName}`, never written to disk, never in a receipt, never in the session log, gone when the host restarts. The file header states the five privacy disciplines, and the module imports no filesystem at all. Releasing is explicit, and an expired or released snapshot reports `snapshot-missing` rather than falling back to the current file — "读不到" is not the same sentence as "没有" |
+| `src/dsh/client/client.js` | Conversation view: 本次 Skill, 已安装 Skill (with the ordering sentence `InstalledOrderNote` renders above the grid), Skill Detail, the clone dialog, the validation card, the modify dialog, this modification's comparison, and the DSH `ctx.locale` adapter |
 
 ## Client component tree
 
-`src/dsh/client/client.js` is the entire client — about 2735 lines (v0.6 took it from about 3536 down to about 2348; v0.8 added the Skill Evolution card and the diff panel), with a bundle of about 142 KB (about 421 KB before v0.6). It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
+`src/dsh/client/client.js` is the entire client — about 3448 lines (v0.6 took it from about 3536 down to about 2348; v0.8 added the Skill Evolution card and the diff panel; v0.9.0 added the validation card; v0.9.1 added the modify dialog and this modification's comparison; v0.9.2 added the installed-order note and the two card facts), with a bundle of 170324 bytes (about 421 KB before v0.6, about 142 KB at v0.8, about 150 KB at v0.9.0, about 167 KB at v0.9.1). It registers exactly one slot (`conversation.view`, id `skill-trace`, order 70) plus the `dsh-skill-trace` locale namespace and the stylesheet lifecycle. What it renders today:
 
 ```text
 Workbench                      first-level page switch + host preference
@@ -286,9 +297,17 @@ Workbench                      first-level page switch + host preference
   ├─ CurrentSkillPage          本次 Skill     ← GET /skills, GET /skill
   │    └─ SkillCard            {name, description, meta, onOpen}
   ├─ InstalledSkillsPage       已安装 Skill   ← GET /catalog
-  │    └─ InstalledSkillGrid   one clickable button per Skill — the whole card is the target
-  └─ SkillDetailPage           Skill Detail   ← GET /definition, POST /translate, GET /translation
+  │    ├─ InstalledOrderNote   the ordering sentence above the grid — rendered only when `ordering` is present
+  │    └─ InstalledSkillGrid   one clickable button per Skill — the whole card is the target;
+  │                            card meta = MM-DD 加入本机, and 复刻自 <source> only when lineage exists;
+  │                            defaults stay silent (invocation flags, `filesystem` provider)
+  ├─ SkillModifyDialog         intent ≤2000 chars, scope chips, profile chips (Common Core always on)
+  │                            rendered only while open; POST /modify (begin)
+  └─ SkillDetailPage           Skill Detail   ← GET /skill, GET /definition, POST /modify, POST /translate, GET /translation
        ├─ sidePanel            facts + the object action (复刻 Skill — the only one)
+       ├─ SkillValidation      验收 — three states, per-Profile rows, findings, skipped
+       ├─ SkillModification    本次修改对比 — idle renders nothing at all;
+       │                       waiting / error / ready; POST /modify (compare)
        ├─ SkillFramework       the Skill's composition, above the document
        │    ├─ FrameworkStructure     sections grouped into eight roles (+ 其它章节, + absent roles)
        │    ├─ DeclaredWorkflow       flow.steps[] + evidence status — a sub-module, not the framework
@@ -301,8 +320,8 @@ Workbench                      first-level page switch + host preference
 
 Two rules hold this shape together, and both are enforced by `SKILL_FRAMEWORK_OK` rather than by convention:
 
-- **Declaration and observation render apart.** `SkillFramework` (structure, declared workflow, resources) reads only the definition; `RuntimeLogic` and `StepEvidence` read only the receipt. No path leads from runtime evidence back into the framework — a Skill whose structure was inferred from what happened would describe the run, not the Skill, which is the same mistake the deleted runtime graph made. Runtime data may *annotate* a declared step; it may never add, remove, or reorder one.
-- **The four layers keep their order.** The detail body is `framework, runtimeLogic, stepEvidence, docPanel`; the guard matches that literal order and fails with `the detail body must read 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`. Reversing it is a different product: read the document first, guess the structure second. Putting runtime logic above the framework reads a declaration as an observation.
+- **Declaration and observation render apart.** `SkillFramework` (structure, declared workflow, resources) reads only the definition; `RuntimeLogic` and `StepEvidence` read only the receipt. No path leads from runtime evidence back into the framework — a Skill whose structure was inferred from what happened would describe the run, not the Skill, which is the same mistake the deleted runtime graph made. Runtime data may *annotate* a declared step; it may never add, remove, or reorder one. `SkillValidation` sits on the declaration side too: it reads the `SKILL.md` bytes and the directory listing, never the receipt, which is why v0.9.0 could put it above the runtime layers.
+- **The layers keep their order.** The detail body is `h(SkillValidationPanel, …), skillModification, framework, runtimeLogic, stepEvidence, docPanel`; the guard matches that literal order and fails with `the detail body must read 验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`. Reversing it is a different product: read the document first, guess the structure second. Putting runtime logic above the framework reads a declaration as an observation. This modification's comparison sits directly under validation because the two answer the same question — "after this change, what is it now" — and it renders nothing at all when no modification is in flight (see §V0.9.1).
 - **One renderer, one call site.** The assertion counts `renderSkillMarkdown(` call sites (excluding the definition and the `__pure` export) and requires exactly one. Two call sites would mean the original and the Chinese reading version could diverge, and only one of the two behaviours would be tested.
 - **One object action, and no duplicate door.** `InstalledSkillGrid` renders one `button.st-installed-card` per Skill and nothing else, so the installed page's button count equals its card count. Before v0.7 the card was a non-interactive `article`: the list could be read but not entered, and the only way into a Skill you had installed was to load it in a conversation first. Adding a 「查看详情」 button beside a clickable card would have produced two controls for one action, one of which is always redundant.
 
@@ -310,7 +329,7 @@ None of these layers is a canvas: no `elkjs`, no `@xyflow/react`, no `mermaid` �
 
 `detail.anchors` is a **shared** map: declared steps and framework sections both resolve to an outline entry id, because the same click handler serves both. A section without an anchor (a synthesised one, whose `anchorId` is `null`) renders as a non-clickable row and is absent from the map entirely — a button that does nothing when clicked is worse than an element that never claimed to be clickable.
 
-The client calls only the ten surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
+The client calls only the twelve surviving routes and nothing else. It holds no receipt, no graph, no draft buffer, and no backup state: a page fetches the projection it renders, and `TraceState` renders whatever the fetch could not establish — which is why the missing-field rule above matters more than it looks. A page that throws is not a page that shows an error; it is a blank tab.
 
 ## The clone write path
 
@@ -609,7 +628,7 @@ UI 组件 → View consumer → Host consumer / 路由 → 图布局依赖 → �
 | 组件 | 运行视图（`RuntimeView`、`RuntimeInspector`、`FlowCanvas`、`ReplayControls`、`MapView`、`Inspector`）、收据（`ReceiptView`、`ReceiptDetails`、`ReceiptRow`、`FingerprintSection`）、学习与校验（`ValidationEditor`、`DeclarationPanel`、`LearningPanel`、`HistoricalContinuationAction`）、旧目录工作台（`CatalogPage`、`CatalogGuide`、`CatalogDetail`、`HistoryCard`）、布局外壳（`Aside`、`SessionSummary`、`SessionStatus`） |
 | 依赖 | `elkjs`（分层布局）与 `@xyflow/react`（画布）。`dependencies` 因此为空，只剩 `devDependencies: { esbuild }`；`peerDependencies` 保留 `@deepseek-ai/dsh-llm`，因为翻译要用它 |
 
-因此客户端从约 3536 行降到约 2348 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由（**这是 v0.6 当时的数字**；v0.8 之后是 2735 行 / 142672 字节 / 11 条），
+因此客户端从约 3536 行降到约 2348 行，bundle 从 421 KB 降到约 126 KB，只调用留下来的十条路由（**这是 v0.6 当时的数字**；v0.8 之后是 2735 行 / 142672 字节 / 11 条；v0.9.1 工作树是 3356 行 / 167506 字节 / 12 条路由；v0.9.2 发布口径是 3448 行 / 170324 字节 / 12 条路由），
 并且只注册一个 slot（`conversation.view`）。
 
 ### 为什么 `runtime-layout.mjs` 死了，而 `trace-reducer.mjs` 和指纹模块活着
@@ -652,9 +671,9 @@ Skill Run 与 Evidence 都从后者构建。
 
 ## V0.8 — Skill Evolution
 
-**This whole section is shipped.** All three phases landed on 2026-10-06 and every paragraph below describes code that exists: the lineage modules (`src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs`), the diff module (`src/core/skill-diff.mjs`), the host hook plus `GET /skill-trace/diff` (**eleven** routes), the detail page's 「Skill 演进」 card and its 720px diff modal (`SkillEvolution` / `SkillDiffPanel`), guards 24 and 25 — both halves — and five render smoke tests. `npm test` is 474 green, `npm run verify` is 25 groups. Real-machine acceptance passed on 2026-10-06 — twelve checkpoints, run against a real clone (`deliver-prd-custom-custom`, whose lineage record was the first one this machine ever wrote), not against a fixture; two of the defects recorded in `CHANGELOG.md` were found there and not by the tests. **It is released as `0.8.0`** (2026-10-02, GitHub Release + npm; results in `docs/RELEASE.md` §6.0). `spec/SDD.md` §0.1 D8 records the boundary and §17 holds the full design.
+**This whole section is shipped.** All three phases landed on 2026-10-02 and every paragraph below describes code that exists: the lineage modules (`src/core/skill-lineage.mjs` / `src/storage/skill-lineage-store.mjs`), the diff module (`src/core/skill-diff.mjs`), the host hook plus `GET /skill-trace/diff` (**eleven** routes), the detail page's 「Skill 演进」 card and its 720px diff modal (`SkillEvolution` / `SkillDiffPanel`), guards 24 and 25 — both halves — and five render smoke tests. `npm test` is 474 green, `npm run verify` is 25 groups. Real-machine acceptance passed on 2026-10-02 — twelve checkpoints, run against a real clone (`deliver-prd-custom-custom`, whose lineage record was the first one this machine ever wrote), not against a fixture; two of the defects recorded in `CHANGELOG.md` were found there and not by the tests. **It is released as `0.8.0`** (2026-10-02, GitHub Release + npm; results in `docs/RELEASE.md` §6.0). `spec/SDD.md` §0.1 D8 records the boundary and §17 holds the full design.
 
-v0.8 answers one question: after cloning a Skill into your own version, **where did it come from, what did you change, and has the origin moved since**. Three capabilities — lineage, diff, and one compact evolution block — all inside the existing Skill detail page. No new first-level page, no history page, no version centre, and no second registry, invocation engine, or Agent runtime. Behavioural evaluation (baseline vs with-Skill, regression) is V0.9.
+v0.8 answers one question: after cloning a Skill into your own version, **where did it come from, what did you change, and has the origin moved since**. Three capabilities — lineage, diff, and one compact evolution block — all inside the existing Skill detail page. No new first-level page, no history page, no version centre, and no second registry, invocation engine, or Agent runtime. Behavioural evaluation (baseline vs with-Skill, regression) was planned for v0.9 and slid to **V1.0+** when v0.9 was split into validation (V0.9.0) and modification (V0.9.1).
 
 ### Lineage has exactly one source: a clone this plugin performed
 
@@ -694,3 +713,193 @@ Two honest limits are designed in rather than discovered later. First, because n
 The layering follows the existing one: lineage and diff are host-side domain logic in `src/core/skill-lineage.mjs`, `src/core/skill-diff.mjs`, and `src/storage/skill-lineage-store.mjs`; the host exposes them through one new route and one new field; the client only renders what it is given and requires none of those modules. Reading an unavailable origin returns `unavailable` with 「当前无法读取来源 Skill，无法完成差异比较。」 in an `role="alert"` region — never `unchanged`.
 
 `SKILL_LINEAGE_OK` and `SKILL_DIFF_NO_JUDGEMENT_OK` raise the verifier's guard count from 23 to two dozen plus one, and the wording itself is in the contract: the diff may say 新增 / 删除 / 修改 / 保持不变 and nothing that ranks, praises, or recommends.
+
+## V0.9 — Skill Validation
+
+**This section describes what shipped as `0.9.2` on 2026-10-03** (GitHub Release + npm; results in `docs/RELEASE.md` §6.0). The code exists and is green — `npm test` is 561 tests (553 at v0.9.1, 474 at v0.8), `npm run verify` is 28 guard groups (27 at v0.9.1, 25 at v0.8), the client is 3448 lines with a bundle of 170324 bytes (about 3356 lines and 167 KB at v0.9.1; the v0.9.2 ordering work first landed at 3431 lines / 170354 bytes, and the meta row was then trimmed on 2026-10-03) — and `package.json` (`0.9.2`), `README.md`, `CHANGELOG.md` (`## 0.9.2`), `spec/PRD.md`, `spec/SDD.md` and `AGENTS.md` §1 all agree, which is the six places listed in `AGENTS.md` §9.1. `spec/PRD.md` §5.9 holds `FR-VAL-001`…`020` and `spec/SDD.md` §18 holds the full design.
+
+v0.9.0 answers one question: **is this Skill, right now, conformant — and if not, against which rule?** It is deliberately not a score. Three states (`pass` / `needs-fix` / `unknown`), three severities (`error` / `warning` / `info`), and every single line traceable to a rule id. It does not decide what the Skill should become, and it does not evaluate behaviour.
+
+### The rule table is data, and the Profiles are never merged
+
+`src/core/skill-profiles.mjs` is constants only: five Profiles — the shared layer `common` plus `dsh`, `microsoft`, `openai`, `anthropic` — and thirty-two rules of the shape `{id, profile, severity, title, fact, source, note}`. A rule's `fact` is unique across the whole table, so "the name must match the parent directory" is stated once and referenced by the Profiles that care; what differs between them is the severity and whether they list it at all.
+
+That is the whole point of not collapsing four vendors into one standard. The same fact, the same Skill, three different answers:
+
+| Fact | Microsoft | OpenAI | DSH |
+| --- | --- | --- | --- |
+| name must match the parent directory | `MS-DIR-001`, **error** ("Must match the parent directory name") | `OA-DIR-001`, **warning** ("Name the skill folder exactly after the skill name") | **no rule** — `dsh-skill-filesystem` never compares the frontmatter name with the directory |
+
+Severity follows the source's own verb. A rule whose source says *must*, or whose violation stops the Skill from loading, is an `error`; an imperative suggestion is a `warning` even when all four sources repeat it, which is why a 500-line `SKILL.md` can never be an error — none of the four load-blocking lists mention length. The DSH Profile is read out of the loader rather than out of documentation: `@deepseek-ai/dsh-skill/lib/index.js` holds `SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/`, and it has no length constant, so a 70-character name violates the open specification's 64-character cap (`CORE-NAME-001`, error) and is perfectly clean in DSH (`DSH-NAME-001`, clean). Same input, two Profiles, two verdicts. A background note in the module records the honest asymmetry: Anthropic's public material has the fewest statically decidable hard rules — one — because its value lies in the create → test → measure workflow, which is behaviour, and behaviour is V1.0+.
+
+`resolveSkillProfiles(selection)` returns `{profileIds, unknown}`, always adds `common`, orders by the table's own order, and reports unknown ids instead of silently accepting them. An empty array means "nothing selected yet" and falls back to the product default `['common', 'dsh']`; asking for the shared layer alone requires passing `['common']` explicitly. The default is a decision, not a convenience: DSH is where the Skill actually runs, and quietly validating only Common Core would skip the errors that matter most.
+
+### Deterministic is the half we can stand behind
+
+The design splits hard rules (format, fields, paths, structural facts) to code and soft rules (interpreting a specification, organising resources, maintainability) to the Agent. **v0.9.0 ships only the first half.** A validator that can be wrong about facts is worse than no validator at all, because its output reads as an accusation.
+
+Two independent reads are needed, and neither existing one could be reused:
+
+- `definition-outline.mjs`'s `parseFrontmatter` is lossy on purpose — it is built for display, truncates values at 300 characters, and lets a duplicate key overwrite its predecessor, so it cannot answer "this description is 1200 characters" or "`name` is written twice".
+- The registry's `definition.content.text` is `parsed.body.trim()` — **the body only**. The real-machine probe made this concrete: `GET /skill-trace/definition?sessionId=probe&skillName=ui-craft` returned `frontmatter {present: false}` with the text starting `# UI Craft`. Validating that would have reported "frontmatter missing" for every real Skill on disk. Hence `readSkillFile()` in `src/storage/skill-clone-writer.mjs`: it reads the whole file for this one request, keeps it in memory until the validation finishes, and is never written to disk, a receipt, or a log. `readSkillBody` keeps its own contract (body only), because a clone rewrites the frontmatter `name:` and the outline anchors are line-numbered against the body.
+
+Three honesty rules are built in, not bolted on. A rule that could not be evaluated is `skipped` with a machine-readable reason and a sentence in the interface — "we did not check" is not "it passed". `warnings > 0` never produces `needs-fix`; only an `error` finding does. And the resource-existence rule judges only declared resources: paths under the Skill's own `scripts/` `references/` `assets/`, plus markdown links that escape the Skill root. The first version treated every relative path in the prose as a file reference and produced six false "this file does not exist" errors on a real host Skill (`cordis-plugin-development`), whose prose legitimately mentions `package.json` and `lib/index.js` to describe the host project. A validator that manufactures findings fails this product's own identity test, and the narrowing is pinned by a test that feeds it those exact strings.
+
+### Where it plugs in: two old responses, no new route
+
+`validationFacts()` reads the Skill once — `registry.get`, `dirname`, `listSkillFiles` — and hands the validator plain data. Two details are deliberate. The directory name comes from the directory that holds `SKILL.md`, not from `resourceBase`'s last segment: v0.8's `basename(base) === skillName` filter would have made `MS-DIR-001` unjudgeable, since a Skill whose directory disagrees with its name is exactly the case that filter discards. And the resource list is `null` rather than `[]` when it cannot be trusted, because `[]` already means "the directory is empty, so every referenced file is missing" — a missing `SKILL.md` in the listing is the proof that the listing is complete.
+
+`validationFor()` is shared by `GET /skill` (through `buildSkillDetail`) and `GET /definition`, so the two answers cannot drift, and a Skill whose file disappears between the two reads degrades to `unknown` rather than to a 500. That sharing is the fix for the first of two ways this card could have lied.
+
+### Two ways the card could have lied
+
+1. **The field was on the wrong route.** The first version attached `validation` to `GET /skill-trace/definition` only — and the client never calls that route on this path; it reads `body.skill` from `GET /skill-trace/skill`. Both single-sided tests were green. This is the v0.7 `sessionId` defect over again: the request body has two halves, and a host-side test supplies the very field the client forgot. The fix carries `validation` through `buildSkillDetail` (the key always exists, `null` when there is nothing to say) and the guard now pins the client's own call literal, `setFetched(body?.skill ?? null)`, and the `hasOwnProperty` check.
+2. **A bilingual object as a React child.** `profiles[].label` is `{zh, en}`; rendering it through `raw()` produced React #31 and a blank tab — the third entry in *Two ways the whole tab goes blank* above. The panel picks a language explicitly and the guard forbids the bare form.
+
+A third, quieter one belonged to the same family: the panel destructured `fieldMissing` while its call site passed `validationFieldMissing`, so the "the host may not have updated yet" sentence could never appear and a stale host would have been reported as this Skill being unreadable. Both sentences say "cannot determine" and they are not interchangeable — one describes the Skill, the other describes the host.
+
+### What the card says, and what it refuses to say
+
+One card at the top of the detail main column, because it answers this version's primary question: 「Skill 验收」 with a three-state badge, the line `错误 N · 警告 N · 信息 N · 未判定 N`, one row per selected Profile with its own state, the findings each showing rule id, severity and title, a 「这次没有判定」 block listing every skipped rule with its reason in words, and a `<details>` that states what was and was not checked. `role="status"` carries the verdict; when the whole result is unavailable it is a `role="alert"`. The component has no hooks at all, so it cannot fall foul of the hook-order rule.
+
+It prints no score, no rank, no quality adjective, and none of the execution vocabulary. `SKILL_VALIDATION_OK` raises the verifier to 26 groups and asserts all of that by literal, on the code with comments stripped — including that the table never contains a scoring word, that the validator has exactly one import and touches no IO, that the DSH Profile contains no directory rule, and that the three state branches are written out in full (a short-circuited `if (false && status === 'needs-fix')` still contains the string, and fooled the first version of that assertion). Fifteen deliberate mutations were each confirmed to fail the intended check: a severity downgrade, a directory rule smuggled into the DSH Profile, a length rule promoted to error, a second import, an extra state, a `skills.register` call, a missing `data-role`, a forbidden word in the card, a short-circuited branch, and removing the field from the response.
+
+### What v0.9.0 is not
+
+Not a generator, not a scorer, not a second Skill registry — `ctx.skills.register` would mean mounting a Skill into DSH, which is not this plugin's decision to make, so validation is host-side domain logic in `src/core/` and not a Skill of its own. Not a behaviour benchmark either: whether a change improved what the Skill does is V1.0+.
+
+`[修改 Skill]` — the user's intent, a structured scope and a Modification Contract, `agent.followup()` on the current session, read-back, this same validator, and a modification diff — was recorded here as **V0.9.1** before any of it existed. It now exists in the working tree; the next section describes it. Two constraints were written down in advance and both survived: it reuses the current DSH session rather than creating a dedicated one (LoreFlow's dedicated-session route was rolled back in production because `ask_user_question` then appears in a session the user cannot see), and its first version invented no structured proposal RPC — the scope is structured on the user's side and everything else happens in the ordinary conversation.
+
+## V0.9.1 — Skill Modification
+
+**This section describes what shipped as `0.9.2` on 2026-10-03** (GitHub Release + npm; results in `docs/RELEASE.md` §6.0). `npm test` is 561 tests (553 at v0.9.1, 474 at v0.8) and `npm run verify` is 28 guard groups (27 at v0.9.1, 25 at v0.8); the host is 1625 lines across 12 routes (1590 at v0.9.1), the client is 3448 lines with a bundle of 170324 bytes, `src/core/` is 29 modules and 10353 lines (10263 at v0.9.1), and `src/storage/` 6 modules and 1117 lines (1062 at v0.9.1) — and all six places listed in `AGENTS.md` §9.1 say `0.9.2`. `spec/PRD.md` and `spec/SDD.md` hold the design; this section records the boundary and the reasons behind it.
+
+v0.9.1 answers a different question from v0.9.0. Validation asks *is this Skill, right now, conformant*. Modification asks the user *how should it change*, hands that one change to the Agent, and then reports **what it was before, what it is now, and whether the result still passes the same validation**. The plugin never decides what the Skill should become. It records, it dispatches once, and it compares afterwards.
+
+### One click hands one change to the Agent in this conversation
+
+The entry point is `[修改 Skill]` in the detail page's 「Skill 演进」 card — present in both branches, with and without a lineage record. It opens `SkillModifyDialog`: an intent of at most 2000 characters, scope chips, and Profile chips with the shared `common` layer always in the selection. Pressing 「交给 Agent」 is the authorization; there is no second confirmation and no separate permission prompt, because the action the user just took *is* the decision to let the Agent edit under DSH's own permission and approval flow.
+
+The plugin writes no files. Nothing in the `/modify` handler calls `writeFile` or `ctx.fs.write`, and there is no code path in which the host edits a Skill. The Agent does the editing with DSH's native file tools, in this conversation, under DSH's permissions — which is also why the plugin cannot and does not claim to have enforced the contract it attaches to the message.
+
+### Two actions, and why there is no third
+
+`POST /skill-trace/modify` takes `{ sessionId, skillName, action: 'begin' | 'compare', intent?, scopes?, profiles? }`. The two actions are the two halves of one transaction, and the split is where the honesty lives.
+
+- **`begin`** reads the whole `SKILL.md`, the directory listing, and the recorded source fingerprint, stores that as the "before" in a host-memory snapshot, and dispatches **one** message through the current session's live Agent — `agent.followup(message)` — with `source.kind = 'skill-intelligence-modify'`. That kind is a custom value on an extensible union (`MessageSourceMap` is an open sum type and consumers render an unknown kind through their fallback), so the message is visibly not something the user typed and visibly not something the plugin said on the user's behalf. `begin` sends exactly one message: it does not send a second, does not poll, and never parses the Agent's reply. The message does ask for one thing the plugin will not do itself — say what you intend to change before you write, and ask the user whenever anything is uncertain — because `FR-MOD-003`'s 「提出方案 → 用户确认 → 动手」 belongs to the ordinary conversation: the plugin states the requirement and nothing more. It says *ask the user through the asking tool* rather than naming `ask_user_question`: the same lesson as `/name` versus `/rename` — the message must not hard-code an internal tool identifier, and DSH exposes exactly one interactive asking tool, so the plain-language instruction is unambiguous.
+- **`compare`** hands the stored "before" and a freshly read "now" to the pure function `diffSkillModification()`, then **releases the snapshot** in the same request. The response carries the three-state result (`unchanged` / `changed` / `unavailable`) with line-level, section-level and resource-level changes, any change that fell outside the authorized scopes, and the source-fingerprint comparison — and, in the same body, the `validation` result described below.
+
+There is no third action because the plugin has nothing else it can truthfully do. An "apply" action would mean writing files, which is the Agent's job; a "poll" action would mean reading the Agent's output to guess when the change is finished, which the plugin refuses to do. The user decides when to compare. `begin` and `compare` are the only two moments at which the plugin knows something the interface can state without inventing it.
+
+The failure semantics are one status code per failure, and each says which thing went wrong rather than collapsing into a generic error: an empty intent is `400 missing-intent`; a session with no running Agent, or one whose Agent has no `followup`, is `409 session-not-live` — a session that has not started yet is not a server fault; an unreadable `SKILL.md` is `422 skill-file-unreadable`, and the message says the pre-modification state was therefore not recorded and the task was not sent; an unknown Skill is `404 unknown-skill`; and a `followup` that throws is `500 dispatch-failed` **after releasing the snapshot that was just stored** — keeping a "before" whose task never left would make the panel look like a completed modification.
+
+### Why not a dedicated session
+
+The obvious design — the plugin creates its own session for the modification, so the edit cannot disturb the conversation the user is reading — is the one that was rejected. LoreFlow's plan A built exactly that dedicated session, and it was rolled back in real use for one concrete reason: the user cannot see that session, and `ask_user_question` then raises its question in a place the user is not looking at, so the Agent waits forever on an answer that was never visible.
+
+The plugin's slot already lives in `conversation.view`, and `props.sessionId` is the session the user is looking at. The modification therefore happens there: the Agent's questions appear where the user already is, the edit is visible as it happens, and the plugin never has to mirror a conversation it does not own.
+
+### The snapshot lives in host memory, and nowhere else
+
+`src/storage/modification-snapshot-store.mjs` is named like a store and is deliberately not one. It keeps at most 32 entries, each with a 30-minute TTL, keyed by `${sessionId}\u0000${skillName}` — two segments, because reusing one session's "before" in another session would be a different Skill's history wearing this one's name. Four boundaries hold it:
+
+1. **It is never written to disk.** The module imports no filesystem at all.
+2. **It never enters a receipt.**
+3. **It never enters the session log.**
+4. **A host restart leaves nothing behind.** Expiry and restart are the same outcome from the interface's point of view, and so is an explicit release after `compare`.
+
+When the snapshot is gone, the panel says so in one fixed sentence: `本次修改前状态不可用，暂时无法比较本次修改的内容。` with `reason: 'snapshot-missing'`. Two mistakes are ruled out by that sentence and its reason. It does not fabricate a "before" by pairing the current file with itself. And it does not blame a file it can actually read — `skill-unreadable` is a different outcome with a different sentence, and the store's `normalizeResources` returns `null` rather than `[]` for the same reason `validationFacts()` does: an empty list already means something specific, and "we could not look" must not borrow its meaning.
+
+### The source is protected by a fingerprint, and the sentence is fixed
+
+A clone records the source it came from. Modification compares the recorded `sourceSourceSha256` before and after and returns one of three states: `unchanged`, `changed`, or `unknown`. The wording is fixed by the module, and the middle state's sentence is exactly `来源 Skill 在本次修改期间发生变化。` — notice what it does not say. It never says the Agent changed the source. There is no evidence for that claim: a fingerprint that differs proves the source moved, not who moved it or when, and the plugin has no way to attribute the change. The guard enforces this by rejecting the source text outright for `Agent 修改了来源` and its paraphrases. The other two sentences are equally fixed: `来源 Skill 的内容没有发生变化。` and, when there was no fingerprint to compare, `没有拿到来源 Skill 的指纹，来源是否变化无法判断。` — `unknown` is not `unchanged`.
+
+### The scope contract: six ids, two of them locked
+
+`MODIFICATION_SCOPE_OPTIONS` lists six scopes in a fixed order — `skill-md-rules`, `skill-md-workflow`, `skill-md-description`, `references`, `scripts`, `assets` — and the order is the order the chips appear in, not a preference of the caller. `scripts` and `assets` are **locked**: they are drawn, they cannot be selected, and they are never granted. The locked pair is part of the response rather than a rendering convention, so the client and the host agree on which scopes were refused instead of one of them quietly omitting a chip.
+
+An unrecognized scope id is not dropped and not silently accepted: it is reported back in `unknown`, so a typo in a future caller surfaces as itself. An empty scope set is a valid request and has its own meaning — `（没有指定范围：只讨论，不要改动任何文件）` — because "I want to discuss this Skill" is a real intent and must not be read as "modify everything".
+
+### It reuses v0.9.0's validator instead of asking again
+
+`compare` returns the same `validation` object that `GET /skill` and `GET /definition` return, produced by the same `validationFor()` from the definition view the request already read. Reusing the function is the smaller half of that decision; the larger half is that the definition is read **once**. The freshly read current state is what is diffed, and the same text is what is validated, so the comparison and the verdict cannot describe two different moments in the same response.
+
+The client takes the opportunity: when `/modify` answers, the panel stores the returned `validation` in place of the previously fetched one. That saves a second `/skill` request and, more importantly, removes a window in which the file could change between the two reads and leave the card showing a verdict for a version the diff no longer describes.
+
+### The comparison panel has four states, and one of them renders nothing
+
+`SkillModificationPanel` renders 「本次修改对比」 in the detail main column, immediately after the validation card — the two answer the same question, "after this change, what is true now". It has four states: `idle` renders **the entire block as `null`**, `waiting` says the task has been sent and offers the compare action, `error` is an alert, and `ready` shows the comparison, the released-snapshot notice, and the limitations.
+
+`idle` rendering nothing is the point. A permanent empty card would be read as a state — "no change detected" when nothing has been asked for, or "nothing happened" when a modification is in progress elsewhere — so a user who has never modified this Skill sees no such card at all. The panel also prints the diff's limitations rather than a summary of them, because a comparison that hides its own bounds invites the reader to assume it has none.
+
+The detail body's order is pinned by a literal in the guard, and the sentence it fails with is exact: `the detail body must read 验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order`. In English that is validation → this modification's comparison → framework → runtime logic → step evidence → `SKILL.md`. This comparison sits second and not first because the verdict is the headline and the diff is its evidence; the framework, the runtime logic and the step evidence still describe what the Skill declares and what this session observed.
+
+### What v0.9.1 is not
+
+Not a second Agent runtime: there is one Agent, the one in this session, and the plugin only asks it to do something the user has already asked for. Not a structured proposal RPC: nothing about *what the change should be* is structured — the scope is, and the rest happens in the ordinary conversation, in words, where a proposal belongs. Not a version store: there is no version entity, no history, no timeline, and no version number — only two `sha256` values and the difference between them. Not an executor: it does not run anything under `scripts/`, does not commit to git, and does not rename the session.
+
+### The guard, and the mutation lesson
+
+`SKILL_MODIFICATION_OK` is the 27th group, immediately after `SKILL_VALIDATION_OK`. It asserts, on the code with comments stripped: the module constants (`MODIFICATION_SOURCE_KIND`, the 30-minute TTL, the 32-entry cap) as literals rather than as values that merely happen to be equal; the twelve contract rules, including the soft limits and the ban on renaming the session through an API DSH does not have; the flow sentence the message must carry — *explain the plan before writing, ask the user whenever anything is uncertain* — and its place between the twelve rules and the closing paragraph, because `FR-MOD-003` keeps 「提出方案 → 用户确认 → 动手」 in the ordinary conversation: the plugin states the requirement and brokers nothing; the six scope ids in order and the locked pair as `scripts,assets`; the fixed sentences and the words the module may **not** contain; the route literal, the dispatch call, and the release that must follow a failed dispatch; and a two-way reconciliation of the panel's `data-role` set — a role that is drawn but not guarded fails, and so does a role that is guarded but no longer drawn.
+
+The lesson is about how those mutations are exercised. The client half of the contract is asserted against the **built** bundle's source, so a deliberate fault introduced in `src/dsh/client/client.js` fails first on the bundle being stale — `dist/client.js is stale or missing` — and never reaches the assertion it was meant to test. Rebuild first (`npm run build:client`), then run the verifier, or the mutation proves nothing.
+
+## V0.9.2 — Installed List Ordering
+
+**This section describes what shipped as `0.9.2` on 2026-10-03** (GitHub Release + npm; results in `docs/RELEASE.md` §6.0). `npm test` is 561 tests (553 at v0.9.1, 474 at v0.8) and `npm run verify` is 28 guard groups (27 at v0.9.1, 25 at v0.8); the six places listed in `AGENTS.md` §9.1 all say `0.9.2`.
+
+The change came from the user's own report (2026-10-03): every `…-custom` Skill in 「已安装 Skill」 had been produced by the clone feature and now sorted at the bottom, and the sort should instead put the newest first — 「我想看到我刚复刻的那个在第一行……否则要翻着名字找」. So the list is now ordered by **when each Skill arrived on this machine**, newest first.
+
+### Arrival is the directory's birthtime, not the file's
+
+The time is the **`birthtimeMs` of the Skill's directory**, `<root>/<name>` — never `mtime` or `ctime`, and never the file-level birthtime of `SKILL.md`. The reason is a real measurement, not a preference: any editor that rewrites `SKILL.md` through a temp file plus `rename` gives the **file** a fresh birthtime while the directory keeps the old one. On this machine `deliver-prd-custom-custom-custom/SKILL.md` read `23:29` after such an edit while its directory still read `22:39`. "When did this Skill arrive here" must not change because someone edited the prose, so the timestamp is the directory's, and the guard forbids `mtimeMs` and `ctimeMs` anywhere inside `skillAddedAtByName()`.
+
+### One named rule, three states
+
+The rule is exported as `INSTALLED_ORDERING_RULE = 'added-desc-then-name'` from `src/core/installed-view.mjs` and copied into `ordering.rule`; the client repeats it in words rather than inventing its own meaning. `compareInstalledSkills()` implements it: two readable times sort newest first (`rightAt - leftAt`), a readable time always outranks an unreadable one, and everything else — two unreadable times, or a tie — falls back to name. `buildInstalledView()` reports the outcome as `ordering:{rule, addedAtKnown, addedAtUnknown}`, counted over the **whole catalog** rather than the current search results, so the search box cannot change how many Skills can state an arrival time.
+
+The three states the interface can be in are the three the counter can produce:
+
+- **All known** — `addedAtKnown === skills.length`, `addedAtUnknown === 0`: strict newest-first, and `InstalledOrderNote` says so.
+- **Partially known** — `addedAtKnown > 0` with some unknown: known Skills sort newest-first, the rest follow by name, and the note adds 「另有 N 个 Skill 读不到加入时间，按名称排在最后。」
+- **Unknown** — `addedAtKnown === 0`: the A–Z fallback is the whole order, and the note says 「读不到加入本机的时间，这里按名称排列。」 instead of claiming a recency order it cannot show.
+
+### The two read-only lookups
+
+Both helpers live in `src/storage/skill-clone-writer.mjs` and are exported for the catalog route; both read `stat` and nothing else, and both leave the clone write path untouched.
+
+- `skillAddedAtByName({names, roots})` — for each name, in root order, `stat(join(root, name))`, keeping only a **directory** whose `birthtimeMs` is finite and `> 0`; the first hit wins and later roots are not consulted, so a name present in more than one root resolves deterministically. Names are filtered through `isSkillName` (from `src/core/skill-clone.mjs`) before any path is joined, and a repeated name is skipped.
+- `skillRootCandidates({cwd})` — the candidate roots in the clone writer's own rank order: `<projectRoot>/.dsh/skills`, `<projectRoot>/.agents/skills`, `<DSH_HOME|~/.dsh>/skills`, `<DSH_AGENTS_HOME|~/.agents>/skills`.
+
+Every way these can fail has its own limitation code, because "we read it" and "we could not read it" must not collapse into one sentence:
+
+| Code | Meaning |
+| --- | --- |
+| `catalog-coverage-incomplete` | The catalog snapshot itself was not complete; the list may be missing Skills rather than misordered |
+| `added-at-unavailable` | The catalog has Skills but **none** of their arrival times could be read — the list is pure A–Z and says so |
+| `added-at-partial` | Some arrival times were readable and some were not; those Skills sort last by name |
+| `lineage-unavailable` | The host could not supply readable lineage at all, so "not a clone" and "cannot read the clone record" are kept apart — the note states the limitation instead of implying no Skill was cloned |
+
+The fourth is the subtle one. `lineageByTargetName()` in `src/dsh/host/index.js` returns `null` — not an empty map — when `lineageStore.list()` throws, logs `[dsh-skill-trace] lineage read failed`, and the view turns that `null` into `lineage-unavailable`; a Skill that genuinely has no lineage record simply reports `lineage: null` and no limitation.
+
+### The client reads the rule, never re-sorts, never invents a date
+
+`InstalledSkillsPage` filters the received array by the shared search predicate and renders it in the order it arrived — there is no `.sort()` on the client at all, and the guard rejects one. `InstalledOrderNote` renders one sentence above the grid (`p.st-installed-order`, `data-role="installed-order"`) derived only from `ordering` and `limitations`, and returns `null` when `ordering` is absent, so a host that has not been restarted into v0.9.2 shows no sentence rather than a wrong one. The rule name itself is never hard-coded in the client: the guard rejects the literal `added-desc-then-name` anywhere in `client.js`, so the words in the interface have to come from the data.
+
+`formatAddedAt(value)` renders an absolute `MM-DD` date, adding the year only when the timestamp is outside the current year. It never renders a clock time, and it never says 今天 / 昨天 / 刚刚 / 几分钟前 — those words need a clock and a frame of reference, and render tests have to be able to assert the exact string; the hour:minute reading was dropped on 2026-10-03 because "which one is newer" is already answered by the list order, so the clock only added a fleeting sense of precision (the guard rejects `getHours` / `getMinutes` in that block). A missing or unusable `addedAt` is `null`, and the card then simply omits the stamp rather than showing a placeholder date.
+
+The meta row also follows one rule about **when to speak at all**: defaults stay silent, only exceptions get words (`FR-ORD-013`). The two invocation flags are written only when they are exactly `false` (「不可由模型调用」/「不能用 /name 调用」), and `provider` is written only when it is not the default `filesystem`. The reason is measured, not aesthetic: all 69 Skills in the live catalogue are `{modelInvocable:true, userInvocable:true}` and 68 of them are `filesystem`, so those labels repeated one identical, always-true sentence on every card. Strict `=== false` matters because the component is pure-props: a payload that merely lacks the field must not be read as a negative claim.
+
+### "Arrived here" and "cloned from" are two different facts
+
+The card's meta row writes them as two separate spans: `MM-DD 加入本机` comes from the directory's birthtime, and `复刻自 <source>` comes from the lineage store. They are printed separately because they are not the same claim and neither implies the other: a Skill can be cloned onto this machine long after the clone happened elsewhere (arrival ≠ clone time), and a Skill that was not cloned still arrived at some point (arrival without lineage). Neither fact is computed from the other, and both degrade independently — no lineage means no 复刻自 line, no readable birthtime means no 加入本机 line, and the ordering note is the only place the whole list's state is summarised.
+
+### The guard, and the new tests
+
+`INSTALLED_ORDERING_OK` is the 28th group, immediately after `SKILL_MODIFICATION_OK`. It asserts, as literals against `src/core/installed-view.mjs`, `src/storage/skill-clone-writer.mjs`, the host source and the built client: the directory-only `stat`, the `isDirectory() && Number.isFinite(birthtimeMs) && birthtimeMs > 0` acceptance test, the absence of `mtimeMs` / `ctimeMs`, the `isSkillName` filter and the first-hit `break`, the four root fragments, `INSTALLED_ORDERING_RULE`, `compareInstalledSkills` with both known-before-unknown branches, `addedAtKnown` counted from `skills` rather than `matched`, the three new limitation codes, and the absence of any `import` in `installed-view.mjs`. On the client side it asserts the `installed-order` `data-role`, the `null`-when-absent guard, `formatAddedAt(skill.addedAt) ? h('span' …`, the `复刻自 ${skill.lineage.sourceSkillName}` span — and the three prohibitions: no `.sort(`, no hard-coded rule name, no relative time words.
+
+The behaviour is covered by pure-function tests rather than by the guard. `test/installed-view.test.mjs` (17 tests) pins the exact keys of a projected Skill, newest-first ordering with unknowns last by name (`['ui-craft','a-skill','loreflow-copilot']` with `ordering {addedAtKnown: 2, addedAtUnknown: 1}`), the A–Z-only fallback with `added-at-unavailable`, the rule that a known time always outranks an unknown one, the fact that the counts describe the whole catalogue rather than the current search, `lineage` name-only shape checking, an unusable add time becoming `null`, an unreadable lineage store becoming `lineage-unavailable`, and the empty-catalogue limitations. `test/client-render-smoke.test.mjs` (25 tests) covers what the note actually says.
+
+### What v0.9.2 is not
+
+Not a history or version comparison: it reads one `stat` per name and stores nothing, so there is no timeline of arrivals, no "this Skill existed on three machines", and no way to tell an arrival from a re-clone. Not a user-defined sort: there is one rule, it is named, and the client cannot reorder the list even if it wanted to — no sort menu, no column headers, no persisted sort preference. Not a removal of the A–Z fallback: unreadable arrival times stay a first-class state (`added-at-unavailable` / `added-at-partial`) and sort by name, because a list that silently reordered itself around a missing timestamp would be worse than one that admits the timestamp is missing. And no new route, no new dependency, and no change to the `/skill-trace/catalog` contract beyond the two read-only lookups and the added fields.

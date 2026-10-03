@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import {
   buildViewModels,
   carriesSkillEvidence,
@@ -12,9 +13,9 @@ import {
   setTraceRuntimeIdentity,
 } from '../../core/trace-reducer.mjs'
 import { readSessionEvents } from '../../core/session-log.mjs'
-import { buildCatalogSnapshot, buildSourceSnapshots } from '../../core/source-snapshot.mjs'
+import { buildCatalogSnapshot, buildSourceSnapshots, safeSkillName } from '../../core/source-snapshot.mjs'
 import { buildInstalledView } from '../../core/installed-view.mjs'
-import { buildSkillDefinitionView, compareDefinitionToRun } from '../../core/skill-definition.mjs'
+import { buildSkillDefinitionView, compareDefinitionToRun, DEFINITION_CONTENT_BYTES } from '../../core/skill-definition.mjs'
 import {
   buildChunkMessages,
   compareTranslationSource,
@@ -34,11 +35,29 @@ import {
 import { resolveCloneRoot } from '../../core/skill-clone-path.mjs'
 import { buildLineageRecord } from '../../core/skill-lineage.mjs'
 import { buildSkillDiff, DIFF_ERROR } from '../../core/skill-diff.mjs'
+// v0.9.0：Skill 验收。规范表与确定性验收器都是纯函数、零依赖、无模型调用 —— 它们回答的是
+// 「这份 SKILL.md 当前有哪些可以机械判定的事实」，不是「这份 Skill 好不好」。
+// 验收目标（Profile 集合）由验收器自己解析，宿主只把用户给的那串 id 原样传下去。
+import { buildSkillValidation } from '../../core/skill-validation.mjs'
+// v0.9.1：对话式修改。协议正文、送给 Agent 的那条消息、以及「本次修改对比」全是纯函数；
+// 宿主只做三件它才能做的事 —— 读磁盘、把「改前」记进内存、请当前会话的 Agent 把任务发出去。
+// 它**不**解析 Agent 的方案，也**不**碰文件：写文件是 Agent 用 DSH 原生工具做的，走 DSH 的权限。
+import {
+  buildModificationMessageText,
+  diffSkillModification,
+  MODIFICATION_SOURCE_KIND,
+  resolveModificationScopes,
+} from '../../core/skill-modification.mjs'
+import { resolveSkillProfiles } from '../../core/skill-profiles.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
 import { createPreferenceStore } from '../../storage/preference-store.mjs'
 import { createSkillLineageStore } from '../../storage/skill-lineage-store.mjs'
 import { createTranslationStore } from '../../storage/translation-store.mjs'
+// v0.9.1 §「本次修改对比」：**内存**快照库。它必须在 `apply` 作用域里只建一次 ——
+// 每请求新建一份就等于什么都没记住。它自己保证不碰磁盘（见该模块的文件头）。
+import { createModificationSnapshotStore } from '../../storage/modification-snapshot-store.mjs'
 import {
+  bodySha256,
   cloneTargetTaken,
   findProjectRoot,
   listSkillFiles,
@@ -48,7 +67,11 @@ import {
   readSkillSource,
   readSkillSourceSha256,
   readSkillBody,
+  readSkillFile,
   removeClone,
+  // v0.9.2：已安装列表的排序事实。「加入本机」＝ Skill 目录的 birthtime，只有宿主读得到。
+  skillAddedAtByName,
+  skillRootCandidates,
   writeClone,
 } from '../../storage/skill-clone-writer.mjs'
 
@@ -412,6 +435,28 @@ export function apply(ctx, config = {}) {
     // v0.8 §17.3：Skill 复刻血缘。**不是**收据里那个 `lineage`（那是会话父子血统）——
     // 这里存的是「本插件执行过一次 A → B 的复刻」这条长期资产关系。
     const lineageStore = createSkillLineageStore(dataRoot ? join(dataRoot, 'lineage') : undefined)
+    // v0.9.2 §7：已安装列表上「复刻自 X」那一行。读不出来时返回 `null`，让 core 如实记成
+    // `lineage-unavailable` —— 「这些 Skill 都不是复刻来的」与「我读不到复刻记录」是两句话，
+    // 分不清就不许说前一句。
+    const lineageByTargetName = async () => {
+      try {
+        const { records } = await lineageStore.list()
+        const map = {}
+        for (const record of records) {
+          const target = safeSkillName(record?.targetSkillName)
+          const source = safeSkillName(record?.sourceSkillName)
+          if (!target || !source) continue
+          map[target] = { sourceSkillName: source, createdAt: record.createdAt }
+        }
+        return map
+      } catch (error) {
+        console.error('[dsh-skill-trace] lineage read failed', error)
+        return null
+      }
+    }
+    // v0.9.1 §「本次修改对比」：一次修改事务的「改前」。**只在内存里**，跟着宿主进程活；
+    // 不落盘、不进收据、不进会话日志，DSH 重启之后什么都不剩 —— 那时只能说「本次修改前状态不可用」。
+    const modificationStore = createModificationSnapshotStore()
     const cache = new Map()
     const { queues, enqueue, runMaintenance } = createSessionMutationQueue()
     const pruneTask = store.prune(shouldPersistReceipt).then((removed) => {
@@ -506,6 +551,94 @@ export function apply(ctx, config = {}) {
     }
 
     /**
+     * 收集验收器要用的**纯数据**（v0.9.0）。
+     *
+     * 验收器自己不做 IO，所以「这个 Skill 住在哪个目录」「目录里有哪些文件」必须在这里问出来。
+     * 两条纪律：
+     *
+     * 1. 目录名取自 `SKILL.md` 所在的目录，不取自 `resourceBase` 的末段。v0.8 的差异层用
+     *    `basename(base) === skillName` 当「能不能列资源」的条件，那对差异是合理的（只在
+     *    自己复刻的目录里列清单），但对验收是**错**的：目录名和 name 不一致恰好是 Microsoft
+     *    Profile 要判的那件事（`MS-DIR-001`），先按「名字对得上」过滤掉，那条规则就永远
+     *    判不出来。
+     * 2. 列不出来就给 `null`，不给空数组。验收器把 `null` 读成「拿不到清单，这条规则现在
+     *    判不了」，把 `[]` 读成「目录真的空的，里面引用的文件都不存在」。后者是一句指控，
+     *    只有在**确认清单完整**时才允许说 —— 判据是 `SKILL.md` 自己出现在清单里。
+     *    （§8.10：一条规则能把「正文里出现过斜杠」判成「引用的文件不存在」，方向是制造假指控，
+     *    那正是这个项目最不能犯的错。）
+     */
+    async function validationFacts({ registry, skillName, cwd, scope }) {
+      // registry 抛错与「读不到文件」是同一类事实：验收要说「无法判断」，不能把整条路由打成 500。
+      // （真机上 registry 会去读盘，文件在这两次调用之间消失时就可能抛 ENOENT。）
+      let raw
+      try {
+        raw = await registry.get(skillName, { cwd, scope })
+      } catch {
+        return { directoryName: null, resourcePaths: null, text: null, truncated: false }
+      }
+      const skillFile = typeof raw?.path === 'string' && raw.path ? raw.path : null
+      if (!skillFile) return { directoryName: null, resourcePaths: null, text: null, truncated: false }
+      const skillDir = dirname(skillFile)
+      const listed = await listSkillFiles(skillDir)
+      const paths = listed.map((file) => file.path)
+      // v0.9.0：验收要判的事实一多半在 frontmatter 里，而 registry 的 `content`（与
+      // `readSkillBody`）刻意只给正文 —— 拿正文去判，每一份真实 Skill 都会被判「缺少
+      // frontmatter」（真机实测：`content.text` 的第一行就是 `# UI Craft`）。所以这里读整份文件。
+      const file = await readSkillFile({ skillFile })
+      const text = file.ok ? file.text : ''
+      const truncated = file.ok && file.text.length > DEFINITION_CONTENT_BYTES
+      return {
+        directoryName: basename(skillDir),
+        resourcePaths: paths.includes('SKILL.md') ? paths : null,
+        // 读不出来就是 `null`：调用方据此降级成「无法判断」，而不是拿一份没有 frontmatter 的
+        // 正文去判出一堆假错误。
+        text: file.ok ? (truncated ? text.slice(0, DEFINITION_CONTENT_BYTES) : text) : null,
+        truncated,
+      }
+    }
+
+    /**
+     * v0.9.0：算出这个 Skill 当前的规范事实。
+     *
+     * **两条详情路由都要用它**：`/skill-trace/definition` 把它作为同级字段，`/skill-trace/skill`
+     * 把它放进 `skill` 里 —— 而详情页读的是后者（客户端 `setFetched(body?.skill ?? null)`）。
+     * 只在 `/definition` 上挂字段会让验收卡在真机上永远显示「这次详情响应里没有验收结果」，
+     * 而两边的单边测试都看不见这条缝（§8.10：请求体有两半）。
+     *
+     * 验收目标由 `profiles` 查询参数给出，缺省是 DSH + Common（规划 §三十五：不默认把全部
+     * 平台约束强加给用户 —— 否则一个对 DSH 完全合法的 Skill 会因为某个平台的额外建议被误判）。
+     *
+     * 传给验收器的是**用户原样给的那串 id**，不是 `resolveSkillProfiles` 的结果：那个函数返回
+     * `{profileIds, unknown}` 而不是数组，把整个对象当 `profileIds` 传下去会被验收器当成「非法
+     * 输入 → 回退默认」，于是 `?profiles=openai` 静默变成 common+dsh。让验收器自己解析还多一件
+     * 事：不认识的 id 会变成结果里的一句说明，而不是被悄悄丢掉。
+     */
+    async function validationFor({ registry, skillName, cwd, scope, searchParams, definition }) {
+      const profilesParam = searchParams.get('profiles')
+      const selection = typeof profilesParam === 'string'
+        ? profilesParam.split(',').map((value) => value.trim()).filter(Boolean)
+        : []
+      // 调用方通常已经读好了定义（两条路由都要它），这里只在没给的时候自己读一次 ——
+      // 同一次请求里读两遍同一份 SKILL.md 会让「两处事实来自不同时刻」变成可能。
+      const view = definition ?? await buildSkillDefinitionView(registry, skillName, { cwd, scope, now: Date.now() })
+      const facts = await validationFacts({ registry, skillName, cwd, scope })
+      const readable = typeof facts.text === 'string'
+      return buildSkillValidation({
+        skillName,
+        // 连 SKILL.md 都读不出来时说「无法判断」，而不是拿 registry 里的正文冒充整份文件
+        // —— 后者会判出「缺少 frontmatter」这种假指控。
+        available: readable ? view.available : false,
+        reason: readable ? view.reason : 'skill-file-unreadable',
+        content: readable ? facts.text : '',
+        truncated: readable ? facts.truncated : false,
+        directoryName: facts.directoryName,
+        resourcePaths: facts.resourcePaths,
+        profileIds: selection.length > 0 ? selection : undefined,
+        now: Date.now(),
+      })
+    }
+
+    /**
      * 差异比较：只读，不写任何东西，也不缓存。
      *
      * 与复刻最重要的区别是**来源变了不是错误**。复刻遇到 `409` 要拒绝，因为它会把一个混合体
@@ -559,6 +692,161 @@ export function apply(ctx, config = {}) {
       return {
         status: 200,
         body: { ok: true, sessionId, skillName, against: againstName, lineage: record, ...diff },
+      }
+    }
+
+    /**
+     * v0.9.1：对话式修改 Skill。一条路由，两个动作。
+     *
+     * - `begin`：读整份 `SKILL.md` + 来源指纹 → 记进**内存**快照 → 请**当前会话的 Agent** 发一条
+     *   带 Modification Contract 的修改任务（`source.kind = 'skill-intelligence-modify'`）。
+     * - `compare`：拿内存里那份「改前」重读一次现在 → `diffSkillModification()` → 释放快照 →
+     *   顺带复用 v0.9.0 的验收（同一份现状文本，不读两遍）。
+     *
+     * 三条纪律写在代码里，而不是只写在文档里：
+     *
+     * 1. **插件不写文件。** 这条路由里没有任何 `writeFile` / `ctx.fs.write` —— 改文件是 Agent 用
+     *    DSH 原生文件工具做的事，走 DSH 自己的权限与审批。插件在这里只读。
+     * 2. **快照只在内存里活着。** 丢了就说「本次修改前状态不可用」，绝不拿现状凑一个假的「改前」。
+     * 3. **消息是用户点了「交给 Agent」之后才发的。** 那条消息的 `source.kind` 标出它的来源，
+     *    运行记录里一眼能看出它不是手打的，也不是插件替用户偷偷说的。
+     *
+     * 返回 `{status, body}`，与 `handleDiff` / `handleClone` 同一套：每条失败路径有自己的状态码。
+     */
+    async function handleModify(body) {
+      const payload = body && typeof body === 'object' ? body : {}
+      const fail = (status, code, error, extra) => ({ status, body: { ok: false, code, error, ...extra } })
+      let sessionId
+      let skillName
+      try {
+        sessionId = requiredSessionId(payload.sessionId)
+        skillName = requiredSkillName(payload.skillName)
+      } catch (error) {
+        return fail(400, 'invalid-request', error.message)
+      }
+      const action = payload.action === 'compare' ? 'compare' : 'begin'
+      const { registry, liveAgent, cwd } = registryContext(sessionId)
+      if (!registry) {
+        return fail(500, 'registry-unavailable', '当前宿主没有挂载 Skill 注册表，读不到 Skill 目录。请重启 DSH 后重试。')
+      }
+
+      if (action === 'compare') {
+        // 「改前」只能来自内存快照。没有就是没有 —— 这时 `diffSkillModification` 会给出
+        // `available: false` + 那句实话，而不是一份看起来像「没有变化」的结果。
+        const snapshot = modificationStore.read({ sessionId, skillName })
+        const facts = await validationFacts({ registry, skillName, cwd, scope: liveAgent })
+        const view = await buildSkillDefinitionView(registry, skillName, { cwd, scope: liveAgent, now: Date.now() })
+        const after = typeof facts.text === 'string'
+          ? { sha256: bodySha256(facts.text), text: facts.text, resources: facts.resourcePaths }
+          : null
+        const before = snapshot && typeof snapshot.text === 'string'
+          ? { sha256: bodySha256(snapshot.text), text: snapshot.text, resources: snapshot.resources }
+          : null
+        const record = await lineageStore.read(skillName)
+        const comparison = diffSkillModification({
+          skillName,
+          scopeIds: snapshot ? snapshot.scopes : [],
+          profileIds: snapshot ? snapshot.profiles : [],
+          before,
+          after,
+          source: {
+            beforeSha256: snapshot ? snapshot.sourceSha256 : null,
+            afterSha256: typeof record?.sourceSourceSha256 === 'string' ? record.sourceSourceSha256 : null,
+          },
+        })
+        // 对比做完就释放：这份「改前」没有理由比这次修改活得更久。
+        const released = modificationStore.release({ sessionId, skillName })
+        // 复用 v0.9.0 的验收，并且把刚读到的现状传下去 —— 同一次请求读两遍同一份 SKILL.md，
+        // 会让「对比看到的」和「验收看到的」来自两个不同的时刻。
+        const validation = await validationFor({
+          registry,
+          skillName,
+          cwd,
+          scope: liveAgent,
+          searchParams: new URLSearchParams(),
+          definition: view,
+        })
+        return {
+          status: 200,
+          body: { ok: true, sessionId, skillName, action, released, comparison, validation },
+        }
+      }
+
+      // ---- begin ----
+      const intent = typeof payload.intent === 'string' ? payload.intent : ''
+      if (intent.trim().length === 0) {
+        return fail(400, 'missing-intent', '请先写一句你希望这个 Skill 怎么改。')
+      }
+      if (!liveAgent || typeof liveAgent.followup !== 'function') {
+        // 没有正在运行的 Agent 就没法「交给它」。这不是 500：会话可能还没起来。
+        return fail(409, 'session-not-live', '当前会话没有正在运行的 Agent，修改任务没有发出去。请先在这个会话里发一条消息，让 Agent 起来后再试。')
+      }
+      const scopes = resolveModificationScopes(payload.scopes)
+      const profiles = resolveSkillProfiles(payload.profiles)
+      const facts = await validationFacts({ registry, skillName, cwd, scope: liveAgent })
+      if (typeof facts.text !== 'string') {
+        return fail(422, 'skill-file-unreadable', `读不到「${skillName}」的 SKILL.md，因此没有记下改前的样子，修改任务也没有发出去。请确认这个 Skill 还在，并重启 DSH 后重试。`)
+      }
+      const view = await buildSkillDefinitionView(registry, skillName, { cwd, scope: liveAgent, now: Date.now() })
+      if (!view.available) {
+        return fail(404, 'unknown-skill', `找不到 Skill「${skillName}」，它可能已经被删除或改名。`, { reason: view.reason })
+      }
+      const record = await lineageStore.read(skillName)
+      const recorded = modificationStore.begin({
+        sessionId,
+        skillName,
+        sourceSha256: typeof record?.sourceSourceSha256 === 'string' ? record.sourceSourceSha256 : null,
+        text: facts.text,
+        resources: facts.resourcePaths,
+        scopes: scopes.scopeIds,
+        profiles: profiles.profileIds,
+      })
+      if (!recorded) {
+        return fail(500, 'snapshot-failed', '没能记下这次修改前的状态，因此不会把修改任务发出去。请重启 DSH 后重试。')
+      }
+      const text = buildModificationMessageText({
+        skillName,
+        intent,
+        scopeIds: scopes.scopeIds,
+        profileIds: profiles.profileIds,
+      })
+      const message = {
+        id: randomUUID(),
+        role: 'user',
+        content: [{ type: 'text', text }],
+        source: { kind: MODIFICATION_SOURCE_KIND },
+      }
+      try {
+        liveAgent.followup(message)
+      } catch (error) {
+        // 发不出去就把快照撤掉：留着一份「改前」而任务根本没出去，界面会以为改完了。
+        modificationStore.release({ sessionId, skillName })
+        const reason = error instanceof Error ? error.message : String(error)
+        return fail(500, 'dispatch-failed', `没能把修改任务发给当前会话：${reason}`)
+      }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          sessionId,
+          skillName,
+          action,
+          dispatched: true,
+          messageId: message.id,
+          sourceKind: MODIFICATION_SOURCE_KIND,
+          scopeIds: scopes.scopeIds,
+          lockedScopeIds: scopes.locked,
+          unknownScopeIds: scopes.unknown,
+          profileIds: profiles.profileIds,
+          unknownProfileIds: profiles.unknown,
+          createdAt: recorded.createdAt,
+          before: {
+            sha256: bodySha256(facts.text),
+            bytes: view.content?.bytes ?? null,
+            lineCount: view.content?.lineCount ?? null,
+            truncated: facts.truncated,
+          },
+        },
       }
     }
 
@@ -1000,11 +1288,22 @@ export function apply(ctx, config = {}) {
               now: Date.now(),
             })
             const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
+            // v0.9.0：验收结果并入**同一个响应**，不新开路由（§6.12 的默认答案是「不加」）。
+            // 计算过程与详情路由共用 `validationFor`，见上面的注释。
+            const validation = await validationFor({
+              registry,
+              skillName,
+              cwd,
+              scope: liveAgent,
+              searchParams: url.searchParams,
+              definition,
+            })
             sendJson(res, 200, {
               ok: true,
               sessionId,
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
               definition,
+              validation,
               observation: compareDefinitionToRun(receipt, skillName, definition),
             })
             return
@@ -1124,11 +1423,24 @@ export function apply(ctx, config = {}) {
             const catalogSnapshot = registry && liveAgent
               ? await buildCatalogSnapshot(registry, cwd, liveAgent)
               : null
+            // v0.9.2：排序要「这个 Skill 什么时候出现在本机」，卡片要「复刻自 X」。这两件事
+            // 都不在目录快照里（快照里每个 Skill 只有名字、描述、provider、指纹与调用方式），
+            // 只有宿主读得到 —— 目录 birthtime 来自文件系统，血缘来自 v0.8 的血缘库。
+            // 两处读盘都不抛错：读不到就是「说不出来」，由 core 记成 limitations。
+            const installed = buildInstalledView({
+              catalogSnapshot,
+              query,
+              addedAtByName: await skillAddedAtByName({
+                names: (Array.isArray(catalogSnapshot?.skills) ? catalogSnapshot.skills : []).map((skill) => skill?.name),
+                roots: await skillRootCandidates({ cwd }),
+              }),
+              lineageByName: await lineageByTargetName(),
+            })
             sendJson(res, 200, {
               ok: true,
               sessionId,
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
-              installed: buildInstalledView({ catalogSnapshot, query }),
+              installed,
             })
             return
           }
@@ -1167,12 +1479,23 @@ export function apply(ctx, config = {}) {
             // framework 一样属于「这个 Skill 是什么」。`null` 表示本插件没有执行过这次复刻
             // —— 手动复制的 Skill 得到的也是 `null`，因为那两件事在事实上没有区别。
             const lineage = await lineageStore.read(skillName)
+            // v0.9.0：验收结果走**这条**路由回界面。详情页读的是 `body.skill`，所以字段必须
+            // 长在 `skill` 里；只在 `/skill-trace/definition` 上挂同级字段的话，验收卡在真机上
+            // 永远只会显示「这次详情响应里没有验收结果」（§8.10：请求体有两半）。
+            const validation = await validationFor({
+              registry,
+              skillName,
+              cwd,
+              scope: liveAgent,
+              searchParams: url.searchParams,
+              definition,
+            })
             sendJson(res, 200, {
               ok: true,
               sessionId,
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
               list,
-              skill: buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage }),
+              skill: buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage, validation }),
             })
             return
           }
@@ -1258,6 +1581,16 @@ export function apply(ctx, config = {}) {
           // `/skill-trace/skill` 回；只有差异是真的要重算（两侧解析 + 行级对比）才值得一条路由。
           if (method === 'GET' && url.pathname === '/skill-trace/diff') {
             const outcome = await handleDiff(url.searchParams)
+            sendJson(res, outcome.status, outcome.body)
+            return
+          }
+
+          // v0.9.1：对话式修改。这是产品里第二条「不是纯读」的路由（第一条是复刻），
+          // 但它**不写文件**：只把「改前」记进内存，再用当前会话的 Agent 发一条带协议的修改任务。
+          // 用户点「交给 Agent」这个动作本身就是授权 —— 插件不是偷偷替用户说话。
+          // 真正的写入由 Agent 用 DSH 原生文件工具完成，走 DSH 自己的权限与审批。
+          if (method === 'POST' && url.pathname === '/skill-trace/modify') {
+            const outcome = await handleModify(await readBody(req))
             sendJson(res, outcome.status, outcome.body)
             return
           }

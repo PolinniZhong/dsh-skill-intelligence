@@ -237,6 +237,9 @@ export function projectSkillEvidence(receipt, skillName) {
  *   fact, not something this function derives: lineage comes from the plugin's own successful
  *   clones, never from similarity, a shared name, or a shared repository. `null` means "this
  *   plugin did not clone this Skill", which is also what a hand-copied Skill honestly is.
+ * @param options.validation - the result of `buildSkillValidation` (v0.9.0), or `null`. It is a
+ *   passed-in fact for the same reason lineage is: the validator needs the live body and the
+ *   directory listing, both of which the host reads, and this function reads nothing.
  */
 export function buildSkillDetail(options = {}) {
   const receipt = options.receipt ?? null
@@ -342,6 +345,10 @@ export function buildSkillDetail(options = {}) {
     repository: view?.repository ?? null,
     // v0.8：血缘是宿主的落盘事实，不是从运行证据推出来的，所以它原样透传。
     lineage: options.lineage ?? null,
+    // v0.9.0：验收结果是宿主算好的规范事实（三态 + 逐条发现），同样原样透传。
+    // 键永远存在（没有时是 `null`）：客户端要靠 `hasOwnProperty` 把「宿主没给这个字段」
+    // 与「这份 Skill 现在读不到」说成两句不同的话（§6.11）。旧宿主才会有键缺失。
+    validation: options.validation ?? null,
     observation,
     limitations,
   }

@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.9.2 — 2026-10-03 · Skill 验收 / Skill Modify / 已安装列表排序
+
+**这一版把三批攒着的改动一次性发出去：V0.9.0「Skill 验收」/ V0.9.1「Skill Modify」/ V0.9.2「已安装列表排序」。** 主线是「Skill 声明得对不对、能不能改、按什么顺序排」。
+
+**发布平台与 `0.8.0` 一致：** GitHub Release（tag `v0.9.2`）与 npm（`beta` 与 `latest` 都指向 `0.9.2`），**同一份构建**；npm 包名仍是 `dsh-skill-trace`，不改名。三批**都没有新增一级或二级页面**——一级仍是「本次 Skill」与「已安装 Skill」，详情页仍是唯一二级页；只多了一条宿主路由（`POST /skill-trace/modify`）与三块界面（静态验收卡、本次修改对比、已安装列表排序）。
+
+发布实测（2026-10-03）：`npm test` **561 项全绿** · `npm run verify` **28 组 OK** · 宿主 **12 条路由**（`src/dsh/host/index.js` 1625 行） · 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节**（source hash `66dd0b76118e7b85`） · `src/core/` **29 个模块 10353 行** · `src/storage/` **6 个 1117 行**。三版**都没有新增一级或二级页面**，一级仍是「本次 Skill」与「已安装 Skill」，详情页仍是唯一二级页。
+
+### 一、V0.9.0「Skill 验收」：这个 Skill 现在符不符合规范
+
+把一件此前只能靠读正文判断的事，做成一屏**确定性事实**：`src/core/skill-profiles.mjs`（590 行）定义五个 Profile —— `common` / `dsh` / `microsoft` / `openai` / `anthropic`，默认勾选 `common` + `dsh`；`src/core/skill-validation.mjs`（1025 行）按规则 id 逐条判定。
+
+- **结论只有三态**：`通过 / 需要修正 / 无法判断`。未知 Profile、读不到正文、规则无法判定一律进「无法判断」，**不往「需要修正」推**；警告（warning）单独列，也不把结论推向「需要修正」。
+- **每条发现都落在「规则 id + 标题」上**（如 `CORE-FM-001`），不是一句模型的评语——这一层**没有任何模型调用**，也不产生分数、百分比或排名。
+- **不新增路由**：`validationFor()` 由 `GET /skill` 与 `GET /definition` 两条既有路由共用，宿主仍是 **11 条**（v0.9.1 之后才是 12 条）。
+- 详情页最上方多一张「Skill 验收」卡，四层顺序因此变成：**验收 → 框架 → 本次运行逻辑 → 步骤证据 → `SKILL.md`**（v0.9.1 又把「本次修改对比」插到验收之后）。
+- 工程数字：守卫 **25 → 26 组**（第 26 条 `SKILL_VALIDATION_OK`）；`npm test` **474 → 510 项**（其中 36 项是这一版新增）；客户端 **2735 → 2910 行**、`dist/client.js` **142672 → 150750 字节**。
+
+### 二、V0.9.1「Skill Modify」：让当前会话的 Agent 去改，插件不代办
+
+这是这个插件**唯一一处会碰会话 Agent** 的地方，也是**第二条「不写文件但不是纯读」的宿主路由**（第一条是 `POST /skill-trace/clone`）。
+
+- **新增第 12 条路由 `POST /skill-trace/modify`，它只做两件事**：把「改前」的 `SKILL.md` 与来源指纹存进**宿主内存**；用**当前会话**的 `agent.followup()` 代发一条 `source.kind='skill-intelligence-modify'` 的消息。**插件自己不写任何文件**——真正改文件的是 Agent 用 DSH 的原生工具，用户点「交给 Agent」这个动作本身就是授权。
+- **快照只在内存里的四条硬边界**：不落盘、不进 receipt、不进 session log、重启即消失；键是 `${sessionId}\u0000${skillName}`，TTL **30 分钟**、上限 **32 条**（`src/storage/modification-snapshot-store.mjs`，157 行）；丢了就直说「本次修改前状态不可用」，**不许造假**。
+- **代发的消息里明确要求「动手之前先说明打算怎么改；拿不准就用提问工具问用户」**，并要求做完后回读改动、在给出验收结论前不要说「改好了」——「提出方案 → 用户确认 → 动手」全部留在原生对话里，插件只提要求，既不代办也不解析回复。
+- **六个修改范围 id**：`skill-md-rules` / `skill-md-workflow` / `skill-md-description` / `references` 可选；`scripts` 与 `assets` 在契约里 **`locked: true`**，不可勾选。范围外的正文改动会被如实报成「超范围」，某个被点名的范围读不出内容时显示**无法判断**（`SECTION_ALIASES` 只按小节标题里的 `rule(s) / 规则 / 约束` 与 `workflow / 流程 / 工作流 / 步骤` 匹配，匹配不上就是匹配不上）。
+- **八条失败路径都有人话**：`invalid-request` / `missing-intent` / `unknown-skill` / `session-not-live` / `skill-file-unreadable` / `registry-unavailable` / `snapshot-failed` / `dispatch-failed`（代发失败先释放快照）。
+- **来源指纹变了只说一句话**：「来源 Skill 在本次修改期间发生变化」——**永远不许说「Agent 修改了来源」**，因为没有直接证据。
+- 界面：详情页「Skill 演进」卡多了 `[修改 Skill]`，打开一个对话框（意图 + 范围 + 验收目标）；没有修改事务时「本次修改对比」整块**不渲染**（常驻的空卡会被读成一种状态）；改完点「对比本次修改」才产生对比，并把新的验收结论顺手带回详情页。
+- 工程数字：守卫 **26 → 27 组**（第 27 条 `SKILL_MODIFICATION_OK`）；`npm test` **510 → 552 项**，登记时又补一条「范围外不重复报」→ **553 项**；客户端 **2910 → 3356 行**、`dist/client.js` **150750 → 167506 字节**。
+- 真机：2026-10-03 用一次**真实的修改**走通了「代发 → Agent 改文件 → 回读」这一段（目标是本机一个 PRD 类 Skill，六处改动落盘并逐条回读，`HISTORY.md` 与 `evals/` 未被触碰）。**插件侧的「对比本次修改」验收结论与 §9.2 那套走查清单还没走。**
+
+### 三、V0.9.2「已安装列表排序」：按「什么时候出现在本机」倒序
+
+需求是一句大白话：**刚复刻出来的那个，应该排在第一个。**
+
+- **规则名 `added-desc-then-name`**（`INSTALLED_ORDERING_RULE`）：按「这个 Skill 什么时候出现在本机」倒序，读不到时间的按名称排在最后；规则名随 `ordering.rule` 下发，**客户端只念不排**。
+- **时间取的是候选根下 Skill 目录的 `birthtimeMs`**，不是 mtime、不是 ctime、也不是文件级 —— 文件级的 mtime 会随每次编辑漂移，那量的是「最后一次改」而不是「加入本机」。三条排除理由与实测都写在 `spec/SDD.md` §20.1。
+- **读不到就说读不到**：69 个 Skill 里有 35 个读不到目录的 birthtime（它们的根目录不在插件的候选根里，且 DSH 给插件的目录记录不携带路径）。列表头因此逐字说「**另有 35 个 Skill 读不到加入时间，按名称排在最后。**」——**不编造时间**，也不用文件时间凑数。响应里新增 `ordering: {rule, addedAtKnown, addedAtUnknown}`，投影新增 `addedAt` 与 `lineage`，`limitations` 新增 `added-at-unavailable` / `added-at-partial` / `lineage-unavailable` 三个码。
+- **卡片元信息只说例外**（`FR-ORD-013`）：日期只到 `MM-DD`（跨年才带年份、**不显示时:分** —— 「谁更新」由顺序回答），有血缘才多一行 `复刻自 X`，**默认成立的调用方式与 `filesystem` 一个字都不写**。这条改法是 2026-10-03 用户看过截图后提的：界面上那两个标签（「模型可调用」「可用 /name 调用」）在 69 个 Skill 上恒为 `true`、一个都不区分，那就只在严格 `=== false` 时出字；`filesystem` 是默认 provider，不写。
+- 新增只读读盘两处（`skillAddedAtByName()` / `skillRootCandidates()`，都在 `src/storage/skill-clone-writer.mjs`，369 → 424 行），**都不抛错**，**路由仍恰好 12 条**。
+- 工程数字：守卫 **27 → 28 组**（第 28 条 `INSTALLED_ORDERING_OK`）；`npm test` **553 → 561 项**；客户端 **3356 → 3448 行**、`dist/client.js` **167506 → 170324 字节**（source hash `66dd0b76118e7b85`）。
+- 渲染台用**真实客户端 bundle + 真实会话载荷**（69 个 Skill、`coverage=complete`）截了图逐字核对：第一行是刚复刻的那个，列表头如实报出那 35 个，整页没有时:分、没有默认标签、没有 `filesystem`。
+- **宿主重启后真机原生返回 `ordering`**（这是渲染台那张截图证明不了、现在由真机探针补上的证据）：真机载荷是 **73 个 Skill / 34 个有时间 / 39 个读不到**——比渲染台那次多出 4 个，且**全是读不到时间的那种**（有时间的仍是 34 个）。拿实现里同一支 `compareInstalledSkills` 在真机响应上重排比对，**逐位一致**：有时间的 34 个在前且递减，无时间的 39 个按名称升序排在末尾。
+
+### 四、真机验收与还没覆盖的一层
+
+以上都是源码文本守卫 + 无头浏览器渲染台 + 一次真实的修改链路。**真机走查（`AGENTS.md` §9.2 那份清单）已于 2026-10-03 由用户逐项确认通过**（宿主半边改过，先重启了 DSH、再硬刷新页面）。真机探针在同一台机器上核对的事实：
+
+- `GET /skill-trace/catalog` **原生返回 `ordering`**：`{"rule":"added-desc-then-name","addedAtKnown":34,"addedAtUnknown":39}`，`limitations:["added-at-partial"]`，`coverage=complete`；
+- 拿 `src/core/installed-view.mjs` 里同一支 `compareInstalledSkills` 在真机响应上重排比对，**逐位一致**；四条不变式全部成立（有时间的都在前、时间递减、无时间的 39 个按名称升序在末尾、`skills.length === totalCount === 73`）；
+- `POST /skill-trace/modify` **在跑的进程里**（空体返回 `invalid-request`，不是 404），四条已删路由（`runtime-graph` / `receipt` / `context-check` / `backup`）仍全部 `404`；
+- 浏览器实际拿到的客户端与本地 `dist/client.js` **只差一行 `sourceMappingURL`**，双方都带构建戳 `66dd0b76118e7b85`，`加入本机` 在、`模型可调用` / `可用 /name 调用` 不在。
+
+仍然没覆盖的两件事：那 **39** 个 Skill 读不到目录 birthtime 的**根因尚未定位**（界面已如实报数，需要 DSH 提供带路径的 Skill 记录才能补上时间）；渲染台脚本里仍留着「宿主没重启时在本地补齐 `ordering`」的临时补丁，所以那张截图**不能**当作「运行中的宿主已返回 `ordering`」的证据（这一条已由上面的真机探针补上）。
+
+### 发布范围与实测
+
+- **这一版装了什么**：新增 1 条宿主路由（`POST /skill-trace/modify`，共 **12 条**）、3 个 `src/core/`
+  模块（`skill-validation.mjs` / `skill-modification.mjs` / `skill-profiles.mjs`）与 1 个 `src/storage/`
+  模块（`modification-snapshot-store.mjs`），外加详情页的两块新界面（静态验收卡、本次修改对比）与
+  已安装列表的排序规则（`added-desc-then-name`）。三批一起走，版本号由用户定为 `0.9.2`。
+- **发布平台**：GitHub Release（tag `v0.9.2`）与 npm（`beta` 与 `latest` 都指向 `0.9.2`），**同一份构建**。
+  npm 包名仍是 `dsh-skill-trace`，不改名。
+- **实测数字**（`npm test` / `npm run verify` / `wc -l` / `wc -c`）：测试 **561 项**全绿 · 守卫 **28 组**
+  全 OK · 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节**
+  （source hash `66dd0b76118e7b85`）· 宿主 `src/dsh/host/index.js` **1625 行 / 12 条路由** ·
+  `src/core/` 29 个模块 10353 行 · `src/storage/` 6 个模块 1117 行 · `dependencies` 仍为空。
+- **实际发布结果**（2026-10-03）：见 `docs/RELEASE.md` §6.0 —— 发布提交 / tag、GitHub Release、
+  npm 的 `gitHead` 与 shasum、净室安装、推送区间都在那张表里。
+
 ## 0.8.0 — 2026-10-02 · Skill 演进：复刻出来的东西，现在能倒着看回去
 
 **这一版是 minor：V0.8「Skill 演进」是主题，另外两件搭同一班车。** 三件互不相干的改动一起发：
@@ -163,7 +234,7 @@
 **这一轮的两个缺陷都是真机 / 走查发现的，不是测试发现的**（§8.8）：老宿主没有 `lineage` 键时被说成
 「不是复刻来的」，以及「还没问」被说成「读不到」。474 项测试在这两处全绿。
 
-用户于 **2026-10-06** 确认真机走查通过（12 个检查点）。被点名确认的四件事是：卡上说「来源内容未发生变化」；
+用户于 **2026-10-02** 确认真机走查通过（12 个检查点）。被点名确认的四件事是：卡上说「来源内容未发生变化」；
 结构 / 内容两层没有任何一行显示成「修改」；资源层恰好四个文件且没有 `SKILL.md`；刷新后第一帧是
 「正在读取来源…」而不是「无法读取来源」。完整清单在 `01_重构方案/v0.8-真机验收清单.md`（本地过程目录，不发布）。
 
@@ -444,7 +515,7 @@ DSH Skill Intelligence helps users understand, reproduce and evolve Agent Skills
 
 > 判据：**被取代的规则要留下痕迹，不能消失。** 直接删掉它，后来的人就看不出「这里曾经立过一条相反的规矩、又被什么推翻了」——那正是 `FR-UI-047` 标题里那句「v0.7 部分取代」想保住的信息。
 
-**③ `AGENTS.md` 的「现在在做什么」补到四段。** 原来只有 `039e275` 与 `0.6.0` 两条，`0.7.0` 的五轮界面收口只在 `CHANGELOG.md` 里，入口文件读起来像这个版本没发生过事。头部「最后更新」由 `2026-10-01` 改为 `2026-10-05`，§1 的数字（`0.7.0` / 429 项 / 23 组 / 2332 行 / 129280 字节 / 10 条路由）**本来就对，没有改**。
+**③ `AGENTS.md` 的「现在在做什么」补到四段。** 原来只有 `039e275` 与 `0.6.0` 两条，`0.7.0` 的五轮界面收口只在 `CHANGELOG.md` 里，入口文件读起来像这个版本没发生过事。头部「最后更新」由 `2026-10-01` 改为 `2026-10-02`，§1 的数字（`0.7.0` / 429 项 / 23 组 / 2332 行 / 129280 字节 / 10 条路由）**本来就对，没有改**。
 
 **故意没动的地方**：`04-product-requirements.md` §18 的 `0.20`–`0.26` 修订行、`docs/RELEASE.md` 的 `0.6.1` 发布表、`README.md` 里 `beta.69` / `0.6.0` / `0.6.1` 的版本史——**它们是各自那一轮的准确记录，改掉才是错。**
 
