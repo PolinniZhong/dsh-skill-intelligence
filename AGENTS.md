@@ -81,6 +81,12 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > `gh workflow run publish-npm.yml -f version=0.8.0`，配好时应当红在 `EPUBLISHCONFLICT` 而不是 `ENEEDAUTH`
 > ——判据表见 `docs/RELEASE.md` §5.2b。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
 > `npm trust github` 只有 `--allow-publish` / `--allow-stage-publish` 两个开关，建出来就没有它，而字段建好不能改。
+>
+> **2026-10-03 实测更正：那张 web-login token 已经失效**（`https://registry.npmjs.org/-/whoami` → **401**），
+> `0.9.2` 最后是用**备份里的旧 GAT** 发布的（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` → 200，
+> 账户级 `/-/npm/v1/user` → 403）——它到 2027-01 前仍能直接 publish。使用时把 token 写进临时 userconfig
+> （`--userconfig=<600 的临时文件>`），**不要覆盖 `~/.npmrc`**。**每次发布前先 `npm whoami`，401 就重新
+> `npm login --auth-type=web`**（§5.1）。完整经过见 `docs/RELEASE.md` §6.0。
 
 ---
 
