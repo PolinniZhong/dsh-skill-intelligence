@@ -290,6 +290,12 @@ run `37091307449`）这次红在 `npm error You cannot publish over the previous
 （当时还没有 `probe` 输入，用的是普通 dispatch，所以那两次都以红色收场；现在同样的验证走 `probe=true`，
 见上面那张表——判为通过时 run 是绿的。）
 
+**2026-10-03 加了探针模式之后的实测：绿色通过。** run `37102903688`（`workflow_dispatch`，sha `b6ce853`，
+14:23 CST 触发，判据步 `success`）：日志里先是 `npm verbose oidc Successfully retrieved and set token`，
+随后 `npm error You cannot publish over the previously published versions: 0.9.2.` —— 该步据此判为通过并打出
+`::notice::OIDC 通了…`；第 10 / 11 步（`发布（latest）` 与 `beta`）显示 `skipped`。**注册表没有被改动**：
+`modified` 仍是 `2026-10-03T02:29:37.688Z`，共 7 个版本，`beta` 与 `latest` 仍指向 `0.9.2`。
+
 同一个 run 还能顺带体检仓库侧：checkout / setup-node / `npm install -g 'npm@^11.5.1'` / 版本号比对 /
 `npm ci` / 本地闸门（`node --check` + `npm test` + `npm run verify`）都应当是绿的（2026-10-02 那次就是如此）。
 它们全绿、只有 publish 红，说明缺的只是 npm 侧那一下开关，而不是 workflow 有问题。
@@ -332,7 +338,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | npm | **`beta` 与 `latest` 都指向 `0.9.2`**（`npm publish` 与 `npm dist-tag add` 都立即返回成功，注册表读侧约 2 分钟内可见）：发布提交**先推**，`gitHead` 就是 `1811d986979423d4b03324293851314ad5665d11`；包名仍是 `dsh-skill-trace`；**44 个文件 / 包体 463.1 kB / 解包 1474857 字节 / shasum `db47bdb987fc2cfb2eaa9c2e8dc4aeb6c6009c02`** |
 | 净室安装 | 空目录 `npm i dsh-skill-trace@0.9.2` 通过：版本 `0.9.2`、`dependencies` 为空、`dist/client.js` **170324 字节**、`src/core/` **29 个 `.mjs`**（含新增的 `skill-profiles.mjs` / `skill-validation.mjs` / `skill-modification.mjs`）、`src/storage/modification-snapshot-store.mjs` 在、宿主入口可 `import`（导出 `apply` / `createSessionMutationQueue` / `name` …） |
 | 推送 / 凭证 | 2026-10-03 探针：四个地址（`20.27.177.113` / `140.82.113.4` / `140.82.121.4` / `140.82.112.3`）此刻全回 `200`；用 `20.27.177.113` 推送成功（`fc12276..1811d98 main -> main`，tag 为新推）。**凭证踩坑**：`~/.npmrc` 里 2026-10-02 换上的 web-login token 已失效（`https://registry.npmjs.org/-/whoami` 回 **401**），本次改用备份里的旧 GAT（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` 200 / 账户级 `/-/npm/v1/user` 403）发布 —— 它到 2027-01 前仍能直接 publish；使用时写进 `/tmp/npmrc-dsh-publish`（`600`，不进仓库），`~/.npmrc` 保持原样。**下一版发布前先跑一次 `npm whoami`，401 就重新 `npm login --auth-type=web`**（§5.1） |
-| CI（`.github/workflows/publish-npm.yml`） | **那天的三条红色 run 都不是「CI 验证失败」，红的只有 `发布（latest）` 这一步**：① `37089810443`（`push` tag `v0.9.2`，02:26:18 UTC，sha `1811d98`）→ `npm error code ENEEDAUTH`，因为那时 npm 侧还没配 trusted publisher —— 真正的发布是随后按上一条用本地凭证做的；② `37091112501`（手动探针 10:49）→ 同样 `ENEEDAUTH`；③ `37091307449`（手动探针 10:52，npm 侧配好之后）→ `cannot publish over the previously published versions: 0.9.2`，**这是成功信号**（OIDC 兑换成功，红只因版本已存在）。三条里的 checkout / setup-node / `npm install -g npm@^11.5.1` / 版本号比对 / `npm ci` / 闸门（`node --check` + `npm test` + `npm run verify`）**全部是绿的**。下一版推 tag 时这条 workflow 会一路走完（publish + `beta`）。 |
+| CI（`.github/workflows/publish-npm.yml`） | **那天的三条红色 run 都不是「CI 验证失败」，红的只有 `发布（latest）` 这一步**：① `37089810443`（`push` tag `v0.9.2`，02:26:18 UTC，sha `1811d98`）→ `npm error code ENEEDAUTH`，因为那时 npm 侧还没配 trusted publisher —— 真正的发布是随后按上一条用本地凭证做的；② `37091112501`（手动探针 10:49）→ 同样 `ENEEDAUTH`；③ `37091307449`（手动探针 10:52，npm 侧配好之后）→ `cannot publish over the previously published versions: 0.9.2`，**这是成功信号**（OIDC 兑换成功，红只因版本已存在）。三条里的 checkout / setup-node / `npm install -g npm@^11.5.1` / 版本号比对 / `npm ci` / 闸门（`node --check` + `npm test` + `npm run verify`）**全部是绿的**。下一版推 tag 时这条 workflow 会一路走完（publish + `beta`）。**根因当天就修掉了**：workflow 加了「版本已在 npm 上 → 跳过发布 + 黄色通知」的判断与 `probe=true` 模式，随后那次探针 run `37102903688`（sha `b6ce853`）**绿色通过**、注册表未被改动（见 §5.2b）。上面这三条红 run 是加判断**之前**的历史记录，`gh run rerun` 也仍会复现旧失败（重跑用的是 `1811d98` 那份旧 workflow），repo 里因此保留它们作为「为什么会红」的原始证据。 |
 
 ### 6.0.1 本次 `v0.8.0` 的实际结果（2026-10-02）
 
