@@ -1,9 +1,9 @@
 # npm 发布 —— OIDC trusted publishing（不再依赖任何长期 token）
 #
-# 状态：**仓库侧已就绪，npm 侧配置还没做**。在那之前，推 v* tag 会让本 job 在 publish
-# 那一步失败（npm 回 ENEEDAUTH）——那时按 docs/RELEASE.md §5.1 在本地用 2FA 会话发布。
+# 状态：**已启用**（2026-10-03 配好并验证：探针红在 EPUBLISHCONFLICT 而非 ENEEDAUTH，即 OIDC 兑换成功）。
+# 推 v* tag 即自动发布，本地不需要任何 npm 凭证；来源与时间线见 docs/RELEASE.md §5.2 / §5.2b。
 #
-# npm 侧要填的四项（只有维护者能在浏览器里点：
+# npm 侧的四项配置是（只有维护者能在浏览器里点：
 # npmjs.com → 包 dsh-skill-trace → Settings → Trusted Publisher）：
 #   Publisher            GitHub Actions
 #   Organization or user PolinniZhong

@@ -76,11 +76,13 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > 配好之前就在本地按 `docs/RELEASE.md` §5.1 发布。**产品内容、包名与版本号都不动**；条款时间线与
 > 备选方案（staged publishing）见 `docs/RELEASE.md` §5.2–§5.4。
 >
-> **npm 侧到 2026-10-02 仍未配好**（功能探针实测：OIDC 兑换 `POST …/oidc/token/exchange/package/dsh-skill-trace`
-> 回 `404 package not found` → `npm error code ENEEDAUTH`）。复验不需要 OTP：用**已发布过的**版本号触发
-> `gh workflow run publish-npm.yml -f version=0.8.0`，配好时应当红在 `EPUBLISHCONFLICT` 而不是 `ENEEDAUTH`
-> ——判据表见 `docs/RELEASE.md` §5.2b。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
+> **npm 侧已于 2026-10-03 配好并验证**：用已发布版本号触发的功能探针（`gh workflow run publish-npm.yml
+> -f version=0.9.2`，run `37091307449`）这次红在 **`EPUBLISHCONFLICT`**（`cannot publish over the previously
+> published versions`）而不是 `ENEEDAUTH` —— 说明 OIDC 兑换成功、trusted publisher 已生效（同一天 10:49
+> 那次还是 `ENEEDAUTH`）。**以后发版 = 改版本号 + 提交 + 打 tag + 推 tag**，workflow 自己跑闸门、发布、
+> 并把 `beta` 指到同一版；本地不再需要任何 npm 凭证。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
 > `npm trust github` 只有 `--allow-publish` / `--allow-stage-publish` 两个开关，建出来就没有它，而字段建好不能改。
+> 判据表见 `docs/RELEASE.md` §5.2b。
 >
 > **2026-10-03 实测更正：那张 web-login token 已经失效**（`https://registry.npmjs.org/-/whoami` → **401**），
 > `0.9.2` 最后是用**备份里的旧 GAT** 发布的（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` → 200，

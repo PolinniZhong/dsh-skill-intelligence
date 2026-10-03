@@ -213,7 +213,7 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 
 临时给 OTP 也可以：`npm publish --otp=<6 位码> --tag latest --cache=/tmp/npm-cache-dsh`。
 
-### 5.2 目标方式：trusted publishing（OIDC）——仓库侧已就绪，等 npm 侧开关
+### 5.2 目标方式：trusted publishing（OIDC）——**2026-10-03 已配好并验证**
 
 仓库里已经有 `.github/workflows/publish-npm.yml`：推 `v*` tag（或手动 `workflow_dispatch` 填版本号）即触发，
 `permissions.id-token: write`，先跑本地闸门（`node --check` / `npm test` / `npm run verify`）再发布；
@@ -246,18 +246,19 @@ npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-skill-trace - Y
 **页面上那句 `Cannot be changed later` 是真的**：`Publisher` 与三个必填字段建好即固定，填错只能删掉重建
 ——所以上表要逐字对。
 
-**在 npm 侧配好之前，推 `v*` tag 会让这个 job 在 publish 那一步失败（`ENEEDAUTH`）。** 所以这一版之后、
-切过去之前的发版仍然按 §5.1 在本地做。切过去之后，§2/§3 不变，只有 §5 从「两条 npm 命令」变成「等 workflow」；
+**npm 侧已于 2026-10-03 配好并验证**（实测记录见 §5.2b）：此后推 `v*` tag 就由这个 workflow 直接发布，
+**本地不再需要任何 npm 凭证**。§2/§3 不变，只有 §5 从「两条 npm 命令」变成「等 workflow」；
 附录 A 的顺序约束**自动满足**——workflow 检出的就是 tag 指向的那个提交，`gitHead` 天然对齐。
+（workflow 自己会比对输入版本与 `package.json` 的 version，不等就 `::error::` 退出。）
 
 ### 5.2b 怎么验「npm 侧配好了没」——不需要 OTP
 
 不用登录网页，用一次**不会改动注册表**的 workflow 运行就能问出答案：
 
 ```bash
-# 用一个**已经发布过的**版本号触发（例如刚发完的 0.8.0）：npm 先认证、再校验版本，
+# 用一个**已经发布过的**版本号触发（例如 0.9.2）：npm 先认证、再校验版本，
 # 于是「认证成没成」与「版本重不重复」在日志里是两个可区分的失败
-gh workflow run publish-npm.yml -f version=0.8.0
+gh workflow run publish-npm.yml -f version=0.9.2
 RID=$(gh run list --workflow publish-npm.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 gh run watch "$RID" && gh run view "$RID" --log > /tmp/oidc-probe.log
 ```
@@ -276,6 +277,11 @@ gh run watch "$RID" && gh run view "$RID" --log > /tmp/oidc-probe.log
 **2026-10-02 的实测结果：`POST …/oidc/token/exchange/package/dsh-skill-trace` 回 `404` +
 `OIDC token exchange error - package not found`，随后 `npm error code ENEEDAUTH`** —— 也就是说，
 那天 npm 侧**一条配置都没有**，`/access` 页面上的表单没有保存成功。
+
+**2026-10-03 的实测结果：配好了。** 同一条探针（`gh workflow run publish-npm.yml -f version=0.9.2`，
+run `37091307449`）这次红在 `npm error You cannot publish over the previously published versions: 0.9.2.`
+（即 `EPUBLISHCONFLICT`）—— OIDC 兑换成功、trusted publisher 生效，红只是因为 `0.9.2` 早已发布
+（**注册表没有被改动**）。同一天 10:49 的那次（run `37091112501`）还是 `ENEEDAUTH`，生效点就在那几分钟之间。
 
 同一个 run 还能顺带体检仓库侧：checkout / setup-node / `npm install -g 'npm@^11.5.1'` / 版本号比对 /
 `npm ci` / 本地闸门（`node --check` + `npm test` + `npm run verify`）都应当是绿的（2026-10-02 那次就是如此）。
