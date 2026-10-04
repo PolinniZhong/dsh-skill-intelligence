@@ -335,12 +335,12 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 项 | 结果 |
 |---|---|
 | 本地门槛 | **590 项测试全绿**；**29 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`），重建后 `git status` 无 `dist` 差异 |
-| 发布提交 / tag | 待发布后填写 |
-| GitHub Release | 待发布后填写 |
-| npm | 待发布后填写（`beta` 与 `latest` 应都指向 `0.10.0`） |
-| 净室安装 | 待发布后填写 |
-| 推送 / 凭证 | 待发布后填写 |
-| CI（`.github/workflows/publish-npm.yml`） | 待发布后填写（推 tag 自动触发；OIDC trusted publishing 已配好） |
+| 发布提交 / tag | `fd9cf03 release: v0.10.0 — Skill 实例验收`（`package.json` `0.10.0`，2026-10-05 07:45:50 +0800，**7 个文件 / +69 −54**）= `origin/main`；tag `v0.10.0` → 注释对象 `ae5c08a9f3b32af100d87135305293616d545c20`，解引用到 `fd9cf03e04218358553021e99215cb48ee7d4e9c`（打在发布提交上，符合规则） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.10.0>（2026-10-04T23:48:02Z 发布，`Latest`、非 prerelease、非 draft），正文取 `CHANGELOG.md` 的 `## 0.10.0` 段（14 行） |
+| npm | **`beta` 与 `latest` 都指向 `0.10.0`**（由推 tag 触发的 CI 自己发布，不是本地 `npm publish`；`npm view` 从 `0.9.2` 变为 `0.10.0` 约用 3 分钟，符合历史传播延迟）：发布提交**先推**，`gitHead` 就是 `fd9cf03e04218358553021e99215cb48ee7d4e9c`；包名仍是 `dsh-skill-trace`；**45 个文件 / 包体 507865 字节（≈496 kB）/ 解包 1596043 字节 / shasum `fb58339bd51f9b34279d28ad9c8dfb6fff47696b`**；npm 记了 **provenance**（sigstore `logIndex=3078941896`） |
+| 净室安装 | 空目录 `npm i dsh-skill-trace@0.10.0` 通过：版本 `0.10.0`、`dependencies` **为空**、`dist/client.js` **189256 字节**（与本地构建同口径）、`src/core/` **30 个 `.mjs`**（含这一版新增的 `skill-instance-test.mjs`）、`src/storage/` **6 个**、宿主入口可 `require`（导出 `apply` 等）；**`test/` 不随包发布** |
+| 推送 / 凭证 | 2026-10-05 探针：`github.com` 直连**超时**（`Failed to connect to github.com port 443 after 75013 ms`），改用 `--resolve` 逐个试：`20.27.177.113` → **200**、`140.82.112.3` → **200**、当天 DNS 给出的 `20.205.243.166` → **连不上**；最终 `git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push` 成功（`b1c4e6c..fd9cf03 main -> main`，tag 为新推）。**本地一个 npm 凭证都没用到**（OIDC trusted publishing 自己发布）——§5.1 那张旧 GAT 与 web-login token 这次都没碰 |
+| CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37245035576](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37245035576)（`push`，分支 `v0.10.0`，2026-10-04T23:47:40Z，**24 秒，绿**）：闸门全过 → `发布（latest）` → `+ dsh-skill-trace@0.10.0`（并把 provenance 发到 sigstore）→ `第二个标签` → `+beta: dsh-skill-trace@0.10.0`。**这一版没有出现过红 run**：版本在 npm 上不存在，走的是真正的 publish 分支（不是「跳过发布 + 黄色通知」那条路） |
 
 ### 6.0.1 本次 `v0.9.2` 的实际结果（2026-10-03）
 
