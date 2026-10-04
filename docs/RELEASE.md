@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**`0.9.2`（V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」三批改动）已于 2026-10-03 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前没有待发布版本**：发布提交之后工作区干净，`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1 六处都已是 `0.9.2` 口径。下一版的版本号按 `AGENTS.md` §2 仍**由用户定**，不要自己开。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
+**`0.9.2`（V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」三批改动）已于 2026-10-03 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前待发布的是工作树里的 V0.10.0「Skill 实例验收」**（`package.json` 仍是 `0.9.2`，`CHANGELOG.md` 的 `## Unreleased` 就是它；见 `AGENTS.md` §1）。下一版的版本号按 `AGENTS.md` §2 仍**由用户定**，不要自己开；发布会话要把它 bump 成用户定的号。`0.9.2` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
 
 > **`0.9.2` 的发布扫描（2026-10-03）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
 > `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.9.2` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`
@@ -24,6 +24,8 @@
 | 远端最新 tag | `v0.9.2`（打在发布提交上） |
 | npm | `beta` 与 `latest` **都指向 `0.9.2`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
 | 工作区 | 干净（`git status --porcelain` 无输出） |
+
+**当前实测（2026-10-03 晚；接手发布前先读这一段）**：HEAD = `b1c4e6c`（比 `origin/main` **领先 1 个提交**，尚未推送），远端最新 tag 仍是 `v0.9.2`，npm 上 `beta` / `latest` 仍是 `0.9.2`；工作区只剩 `spec/PRD.md` 未提交——V1.0 路线评审通过的部分已写进它，等 V0.10.0 发版时一起按 `AGENTS.md` §9.1 同步。**上表是 `0.9.2` 发布当天那一刻的快照，不是今天的状态。**
 
 **版本号：下一版仍由用户定，不要自己开**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。发版那天要做的是把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题——`0.9.2` 这次两件事都是这么做的（见 `CHANGELOG.md` 的 `## 0.9.2`）。
 

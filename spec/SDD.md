@@ -1302,7 +1302,7 @@ V0.8 只回答一个问题：**我把一个 Skill 复刻成自己的版本以后
 - **变异测试 15 条全部被抓，且各自红在对的那条断言上**，其中与本节直接相关的：`MS-DIR-001` 降级 / DSH 里塞目录名规则 / `CORE-BODY-001` 升级 / 验收器加第二支 import / 状态多一个取值 / 验收器里出现 `skills.register` / 面板少一个 `data-role` / 面板里出现「已完成」/ `needs-fix` 分支被短路 / 详情响应去掉 `validation` / 宿主不调用验收器 / 宿主交正文而不是整份文件 / `buildSkillDetail` 不透传 / 对象当 children / 参数名与调用处不一致。
   - 客户端变异**必须重建 `dist/client.js`，并在这条变异之后把 dist 也还原**：bundle 新鲜度是「源码哈希烙在 bundle 里」，不还原就会让后面每条断言先红在「bundle 过期」上（第一轮变异测试正是这样被骗过去的：11 条看着全红，其实只有 3 条跑到了断言）。
 - **真机探针**（`/tmp/probe2.mjs`，走真实目录）：真实宿主 Skill `cordis-plugin-development` 在**五个 Profile 全开**下是干净的 `pass`（唯一 info 是「没有 `agents/openai.yaml`」，OpenAI 把它列为 recommended；两条 `compatibility` 规则因字段不存在而 `skipped`）。**`ui-craft` 的真发现**：`CORE-REF-002`——`SKILL.md` 里有一条 Markdown 链接指向 `../../examples/animation-storyboard.md`，确实逃出了 Skill 根目录。
-- **真实渲染台**：`01_重构方案/render-harness/`（`node build.mjs && node capture-cdp.mjs val-detail "act=skill-item"`）截出的详情页里，验收卡排在框架之上，Profile 行显示 `Common Core 需要修正` / `DSH 通过`——**同一份 Skill、两个平台两种结论**的现场。
+- **真实渲染台**：`01_重构方案/render-harness/`（`node build.mjs && node capture-cdp.mjs val-detail "act=skill-item"`）截出的详情页里，验收卡排在框架之上，Profile 行显示 `Common Core 需要修正` / `DSH 通过`——**同一份 Skill、两个平台两种结论**的现场。（截图存于 `01_重构方案/render-harness/shots/impl-val-detail.png`，1600×1050：`Common Core 需要修正`、`DSH 通过` 与那条 `CORE-REF-002` 错误都在图上。）
 
 ### 18.8 分层与下一步
 

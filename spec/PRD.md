@@ -2,13 +2,13 @@
 
 > **这份文件是什么**：DSH Skill Intelligence（DSH Skill 智能实验室）**当前版本的产品语义唯一权威**。目标、业务对象、状态语义、范围、功能需求与验收标准都以本文件为准；技术实现以 `spec/SDD.md` 为准，界面视觉与组件以 `design.md` 为准。
 >
-> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 `0.9.2` 为真的事实与工作树里未发版的 V0.10.0，不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
+> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 `0.9.2` 为真的事实、工作树里未发版的 V0.10.0，以及**明确标注「计划，未实现」的 V1.0 路线**——§5.13 的 `FR-EVAL-*` 与 §12.2 的路线块；不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
 >
 > **一句话职责**：把「这次对话加载了哪些 Skill」与「这台机器上有哪些 Skill」变成两个可读页面，点进唯一的详情页，看这个 Skill **声明了什么**，以及本次会话**观察到了什么**。它是**只读观察者**。
 >
 > **版本与实测状态**：插件包 `dsh-skill-trace` 已发布的版本是 **`0.9.2`**（2026-10-03：GitHub Release 与 npm 是同一份构建，npm 的 `beta` 与 `latest` 均指向它）。这一版把三批改动合成一个版本发出去：**V0.9.0「Skill 验收」**（§5.9 的 `FR-VAL-*`）、**V0.9.1「Skill Modify」**（§5.10 的 `FR-MOD-*`）与 **V0.9.2「已安装列表排序」**（§5.11 的 `FR-ORD-*`）——三批都不新增一级或二级页面，只多了一条宿主路由（`POST /skill-trace/modify`，共 12 条）与三块界面（静态验收卡、本次修改对比、已安装列表排序）。**实测值**：自动化测试 **561 项**（`npm test`）· 静态契约守卫 **28 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节** · 宿主路由 **12 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。发布后的实测结果见 `docs/RELEASE.md` §6.0。**工作树（未发版）另有 V0.10.0「Skill 实例验收」**（§5.12 的 `FR-INST-*`，`package.json` 仍是 `0.9.2`），最新实测：自动化测试 **590 项** · 静态契约守卫 **29 组** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· `src/core/` **30 个模块 / 10924 行** · 宿主路由**仍是 12 条**（实例验收不新增路由）。
 >
-> **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **860 行 / 116817 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
+> **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **897 行 / 129640 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
 >
 > **发布状态（2026-10-03）**：V0.9.0「Skill 验收」、V0.9.1「Skill Modify」与 V0.9.2「已安装列表排序」的实现**已随 `0.9.2` 发布**（GitHub Release 与 npm，2026-10-03；tag `v0.9.2`，npm 的 `beta` 与 `latest` 都指向它）。三批**均已通过真机验收**（2026-10-03 用户逐项确认：宿主重启后 `POST /skill-trace/modify` 与 `/skill-trace/catalog` 都在跑的进程里，列表排序四条不变式在真机载荷上逐条成立）。发布实测：自动化测试 **561 项** · 静态契约守卫 **28 组** · 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节** · 宿主路由 **12 条**（第 12 条是 §5.10 的 `POST /skill-trace/modify`；§5.9 的验收与 §5.11 的排序**都没有**新增路由）· `src/core/` **29 个模块 / 10353 行** · `src/storage/` **6 个模块 / 1117 行**。工作树另有 **V0.10.0「Skill 实例验收」**（§5.12 的 `FR-INST-*`），**未发版**。
 
@@ -60,6 +60,8 @@
 ### 1.3 产品定位
 
 DSH Skill Intelligence 不负责安装、启停、更新、市场或自动路由 Skill。它以 Skill 为一级对象只读呈现：**这次对话用了哪些 Skill**、**本机 / 当前作用域能发现哪些 Skill**；点进任意一张卡，看这个 Skill 的摘要、定义事实、仓库来源与逐字 `SKILL.md` 原文。
+
+**V1.0 起定位扩展到四个动作：理解 / 修改 / 验证 / 实验 Skill**（计划中，未实现，见 §5.13）。这里的「**实验**」有严格边界：它是**可重复的本地记录与对照**——同一份任务 Prompt 可以反复运行，每次运行的条件与可观察事实并排摆出来；**不是**插件替你调用模型、替你跑任务，也不是替你判定结果。
 
 它记录加载证据，不判断因果：
 
@@ -151,6 +153,8 @@ DSH Skill Intelligence 不负责安装、启停、更新、市场或自动路由
 - **除「中文阅读版」外不做任何模型调用**：翻译只把**当前 Skill 的定义正文**发给用户自己配置的 DSH 模型一次，不发送会话 Prompt、Tool 内容、Cookie 或 credential；
 - 不把用户数据上传给开发者或第三方；不实现遥测、云同步、收据上传或远程分析；
 - 不修改、不耦合 `dsh-visual-acceptance`：两者独立安装、独立关闭、独立维护，运行时没有调用关系，也没有共享 Store。
+- **不产出任何聚合指标**（V1.0 起继续成立，见 §5.13 `FR-EVAL-012`）：断言通过率、n 次通过次数、平均分、稳定性百分比、方差与标准差、Skill Score、排名与趋势图**一律不许出现**——断言只逐条列，对照只并排摆事实；
+- **不做 benchmark 排名**，不做跨 Skill / 跨模型横向榜，也**不拿两个不同任务的运行结果互相对比**（§5.13 `FR-EVAL-013`）。
 - **V0.8 明确不做**（见 §5.7）：Skill Marketplace、GitHub Skill 搜索、自动筛选或 AI 推荐「优秀 Skill」、Skill 评分 / 排名 / 质量分、Skill IDE、Markdown 编辑器、自动改写或自动优化 Skill、A/B 行为测试、Baseline / With-Skill 实验、自动回归测试、自动运行 Skill 或 `scripts/`、自动发送 `/name`、自动执行当前会话；也不新增学习工作台 / 笔记 / 复习队列、不新增 Marketplace 页面、不新增 Skill 资产后台、不新增第二套 Skill Registry / 调用引擎 / Agent Runtime、不为本版本新增强制 Agent Mode。**质量评价与行为归因整体留给 V0.9+**——V0.8 只为「演进」建立可靠的事实基础（血缘 + 确定性差异）。
 
 ---
@@ -213,6 +217,8 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 两个一级页面是**同级但语义不同**的两个页面，不是同一个列表的两种筛选，**数据源不得互相借用**。
 
 **没有 `Advanced` 组。** 运行流程 / 运行图谱 / Skill 收据 / 上下文检查器 / 声明流程面板 / 跨会话学习工作台已在信息架构收敛中整体删除，**不得以折叠区、次级标签或「更多」菜单的形式复活**；15 条已删宿主路由与 `buildRuntimeGraph` / `computeRuntimeLayout` / `buildCatalogView` 由契约守卫反向钉住。
+
+**评测不新增页面**（V1.0，计划中，未实现，见 §5.13）：Skill Evaluation 只在**详情页内**作为「本次修改对比 → 实例验收」之后的一段出现，**不新建「测试中心」或「评测仪表盘」**，不新增一级 / 二级页面，不新增导航项。
 
 ### 4.2 详情页的四层顺序
 
@@ -511,10 +517,10 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 
 `FR-INST-*` 回答的是**「我刚刚改的这个 Skill，在一个真实任务里有没有按照预期工作？」**——这是**人在一个干净会话里做的验收**。插件负责**生成一个针对这次修改的真实测试任务与观察项**并交给用户；**它不运行 Skill、不读结果、不判定成功**。
 
-三层必须分清：**静态 Skill 验收**（§5.9：结构、格式、资源、平台约束对不对）→ **Skill 实例验收**（本节：这次修改在真实任务里是否按预期工作）→ **Skill Evaluation**（V1.0+：多任务、多条件、Baseline / With Skill 对比下是否稳定提升；本版**不做**）。
+三层必须分清：**静态 Skill 验收**（§5.9：结构、格式、资源、平台约束对不对）→ **Skill 实例验收**（本节：这次修改在真实任务里是否按预期工作）→ **Skill Evaluation**（V1.0+：把实例验收升级成可重复的 Case 与 Run，并把同一个 Case 的 Before / After 并排摆出来；**不做分数与「稳定提升」这类结论**，方差只以「哪些事实一致、哪些不一致」的形式出现在 V1.1；本版**不做**）。
 
 - **`FR-INST-001`**：**生成与判定分家。** 插件只做两件事：生成测试任务与观察项、把静态验收结论摆出来。运行 Skill、观察实际结果、判定是否达到预期，全部由**用户在新会话里**完成。插件**不自动运行、不等待、不读结果、不判定、不打分**。
-- **`FR-INST-002`**：能力名统一为 **「Skill 实例验收」（Skill Instance Test）**。**不许**使用 Skill Run / Skill Execute / Skill Benchmark / Skill Evaluation / Skill 自动测试 / Skill 质量评分——本版做的不是评测系统。
+- **`FR-INST-002`**：能力名统一为 **「Skill 实例验收」（Skill Instance Test）**。**本版（V0.10.0）不许**把这一块叫 Skill Run / Skill Execute / Skill Benchmark / Skill Evaluation / Skill 自动测试 / Skill 质量评分——本版做的不是评测系统。**`Skill Evaluation` 这个名字留给 V1.0 的正式能力**（§5.13），V0.10 不许借用；反过来，V1.0 也只能用这个名字，不许改口叫「评分」「打分」「评测分数」。
 - **`FR-INST-003`**：**只针对「本次修改」生成。** 必须已经有一次修改事务（即「本次修改对比」可用）时这一块才有意义；没有修改事务时**整段不渲染**（与 `FR-MOD-011` 同一条 gate：常驻的空卡会被读成一种状态）。首版**不做**「对任意已安装 Skill 生成泛化测试」。
 - **`FR-INST-004`**：**「基于修改生成」是硬要求，不许退化成通用模板。** 生成的输入必须综合：用户修改意图 + 修改范围（scope）+ 修改前后 diff + 当前 `description` + 框架（Framework）+ 静态验收结论。界面上要说的是「**针对你刚才修改的 Skill，这个任务可以直接验证修改是否生效**」，而不是一条通用的 Skill 使用示例。
 - **`FR-INST-005`**：**测试 Prompt 与观察项物理分离，且 Prompt 不许反过来教 Agent。** 复制给 Agent 的那段正文里**不得出现**：本次 diff 的变更小节标题、范围（scope）标签、「本次修改」「你刚才修改了……」这类元话语、`SKILL.md` 里的步骤名或答案。否则等于在 Prompt 里把 Skill 该怎么做重新讲一遍，测的就不是 Skill。**这条要做成测试守卫。**
@@ -531,7 +537,7 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 - **`FR-INST-016`**：**模型只能在「生成测试任务 / Prompt」这件事上参与**，不许参与自动运行、自动判断、打分或宣布有效。当前架构没有合适的模型调用入口时，第一版**优先复用现有能力**，不为它新建一套模型调用基础设施。
 - **`FR-INST-017`**：界面位置固定在详情页主列的 **Skill Evolution → 本次修改 → 本次修改对比 → 实例验收**，作为「本次修改对比」卡**内部的下一段**；只有 `comparison` 存在时才出现。**不新建「测试中心」**，不新建一级 / 二级页面。
 - **`FR-INST-018`**：**诚实边界。** diff 读不到、静态验收落到「无法判断」、框架读不到时，逐项进 `unavailable` / `limitations` 并说清缺的是哪一项；**不产出一个看起来完整的 Prompt**。
-- **`FR-INST-019`**：**本版不做**（属于 V1.0 的 Skill Evaluation）：Test History、Benchmark、Baseline / With Skill 对比、自动评分、自动成功判断、多轮自动回归、Evaluation Dashboard；也**不把实例测试结果自动接回** Skill Detail。未来的 Runtime Trace 才是这条路线的运行证据层，本版只留结构入口。
+- **`FR-INST-019`**：**本版不做**，把运行证据层留给 V1.0 的 Skill Evaluation（§5.13）。要分清 V1.0 **会做**什么与**永远不做**什么：**会做**——运行历史（可重复的 Case 与 Run 记录）、Baseline / With Skill 与 Before / After 对照、四段证据与逐条断言；**不做**——Benchmark 排名、自动评分、自动成功判断、Evaluation Dashboard、「Skill Score」这类标量结论（`FR-EVAL-012` / `FR-EVAL-014` 已把它们写死为禁止项，不属于「以后再说」）。本版也**不把实例测试结果自动接回** Skill Detail。
 - **`FR-INST-020`**：**终验判据**（用户原话）：**必须能证明「生成出来的 Prompt 真的是针对这次修改的」，而不是做了一个漂亮的通用测试 Prompt 生成器。**
 - **`FR-INST-021`**：**生成器是一支零依赖纯函数**（`src/core/skill-instance-test.mjs`）：不 `import`、不读文件系统、不访问网络、**不调用模型**、不执行 Agent、不改 Skill、**不持久化测试历史**、不读时间也不掷骰子——同一份输入永远得到逐字节相同的结果。只有这种形态，「生成的 Prompt 真的针对这次修改」才是**可断言、可守卫、可复核**的（`FR-INST-020` 的前提）。模块同时导出 `buildSkillInstanceTest` 与规格里那个建议名 `buildInstanceTest`（别名）。
 - **`FR-INST-022`**：**六项输入逐项如实记录，界面要看得见。** 结果里必须带一份 `trace`：这次生成**真正在场**的那几项输入（用户修改意图 / 修改范围 / 修改前后对比 / Skill 描述 / 框架 / 静态验收结论，顺序固定、不在场的不列）与**主范围从哪来**（用户意图点名了某个**确实被改动过**的范围时听意图，否则按固定优先级取第一个改过的范围）。详情页的「这个任务是怎么来的」要把这两句话念出来——这是把研发侧的「可追溯」变成用户能读的一行字。
@@ -539,6 +545,35 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 - **`FR-INST-024`**：**回归约束优先来自框架（Framework）的声明能力**，并排除「标题被本次 diff 触及」或「角色对应到被改动的范围」的小节（范围 → 角色的映射由 `INSTANCE_TEST_SCOPE_ROLES` 固定）；框架里一条都取不到时才退回 `SKILL.md` 正文的二级小节，并如实注明这次是从正文取的。**缺框架不使生成不可用**，只进 `limitations`（不可用只有四种情形：没有本次修改对比、对比不可用、改动没落在可测范围、读不到 Skill 正文）。
 - **`FR-INST-025`**：**卡面结构与抬头固定**：`验证目标`（一句话说明验证的是「本次修改是否改变了这个 Skill 的实际行为」）→ `本次修改`（沿用 §5.10 的范围标签）→ `测试 Prompt`（可滚动的正文 + `[复制测试 Prompt]`）→ 建议在新会话运行 → `预期观察点` → `回归约束` → 「这个任务是怎么来的」（折叠）。只有 `comparison` 存在时才渲染，且**没有生成前一个 Prompt 都不画**。
 - **`FR-INST-026`**：**任务句是一句指派，不是一段描述；过长的文字按词边界截断。** `【任务】` 不许整句照搬 Skill 的 `description`（那样读起来像「这个 Skill 是干什么的」），要写成「请完成下面这件真实工作，要真的做出来，不要只讲怎么做：…」这类**指派**口吻；描述本身过长时走同一个 `clip()` **按词边界**截断（找得到空格就从最后一个完整词后断开，中文没有词间空格才退回按字符截），**不许切出 `…to avo.` 这种半个单词**。回归约束那句引用声明能力时同样走 `clip()`。
+
+### 5.13 Skill Evaluation（`FR-EVAL-*`，V1.0，计划中，未实现）
+
+> **这一节是路线与需求，不是现状。** 下面每一条在实现、守卫与真机验收之前，**都不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备**。它的价值在于：在动手之前把「这一版不做评分器」这句话拆成可执行的边界。
+>
+> **外部依据（逐条核过原文，2026-10-03）**：`SWE-Skills-Bench`（arXiv 2603.15401）实测 **49 个公开 SWE Skill 里 39 个对通过率零增益，平均只有 +1.2%，3 个把表现拖低最多 10%，token 开销最高 +451%**；综述 `Agent Skill Evaluation and Evolution`（arXiv 2606.11435）指出既有指标「忽略 token 成本、延迟与错误类型」，且 §4 明确 **no existing benchmark evaluates evolution longitudinally**。官方生态里把评测闭环放进 Skill Creator 的是 **Anthropic**（`anthropics/skills` 的 `skills/skill-creator/SKILL.md`：`eval` / `baseline` / `with-skill` / `assertion` / `variance` / `trigger eval` 都在，带 `aggregate_benchmark.py` / `run_eval.py` / `grader.md` / `comparator.md`）；**OpenAI** 的 `skill-creator/SKILL.md` 只有 `quick_validate.py` 与「按真实使用迭代」，**没有**任何评测闭环。
+
+- **`FR-EVAL-001`**：**V1.0 要把 V0.10 的一次性实例验收升级成可重复的实验与对照。** V0.10 生成的那份任务 Prompt 用完就散落在会话里；V1.0 让它成为一个**可以反复使用的 Case**，并把每次运行的条件与可观察事实并排摆出来。**这一版仍然不做评分器**——见 `FR-EVAL-014`。
+- **`FR-EVAL-002`**：**四个模块的落地顺序固定**：**Evaluation Case → Evaluation Run → Comparison → Runtime Evidence**。证据层是**解释层**，最后做；否则界面会先长出位置、再没有事实可填。
+- **`FR-EVAL-003`**：**Evaluation Case 的对象定义**：`{caseId, 任务 Prompt（沿用 §5.12 的四块结构与全部禁用词纪律）, 预期观察点（≤6 条疑问句）, 回归约束, 生成器版本, skillFingerprint, scopeIds}`。`caseId` 必须是**纯函数**：`sha256(任务 Prompt + Skill 指纹 + scopeIds + 生成器版本)`——**不含时间、不含随机数、不含会话 id**。哈希由**宿主层**计算（生成器保持 `FR-INST-021` 的零 `import`，不自己引 `node:crypto`），但生成器输出的那几项内容必须**足以唯一决定** `caseId`。否则「可重复」只是一句愿望。
+- **`FR-EVAL-004`**：**Case 与生成它的那一版 Skill 绑定，且不许说「过期」。** Skill 再改一次后，旧 Case 的标注是「针对 `<该版指纹>` 的 Case」，**不许**写「已过期 / 已失效」——它测的是那一版的行为，历史事实不会过期；新 Case 是**另一个 Case**，不是旧 Case 的替代品。
+- **`FR-EVAL-005`**：**Case 仍由确定性生成器产出，不引入模型生成 Case。** §5.12 `FR-INST-021` 的全部约束（零依赖纯函数、不 `import`、不读文件系统、不访问网络、不调用模型、不读时间、不掷骰子）继续生效；V1.0 只**多记一份 `生成器版本`**，不改生成方式。
+- **`FR-EVAL-006`**：**Evaluation Run 记录的就是实验条件**：`{runId, caseId, 开始时间, turn / step 游标, provider, model, reasoningEffort, DSH 版本, 插件版本, observedInstructionSha256, currentInstructionSha256, match, 加载证据（status / callSeq / resultSeq）, runtimeEvents 汇总}`。**字段名沿用源码**（`src/core/source-snapshot.mjs:179-181` 的 `observedInstructionSha256` / `currentInstructionSha256` / `match`），不另起名字。**缺项一律写 `unavailable`，不许用默认值或推断值填补**——这一版的全部可信度都建立在「缺就承认缺」上。
+- **`FR-EVAL-007`**：**模型与 Provider 是新增的读取点，只读元数据。** 来源是会话事件里的 `request/context`（`{provider, model, contextWindow}`）与 `request/header.header.config`（`LlmCallConfig {provider, model, reasoningEffort}`）；**只读这几个字段**，不读 prompt 正文、不读工具参数与结果内容（`AGENTS.md` §6.9 继续生效）。**命名必须分开**：LLM 运行侧的 provider 与 Skill **来源** provider（`filesystem` 等）不得共用一个词，界面上要能一眼看出哪个是「模型」，哪个是「Skill 从哪来」。
+- **`FR-EVAL-008`**：**DSH 版本今天还没有已验证的读取方式，实现前必须先定下来并实测。** 插件位置**解析不到** `@deepseek-ai/dsh`：2026-10-03 在真机路径上实测 `createRequire(插件文件)('@deepseek-ai/dsh/package.json')` → `MODULE_NOT_FOUND`（`~/.dsh/profiles/core-020/node_modules/dsh-skill-trace` 是指向工作树的符号链接，向上查找链里没有这个包），所以**不许**照抄「运行时能直接 require 到版本」这个结论。候选路径：读运行 profile 的 `package.json` / 其 `node_modules/@deepseek-ai/dsh/package.json`（`DSH_HOME` 在宿主里可得），或由宿主注入版本常量。**定不下来或读不到就写 `unavailable`**——这条是「同一个 Skill 在两台机器上结果不同」唯一能自查的线索，宁可承认没有。
+- **`FR-EVAL-009`**：**时间优先取事件自带的时间**：事件信封的 `time`（epoch ms）为准，`Date.now()` 只在缺失时兜底。`turn` / `step` 是**日志顺序游标**，界面与文档都**不得**把它说成时间或「第几轮对话」。
+- **`FR-EVAL-010`**：**Runtime Evidence 的四段固定为 Trigger → Load → Use → Outcome，每段只说它够得着的话**：
+  - **Trigger**：这次会话里 DSH **向模型提供过**这个 Skill（`catalogPublished`）——这是事实，不是推断；
+  - **Load**：**在 seq N 拿到了指令正文**，附 `sha256` 与文件指纹 `match` / `mismatch` / `unavailable`——这是**协议级证据**，但它只证明「这些字节进入了模型可见对话」，**不证明模型采用了它**；
+  - **Use**：本次运行里出现了哪些工具活动（**仅元数据，无参数无结果**）以及用户 / Agent 的陈述；**不许**写成「模型用了它」；
+  - **Outcome**：**只能来自用户判定或 Agent 自报**，逐条标来源，**插件不判定**。
+- **`FR-EVAL-011`**：**三条不等式做成界面上的固定说明句**（不能只写在文档里）：「**加载 ≠ 使用**」「**使用 ≠ 结果**」「**结果 ≠ 这个 Skill 造成的**」。理由与 `FR-INST-011`、`FR-INST-012` 同源：不能因为最后成功就说这个 Skill 有效。
+- **`FR-EVAL-012`**：**断言（Assertion）逐条列出，每条三个字段**：`陈述` + `结论（通过 / 未通过 / 无法判断）` + `来源（协议事实 / 用户判定 / Agent 自报）`。**禁止任何聚合**：断言通过率、n 次通过次数、平均分、稳定性百分比、方差与标准差、Skill Score、排名、趋势图**一律不许出现**（与 §2.3 同一条）。
+- **`FR-EVAL-013`**：**Comparison 只许「同一个 Case」的两轴**：**Before Skill vs After Skill**（同一 Case、同一 Skill 的两个版本）与 **Baseline vs With Skill**（同一 Case、同一模型条件，有 / 无该 Skill）。**禁止**把两个不同任务、两个不同 Case 的运行并排比。界面要回答的是用户原话那串问题：「同一个任务下，改前发生了什么、改后发生了什么、Skill 有没有加载、运行时看到了什么、哪些断言通过、哪些仍无法判断」——而不是「Skill Score 87」。
+- **`FR-EVAL-014`**：**不做评分器（这条是整个版本的护栏）**。理由不是「不想做」，而是**外部证据不支持标量判断**：49 个公开 SWE Skill 里 39 个零增益、平均 +1.2%、3 个负增益、token 开销最高 +451%（`FR-EVAL-001` 上方引文）。所以本产品只做**证据链**：哪次运行、什么条件、加载了什么、观察到了什么、哪些断言通过、哪些仍无法判断。**任何形式的「Skill 好 / 坏」「有没有用」标量结论都不许出现。**
+- **`FR-EVAL-015`**：**不自动跑。** 不自动创建会话、不自动发送 Prompt、不自动重复 n 次、不读回模型回复正文、不由插件调用模型做任何判定。运行由**用户在新会话里**完成，插件只负责记录与对照（继承 `FR-INST-013`）。
+- **`FR-EVAL-016`**：**存储与路由需要明确授权（V1.0 开工前必须先拿到）。** Case 与 Run 要**落盘**，就需要**一个新的本机存储**（沿用 `docs/PRIVACY.md` 的 `0700` 目录 / `0600` 文件 / 临时文件 + 原子 rename / 禁字段清单）与**一条新的 POST 路由**（届时同步 `docs/PRIVACY.md`、`spec/SDD.md` §3 与 §11 与契约守卫）。`sessionId` 不进落盘内容；跨会话对照用 `caseId + runId`。**这是 V0.8 以来第一次新增落盘内容（用户的任务正文与用户判定），不得在未获授权的情况下实现。**
+- **`FR-EVAL-017`**：**保留与清理策略必须与 V1.0 一起定**：run 历史的条数上限、按 Case 清理、按 Skill 清理、以及删除后残留什么。否则 V1.3+ 的逐版演进评测面对的是一堆无主数据。
+- **`FR-EVAL-018`**：**后续版本边界（避免混版）**：**V1.1** = Skill Regression / Variance，把**多 Case 套件 × 重复 n 次**的意义限定在「**哪些事实一致、哪些不一致**」，**不给方差数值、不给稳定性分数**；**V1.2** = Skill Trigger Evaluation，`should-trigger` / `should-not-trigger` 场景集，「被提供」「被加载」可测，「该不该触发」由用户判定；**V1.3+** = Skill Evolution Evaluation，沿血缘逐版对照来回答「这个 Skill 有没有在一轮轮反馈里变好」——综述指出这一格**目前没有任何 benchmark 在做**，方向由 `FR-EVAL-017` 的数据保留策略支撑。
 
 ---
 
@@ -792,7 +827,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 
 ### 12.1 PRD Gate（本文件自身的完备性）
 
-产品承诺与竞品非重复边界明确；五层业务事实、加载状态与三个对象域无混用；业务框架、信息架构与证据状态语义和功能需求一致；范围、非目标、异常、隐私与风险完整；一级页面恰好两个、二级页面恰好一个、无 `Advanced` 已冻结；详情返回按钮文案由来源 state 派生已冻结；中文阅读版的只读、绑定 `sourceSha256`、结构保留、明示出网、失败可见与**本机资产边界**已冻结；偏好 `PREFERENCES_VERSION = 3`、词汇恰好 `current` / `installed`、无版本号与 v0.5 词汇归一化为 `current` 已冻结。
+产品承诺与竞品非重复边界明确；五层业务事实、加载状态与三个对象域无混用；业务框架、信息架构与证据状态语义和功能需求一致；范围、非目标、异常、隐私与风险完整；一级页面恰好两个、二级页面恰好一个、无 `Advanced` 已冻结；详情返回按钮文案由来源 state 派生已冻结；中文阅读版的只读、绑定 `sourceSha256`、结构保留、明示出网、失败可见与**本机资产边界**已冻结；偏好 `PREFERENCES_VERSION = 3`、词汇恰好 `current` / `installed`、无版本号与 v0.5 词汇归一化为 `current` 已冻结。**V1.0 起的路线（§5.13 `FR-EVAL-*` 与 §12.2 的路线块）全部带「计划，未实现」标注，且「不产出任何聚合指标」已写进 §2.3 非目标与 `FR-EVAL-012` 两处。**
 
 ### 12.2 自动化 Gate（当前状态）
 
@@ -807,6 +842,8 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 **`0.9.2`（`FR-VAL-*`、`FR-MOD-*` 与 `FR-ORD-*`，2026-10-03 发布）**：`npm test` **561 项通过** · `npm run verify` **28 组 OK** · `dist/client.js` **170324 字节** · 宿主路由 **12 条**（第 12 条是 §5.10 的 `POST /skill-trace/modify`；验收与排序都没有新增路由）· 客户端 3448 行 · `src/core/` 29 个模块 10353 行 · `src/storage/` 6 个模块 1117 行。上表是 `0.8.0` 发布时口径。
 
 **`V0.10.0`（`FR-INST-*`，工作树，未发版）**：`npm test` **590 项通过** · `npm run verify` **29 组 OK** · `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· 客户端 3625 行 · `src/core/` 30 个模块 10924 行 · 宿主路由**仍是 12 条**（实例验收**没有**新增路由；原计划的 `POST /skill-trace/instance-test` 已取消，见 `FR-INST-015`）。
+
+**`V1.0` 及以后（路线，全部为「计划，未实现」）**：`V1.0` **Skill Evaluation**（§5.13 的 `FR-EVAL-*`，18 条）：单 Case 可重复运行 + 同 Case 的 Before / After 或 Baseline / With Skill 对照 + 四段证据与来源分级，**无任何分数**，需要一个新的本机存储与一条新路由（`FR-EVAL-016`，待授权）→ `V1.1` **Skill Regression / Variance**：多 Case 套件 × 重复 n 次，只呈现「哪些事实一致、哪些不一致」→ `V1.2` **Skill Trigger Evaluation**：`should-trigger` / `should-not-trigger` 场景集 → `V1.3+` **Skill Evolution Evaluation**：沿血缘逐版对照。**这四档一行代码都还没写**，不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备。
 
 守卫断言的是**源码文本层**的事实，因此它们必须真的跑到那条分支：客户端文案断言跑在「去掉英文字典之后」的源码上（一句只活在 `const EN = { … }` 里的文案不算存在——曾经有 45 条断言因此长期空转）。**改守卫时问一句：这条断言失败过吗？如果它写成 `true` 会怎样？**
 
