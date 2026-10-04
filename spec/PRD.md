@@ -1,16 +1,16 @@
-# DSH Skill Intelligence · DSH Skill 智能实验室 · 产品需求文档（当前版 0.9.2）
+# DSH Skill Intelligence · DSH Skill 智能实验室 · 产品需求文档（当前版 0.10.0）
 
 > **这份文件是什么**：DSH Skill Intelligence（DSH Skill 智能实验室）**当前版本的产品语义唯一权威**。目标、业务对象、状态语义、范围、功能需求与验收标准都以本文件为准；技术实现以 `spec/SDD.md` 为准，界面视觉与组件以 `design.md` 为准。
 >
-> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 `0.9.2` 为真的事实、工作树里未发版的 V0.10.0，以及**明确标注「计划，未实现」的 V1.0 路线**——§5.13 的 `FR-EVAL-*` 与 §12.2 的路线块；不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
+> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 `0.10.0` 为真的事实，以及**明确标注「计划，未实现」的 V1.0 路线**——§5.13 的 `FR-EVAL-*` 与 §12.2 的路线块；不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
 >
 > **一句话职责**：把「这次对话加载了哪些 Skill」与「这台机器上有哪些 Skill」变成两个可读页面，点进唯一的详情页，看这个 Skill **声明了什么**，以及本次会话**观察到了什么**。它是**只读观察者**。
 >
-> **版本与实测状态**：插件包 `dsh-skill-trace` 已发布的版本是 **`0.9.2`**（2026-10-03：GitHub Release 与 npm 是同一份构建，npm 的 `beta` 与 `latest` 均指向它）。这一版把三批改动合成一个版本发出去：**V0.9.0「Skill 验收」**（§5.9 的 `FR-VAL-*`）、**V0.9.1「Skill Modify」**（§5.10 的 `FR-MOD-*`）与 **V0.9.2「已安装列表排序」**（§5.11 的 `FR-ORD-*`）——三批都不新增一级或二级页面，只多了一条宿主路由（`POST /skill-trace/modify`，共 12 条）与三块界面（静态验收卡、本次修改对比、已安装列表排序）。**实测值**：自动化测试 **561 项**（`npm test`）· 静态契约守卫 **28 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节** · 宿主路由 **12 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。发布后的实测结果见 `docs/RELEASE.md` §6.0。**工作树（未发版）另有 V0.10.0「Skill 实例验收」**（§5.12 的 `FR-INST-*`，`package.json` 仍是 `0.9.2`），最新实测：自动化测试 **590 项** · 静态契约守卫 **29 组** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· `src/core/` **30 个模块 / 10924 行** · 宿主路由**仍是 12 条**（实例验收不新增路由）。
+> **版本与实测状态**：插件包 `dsh-skill-trace` 已发布的版本是 **`0.10.0`**（2026-10-05：GitHub Release 与 npm 是同一份构建）。这一版是 **V0.10.0「Skill 实例验收」**（§5.12 的 `FR-INST-*`）：只有存在一次真实的本次修改时，详情页「本次修改对比」卡里才会出现 `[生成实例验收]`，按这次改动生成一份**确定性**的测试 Prompt 与一组**疑问句**观察项——插件只生成、不运行、不判定、不评分，也**不新增路由**（宿主仍是 12 条）、不新增页面。**实测值**：自动化测试 **590 项**（`npm test`）· 静态契约守卫 **29 组**（`npm run verify`）· 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· `src/core/` **30 个模块 / 10924 行** · 宿主路由 **12 条** · `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。发布后的实测结果见 `docs/RELEASE.md` §6.0。上一版 `0.9.2`（V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」，2026-10-03）的发布口径是 561 项测试 / 28 组守卫 / 客户端 3448 行 / bundle 170324 字节。**工作树里的 V1.0「Skill Evaluation」只是路线**（§5.13 的 `FR-EVAL-*`，逐条标注「计划，未实现」）。
 >
-> **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **897 行 / 129640 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
+> **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **897 行 / 129381 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
 >
-> **发布状态（2026-10-03）**：V0.9.0「Skill 验收」、V0.9.1「Skill Modify」与 V0.9.2「已安装列表排序」的实现**已随 `0.9.2` 发布**（GitHub Release 与 npm，2026-10-03；tag `v0.9.2`，npm 的 `beta` 与 `latest` 都指向它）。三批**均已通过真机验收**（2026-10-03 用户逐项确认：宿主重启后 `POST /skill-trace/modify` 与 `/skill-trace/catalog` 都在跑的进程里，列表排序四条不变式在真机载荷上逐条成立）。发布实测：自动化测试 **561 项** · 静态契约守卫 **28 组** · 客户端 `src/dsh/client/client.js` **3448 行** · bundle `dist/client.js` **170324 字节** · 宿主路由 **12 条**（第 12 条是 §5.10 的 `POST /skill-trace/modify`；§5.9 的验收与 §5.11 的排序**都没有**新增路由）· `src/core/` **29 个模块 / 10353 行** · `src/storage/` **6 个模块 / 1117 行**。工作树另有 **V0.10.0「Skill 实例验收」**（§5.12 的 `FR-INST-*`），**未发版**。
+> **发布状态（2026-10-05）**：**V0.10.0「Skill 实例验收」已随 `0.10.0` 发布**（GitHub Release 与 npm，2026-10-05；tag `v0.10.0`）。这一版**已通过真机验收**（2026-10-05 用户逐项确认 28 条检查点全部通过：没有修改事务时整块不出现、`[生成实例验收]` 只在此后出现、Prompt 四块与观察项物理分离、任务句按词边界截断、全屏无证据禁用词、生成不调模型）。发布实测：自动化测试 **590 项** · 静态契约守卫 **29 组** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节** · 宿主路由 **12 条**（这一版**没有**新增路由）· `src/core/` **30 个模块 / 10924 行** · `src/storage/` **6 个模块 / 1117 行**。上一版 `0.9.2` 的发布实测见 `docs/RELEASE.md` §6.0.1。
 
 ### 目录
 
@@ -513,7 +513,7 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 
 ### 5.12 Skill 实例验收（`FR-INST-*`）
 
-> **本节是 V0.10.0 的工作树增量，尚未发版**（用户 2026-10-03 给出的 V0.10.0 规格；本节只写产品语义，技术契约见 `spec/SDD.md` §21）。它**不新增页面、不新增导航、不新增 Route、不新增第二套 Agent Runtime**。
+> **本节是 V0.10.0 的规格，已随 `0.10.0` 发布**（用户 2026-10-03 给出的 V0.10.0 规格；本节只写产品语义，技术契约见 `spec/SDD.md` §21）。它**不新增页面、不新增导航、不新增 Route、不新增第二套 Agent Runtime**。
 
 `FR-INST-*` 回答的是**「我刚刚改的这个 Skill，在一个真实任务里有没有按照预期工作？」**——这是**人在一个干净会话里做的验收**。插件负责**生成一个针对这次修改的真实测试任务与观察项**并交给用户；**它不运行 Skill、不读结果、不判定成功**。
 
@@ -841,7 +841,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 
 **`0.9.2`（`FR-VAL-*`、`FR-MOD-*` 与 `FR-ORD-*`，2026-10-03 发布）**：`npm test` **561 项通过** · `npm run verify` **28 组 OK** · `dist/client.js` **170324 字节** · 宿主路由 **12 条**（第 12 条是 §5.10 的 `POST /skill-trace/modify`；验收与排序都没有新增路由）· 客户端 3448 行 · `src/core/` 29 个模块 10353 行 · `src/storage/` 6 个模块 1117 行。上表是 `0.8.0` 发布时口径。
 
-**`V0.10.0`（`FR-INST-*`，工作树，未发版）**：`npm test` **590 项通过** · `npm run verify` **29 组 OK** · `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· 客户端 3625 行 · `src/core/` 30 个模块 10924 行 · 宿主路由**仍是 12 条**（实例验收**没有**新增路由；原计划的 `POST /skill-trace/instance-test` 已取消，见 `FR-INST-015`）。
+**`V0.10.0`（`FR-INST-*`，已随 `0.10.0` 发布 2026-10-05）**：`npm test` **590 项通过** · `npm run verify` **29 组 OK** · `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· 客户端 3625 行 · `src/core/` 30 个模块 10924 行 · 宿主路由**仍是 12 条**（实例验收**没有**新增路由；原计划的 `POST /skill-trace/instance-test` 已取消，见 `FR-INST-015`）。
 
 **`V1.0` 及以后（路线，全部为「计划，未实现」）**：`V1.0` **Skill Evaluation**（§5.13 的 `FR-EVAL-*`，18 条）：单 Case 可重复运行 + 同 Case 的 Before / After 或 Baseline / With Skill 对照 + 四段证据与来源分级，**无任何分数**，需要一个新的本机存储与一条新路由（`FR-EVAL-016`，待授权）→ `V1.1` **Skill Regression / Variance**：多 Case 套件 × 重复 n 次，只呈现「哪些事实一致、哪些不一致」→ `V1.2` **Skill Trigger Evaluation**：`should-trigger` / `should-not-trigger` 场景集 → `V1.3+` **Skill Evolution Evaluation**：沿血缘逐版对照。**这四档一行代码都还没写**，不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备。
 

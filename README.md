@@ -130,7 +130,7 @@ flowchart LR
 从 GitHub 安装（锚定本次发布的 tag）：
 
 ```bash
-dsh plugin --profile web add "github:PolinniZhong/dsh-skill-intelligence#v0.9.2&path:/"
+dsh plugin --profile web add "github:PolinniZhong/dsh-skill-intelligence#v0.10.0&path:/"
 ```
 
 或从 npm 安装（npm 上现在最新的就是 `0.9.2`，`beta` 与 `latest` 都指向它）：
@@ -143,7 +143,7 @@ dsh plugin --profile web add dsh-skill-trace@0.9.2
 
 > 当前功能已通过本地链接安装的 Desktop 验证。`dsh plugin add` 会把包名参数转交 pnpm 解析，所以 npm 包名与 `github:` 源两种写法都可用；如未来 DSH 更新导致源安装行为变化，可使用下方的克隆安装作为回退方式。
 >
-> npm v12 起 `--allow-git` 默认是 `none`。上面两条命令走的是 `dsh plugin`（pnpm 通道），不受影响；只有直接用 **npm** 从 git 装（`npm i github:PolinniZhong/dsh-skill-intelligence#v0.9.2`）才需要加 `--allow-git=all`。本包 `dependencies` 为空、没有任何安装脚本，所以**不需要** `npm approve-scripts` 放行。
+> npm v12 起 `--allow-git` 默认是 `none`。上面两条命令走的是 `dsh plugin`（pnpm 通道），不受影响；只有直接用 **npm** 从 git 装（`npm i github:PolinniZhong/dsh-skill-intelligence#v0.10.0`）才需要加 `--allow-git=all`。本包 `dependencies` 为空、没有任何安装脚本，所以**不需要** `npm approve-scripts` 放行。
 
 ### 2. 跑一次真实任务
 
@@ -188,9 +188,9 @@ dsh plugin --profile web remove dsh-skill-trace
 
 ## 当前状态
 
-当前公开版为 `0.9.2`——GitHub Release（tag `v0.9.2`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 都指向它。这一版把三批改动一起发出去：**V0.9.0「Skill 验收」**、**V0.9.1「Skill Modify」**与 **V0.9.2「已安装列表排序」**，逐条见 [CHANGELOG.md](CHANGELOG.md) 的 `## 0.9.2`。发布口径：**561 项测试 · 28 组守卫 · 12 条路由 · 客户端 3448 行 · bundle 170324 字节**。
+当前公开版为 `0.10.0`——GitHub Release（tag `v0.10.0`）与 npm 上是**同一份构建**。这一版是 **V0.10.0「Skill 实例验收」**（`FR-INST-*`）：只有存在一次真实的本次修改时，详情页「本次修改对比」卡里才会出现 `[生成实例验收]`，按这次改动生成一份**确定性**的测试 Prompt 与一组**疑问句**观察项；插件只生成、不运行、不判定、不评分。逐条见 [CHANGELOG.md](CHANGELOG.md) 的 `## 0.10.0`。发布口径：**590 项测试 · 29 组守卫 · 12 条路由 · 客户端 3625 行 · bundle 189256 字节**。上一版 `0.9.2`（V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」）的发布口径是 561 项测试 · 28 组守卫 · 客户端 3448 行 · bundle 170324 字节。
 
-**工作树另有未发版的 V0.10.0「Skill 实例验收」**（`package.json` 仍是 `0.9.2`）：在详情页「本次修改对比」卡里按这次改动生成一份确定性的测试 Prompt 与观察项，你自己复制到新会话里跑——插件**不运行、不判定、不打分**，也**不新增路由**（工作树实测：**590 项测试 · 29 组守卫 · 客户端 3625 行 · bundle 189256 字节**）。逐条见 [CHANGELOG.md](CHANGELOG.md) 的 `## Unreleased`。
+**V1.0「Skill Evaluation」是路线，不是现状**（[spec/PRD.md](spec/PRD.md) §5.13 的 `FR-EVAL-001`–`018`，每一条都标注「计划，未实现」）：把这次临时生成的实例验收任务升级成可以反复使用的**评测 Case**，记录每次运行的条件（Skill 指纹 / Prompt 指纹 / 模型 / 版本），并做**同一个 Case** 的两侧对照（改前 vs 改后、Baseline vs With Skill）——**不给分、不排名、不做 benchmark**，也不新增页面。
 
 上一版 `0.8.0`（**V0.8「Skill 演进」**：复刻出来的副本与它的来源，现在可以比对了）：GitHub Release（tag `v0.8.0`）与 npm 上是**同一份构建**，npm 的 `beta` 与 `latest` 在它发布时都指向它。这一版加了**一条宿主路由**（`GET /skill-trace/diff`，共 11 条）、**三个模块**（`src/core/skill-lineage.mjs`、`src/core/skill-diff.mjs`、`src/storage/skill-lineage-store.mjs`）与**两块界面**（详情页左栏的「Skill 演进」卡，以及它打开的「Skill 差异」面板），并把此前两笔攒着的改动一起带上——「Skill 洞察」短显示名与「复刻 Skill」的请求体缺陷修复。npm 包名仍是 `dsh-skill-trace`，`/skill-trace/*` 路由、模块名与存储结构一个字没动。中间跳过的 `0.5.0` 与 `0.6.0` **只在 GitHub**，所以 npm 的版本号从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1` 与 `0.8.0`。信息架构没动，四层仍是：框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md` 原文与中文阅读版。一级页面仍是两个——「本次 Skill」与「已安装 Skill」，两者点进同一个二级页「Skill 详情」，返回键写明是从哪个列表进来的。运行流程、运行图谱、Skill 收据、上下文检查器与「我的 Skill」学习工作台自 `0.5.0` 起保持删除状态，连同只服务于它们的 `elkjs` 与 `@xyflow/react` —— 相比它们还在时的 3536 行，客户端源码现在是 **2735 行**，bundle **142672 字节**，宿主路由 **11 条**。
 
@@ -227,7 +227,7 @@ dsh plugin --profile web remove dsh-skill-trace
 `0.4.0-beta.13` 加入**运行图谱画布**——插件里的第三个视图，也是 `beta.5` 以来第一次改动界面。按重构方案的硬约束**先量后决**：本机 56 个真实会话的图谱规模是**中位 61 节点、p90 915、最大 1095**，比扁平画布能承受的量大一个数量级，所以**分组是模型的一部分，不是事后优化**。三条规则依次生效：单个 Turn 超过 12 次调用→按能力折叠；会话超过 36 个 Turn→折成区间；单层超过 26 行→换列。它们把画布稳定压在 **200 节点以内、约 1036px 高**，56 个会话**无一超限**（布局耗时中位 0.3ms，最差 15ms）。
 
 布局是图的纯函数：不存坐标、不记视口与缩放、不改动图本身——同一份收据永远画出同一张图，所以重绘不会被误读成新证据。**检查器**逐节点/逐边回答"这条线为什么存在"，每条关系都同时给出**含义**与**它不表示什么**（`follows` 是日志顺序不是因果；规则派生的 `spawns` 归属不是宿主事实；`retries` 不代表重试更接近成功），并携带 `causal/compliance/correctness: false` 的证据边界。画布只发计数不发 id 列表，细节按需重新推导——最大会话的响应从 **481KB 降到 145KB**（中位 21KB）。
-上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.9.2`）。
+上面的逐版说明只写到 `0.4.0-beta.13`，**完整历史见 [CHANGELOG.md](CHANGELOG.md)**（当前已到 `0.10.0`）。
 以下是 `beta.14` 以来的主线：
 
 - **`beta.14`–`beta.30`**：`My Skills` 目录页、指纹预留结构、五层运行时模型（会话 → Turn → 能力 → 调用 → 结果）、
@@ -329,7 +329,7 @@ dsh plugin --profile web remove dsh-skill-trace
   bundle 142672 → 170324 字节（source hash `f53a7ac5965b38b0` → `66dd0b76118e7b85`），测试 474 → **561**，
   守卫 25 → **28 组**，宿主路由 11 → 12 条。三批的**真机走查已过**（2026-10-03）；**GitHub Release 与 npm
   同时发布**，npm 的 `beta` 与 `latest` 都指向 `0.9.2`
-- **`V0.10.0`（工作树，未发版）**：**Skill 实例验收**——在详情页「本次修改对比」卡里按这次改动生成一份确定性的测试 Prompt 与观察项（`src/core/skill-instance-test.mjs`，571 行、零依赖，客户端第 8 支 `require`），Prompt 与观察项**物理分离**，插件**不运行、不判定、不打分**、**不新增路由**。客户端 3448 → 3625 行，bundle 170324 → 189256 字节（source hash `66dd0b76118e7b85` → `faed5e9cef7db24c`），测试 561 → **590**，守卫 28 → **29 组**，宿主 1625 行 / 12 条路由不变
+- **`V0.10.0`（2026-10-05）**：**Skill 实例验收**——在详情页「本次修改对比」卡里按这次改动生成一份确定性的测试 Prompt 与观察项（`src/core/skill-instance-test.mjs`，571 行、零依赖，客户端第 8 支 `require`），Prompt 与观察项**物理分离**，插件**不运行、不判定、不打分**、**不新增路由**。客户端 3448 → 3625 行，bundle 170324 → 189256 字节（source hash `66dd0b76118e7b85` → `faed5e9cef7db24c`），测试 561 → **590**，守卫 28 → **29 组**，宿主 1625 行 / 12 条路由不变
 
 ### Layout Contract：为什么嵌入插件不能按视口高度布局
 
@@ -365,7 +365,7 @@ npm run verify
 npm pack --dry-run
 ```
 
-当前工作树包含 **590** 组自动化测试（`0.9.2` 发布口径是 561 组），覆盖事件归并、来源快照、Schema 迁移、收据与偏好持久化、已安装 Skill 投影、并发原子写、清空维护屏障、Host 隐私策略、DSH 会话格式 V3/V4 的 `tool/result` 契约、Phase 0 观测面、Phase 1 运行事件模型、Phase 2 关联与出处（SDD §17.4 假关系测试）、Phase 3 对齐（双通道声明抽取、证据状态语义、"证据不足≠没有执行"、泛化证据只记 partial、无评分守卫）、Skill Runtime Scope（同 Turn 结构边界、同一 Turn 两次加载都判 unlinked、拒绝时间相邻）、定义视图（frontmatter 解析、ATX 标题目录与行号、仓库来源四种解析路径、凭据型 remote 整条拒绝、绝对路径不外泄、定义指纹三态比对）、**v0.6 信息架构**（两个一级页面、共用的二级详情页、返回键跟随来源、已安装投影不含绝对路径与定义正文、列表不触发全文加载、已安装卡片整张可点且这个页面不多一个按钮）、**中文阅读版的边界**（只读、按 `sourceSha256` 绑定、围栏与路径逐字保留、违规检测；v0.7 追加：持久化键不含会话、八类禁止字段一律拒绝写入、`0700`/`0600` 与原子 rename、重启后仍能取到、指纹或语言不匹配读作「没有」而旧文件仍在、精确三字段删除、`pruneVersions` 保留最新、损坏 JSON 只计入告警不抛错）与**声明流程的证据词表**（五档与 `ALIGNMENT_RELATIONSHIPS` 一一对应、八个禁用词一个都不许出现在界面里、未知关系兜底成「无法判断」而不是「没有证据」、`intent-supported` 不得与 `partial` 同句），以及 GFM 表格（表头 + 分隔行才算一张表、setext 的 `---` 不是分隔行、对齐语法、单元格内的行内代码与链接、`\|` 还原、表格不吞邻居段落、围栏里的伪表格不被渲染）与翻译侧的形状校验（行列数与分隔结构变了就判 `table`，但掩码被破坏仍必须报 `placeholder`——否则用户会去改一张没坏的表）、**复刻 Skill**（三个真实目录的解析与排序、扁平文件不算 bundle、整包选取与上限、符号链接绝不跟进副本、同名不覆盖且不先删后写、半途失败要清掉目录、回读校验比对 frontmatter 名字、`400`/`409`/`422`/`500` 分档、`409` 分得清「源变了」还是「名字被占了」、响应里永远没有绝对路径、非本机请求先 403 再谈别的）、Layout Contract（根规则不得被困在媒体查询内、高度链禁用视口单位、括号配平）、Hooks 顺序（同一组件内 hook 不得排在提前 return 之后，含单行与花括号换行两种形状的反例）与 §25 逐条验收（`test/phase25-v06-acceptance.test.mjs`）。以上命令不替代完整的 DSH Desktop 端到端回归；发布流程见 [发布清单](docs/RELEASE.md)。
+当前包含 **590** 组自动化测试（`0.9.2` 发布口径是 561 组），覆盖事件归并、来源快照、Schema 迁移、收据与偏好持久化、已安装 Skill 投影、并发原子写、清空维护屏障、Host 隐私策略、DSH 会话格式 V3/V4 的 `tool/result` 契约、Phase 0 观测面、Phase 1 运行事件模型、Phase 2 关联与出处（SDD §17.4 假关系测试）、Phase 3 对齐（双通道声明抽取、证据状态语义、"证据不足≠没有执行"、泛化证据只记 partial、无评分守卫）、Skill Runtime Scope（同 Turn 结构边界、同一 Turn 两次加载都判 unlinked、拒绝时间相邻）、定义视图（frontmatter 解析、ATX 标题目录与行号、仓库来源四种解析路径、凭据型 remote 整条拒绝、绝对路径不外泄、定义指纹三态比对）、**v0.6 信息架构**（两个一级页面、共用的二级详情页、返回键跟随来源、已安装投影不含绝对路径与定义正文、列表不触发全文加载、已安装卡片整张可点且这个页面不多一个按钮）、**中文阅读版的边界**（只读、按 `sourceSha256` 绑定、围栏与路径逐字保留、违规检测；v0.7 追加：持久化键不含会话、八类禁止字段一律拒绝写入、`0700`/`0600` 与原子 rename、重启后仍能取到、指纹或语言不匹配读作「没有」而旧文件仍在、精确三字段删除、`pruneVersions` 保留最新、损坏 JSON 只计入告警不抛错）与**声明流程的证据词表**（五档与 `ALIGNMENT_RELATIONSHIPS` 一一对应、八个禁用词一个都不许出现在界面里、未知关系兜底成「无法判断」而不是「没有证据」、`intent-supported` 不得与 `partial` 同句），以及 GFM 表格（表头 + 分隔行才算一张表、setext 的 `---` 不是分隔行、对齐语法、单元格内的行内代码与链接、`\|` 还原、表格不吞邻居段落、围栏里的伪表格不被渲染）与翻译侧的形状校验（行列数与分隔结构变了就判 `table`，但掩码被破坏仍必须报 `placeholder`——否则用户会去改一张没坏的表）、**复刻 Skill**（三个真实目录的解析与排序、扁平文件不算 bundle、整包选取与上限、符号链接绝不跟进副本、同名不覆盖且不先删后写、半途失败要清掉目录、回读校验比对 frontmatter 名字、`400`/`409`/`422`/`500` 分档、`409` 分得清「源变了」还是「名字被占了」、响应里永远没有绝对路径、非本机请求先 403 再谈别的）、Layout Contract（根规则不得被困在媒体查询内、高度链禁用视口单位、括号配平）、Hooks 顺序（同一组件内 hook 不得排在提前 return 之后，含单行与花括号换行两种形状的反例）与 §25 逐条验收（`test/phase25-v06-acceptance.test.mjs`）。以上命令不替代完整的 DSH Desktop 端到端回归；发布流程见 [发布清单](docs/RELEASE.md)。
 
 ## FAQ
 

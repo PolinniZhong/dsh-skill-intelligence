@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased — V0.10.0「Skill 实例验收」（工作树，未发版）
+## 0.10.0 — 2026-10-05 · Skill 实例验收
 
 **这一版把「刚改的 Skill 在真实任务里到底有没有按预期工作」做成一屏可以交给 Agent 去跑的任务。** 它落在详情页「本次修改对比」卡里：只有存在一次真实的本次修改时，才出现 `[生成实例验收]`——按这次改动的范围与当前 `SKILL.md` 生成一份**确定性**的测试 Prompt（同一份输入永远得到同一份 Prompt），连同「预期观察点」一起交给用户；用户复制 Prompt、去一个新的 DSH 会话里跑，自己看结果。
+
+**发布实测（2026-10-05）**：`npm test` **590 项全绿** · `npm run verify` **29 组 OK** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· `src/core/` **30 个模块 / 10924 行** · `src/storage/` **6 个 1117 行** · 宿主 **12 条路由**（`src/dsh/host/index.js` 1625 行，这一版一字未改）。发布平台与 `0.9.2` 一致：GitHub Release（tag `v0.10.0`）与 npm 是同一份构建，npm 包名仍是 `dsh-skill-trace`。发布结果见 `docs/RELEASE.md` §6.0。
 
 - 新模块 `src/core/skill-instance-test.mjs`（**571 行，零依赖纯函数**），客户端第 8 支 `require`；**不调模型、不读时钟、不掷骰子、不落盘**，同一份输入永远得到逐字节相同的结果。任务句不照搬 `description`，而是写成一句真实的指派；过长的文字走 `clip()` **按词边界**截断（此前会切出 `…to avo.` 这种半个单词）。
 - **两个产物物理分离**：`prompt.text` 交给 Agent（四块：任务 / 工作目标 / 输出要求 / 注意），`observations` 交给用户（全是疑问句，一个字都不进 Prompt——否则等于在 Prompt 里重新教 Agent 该怎么做）。
