@@ -22,6 +22,7 @@ import { buildRuntimeEvidence, caseHashInput } from '../src/core/skill-evaluatio
  */
 
 const SESSION_ID = 'session-evaluation-route'
+const PACKAGE_VERSION = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).version
 
 function caseRecord(overrides = {}) {
   return {
@@ -237,6 +238,9 @@ test('run-capture：读不到会话日志时，条件与工具活动都是 unava
   assert.equal(run.provider, 'unavailable')
   assert.equal(run.contextWindow, 'unavailable')
   assert.equal(run.dshVersion, 'unavailable', 'FR-EVAL-008：DSH 版本没有已验证的读取方式')
+  // 插件版本要真的读到自己那份 `package.json`。路径少写一级会**静默**变成 `unavailable`
+  // （`require` 抛错被 try/catch 吞掉）—— 2026-10-05 真机探针就是这样抓到它的。
+  assert.equal(run.pluginVersion, PACKAGE_VERSION, '插件版本必须来自包根那份 package.json')
   // 关键的一条：日志没找到 ⇒ 工具活动是「拿不到」，不是「0 次」。
   assert.equal(run.runtimeEvents.available, false)
   assert.equal(run.runtimeEvents.total, 0)

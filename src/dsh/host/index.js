@@ -113,7 +113,9 @@ const require = createRequire(import.meta.url)
  */
 const PLUGIN_VERSION = (() => {
   try {
-    const version = require('../../package.json').version
+    // 相对的是**本文件所在目录**：`src/dsh/host/` → 上三级才是包根。
+    // 写成两级（`../../package.json`）会静默落进 `src/package.json` ⇒ MODULE_NOT_FOUND ⇒ 永远 unavailable。
+    const version = require('../../../package.json').version
     return typeof version === 'string' && version ? version : RUN_UNAVAILABLE
   } catch {
     return RUN_UNAVAILABLE
