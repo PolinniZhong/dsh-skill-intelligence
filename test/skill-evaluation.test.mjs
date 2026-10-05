@@ -6,6 +6,7 @@ import {
   EVALUATION_CASE_GENERATOR_VERSION,
   EVALUATION_CASE_HASH_DOMAIN,
   EVALUATION_CASE_SCHEMA_VERSION,
+  EVALUATION_COMPARISON_AXIS_LABELS,
   EVALUATION_COMPARISON_WORDS,
   EVALUATION_CONDITION_FIELDS,
   EVALUATION_EVIDENCE_STAGE_IDS,
@@ -358,4 +359,63 @@ test('指纹写出来只有一层 sha256: 前缀，「拿不到」不许被伪�
   const renderedMissing = loadFacts('unavailable')
   assert.ok(renderedMissing.includes('unavailable'))
   assert.equal(renderedMissing.includes('sha256:unavailable'), false)
+})
+
+test('第二条对照轴（Baseline · With Skill）：同一个 Case、同一版 Skill，差别只在「提供过 / 没提供过」', () => {
+  const built = buildWith()
+  const sha = (letter) => `sha256:${letter.repeat(64)}`
+  // `caseId` 由宿主按六行哈希输入算出来（生成器自己只算 `hashInput`），所以这里显式给一个 ——
+  // 没有身份的两次运行**不是**同一个 Case，那样连第一条轴都不成立。
+  const caseId = sha('b')
+  const caseObject = { ...built.case, caseId }
+  const runOf = (runId, catalogPublished, text) => normalizeEvaluationRun({
+    caseId,
+    runId,
+    provider: 'deepseek-official',
+    model: 'deepseek-flash',
+    reasoningEffort: 'high',
+    contextWindow: 1000000,
+    pluginVersion: '1.0.0',
+    dshVersion: 'unavailable',
+    match: 'match',
+    observedInstructionSha256: sha('a'),
+    currentInstructionSha256: sha('a'),
+    load: { status: 'loaded', seq: 6, callSeq: 6, resultSeq: 8 },
+    trigger: { catalogPublished, offerCount: null },
+    runtimeEvents: { available: true, activities: [{ name: 'read', count: 1 }], total: 1 },
+    outcome: { source: 'user', text },
+    judgements: {},
+  })
+
+  // 同一版 Skill（指纹相同）、同一个 Case、条件全同：只有「这个 Skill 有没有被提供过」不同。
+  const axis = compareEvaluationRuns({
+    case: caseObject,
+    before: runOf('r-without', false, '这一次会话里没有它。'),
+    after: runOf('r-with', true, '这一次会话里有它。'),
+  })
+  assert.equal(axis.axis, 'baseline-with')
+  assert.equal(axis.comparable, true)
+  assert.equal(axis.axisLabel, EVALUATION_COMPARISON_AXIS_LABELS['baseline-with'])
+  assert.equal(axis.reason, null)
+  assert.deepEqual(axis.blockers, [])
+  assert.ok(axis.conditions.every((entry) => entry.equal), '两边的实验条件必须逐项相同，否则不给这条轴')
+
+  // 两边都没有被提供过 ⇒ 没有轴、也不给对照：不许把「都没提供过」当成一条对照轴。
+  const nothing = compareEvaluationRuns({
+    case: caseObject,
+    before: runOf('r-without-1', false, '没有它。'),
+    after: runOf('r-without-2', false, '还是没有它。'),
+  })
+  assert.equal(nothing.axis, null)
+  assert.equal(nothing.comparable, false)
+  assert.match(nothing.reason, /看不出属于哪条对照轴/)
+
+  // 两版 Skill（指纹不同）仍然走第一条轴，两条轴不许互相顶替。
+  const versions = compareEvaluationRuns({
+    case: caseObject,
+    before: normalizeEvaluationRun({ ...runOf('r-old', true, '改前那一版。'), observedInstructionSha256: sha('c') }),
+    after: runOf('r-new', true, '改后这一版。'),
+  })
+  assert.equal(versions.axis, 'before-after')
+  assert.equal(versions.comparable, true)
 })

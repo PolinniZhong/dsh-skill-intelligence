@@ -4,7 +4,7 @@
 
 **这一版把 V0.10.0 那份一次性生成的实例验收任务固化成可重复、可对照的评测记录。** 同一个 Case 可以跑很多次：每次运行记下**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 会话日志游标）与**可观察到的事实**（四段证据：触发 / 加载 / 使用 / 结果），然后把两次运行摆在一起逐条对照。**它不是评分器**：不给分、不排名、不做 benchmark、不产出任何聚合指标，也不替你跑任务 —— 插件只摆证据，判定由人给（没给就是「无法判断」，沉默不折算成「未通过」）。
 
-**工作树实测（2026-10-05，未发版；版本号由用户定）**：`npm test` **635 项全绿**（52 个测试文件）· `npm run verify` **30 组 OK**（第 30 组 `SKILL_EVALUATION_OK`）· 客户端 `src/dsh/client/client.js` **4272 行** · bundle `dist/client.js` **228662 字节**（source hash `dc3d856c91b0b9e2`）· `src/core/` **32 个模块 / 11657 行** · `src/storage/` **7 个 1411 行** · 宿主 **13 条路由**（`src/dsh/host/index.js` 1844 行）。
+**工作树实测（2026-10-05，未发版；版本号由用户定）**：`npm test` **636 项全绿**（52 个测试文件）· `npm run verify` **30 组 OK**（第 30 组 `SKILL_EVALUATION_OK`）· 客户端 `src/dsh/client/client.js` **4272 行** · bundle `dist/client.js` **228662 字节**（source hash `dc3d856c91b0b9e2`）· `src/core/` **32 个模块 / 11657 行** · `src/storage/` **7 个 1411 行** · 宿主 **13 条路由**（`src/dsh/host/index.js` 1844 行）。
 
 - **Evaluation Case（`src/core/skill-evaluation.mjs`，565 行零依赖纯函数，客户端第 9 支 `require`）**：Case 就是「一个可重复的实验」——它的身份 `caseId = sha256(六行哈希输入)`，六行是 `域 / generator:1.0.0 / skill:<名> / fingerprint:<sha256|unavailable> / scopes:<范围> / prompt:<任务正文>`；**哈希在宿主算**，生成器保持零 `import`（客户端要 require 它）。同一份输入永远得到同一个 `caseId`。Case 绑定的是**生成它的那一版 Skill**：文件再改一次，旧 Case 不是「过期」，而是另一个 Case。
 - **Evaluation Run（`run-capture`）**：条件与事实**全部由宿主从会话日志与收据里取**，客户端只提交 `judgements` 与 `outcome`。取数层 `src/core/run-conditions.mjs` 是零时钟纯函数：只取四个只读元数据字段（同一条 `request/header` 事件里的整份工具清单与 `maxTokens` 一个字节都不带出来）、只数工具名与次数（不碰参数与结果）、`turn`/`step` 只作**日志顺序游标**。**DSH 版本今天没有已验证的读取方式，如实写 `unavailable`**（`FR-EVAL-008`）。
@@ -13,7 +13,7 @@
 - **落盘（新增，用户 2026-10-05 授权）**：`<dataRoot>/evaluation/cases/<hex>.json` 与 `runs/<hex>/<runId>.json`，目录 `0700` / 文件 `0600`，临时文件 + 原子 `rename`；写入前**深层扫描禁字段**（`sessionId` / 工具参数与结果 / 绝对路径 / 任何聚合量，命中就拒绝而不是悄悄丢掉），读端 fail-soft（坏文件计数跳过）。删一个 Case 连它的运行一起删；上限 200 个 Case / 每个 Case 50 次运行，超出按最旧淘汰。**这是本插件第一处把用户自己的话写进磁盘**（Run 里的结果与判定），所以 `docs/PRIVACY.md` 单列了一节。
 - **第 13 条宿主路由** `POST /skill-trace/evaluation`：八个动作（`case-save` / `case-list` / `case-read` / `case-delete` / `run-save` / `run-capture` / `run-list` / `run-read`）。`sessionId` 必须校验，但**一个字节都不落盘** —— 实验的身份是 `caseId`，不是会话。它**不建会话、不发消息、不调模型、不自动跑**。
 - **界面**：详情页内多一张「Skill 评测」卡（**不新增页面、不新增导航**），七段：Evaluation Case / 记录这一次运行 / 已经记下来的运行 / 两次运行的条件 / 运行时证据 / 断言与对照 / 「这一版刻意不出现的东西」。判定只有三态（通过 / 未通过 / 无法判断），来源只有三级（协议事实 / 用户判定 / Agent 自报）。
-- **工程数字**：测试 **590 → 635 项**（52 个文件）；守卫 **29 → 30 组**（新增 `SKILL_EVALUATION_OK`，它钉住卡片区**不许出现任何聚合口径**，变异测试验证过会红）；客户端 **3625 → 4272 行**、`dist/client.js` **189256 → 228662 字节**（source hash `faed5e9cef7db24c` → `dc3d856c91b0b9e2`）；`src/core/` **30 → 32 个模块 / 10924 → 11657 行**；`src/storage/` **6 → 7 个模块 / 1117 → 1411 行**；宿主 **1625 → 1844 行 / 12 → 13 条路由**。
+- **工程数字**：测试 **590 → 636 项**（52 个文件）；守卫 **29 → 30 组**（新增 `SKILL_EVALUATION_OK`，它钉住卡片区**不许出现任何聚合口径**，变异测试验证过会红）；客户端 **3625 → 4272 行**、`dist/client.js` **189256 → 228662 字节**（source hash `faed5e9cef7db24c` → `dc3d856c91b0b9e2`）；`src/core/` **30 → 32 个模块 / 10924 → 11657 行**；`src/storage/` **6 → 7 个模块 / 1117 → 1411 行**；宿主 **1625 → 1844 行 / 12 → 13 条路由**。
 - 需求 `FR-EVAL-001`–`018` 见 `spec/PRD.md` §5.13；设计见 `spec/SDD.md` §22；三个真 bug 的修法见提交 `2e9902c`（观察到的指纹不再永远 `unavailable`）、`222896e`（插件版本真的读得到）、`88e6e2f`（指纹只写一层 `sha256:` 前缀）。
 
 ## 0.10.0 — 2026-10-05 · Skill 实例验收
