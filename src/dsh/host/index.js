@@ -64,6 +64,7 @@ import { normalizeEvaluationRun } from '../../core/skill-evaluation.mjs'
 // V1.0 §22.4：一次运行的**条件**与**活动汇总**。会话日志里的 `request/header` 带着整份工具
 // 清单、`tool/call` 带着完整参数 —— 这一层只取四个只读元数据字段与「工具名 + 次数」。
 import {
+  pickObservedFingerprint,
   readLoadEvidence,
   readRunConditions,
   readRunCursor,
@@ -878,7 +879,9 @@ export function apply(ctx, config = {}) {
             // `FR-EVAL-008`：DSH 版本还没有已验证的读取方式，缺就是缺。
             dshVersion: RUN_UNAVAILABLE,
             pluginVersion: PLUGIN_VERSION,
-            observedInstructionSha256: observation.observedInstructionSha256,
+            // 收据给的是**数组**（一次会话里可能加载过好几版），Run 字段只有一个 ——
+            // 取舍写在 `pickObservedFingerprint` 里：多个且都不是当前这一版就 `unavailable`。
+            observedInstructionSha256: pickObservedFingerprint(observation.observedInstructionSha256, observation.currentInstructionSha256),
             currentInstructionSha256: observation.currentInstructionSha256,
             match: observation.match,
             load: readLoadEvidence(receipt, record.skillName),

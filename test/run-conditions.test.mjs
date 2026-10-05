@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import {
   RUN_CONDITION_EVENT_TYPES,
   RUN_UNAVAILABLE,
+  pickObservedFingerprint,
   readLoadEvidence,
   readRunConditions,
   readRunCursor,
@@ -144,5 +145,32 @@ test('这一层没有时钟、没有随机数（否则运行记录就不再可�
   const source = await readFile(join(here, '..', 'src', 'core', 'run-conditions.mjs'), 'utf8')
   for (const forbidden of ['Date.now', 'Math.random', 'new Date(']) {
     assert.equal(source.includes(forbidden), false, `run-conditions.mjs 里不许出现 ${forbidden}`)
+  }
+})
+
+test('观察到的指纹收成一个值：命中当前文件才取它，多个含糊就承认拿不到', () => {
+  const a = 'a'.repeat(64)
+  const b = 'b'.repeat(64)
+  const c = 'c'.repeat(64)
+  // 字符串（老记录）原样。
+  assert.equal(pickObservedFingerprint(a), a)
+  assert.equal(pickObservedFingerprint(''), RUN_UNAVAILABLE)
+  assert.equal(pickObservedFingerprint(null), RUN_UNAVAILABLE)
+  // 恰好一个 ⇒ 就是它。
+  assert.equal(pickObservedFingerprint([a]), a)
+  // 有当前文件那一版 ⇒ 取它（哪怕同时观察到别的版本）。
+  assert.equal(pickObservedFingerprint([a, b], b), b)
+  // 多个、又都不是当前这一版 ⇒ 不许随便挑。
+  assert.equal(pickObservedFingerprint([a, b], c), RUN_UNAVAILABLE)
+  assert.equal(pickObservedFingerprint([a, b], null), RUN_UNAVAILABLE)
+  // 去掉重复与空白。
+  assert.equal(pickObservedFingerprint([a, a, '  ']), a)
+})
+
+test('pickObservedFingerprint 也是零时钟的纯函数（同一份输入永远同一个答案）', () => {
+  const values = ['a'.repeat(64), 'b'.repeat(64)]
+  const first = pickObservedFingerprint(values, values[0])
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(pickObservedFingerprint([...values], values[0]), first)
   }
 })

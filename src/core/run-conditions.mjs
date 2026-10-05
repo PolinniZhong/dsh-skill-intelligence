@@ -120,6 +120,28 @@ export function summarizeToolActivity(events = [], options = {}) {
 }
 
 /**
+ * 把收据里那份「观察到的指令指纹」收成 Run 字段要的**单一**值。
+ *
+ * 为什么需要它：`compareDefinitionToRun()`（`src/core/skill-definition.mjs`）给的是**数组**
+ * —— 一次会话里同一个 Skill 可能被加载过好几版。Run 的字段表只有一个
+ * `observedInstructionSha256`，所以这里必须明说取舍：
+ *
+ *   - 传进来是字符串（老记录 / 别的调用方）⇒ 原样；
+ *   - 数组里**恰好有一个** ⇒ 就是它；
+ *   - 数组里有**当前文件那一版** ⇒ 取它（这一次运行观察到的就是现在这一版，比对才有意义）；
+ *   - 好几个、又都不是当前这一版 ⇒ `unavailable`：**不许随便挑一个**，
+ *     那会让「观察到的指纹」看起来比实际更确定。
+ */
+export function pickObservedFingerprint(observed, current = null) {
+  if (typeof observed === 'string') return text(observed) ?? RUN_UNAVAILABLE
+  const list = Array.isArray(observed) ? [...new Set(observed.map((value) => text(value)).filter(Boolean))] : []
+  const currentText = text(current)
+  if (currentText && list.includes(currentText)) return currentText
+  if (list.length === 1) return list[0]
+  return RUN_UNAVAILABLE
+}
+
+/**
  * 一次运行里「加载」那一段的协议事实：这个 Skill 的正文有没有被送进过对话。
  *
  * 判据只有一条 —— 会话收据里的 trace 事件。`loaded` 是**协议级**事实（正文进入了模型可见的
