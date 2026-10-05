@@ -335,12 +335,12 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 项 | 结果 |
 |---|---|
 | 本地门槛 | **636 项测试全绿**（52 个测试文件）；**30 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **228715 字节**（source hash `54bee3888d0299d8`），重建后 `git status` 无 `dist` 差异 |
-| 发布提交 / tag | （本次发布后回填） |
-| GitHub Release | （本次发布后回填） |
-| npm | （本次发布后回填） |
-| 净室安装 | （本次发布后回填） |
-| 推送 / 凭证 | （本次发布后回填） |
-| CI（`.github/workflows/publish-npm.yml`） | （本次发布后回填） |
+| 发布提交 / tag | `3cca1ae release: v1.0.0 — Skill 评测（Evaluation Case / Run / 对照 / 四段证据）`（`package.json` `1.0.0`，2026-10-05）；注释 tag `v1.0.0` → 对象 `c5272f4dcb960ee4d5733c3aab69cebb41ac58b9` |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v1.0.0>（`gh release create v1.0.0`，正文取自 `CHANGELOG.md` 的 `## 1.0.0` 段） |
+| npm | `dsh-skill-trace@1.0.0`，`gitHead` = `3cca1aed2eeb3f32bfb1a16698123a54dd7124bd`（= 发布提交）；`dist-tags` 的 `latest` 与 `beta` **都指向 `1.0.0`` |
+| 净室安装 | 本次**未做**净室安装（发版当天只回读了 registry：`npm view dsh-skill-trace@1.0.0` 能取到 `version` / `gitHead` / `dist.tarball`）——下游若报安装问题，先照 `0.10.0` 那次的净室步骤补做 |
+| 推送 / 凭证 | **本地没用到任何 npm 凭证**（只推 tag，OCI 由 workflow 走 OIDC）。推送本身很吃力：直连 `Failed to connect to github.com port 443 after 75005 ms`，`140.82.114.4` / `140.82.121.4` → `Empty reply from server`，`140.82.112.3` → `SSL connection timeout`；最终用 `git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.113.4 push origin main`（`033a50b..3cca1ae`）与同名命令推 `v1.0.0` 成功。**可达 IP 当天有效**：`140.82.114.4` / `140.82.121.4` / `140.82.112.3` / `140.82.113.4` / `20.27.177.113` 的 `ls-remote` 都能通，但**只有最后一次 push 真的落地** |
+| CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37335200103](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37335200103)，**success**：OIDC 发布 npm 并把 `beta` 指到同一版 |
 
 ### 6.0.1 本次 `v0.10.0` 的实际结果（2026-10-05）
 
