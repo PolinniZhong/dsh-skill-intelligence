@@ -328,3 +328,34 @@ test('Use 段分得清「读不到日志」与「0 次活动」——前者是�
   assert.equal(normalized.runtimeEvents.available, true)
   assert.equal(normalized.runtimeEvents.total, 2)
 })
+
+test('指纹写出来只有一层 sha256: 前缀，「拿不到」不许被伪装成指纹', () => {
+  const built = buildWith()
+  const loadFacts = (observed) => {
+    const run = {
+      caseId: built.case.caseId,
+      runId: 'r-fingerprint',
+      load: { status: 'loaded', seq: 6, observedInstructionSha256: observed, currentInstructionSha256: observed, match: 'match' },
+      outcome: { source: 'user', text: '产出可用。' },
+    }
+    const evidence = buildRuntimeEvidence({ case: built.case, run })
+    return evidence.stages.find((stage) => stage.id === 'load').facts.join(' | ')
+  }
+
+  // 真链路给的就是带前缀的（`src/core/trace-reducer.mjs:186` 的 `sha256()`）。
+  const prefixed = `sha256:${'a'.repeat(64)}`
+  const renderedPrefixed = loadFacts(prefixed)
+  assert.ok(renderedPrefixed.includes(prefixed), '带前缀的指纹要原样出现')
+  assert.equal(renderedPrefixed.includes('sha256:sha256:'), false, '不许出现两层前缀')
+
+  // 裸 hex 也要收成一个前缀。
+  const bare = 'b'.repeat(64)
+  const renderedBare = loadFacts(bare)
+  assert.ok(renderedBare.includes(`sha256:${bare}`))
+  assert.equal(renderedBare.includes('sha256:sha256:'), false)
+
+  // 拿不到就写 unavailable，绝不能写成 `sha256:unavailable`。
+  const renderedMissing = loadFacts('unavailable')
+  assert.ok(renderedMissing.includes('unavailable'))
+  assert.equal(renderedMissing.includes('sha256:unavailable'), false)
+})

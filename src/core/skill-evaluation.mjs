@@ -168,6 +168,21 @@ function unavailableOf(value) {
 }
 
 /**
+ * 指纹的写法：**恰好一个** `sha256:` 前缀。
+ *
+ * 为什么要它：真链路上的指纹已经带前缀 —— `src/core/trace-reducer.mjs:186` 与
+ * `src/core/source-snapshot.mjs:4` 的 `sha256()` 返回的都是 `sha256:<hex>`，
+ * `compareDefinitionToRun()` 只是把 `evidenceFingerprint.value` 原样透传。所以模板里
+ * 再写一个字面 `sha256:` 会渲染成 `sha256:sha256:…`；而 `unavailable` 又绝不能变成
+ * `sha256:unavailable`（那是把「拿不到」伪装成一个指纹）。这个函数把三种输入都收成一个写法。
+ */
+function fingerprintText(value) {
+  const text = collapse(value)
+  if (text.length === 0 || text === EVALUATION_UNAVAILABLE_TEXT) return EVALUATION_UNAVAILABLE_TEXT
+  return text.startsWith(EVALUATION_CASE_ID_PREFIX) ? text : `${EVALUATION_CASE_ID_PREFIX}${text}`
+}
+
+/**
  * 指纹规范化：只留源码里那三个名字（`src/core/source-snapshot.mjs` 的
  * `observedInstructionSha256` / `currentInstructionSha256` / `match`），别处来的形状一律降级成
  * `unavailable` —— 宁可承认没有，也不要凭形状猜出一份指纹（`FR-EVAL-006`）。
@@ -504,7 +519,7 @@ export function buildRuntimeEvidence(input) {
     facts: run.load.status === 'loaded'
       ? [
         `在 seq ${run.load.seq ?? '?'} 拿到了指令正文。`,
-        `观察到的指令指纹 sha256:${run.observedInstructionSha256}`,
+        `观察到的指令指纹 ${fingerprintText(run.observedInstructionSha256)}`,
         `与当前文件指纹比对：${run.match}`,
       ]
       : [
