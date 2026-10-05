@@ -142,7 +142,7 @@ export function apply(ctx, config = {}) {
 
 ---
 
-## 3. 宿主接口面（12 条路由）
+## 3. 宿主接口面（12 条路由；V1.0 计划新增第 13 条 `POST /skill-trace/evaluation`，见 §22.7）
 
 全部在 `src/dsh/host/index.js`，全部挂在 `/skill-trace` 前缀下，全部先过 §2.1 的 loopback 门禁。
 
@@ -719,6 +719,8 @@ definition-unavailable · bundle-unreadable · write-failed
 
 **V0.10.0「Skill 实例验收」增量（已随 `0.10.0` 发布，§21）**：`src/core/` 加 `skill-instance-test.mjs`（**571 行、零依赖、零 `import`**；导出 `INSTANCE_TEST_SOURCES` / `INSTANCE_TEST_SCOPE_ROLES` / 三个卡面抬头常量与别名 `buildInstanceTest`，生成器接了 `intent` / `framework` 两个新输入并回 `trace`）⇒ **30 个文件 / 10924 行**（`src/storage/` 仍是 **6 个文件 / 1117 行**，本版**不新增任何落盘**）；**宿主一行未动**（仍 **1625 行**、**12 条路由**）；客户端 3448 → **3625**（`SkillModificationPanel` 里多出 `data-role="mod-instance"` 一整段 + 第 8 支 `require` + 该段 CSS，含「验证目标」/「测试 Prompt」两块抬头与 `mod-instance-trace`）；`dist/client.js` 170324 → **189256 字节**（source hash **`faed5e9cef7db24c`**）。
 
+**V1.0「Skill 评测」增量（计划中的进行态，§22）**：`src/core/` 已加 `skill-evaluation.mjs`（**545 行，唯一 import 是 `./skill-instance-test.mjs`**）⇒ **31 个文件 / 11469 行**；`src/storage/` 仍是 **6 个文件 / 1117 行**、宿主仍是 **1625 行 / 12 条路由**、客户端仍是 **3625 行 / 第 8 支 `require`**（也就是说：这一版**目前只有纯函数层**，界面、落盘与第 13 条路由都还没落地）。`dist/client.js` 与 source hash 未变。
+
 ### 9.1 `src/dsh/`（3 个文件）
 
 | 路径 | 行数 | 职责 |
@@ -729,7 +731,7 @@ definition-unavailable · bundle-unreadable · write-failed
 
 构建产物 `dist/client.js` 为 **189256 字节**（`0.10.0` 发布 source hash **`faed5e9cef7db24c`**；V0.10.0 早期工作树为 184471 字节 / `2d202a05030a1d58`，V0.9.2 工作树时为 170324 字节 / `66dd0b76118e7b85`，V0.9.1 工作树时为 167506 字节 / `b391ec909986207a`，V0.9.0 工作树时为 150750 字节 / `808afdc7cca990cb`，V0.8.0 发布时为 142672 字节 / `f53a7ac5965b38b0`），提交进仓库。
 
-### 9.2 `src/core/`（30 个文件、10924 行）
+### 9.2 `src/core/`（31 个文件、11469 行）
 
 | 路径 | 行数 | 职责 |
 |---|---|---|
@@ -763,6 +765,7 @@ definition-unavailable · bundle-unreadable · write-failed
 | `src/core/skill-modification.mjs`（新） | 592 | **V0.9.1 修改契约与差异模型**：`MODIFICATION_SCOPE_OPTIONS`（6 个范围 id，顺序固定）、`MODIFICATION_CONTRACT_RULES`（12 条）、`buildModificationMessageText`（代发那一条消息的正文）、`diffSkillModification`（三态 + 行级 / 小节级 / 资源级 + 超出授权范围的变化）、`modificationSnapshotKey`。**纯函数**：零 IO、零模型调用、零时钟、零随机 |
 | `src/core/skill-validation.mjs`（新） | 1025 | **V0.9.0 验收器**：自带 frontmatter 扫描器、Markdown 围栏/引用扫描、凭据与外传模式扫描；`buildSkillValidation` 出三态结论与逐规则状态。唯一 import 是 `./skill-profiles.mjs` |
 | `src/core/skill-instance-test.mjs`（新） | 571 | **V0.10.0 实例验收生成器**（§21）：`SKILL_INSTANCE_TEST_SCHEMA_VERSION = 1`、`INSTANCE_TEST_INTENTS`（`core` / `boundary` / `regression`，只是内部清单，界面只有一个按钮）、`INSTANCE_TEST_SOURCES = ['intent','scopeIds','comparison','description','framework','validation']`（六项输入的固定顺序，`trace.sources` 按它筛出**这次真的在场**的项）、`INSTANCE_TEST_SCOPE_FOCUS`（六个范围各自的观察重点）、`INSTANCE_TEST_SCOPE_IDS`、`INSTANCE_TEST_SCOPE_ROLES`（六个范围 id → 框架角色：`skill-md-rules`→`rules`、`skill-md-workflow`→`workflow`、`skill-md-description`→`trigger`、`references`/`scripts`/`assets`→`resources`）、`INSTANCE_TEST_PRIMARY_SCOPE_ORDER`、`INSTANCE_TEST_PROMPT_BLOCKS = ['任务','工作目标','输出要求','注意']`、`INSTANCE_TEST_PROMPT_FORBIDDEN_WORDS`、`INSTANCE_TEST_RELATIVE_TIME_WORDS`、`INSTANCE_TEST_UNAVAILABLE_REASONS` / `INSTANCE_TEST_UNAVAILABLE_MESSAGES`（四种「生成不出来」各自的实话）、`INSTANCE_TEST_HEADLINE` / `INSTANCE_TEST_OBSERVATION_TITLE` / `INSTANCE_TEST_OBSERVATION_NOTE` / `INSTANCE_TEST_GOAL_TITLE = '验证目标'` / `INSTANCE_TEST_GOAL_TEXT = '验证本次修改是否改变了这个 Skill 的实际行为。'` / `INSTANCE_TEST_PROMPT_TITLE = '测试 Prompt'` / `INSTANCE_TEST_LIMITATION_NOTE`，以及 `buildSkillInstanceTest(input)`（签名收 `{skillName, intent, comparison, definitionText, description, framework, validation}`，回 `trace = {sources, frameworkAvailable, validationStatus, validationUnknownCount, hintedScopeId}`）与**别名** `buildInstanceTest`（规格 §15 建议的名字；实现保留原名是因为测试与守卫在用它）。**零 `import`、零依赖、零 IO、零时钟、零随机、零模型调用** —— 同一份输入永远得到同一份结果 |
+| `src/core/skill-evaluation.mjs`（新） | 545 | **V1.0 评测纯函数层**（§22.3–§22.6，已落地）：`caseHashInput()`（六行定序的哈希输入，**哈希本身由宿主算**）、`buildEvaluationCase()`（把 V0.10 那次实例验收升级成带身份的可重复 Case，生成不出来时沿用 V0.10 的 reason 与人话）、`normalizeEvaluationRun()`（`FR-EVAL-006` 字段表的**唯一入口**，缺项一律 `unavailable`）、`buildEvaluationAssertions()`（**只回 `{rows, unavailable}`，没有任何聚合字段**）、`compareEvaluationRuns()` + `comparisonWordOf()`（同一 Case 的两条轴与那张三态真值表）、`buildRuntimeEvidence()`（四段证据 + 三条不等式）。**零 `Date.now` / `Math.random` / `new Date(`**（测试用正则钉住），不调模型、不读盘、不判分 |
 
 ### 9.3 `src/storage/`（6 个文件、1117 行）
 
@@ -985,8 +988,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ### 14.1 规模与纪律
 
-- `npm test` = `node --test`，**590 项全绿**（`0.10.0` 发布口径；`0.9.2` 发布口径是 **561** 项，含 V0.9.0 的 36 项与 V0.9.2 的排序 / 加入时间 / 血缘用例；V0.10.0 早期工作树时为 **584 项**，V0.9.1 工作树时为 **553** 项，`0.8.0` 发布时是 **474** 项，`0.7.1` 发版时 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
-- `test/` 下 **48** 个 `*.test.mjs`（`0.10.0` 发布口径；`0.9.2` 发布口径是 47 个，`0.8.0` 发布时 41，`ls test | wc -l` 还会多算一个非测试条目 `helpers/`）。**V0.10.0 新增 1 个文件**：`test/skill-instance-test.test.mjs`（**27 项**，实例验收的生成边界与纯函数纪律，见 §21.6），另在 `test/client-render-smoke.test.mjs` 原有的实例验收渲染用例里补断言（该文件仍 **26** 项）。**V0.9.1 新增 3 个文件**：`test/skill-modification.test.mjs`（22 项，修改契约 / 范围解析 / 差异三态与三层）、`test/modification-snapshot-store.test.mjs`（9 项，TTL / 上限 / 释放 / 坏输入）、`test/skill-modification-route.test.mjs`（9 项，路由的两个动作与五条失败路径，含**代发失败必须先释放快照**），另给 `test/client-render-smoke.test.mjs` 加了 **2 条烟测**（V0.9.1 落地时为 24 项）。**V0.9.0 新增 3 个文件**：`test/skill-profiles.test.mjs`（9 项，规则表的机械守卫）、`test/skill-validation.test.mjs`（21 项，纯函数行为 + 假指控回归）、`test/skill-validation-route.test.mjs`（6 项，真机式路由驱动：假 registry **刻意只给正文**，与真 provider 一致）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。**V0.9.2 不新增文件**：用例补在 `test/installed-view.test.mjs`（该文件现 **17** 项：倒序与两种兜底、加入时间三态、`addedAt` / `lineage` 的形状校验）与 `test/client-render-smoke.test.mjs`（该文件现 **26** 项：有 `ordering` 时列表头渲染、没有时不渲染、读不到时间时文案含「读不到加入本机的时间」；V0.10.0 再加一条实例验收渲染测试，见 §21.6）。
+- `npm test` = `node --test`，**604 项全绿**（V1.0 工作树；`0.10.0` 发布口径是 **590** 项，V1.0 的评测纯函数层加了 14 项；`0.9.2` 发布口径是 **561** 项，含 V0.9.0 的 36 项与 V0.9.2 的排序 / 加入时间 / 血缘用例；V0.10.0 早期工作树时为 **584 项**，V0.9.1 工作树时为 **553** 项，`0.8.0` 发布时是 **474** 项，`0.7.1` 发版时 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
+- `test/` 下 **49** 个 `*.test.mjs`（V1.0 工作树；`0.10.0` 发布口径是 **48** 个，V1.0 新加 `test/skill-evaluation.test.mjs`（14 项）；`0.9.2` 发布口径是 47 个，`0.8.0` 发布时 41，`ls test | wc -l` 还会多算一个非测试条目 `helpers/`）。**V0.10.0 新增 1 个文件**：`test/skill-instance-test.test.mjs`（**27 项**，实例验收的生成边界与纯函数纪律，见 §21.6），另在 `test/client-render-smoke.test.mjs` 原有的实例验收渲染用例里补断言（该文件仍 **26** 项）。**V0.9.1 新增 3 个文件**：`test/skill-modification.test.mjs`（22 项，修改契约 / 范围解析 / 差异三态与三层）、`test/modification-snapshot-store.test.mjs`（9 项，TTL / 上限 / 释放 / 坏输入）、`test/skill-modification-route.test.mjs`（9 项，路由的两个动作与五条失败路径，含**代发失败必须先释放快照**），另给 `test/client-render-smoke.test.mjs` 加了 **2 条烟测**（V0.9.1 落地时为 24 项）。**V0.9.0 新增 3 个文件**：`test/skill-profiles.test.mjs`（9 项，规则表的机械守卫）、`test/skill-validation.test.mjs`（21 项，纯函数行为 + 假指控回归）、`test/skill-validation-route.test.mjs`（6 项，真机式路由驱动：假 registry **刻意只给正文**，与真 provider 一致）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。**V0.9.2 不新增文件**：用例补在 `test/installed-view.test.mjs`（该文件现 **17** 项：倒序与两种兜底、加入时间三态、`addedAt` / `lineage` 的形状校验）与 `test/client-render-smoke.test.mjs`（该文件现 **26** 项：有 `ordering` 时列表头渲染、没有时不渲染、读不到时间时文案含「读不到加入本机的时间」；V0.10.0 再加一条实例验收渲染测试，见 §21.6）。
 - 纯函数优先：`src/core/` 的模块都是可单独测的纯函数或纯数据模块，测试不需要起宿主。
 
 ### 14.2 测试文件分工
@@ -1613,3 +1616,99 @@ export const INSTALLED_ORDERING_RULE = 'added-desc-then-name'
 - **不新增页面 / 导航 / Route / 第二套 Agent Runtime**（`FR-INST-015`）；原计划的 `POST /skill-trace/instance-test` **已取消**，宿主因此一行未动。
 - **不把实例验收接回 Skill Detail 的判定链路**：不做 Baseline / With Skill 对比、不做多轮自动回归、不做 Evaluation Dashboard —— 那是 **V1.0 的 Skill Evaluation**（`FR-INST-019`）。
 - **不新增依赖、不新增落盘。**
+
+
+---
+
+## 22. Skill 评测（V1.0，计划，未实现）
+
+> **状态**：§22.3–§22.6 的**纯函数层已落地**（`src/core/skill-evaluation.mjs`，545 行，14 项测试）；**§22.7 的落盘与第 13 条路由、§22.8 的界面、§22.9 的第 30 组守卫都还没落地**。需求依据是 `spec/PRD.md` §5.13 的 `FR-EVAL-001`–`018`；用户 2026-10-05 已授权新增本机落盘与一条 `POST` 路由（`FR-EVAL-016`）。
+
+### 22.1 为什么是「可重复的实验记录」，而不是评分器
+
+V0.10.0 的实例验收是一次性的：生成一份 Prompt，跑一遍，看过就过去了。**评测要回答的是另一个问题**：同一个任务，改前发生了什么、改后发生了什么？这个问题只有在**同一个 Case 被反复跑**并且**每次实验条件都被记下来**的时候才成立。
+
+**永久禁令（`spec/PRD.md` §2.3）**：不产出任何聚合指标（通过率、稳定性百分比、平均分、方差），不做 benchmark 排名，不给「Skill Score」。理由不是清高，是外部证据：`SWE-Skills-Bench`（arXiv 2603.15401）实测 49 个公开 SWE Skill 里 **39 个零增益、平均 +1.2%、3 个负增益最多 −10%、token 开销最高 +451%** —— 一个聚合分数会把「看不出差别」伪装成一个结论，而 39/49 的真相恰恰是「看不出差别」。
+
+### 22.2 四个模块与落地顺序
+
+**落地顺序：Case → Run → Comparison → Runtime Evidence**（`FR-EVAL-002`）。证据是**解释层**，最后做：先把「同一个 Case 跑两次的条件并排摆出来」做对，再谈「运行时看到了什么」。**界面顺序与之相反**：Case → Before/After 条件 → 四段证据 → 断言与对照。
+
+### 22.3 Case：身份、哈希由谁算、为什么是纯函数
+
+`buildEvaluationCase(input)` 的输入与 `buildSkillInstanceTest` 同一份（`skillName` / `intent` / `comparison` / `definitionText` / `description` / `framework` / `validation` / `scopeIds`），外加 `skillFingerprint = {instructionSha256, match}` 与可选 `caseId`。产物：
+
+```
+{schemaVersion, generatorVersion, caseId, skillName, skillFingerprint,
+ scopeIds, changedScopeIds, primaryScopeId,
+ taskPrompt{task,goal,output,note,text}, observations[], regressions[],
+ regressionUnavailable, limitations[], source:{kind:'instance-test'}}
+```
+
+- **任务 Prompt 与观察点逐字来自 V0.10**（`FR-EVAL-005`）：一个字的第二套措辞都不写，否则「可重复」随即失效。
+- **`caseId = sha256(caseHashInput(...))`，哈希在宿主层算**（`FR-EVAL-003`）：生成器要保持 `FR-INST-021` 的**零 `import`**（客户端要 `require` 它），而 `node:crypto` 会破坏这一条。这一层只产出**定序的哈希输入六行**：`dsh-skill-evaluation-case@1` / `generator:1.0.0` / `skill:<名>` / `fingerprint:<sha256|unavailable>` / `scopes:<逗号连接>` / `prompt:<任务 Prompt 全文>`。
+- **`EVALUATION_CASE_GENERATOR_VERSION = '1.0.0'` 是身份的第四个输入**（`FR-EVAL-003`）：生成器改了措辞而版本没升，`caseId` 会**静默复用**一个已经不对应的身份 —— 测试把版本行钉成常量，改代码忘升版号会红。
+- **输入里不许有时间、随机数、会话 id**（`FR-EVAL-003`）：测试用 `/Date\.now|Math\.random|new Date\(/` 直接扫源码。
+- **Case 绑定生成它的那一版 Skill，不说「过期」**（`FR-EVAL-004`）：`skillFingerprint` 记的是那一版；Skill 再改一次，旧 Case 仍然是**另一个** Case，不是它的替代品。
+
+### 22.4 Run：字段表与缺项语义
+
+`normalizeEvaluationRun(input)` 是 `FR-EVAL-006` 那张字段表的**唯一入口**，任何别的模块都不许自己拼 Run。字段：`runId` / `caseId` / `startedAt` / `turn` / `step` / `provider` / `model` / `reasoningEffort` / `contextWindow` / `dshVersion` / `pluginVersion` / `observedInstructionSha256` / `currentInstructionSha256` / `match` / `load{status,seq}` / `trigger{catalogPublished,offerCount}` / `runtimeEvents{activities[{name,count}],total}` / `outcome{source,text}` / `judgements{observationId:verdict}`。
+
+- **缺项一律 `'unavailable'`，不猜、不省略**（`FR-EVAL-006`）：`startedAt` / `turn` / `step` / `contextWindow` 缺了是 `null`，其余是 `'unavailable'`。
+- **字段名沿用源码**：`observedInstructionSha256` / `currentInstructionSha256` / `match` 就是 `src/core/source-snapshot.mjs:179-181` 的名字（`FR-EVAL-006` 的脚注）。
+- **`match` 只有三态**：`match` / `mismatch` / `unavailable`；`load.status` 只有 `loaded` / `offered-only` / `unavailable`；`outcome.source` 只有 `user` / `agent`。
+- **模型与 Provider 只读元数据**（`FR-EVAL-007`）：`request/context` 的 `{provider, model, contextWindow}` 与 `request/header.header.config` 的 `LlmCallConfig{provider, model, reasoningEffort}`。**不读 prompt 正文、不读工具参数与结果**。模型 provider（`dsh-llm`）与 Skill 来源 provider（`filesystem`）**不得混用同一种说法**。
+- **DSH 版本还没有已验证的读取方式**（`FR-EVAL-008`）：真机实测 `createRequire(插件文件)('@deepseek-ai/dsh/package.json')` → `MODULE_NOT_FOUND`（符号链接路径与真实路径都试过）。候选两条：读运行 profile 的 `package.json` / 其 `node_modules/@deepseek-ai/dsh/package.json`，或由宿主注入常量。**读不到就写 `unavailable`**，不许拿插件版本冒充。
+- **时间优先取事件信封的 `time`**（epoch ms），`Date.now()` 只兜底；**`turn` / `step` 是日志顺序游标**，不得说成时间、也不得说成「第几轮」（`FR-EVAL-009`）。
+
+### 22.5 四段证据与三条不等式
+
+`buildRuntimeEvidence({case, run})` 出四段，**顺序固定**：`trigger` → `load` → `use` → `outcome`（`FR-EVAL-010`）。每段 `{id, label, status, source, facts[], reach}`，`status ∈ observed / not-observed / unavailable`：
+
+| 段 | 能说什么 | 这一段够不着什么（`reach`，界面上逐字显示） |
+|---|---|---|
+| 触发 `trigger` | 本次会话向模型提供过这个 Skill（`catalogPublished`，事实） | 「提供 ≠ 使用」 |
+| 加载 `load` | 在 seq N 拿到了指令正文 + `sha256` + `match` 三态（协议级） | 只证明「这些字节进入了模型可见的对话」，**不证明模型采用了它** |
+| 使用 `use` | 工具活动**只报元数据**（次数与工具名）+ 用户 / Agent 的陈述 | 有工具活动 ≠ 用了这条指令；没有工具活动也 ≠ 没用 |
+| 结果 `outcome` | **只能来自用户判定或 Agent 自报**（插件不判定） | 结果好 ≠ 是这个 Skill 造成的；结果好 + 没有加载证据 ⇒ 不能归因 |
+
+**三条不等式做成界面上的固定说明句**（`FR-EVAL-011`）：`加载 ≠ 使用` / `使用 ≠ 结果` / `结果 ≠ 这个 Skill 造成的`。`EVALUATION_INEQUALITIES` 与 `EVALUATION_INEQUALITY_NOTE` 是常量，界面逐字渲染，不许改写成「可能未必」之类的软化说法。
+
+### 22.6 Comparison：两条轴、条件表、事实词
+
+`compareEvaluationRuns({case, before, after})` 的**唯一合法性前提是「同一个 Case」**（`FR-EVAL-013`）：`caseId` 两侧相等且非 `null`，否则 `axis = null`、一句对照都不给，理由是「这两次运行不是同一个 Case，因此不做对照。」**禁止拿两个不同任务并排**。
+
+- **两条轴**：`before-after`（同一个 Case、两版 Skill：指令指纹不同）/ `baseline-with`（同一版 Skill、两侧指纹都读得到且相同，只有「有没有提供过」不同）。
+- **实验条件表只有四项**：`model` / `provider` / `reasoningEffort` / `contextWindow`（`EVALUATION_CONDITION_FIELDS`）。**`observedInstructionSha256` 故意不在表里** —— 它是**被对照的东西**，当条件会让每一次「改前 vs 改后」都变成「不可对照」（这一条是被测试抓出来后改的，注释就写在常量上方）。
+- **条件不同 ⇒ 不生成对照结论，但仍然并排摆放**，理由里点名哪几项不同（例：「有 1 项实验条件不同（模型），因此不做对照 —— 差异无法归因。」）。每行的对照列写 `EVALUATION_COMPARISON_WORDS.notComparable`。
+- **对照列只用事实词**（`FR-EVAL-012`）：两次都通过 / 改前未通过 → 改后通过 / 改前通过 → 改后未通过 / 回归信号 / 两次都无法判断 / 不做对照。**不折算成分数、不排序**；`无法判断` 永远不会被折成「未通过」（缺数据不能证明失败）。
+- **断言每条只有三样东西**：陈述 + 结论（`通过` / `未通过` / `无法判断`）+ 来源（`协议事实` / `用户判定` / `Agent 自报`）。`buildEvaluationAssertions()` **只返回 `{rows, unavailable}`，没有任何聚合字段**（测试逐条扫 `rate` / `score` / `count` / `total` / `average` / `variance` 都不许出现）。协议事实三条固定在前：`load-evidence`（看不到加载证据 → `无法判断`，理由里有「看不到不等于没发生」）、`fingerprint-match`（缺一侧 → `无法判断`，理由里有「不写成『不一致』」）、`references-used`（只在 `scopeIds` 含 `references` 时出现，永远 `无法判断`：工具活动只有元数据）。其后是 Case 的每条观察点，`verdict` 取 `run.judgements[id]`，没人给判定就是 `无法判断` + 「这一条只能由人来给（插件不判定）」。
+
+### 22.7 落盘与第 13 条路由（计划）
+
+- **目录**：`<dataRoot>/evaluation/cases/<caseId 去掉 sha256: 前缀>.json` 与 `<dataRoot>/evaluation/runs/<同一个 hex>/<runId>.json`。`0700` 目录 / `0600` 文件，写盘用 tmp + **原子 `rename`**（与 `receipt-store` / `translation-store` 同一套写法）。
+- **文件名只由 `caseId` / `runId` 决定，不含 `sessionId`**（`FR-EVAL-016`）：跨会话复用靠这两个 id，不靠会话。
+- **禁字段闭集**（写进存储模块并被守卫扫）：`sessionId`、绝对路径、工具参数与结果、模型回复正文、任何聚合指标。**Case 的任务 Prompt 正文与用户的判定文本是刻意落盘的**（否则 Case 无法复现），这一条必须写进 `docs/PRIVACY.md`。
+- **保留与清理**（`FR-EVAL-017`）：上限 + `prune`，与 receipts 同风格；具体数值与 V1.0 一起定。
+- **第 13 条路由**：`POST /skill-trace/evaluation`，`action ∈ ['case-save','run-save','list','read','delete']`。**全部需要 `sessionId`**（只用于解析 registry 与权限作用域，**不落盘、不回传**）。响应里 `caseId` / `runId` / 列表项不带会话信息；错误消息必须是给人看的完整句子（§3.3）。客户端请求体必须覆盖宿主真正读的 `payload.*` 字段（§3.3 那道守卫会从源码两边读）。
+- 落盘失败**不影响** Case 的生成与展示：读取端把「读不到」当空态说人话（§15.3）。
+
+### 22.8 界面（计划）
+
+- **位置**：详情页「本次修改对比」块之后新增一块 `data-role="eval"`，位置条上多一格「**Skill 评测**」。**不新增页面**（`spec/PRD.md` §4.1；一级页面永远只有两个）。
+- **出现条件**：存在 Case（有本次修改事务，或本机已保存过这个 Skill 的 Case）。没有就**整块不出现** —— 与「本次修改对比」同一条纪律。
+- **四个小节**：① Evaluation Case（身份、任务 Prompt 四块、观察点、回归约束）；② Before / After 条件并排（`runId` / 指纹三态 / 开始时间 / 日志游标 / 模型 / DSH 版本 / 插件版本 / 加载证据 / 运行时活动 / 结果 + 来源）；③ Runtime Evidence 四段阶梯（每段带 `reach`）+ 三条不等式；④ 断言与对照表 + 「这一版刻意不出现的东西」。
+- **不做什么**：不调模型、不自动跑（不建会话、不发 Prompt、不重跑 n 次、不读回模型回复）、不给分、不给趋势图、不做排名（`FR-EVAL-014` / `FR-EVAL-015`）。复制按钮只写剪贴板，不发请求。
+
+### 22.9 守卫与测试（计划）
+
+- **第 30 组 `SKILL_EVALUATION_OK`**：源码文本层钉住 —— 纯函数纪律（无 `Date.now` / `Math.random` / `new Date(`、零 `import`）、无聚合字段名、禁用词表、四段顺序与三条不等式常量在场、`caseHashInput` 的六行定序、客户端请求体覆盖宿主读的字段。
+- **两处要同时改的既有守卫**：`scripts/verify-project.mjs:1909-1912` 数客户端 `require('../../core/…')`，**必须恰好 8 支 → 9 支**（同时改 `AGENTS.md` §6.6）；`scripts/verify-project.mjs:1915` 的禁用名清单里有 **`'Skill Evaluation'`**（V0.10.0 那版不许出现这个名字），V1.0 的界面就叫「Skill 评测」，必须把这一项去掉（`Skill Run` / `Skill Execute` / `Skill Benchmark` / `测试中心` 保留）。
+- **测试**：`test/skill-evaluation.test.mjs` **14 项**（已绿），含「把所有生成出来的句子拼起来扫禁用词与度量词必须 0 命中」这一条。`npm test` 由 590 → **604 项**。
+
+### 22.10 本版不做什么，以及和后面几版的边界
+
+- **不做的**：评分器与任何聚合（`FR-EVAL-012` / `FR-EVAL-014`）、benchmark 排名、自动重跑 n 次、读回模型回复、把结果归因给 Skill。
+- **V1.1** Regression / Variance：只说「哪些事实一致、哪些不一致」，**不给方差数值、不给稳定性分数**；**V1.2** Trigger Evaluation（`should-trigger` / `should-not-trigger`，该不该触发由用户判定）；**V1.3+** Evolution Evaluation（Skill v1/v2/v3 各自的 Evaluation）。
+- **不做「用一个模型给 Skill 打分」**：那个赛道已经有人做了，而且正是上面那条外部证据指向的失败方向。
