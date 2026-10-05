@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前没有待发布版本**：六处口径都已是 `0.10.0`。下一版是 **V1.0「Skill Evaluation」**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`，路线、尚未实现），它的版本号按 `AGENTS.md` §2 仍**由用户定**，不要自己开；发布会话要把它 bump 成用户定的号。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
+**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0）。**当前没有待发布版本**：六处口径都已是 `0.10.0`。下一版是 **V1.0「Skill Evaluation」**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`，**已在工作树实现、尚未发版**），它的版本号按 `AGENTS.md` §2 仍**由用户定**，不要自己开；发布会话要把它 bump 成用户定的号。**注意 V1.0 是宿主半边改动**（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），发版前必须先重启 DSH 做真机验收（`AGENTS.md` §6.2），并确认 `dist/client.js` 已重建。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
 
 > **`0.10.0` 的发布扫描（2026-10-05）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
 > `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.10.0` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`

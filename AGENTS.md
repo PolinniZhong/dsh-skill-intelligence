@@ -35,12 +35,12 @@
 | 插件包版本 | **`0.10.0`**（`package.json`）· tag `v0.10.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**（发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0）；上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.1），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.2），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`0.10.0` = V0.10.0「Skill 实例验收」一版**（不新增路由 / 页面、不调模型、不落盘），逐条登记在 `CHANGELOG.md` 的 `## 0.10.0`；六处状态文字已按 §9.1 同步 |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
 | npm | **`beta` 与 `latest` 都指向 `0.10.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0` |
-| 测试 | **590 项全绿**（`0.10.0` 发布口径；`npm test`，`pretest` 会先重建 `dist/client.js`）；`0.9.2` 发布口径是 561 项，`0.8.0` 口径是 474 项 |
-| 静态守卫 | **29 组**（`0.10.0` 发布口径，`npm run verify`，见 §6.3；第 29 组 `SKILL_INSTANCE_TEST_OK`）；`0.9.2` 发布口径是 28 组（第 26 组 `SKILL_VALIDATION_OK`、第 27 组 `SKILL_MODIFICATION_OK`、第 28 组 `INSTALLED_ORDERING_OK`），`0.8.0` 口径是 25 组 |
-| 客户端 | **`src/dsh/client/client.js` 3625 行，bundle `dist/client.js` 189256 字节**（source hash `faed5e9cef7db24c`，`0.10.0` 发布口径），`src/core/` **30 个模块 10924 行**，`src/storage/` **6 个 1117 行**；`0.9.2` 发布口径是 3448 行 / 170324 字节（source hash `66dd0b76118e7b85`），`0.8.0` 口径是 2735 行 / 142672 字节（source hash `f53a7ac5965b38b0`） |
+| 测试 | **634 项全绿**（**V1.0 工作树口径，未发版**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`0.10.0` 发布口径是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
+| 静态守卫 | **30 组**（**V1.0 工作树口径，未发版**；第 30 组 `SKILL_EVALUATION_OK`、第 29 组 `SKILL_INSTANCE_TEST_OK`）；`0.10.0` 发布口径是 29 组，`0.9.2` 是 28 组（第 26 组 `SKILL_VALIDATION_OK`、第 27 组 `SKILL_MODIFICATION_OK`、第 28 组 `INSTALLED_ORDERING_OK`），`0.8.0` 是 25 组 |
+| 客户端 | **`src/dsh/client/client.js` 4272 行，bundle `dist/client.js` 228739 字节**（source hash `266f0d068db41270`，**V1.0 工作树口径，未发版**），`src/core/` **32 个模块 11657 行**，`src/storage/` **7 个 1411 行**；`0.10.0` 发布口径是 3625 行 / 189256 字节（source hash `faed5e9cef7db24c`）/ core 30 个模块 10924 行 / storage 6 个 1117 行；`0.9.2` 是 3448 行 / 170324 字节（`66dd0b76118e7b85`），`0.8.0` 是 2735 行 / 142672 字节（`f53a7ac5965b38b0`） |
 | 本版内容（`0.10.0`） | **V0.10.0「Skill 实例验收」**（`FR-INST-*`，`spec/PRD.md` §5.12 / `spec/SDD.md` §21）：在详情页「本次修改对比」卡里按这次改动生成一份**确定性**的实例验收任务（`src/core/skill-instance-test.mjs`，零依赖纯函数，客户端第 8 支 `require`），Prompt 与观察项**物理分离**、**不新增路由**、不自动运行、不判定成功。真机验收 2026-10-05 通过（28 个检查点）。全部记在 `CHANGELOG.md` 的 `## 0.10.0`。上一版 `0.9.2` 是三批一起发（V0.9.0 验收 / V0.9.1 Modify / V0.9.2 列表排序），见 `## 0.9.2` |
-| 工作树（路线，未实现） | **V1.0「Skill Evaluation」**（`FR-EVAL-001`–`018`，`spec/PRD.md` §5.13，逐条标注「计划，未实现」）：把 V0.10 临时生成的实例验收任务升级成**可重复的 Evaluation Case**，记录每次运行的条件（Skill / Prompt / 输入指纹、模型、Provider、DSH 与插件版本、时间）并做**同一个 Case** 的两侧对照（Before/After、Baseline/With Skill）；**不给分、不排名、不做 benchmark、不做聚合指标**。用户 2026-10-05 已授权新增本机落盘与一条 POST 路由 |
-| 宿主机面 | **12 条路由**，`src/dsh/host/index.js` **1625 行**（第 12 条是 v0.9.1 的 `POST /skill-trace/modify`；`0.8.0` 口径是 11 条 / 1292 行）。全部由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
+| 工作树（**V1.0 已实现，未发版**） | **V1.0「Skill Evaluation」**（`FR-EVAL-*`，`spec/PRD.md` §5.13 / `spec/SDD.md` §22）：把 V0.10 临时生成的实例验收任务固化成**可重复的 Evaluation Case**（`src/core/skill-evaluation.mjs`，确定性纯函数）→ 记录每次运行的**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 日志游标；DSH 版本今天读不到，如实写 `unavailable`）与**四段证据**（触发 / 加载 / 使用 / 结果，每段写明够不着什么，并固定陈述三条不等式）→ 同一个 Case 的两侧对照（改前·改后 / 基线·加上 Skill，条件不同就不给对照）→ 用户判定与 Agent 自报。落盘在 `<dataRoot>/evaluation/`（`cases/<hex>.json`、`runs/<hex>/<runId>.json`，`0700`/`0600`，上限 200 个 Case / 每 Case 50 次运行），由第 13 条路由 `POST /skill-trace/evaluation` 读写；详情页多一张「Skill 评测」卡（**不新增页面**）。**不给分、不排名、不做 benchmark、不自动跑**。**版本号由用户定，v1.0 尚未发版** |
+| 宿主机面 | **13 条路由**，`src/dsh/host/index.js` **1844 行**（第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，第 12 条是 v0.9.1 的 `POST /skill-trace/modify`；`0.10.0` 口径是 12 条 / 1625 行，`0.8.0` 口径是 11 条 / 1292 行）。全部由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
 | 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节）。v0.7 **没有新增一级 / 二级页面** |
 | 详情页顺序 | 验收（v0.9.0）→ **本次修改对比**（v0.9.1，没有修改事务时整块不渲染）→ 框架（结构 + 声明流程 + 渐进披露）→ 本次运行逻辑 → 步骤证据 → `SKILL.md`，顺序由守卫按字面匹配 |
@@ -101,7 +101,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 
 1. **本文件**
 2. `spec/PRD.md` —— **产品语义的唯一权威**：目标、业务对象、状态语义、范围与验收标准
-3. `spec/SDD.md` —— **当前架构的唯一权威**：分层、12 条路由、数据流、存储与隐私、模块清单
+3. `spec/SDD.md` —— **当前架构的唯一权威**：分层、13 条路由、数据流、存储与隐私、模块清单
 4. `README.md` §「当前状态」 —— 对外口径的现状（发版后必须同步，见 §9.1）
 5. `docs/ARCHITECTURE.md` —— 运行时那条链的深读：事件 → 收据 → 定义视图，以及布局合同
 6. `CHANGELOG.md` 顶部那一段 —— 这一版到底改了什么、为什么
@@ -111,7 +111,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
    - 查历史规格 → `docs/archive/`（**是历史，不是权威**）
    - 要发版 → `docs/RELEASE.md`（**照做，不要凭记忆**）
 
-> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**工作树 590 项**，必须全绿）。
+> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**工作树 634 项**，必须全绿）。
 
 ---
 
@@ -175,7 +175,7 @@ curl -s "http://127.0.0.1:3080/skill-trace/catalog?sessionId=probe"
 
 ### 6.3 守卫是合同，不是文档
 
-`npm run verify` 的 29 组断言全是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**改文案或挪组件都可能让守卫红**，这是设计而不是阻碍——每一条红都对应一次真实事故。
+`npm run verify` 的 30 组断言全是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**改文案或挪组件都可能让守卫红**，这是设计而不是阻碍——每一条红都对应一次真实事故。
 
 守卫的写法有两条纪律，改守卫时同样适用：
 
@@ -212,10 +212,11 @@ export default …               // ✗ 降级器直接抛错
 export { a, b }                // ✗
 ```
 
-所以**新的 core 模块要么无依赖，要么只用单行具名 import**。当前客户端 require 的是**八支**：
+所以**新的 core 模块要么无依赖，要么只用单行具名 import**。当前客户端 require 的是**九支**：
 `installed-view.mjs` / `translation-cache.mjs` / `markdown-table.mjs` / `skill-clone.mjs` /
-`flow-evidence.mjs` / `skill-framework.mjs` / `skill-runtime-logic.mjs` / `skill-instance-test.mjs`。
-（`skill-clone.mjs` 是 v0.7 加的第七支；`skill-instance-test.mjs` 是 V0.10.0 加的第八支，**零依赖纯函数**，守卫会数 `require('../../core/…')` 的总数必须恰好是 8。本文此前写过「六支」「七支」。）
+`flow-evidence.mjs` / `skill-framework.mjs` / `skill-runtime-logic.mjs` / `skill-instance-test.mjs` /
+`skill-evaluation.mjs`。
+（`skill-clone.mjs` 是 v0.7 加的第七支；`skill-instance-test.mjs` 是 V0.10.0 加的第八支；`skill-evaluation.mjs` 是 V1.0 加的**第九支**（工作树，未发版）——它唯一的一行 `import` 是 `./skill-instance-test.mjs`，同样**零依赖纯函数**。守卫会数 `require('../../core/…')` 的总数必须恰好是 **9**。本文此前写过「六支」「七支」「八支」。）
 **能不能被客户端读，不该取决于它恰好有几个依赖。**
 
 ### 6.7 证据词表：禁用词只能来自模块常量
@@ -289,7 +290,7 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 默认答案是**不加**。
 
 - **新依赖**：`dependencies` 必须保持为空。画布类（`elkjs` / `@xyflow/react` / `mermaid`）由守卫直接拒绝——框架画的是角色与小节，不是图。
-- **新路由**：宿主只有 **12** 条（`0.8.0` 时 11 条；v0.9.1 加了 `POST /skill-trace/modify`），由守卫按字面钉住；15 条已删路由同样被反向钉住。v0.9.1 那条是**第一条「不写文件但不是纯读」之外的第二条非纯读路由**（第一条是 `POST /skill-trace/clone`）：它把当前 `SKILL.md` 与来源指纹**只存进宿主内存**、用**当前会话**的 `agent.followup()` 代发一条消息，**不写任何文件**——真正改文件的是 Agent 用 DSH 原生工具。用户点「交给 Agent」这个动作本身就是授权。要再加路由，必须同时改本节与 `spec/SDD.md` §3。
+- **新路由**：宿主现在有 **13** 条（`0.8.0` 时 11 条；v0.9.1 加了 `POST /skill-trace/modify`；**V1.0 工作树加了 `POST /skill-trace/evaluation`** —— 它是**第二处真的会写文件**的路由（第一处是复刻），只做四件事：算身份、落盘、读回来、按 `caseId` 精确删除；它**不建会话、不发消息、不调模型**），由守卫按字面钉住；15 条已删路由同样被反向钉住。v0.9.1 那条是**第一条「不写文件但不是纯读」之外的第二条非纯读路由**（第一条是 `POST /skill-trace/clone`）：它把当前 `SKILL.md` 与来源指纹**只存进宿主内存**、用**当前会话**的 `agent.followup()` 代发一条消息，**不写任何文件**——真正改文件的是 Agent 用 DSH 原生工具。用户点「交给 Agent」这个动作本身就是授权。要再加路由，必须同时改本节与 `spec/SDD.md` §3。
 - **新页面**：一级页面只有两个。要加页面，先改 §4 的权威文件，再改代码。
 
 ---
@@ -360,8 +361,8 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 cd "$(git rev-parse --show-toplevel)"   # 仓库根（本仓库根就是插件包根）
 
 node --check src/dsh/client/client.js   # 改过 CSS/客户端源码先过这一关
-npm test                                # 必须 590 全绿（pretest 会重建 dist）
-npm run verify                          # 必须 29 组 OK
+npm test                                # 必须 634 全绿（pretest 会重建 dist）
+npm run verify                          # 必须 30 组 OK
 ```
 
 改界面的，再加一层：`01_重构方案/render-harness/`（本地，不发布）用**真实客户端 bundle + 真实会话载荷**截图核对。
@@ -415,7 +416,7 @@ npm run verify                          # 必须 29 组 OK
 | `test/phase16-skill-framework.test.mjs` | 框架与运行逻辑的纯函数行为 + 禁用词 + 客户端必须真的引用每条 limitation |
 | `test/phase25-v06-acceptance.test.mjs` | v0.6 验收 |
 | `test/phase2-false-relations.test.mjs` / `phase3-alignment` / `phase9-skill-runtime-scope` | 证据与对齐的**不许乱认关系** |
-| `scripts/verify-project.mjs` | 29 组源码文本守卫（见 §6.3） |
+| `scripts/verify-project.mjs` | 30 组源码文本守卫（见 §6.3） |
 
 ---
 
@@ -429,7 +430,7 @@ npm run verify                          # 必须 29 组 OK
 ├── design.md                 ← 视觉规格与组件表
 ├── spec/
 │   ├── PRD.md                ← **当前版产品的唯一权威**（旧版见 docs/archive/）
-│   └── SDD.md                ← **当前架构的唯一权威**（模块清单 / 12 条路由 / 数据流）
+│   └── SDD.md                ← **当前架构的唯一权威**（模块清单 / 13 条路由 / 数据流）
 ├── docs/
 │   ├── ARCHITECTURE.md       ← 模块职责 / 宿主路由 / 证据模型 / 布局合同 / 删除记录
 │   ├── PRIVACY.md
@@ -440,7 +441,7 @@ npm run verify                          # 必须 29 组 OK
 │       └── product-thesis.md                ← 产品命题初稿
 ├── src/
 │   ├── core/                 ← 纯函数层（框架、运行逻辑、对齐、表格、翻译…）
-│   ├── dsh/host/index.js     ← 宿主半边：12 条路由、事件观察、持久化
+│   ├── dsh/host/index.js     ← 宿主半边：13 条路由、事件观察、持久化
 │   ├── dsh/client/client.js  ← 整个客户端（一个工厂闭包）
 │   └── storage/              ← 收据与偏好
 ├── dist/client.js            ← 构建产物，**提交进仓库**
@@ -448,8 +449,8 @@ npm run verify                          # 必须 29 组 OK
 │   └── publish-npm.yml       ← npm 发布（OIDC trusted publishing，见 docs/RELEASE.md §5.2）
 ├── scripts/
 │   ├── build-client.mjs      ← esbuild 打包
-│   └── verify-project.mjs    ← 29 组守卫
-├── test/                     ← 590 项
+│   └── verify-project.mjs    ← 30 组守卫
+├── test/                     ← 634 项
 └── 01_重构方案/              ← 本地过程目录，**.gitignore 排除，不发布**（入口：其中 `README.md`）
 ```
 
