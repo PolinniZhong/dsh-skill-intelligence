@@ -142,7 +142,7 @@ export function apply(ctx, config = {}) {
 
 ---
 
-## 3. 宿主接口面（12 条路由；V1.0 计划新增第 13 条 `POST /skill-trace/evaluation`，见 §22.7）
+## 3. 宿主接口面（13 条路由；第 13 条是 V1.0 工作树新增的 `POST /skill-trace/evaluation`，见 §22.7）
 
 全部在 `src/dsh/host/index.js`，全部挂在 `/skill-trace` 前缀下，全部先过 §2.1 的 loopback 门禁。
 
@@ -162,6 +162,8 @@ export function apply(ctx, config = {}) {
 | 10 | `POST` | `/skill-trace/clone` | **需要 `sessionId`**（body，用来解析 registry） | body 见 §8.2 | 复刻结果 + `verified` + `discovered` + `limitations` |
 | 11 | `GET` | `/skill-trace/diff` | **需要 `sessionId`**（只用来解析 registry 与 `cwd`） | query `sessionId`、`skillName`（目标）、可选 `against`（来源名，缺省取血缘里的来源） | `lineage` 摘要 + `source` / `target` 两侧可用性与指纹 + `comparison` + `structure` / `content` / `resources` 三层差异。**不含绝对路径**；正文本就是详情页已有的可见内容，这里只多返回「哪几行变了」 |
 | 12 | `POST` | `/skill-trace/modify` | **需要 `sessionId`**（body；决定「改前」快照存进哪个会话、以及把那条消息代发给哪个会话的 Agent） | body `sessionId`、`skillName`、`action` ∈ `['begin','compare']`、`intent`（`begin` 必填，≤ 2000 字）、可选 `scopes`、可选 `profiles` | `begin`：把「改前」（整份正文 + 目录清单 + 来源指纹）记进**宿主内存快照**，再用当前会话的 `agent.followup()` 代发一条消息（`source.kind = 'skill-intelligence-modify'`）；`compare`：三态结论 + 行级 / 小节级 / 资源级变化 + 超出授权范围的变化 + 来源指纹对比，**并释放快照**，同一响应里带上与 `/skill` 同源的 `validation` |
+
+| 13 | `POST` | `/skill-trace/evaluation` | **需要 `sessionId`**（只用来校验请求来自哪个会话，**一个字节都不落盘**） | body `sessionId`、`action` ∈ `['case-save','case-list','case-read','case-delete','run-save','run-list','run-read']`；其余字段随 `action` | `case-save`：`caseId = sha256(hashInput)` 由**宿主**算，与送来的 `caseId` 不一致就拒绝；`case-read` 回 `{case, runs, warningCount}`；`run-save` 用 `normalizeEvaluationRun` 把缺项降级成 `unavailable`，`runId` 缺省由宿主生成；`case-delete` 连运行一起删 |
 
 **会话作用域的三条判据**（v0.7 新增路由为什么这样定）：
 
@@ -291,6 +293,8 @@ V0.8 起 `skill` 里多一个 `lineage` 字段（见 §17）：这个 Skill 是�
 **它不是插件在改文件。** 这条路由里没有任何 `writeFile` / `ctx.fs.write`：插件只把「用户的原话 + 结构化后的修改范围 + 验收目标 + Modification Contract」交给当前会话的 Agent，真正的修改由 Agent 用 DSH 原生文件工具、在 DSH 权限下完成。用户点「交给 Agent」这个动作本身就是授权。消息里另有一句要求 Agent **动手之前先说明打算怎么改、拿不准就用提问工具问用户**（见 §19.5）：于是「提出方案 → 用户确认 → 动手」发生在原生对话里 —— 插件只提这个要求，不代办，也不解析它的方案。
 
 **V0.10.0 不新增任何路由**（仍 **12 条**）：Skill 实例验收**完全发生在客户端** —— 生成器就是客户端**第 8 支 `require`** 的 `src/core/skill-instance-test.mjs`（**571 行**、零依赖、零 `import`、不读时间、不掷骰子），宿主既不参与生成也不参与判定。原设计里的 `POST /skill-trace/instance-test` 已取消（`spec/PRD.md` 的 `FR-INST-015` 记了这件事，见 §21.7），`src/dsh/host/index.js` 因此**一行未动**（仍 **1625 行**）。§3.1 的路由表因此**一字未变**。
+
+**13. `POST /skill-trace/evaluation`（V1.0，§22.7）** —— 评测的落盘面。它只做四件事：算身份、落盘、读回来、按 `caseId` 精确删除。**不建会话、不发消息、不调模型、不判定**（`FR-EVAL-015`）：跑不跑由用户在自己的会话里决定，插件只负责把那次运行的条件、`unavailable` 与用户自己的判定记下来。`sessionId` 必须校验，但**一个字节都不落盘** —— 实验的身份是 `caseId`（`sha256(hashInput)`），不是会话（`FR-EVAL-016`）。写盘失败时返回 500 与一句人话：页面上的内容还在，重启 DSH 之后不会留下它。
 
 ### 3.3 请求与响应的公共约定
 
@@ -865,8 +869,9 @@ export { a, b }                 // ✗ 直接抛错
 | `<dataRoot>/preferences…` | 机器级偏好（版本 3） | 默认 | 固定文件 |
 | `<dataRoot>/translations/` | 中文阅读版 | 目录 `0700`、文件 `0600` | `sha256(skillName\0sourceSha256\0targetLanguage)` |
 | `<dataRoot>/lineage/` | **Skill 复刻血缘**（V0.8，一个目标 Skill 一条记录） | 目录 `0700`、文件 `0600` | `sha256(targetSkillName)` |
+| `<dataRoot>/evaluation/` | **评测的 Case 与 Run**（V1.0，§22.7） | 目录 `0700`、文件 `0600` | `cases/<caseId 去掉 sha256: 前缀>.json`、`runs/<同上>/<runId>.json` |
 
-`dataRoot` 来自 `config.dataRoot`；`receipt-store.mjs` 的默认根是 `~/.dsh/skill-trace/receipts`。译文写盘一律「临时文件 + `rename`」。**血缘用同一套原子写**（`mkdir({recursive:true,mode:0o700})` → 带 pid 与随机后缀的 `.tmp` → `writeFile(...,{mode:0o600})` → `rename`），并且**不复用 translation store**：两者的键、生命周期与拒绝字段都不同（`FR-EVO-007`）。
+`dataRoot` 来自 `config.dataRoot`；`receipt-store.mjs` 的默认根是 `~/.dsh/skill-trace/receipts`。译文写盘一律「临时文件 + `rename`」。**评测用同一套原子写**（`mkdir({recursive:true,mode:0o700})` → `.tmp` → `writeFile(...,{mode:0o600})` → `rename`），并且在写之前**深层扫描禁字段**（`sessionId` / 工具参数与结果 / `score` / `rate` / `variance` / `ranking` / `trend` …）：命中就拒绝写入，而不是悄悄丢掉。**血缘用同一套原子写**（`mkdir({recursive:true,mode:0o700})` → 带 pid 与随机后缀的 `.tmp` → `writeFile(...,{mode:0o600})` → `rename`），并且**不复用 translation store**：两者的键、生命周期与拒绝字段都不同（`FR-EVO-007`）。
 
 ### 11.2 明确不落盘 / 不外发的东西
 
@@ -876,6 +881,7 @@ export { a, b }                 // ✗ 直接抛错
 4. **`sessionId` 不进译文键、不进内存缓存之外的任何持久结构**；`translationStoreKey` 的实现体里连 `session` 这个词都不许出现。
 5. **`learningNotes[]` / `validationResults[]` 是遗留数据**：只读、不迁移、不派生状态 —— 当前产品没有任何写入入口（既没有笔记路由，也没有验证结果路由，也没有编辑组件）。
 6. **「改前」的修改快照**（V0.9.1，§19）：只在**宿主内存**里活 30 分钟（上限 32 份）。不落盘、不进收据、不进会话日志、不上传；进程一重启就消失，这时界面只说「本次修改前状态不可用，暂时无法比较本次修改的内容。」。
+8. **评测的落盘内容**（V1.0，§22.7）：这是本插件**第一处把用户自己的话写进磁盘**的地方 —— Case 里存的是**生成出来的任务 Prompt**（由定义正文经确定性函数派生，用户不手打）、观察项与回归约束；Run 里存的是**用户自己的判定**（或 Agent 自报）、运行条件元数据、以及运行时活动的**汇总**（工具名 + 次数）。两者都不含 `sessionId`、会话正文、工具参数或结果、绝对路径、token，也不含任何聚合量 —— 聚合量在落盘层是禁字段，深层扫描拒绝写入。上限（200 个 Case、每个 Case 50 次运行）超出按最旧删；界面上的「删掉这个 Case」会连它的运行一起删。
 7. **实例验收的生成结果与用户意图**（V0.10.0，§21）：`prompt.text`、`promptText`、观察项、回归约束、`unavailable`、`limitations`，以及用户写的那句修改意图（页面 state `lastIntent`）**只活在详情页的前端状态里**（与本次修改、本次 diff、静态验收同级），不落盘、不进收据、不进会话日志、不上传、不新增任何持久结构；页面刷新后重新生成（同一份输入必然得到同一份结果）。**观察项一个字都不进 Prompt** —— 这两样东西在载荷里就是两个字段（`prompt.text` / `observations`），不是同一段文本的两半。
 
 唯一离开本机的东西，是用户在详情页主动点「中文阅读版」时**发给用户自己配置的模型 provider**的定义正文。V0.9.1 的「交给 Agent」另有一条出边，但口径不同：那条代发的消息里只有**用户自己写的意图**、结构化后的修改范围与验收目标（**不含 `SKILL.md` 正文**），而它进入会话这件事本身就是用户点那个按钮的动作。

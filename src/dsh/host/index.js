@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import {
@@ -56,6 +57,23 @@ import { createTranslationStore } from '../../storage/translation-store.mjs'
 // v0.9.1 §「本次修改对比」：**内存**快照库。它必须在 `apply` 作用域里只建一次 ——
 // 每请求新建一份就等于什么都没记住。它自己保证不碰磁盘（见该模块的文件头）。
 import { createModificationSnapshotStore } from '../../storage/modification-snapshot-store.mjs'
+// V1.0 §22：评测的纯函数层（Case 身份输入 / Run 字段表 / 断言 / 对照 / 四段证据）。
+// 宿主只做它才能做的事：算 `caseId` 的 sha256、把 Case 与 Run 落盘、读回来。
+// **判定、聚合、模型调用一个都不做** —— 那些正是这一版永久禁令要挡的东西。
+import { normalizeEvaluationRun } from '../../core/skill-evaluation.mjs'
+// V1.0 §22.4：一次运行的**条件**与**活动汇总**。会话日志里的 `request/header` 带着整份工具
+// 清单、`tool/call` 带着完整参数 —— 这一层只取四个只读元数据字段与「工具名 + 次数」。
+import {
+  readLoadEvidence,
+  readRunConditions,
+  readRunCursor,
+  RUN_UNAVAILABLE,
+  summarizeToolActivity,
+} from '../../core/run-conditions.mjs'
+// V1.0 §22.7：评测的落盘面。这是本插件**第一处把用户的任务正文与用户判定写进磁盘**的地方
+// （用户 2026-10-05 明确授权新增落盘），所以它必须出现在 `docs/PRIVACY.md` 里，
+// 目录权限、禁字段与原子写都写死在那份 storage 模块里。
+import { createEvaluationStore } from '../../storage/evaluation-store.mjs'
 import {
   bodySha256,
   cloneTargetTaken,
@@ -85,6 +103,22 @@ export const name = 'dsh-skill-trace'
 // `skill-invocation`) and the published skill catalog (`source.kind`
 // `skill-catalog`). Every `tool/call` is kept as bounded runtime evidence, so
 // Tool, CLI and MCP invocations are no longer discarded at the door.
+const require = createRequire(import.meta.url)
+
+/**
+ * 插件自己的版本，来自随包发布的 `package.json`。它只用来填 Run 的一个只读字段，
+ * 读不到写 `unavailable` —— **不猜**，也不去猜 DSH 的版本（`FR-EVAL-008` 那条读法尚未验证，
+ * 真机实测 `createRequire(插件文件)('@deepseek-ai/dsh/package.json')` 是 `MODULE_NOT_FOUND`）。
+ */
+const PLUGIN_VERSION = (() => {
+  try {
+    const version = require('../../package.json').version
+    return typeof version === 'string' && version ? version : RUN_UNAVAILABLE
+  } catch {
+    return RUN_UNAVAILABLE
+  }
+})()
+
 const OBSERVED_EVENT_TYPES = new Set([
   'turn/start',
   'step/start',
@@ -219,6 +253,18 @@ function requiredSourceSha256(value) {
   const text = typeof value === 'string' ? value.trim() : ''
   if (!/^sha256:[a-f0-9]{64}$/.test(text)) {
     throw new RequestError('这次请求没有带上合法的正文指纹，无法确认译文对应的是哪一版正文。请刷新页面后重试。')
+  }
+  return text
+}
+
+/**
+ * 评测的 Case 身份：`sha256:` + 64 位小写十六进制。形状必须固定 —— 它同时是文件名
+ * （`<dataRoot>/evaluation/cases/<hex>.json`），一个手抖的字符就是一份永远读不到的 Case。
+ */
+function requiredCaseId(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!/^sha256:[a-f0-9]{64}$/.test(text)) {
+    throw new RequestError('这次请求没有带上合法的评测 Case 身份，无法确认它属于哪一次实验。请刷新页面后重试。')
   }
   return text
 }
@@ -456,6 +502,9 @@ export function apply(ctx, config = {}) {
     }
     // v0.9.1 §「本次修改对比」：一次修改事务的「改前」。**只在内存里**，跟着宿主进程活；
     // 不落盘、不进收据、不进会话日志，DSH 重启之后什么都不剩 —— 那时只能说「本次修改前状态不可用」。
+    // V1.0 §22.7：评测的 Case 与 Run。跟着 `dataRoot` 走，与 receipts / translations / lineage
+    // 同一套根目录约定；跨会话复用靠 `caseId` + `runId`，**不靠 sessionId**。
+    const evaluationStore = createEvaluationStore(dataRoot ? join(dataRoot, 'evaluation') : undefined)
     const modificationStore = createModificationSnapshotStore()
     const cache = new Map()
     const { queues, enqueue, runMaintenance } = createSessionMutationQueue()
@@ -713,6 +762,162 @@ export function apply(ctx, config = {}) {
      *
      * 返回 `{status, body}`，与 `handleDiff` / `handleClone` 同一套：每条失败路径有自己的状态码。
      */
+    /**
+     * V1.0 §22.7：评测的读写接缝（第 13 条路由）。
+     *
+     * 三类动作，规矩各不相同：
+     *
+     * - `case-save`：**身份由宿主算**。客户端把纯函数层产出的六行哈希输入原样送上来，
+     *   宿主算出 `caseId` 并写进记录 —— 生成器那头要保持零 `import`（客户端要 `require` 它），
+     *   所以 `node:crypto` 只能在这里用。送来的 `caseId` 和算出来的不一致就**拒绝保存**：
+     *   那意味着页面上的内容和身份已经不是一回事了。
+     * - `run-save`：字段表只有一个入口（`normalizeEvaluationRun`），缺项一律 `unavailable`；
+     *   `runId` 由宿主生成（一次运行的时间与随机性只属于运行身份，不影响 Case 的可复现性）。
+     * - 其余动作都是读，或者删。**删 Case 会连它的运行一起删**，不留孤儿文件。
+     *
+     * `sessionId` 是必需的（与别的路由同一条会话作用域纪律），但**它不落盘、也不回传**：
+     * 它只用来确认「这次请求属于哪个会话」。
+     */
+    async function handleEvaluation(body) {
+      const payload = body && typeof body === 'object' ? body : {}
+      const fail = (status, code, error) => ({ status, body: { ok: false, code, error } })
+      let sessionId = ''
+      try {
+        sessionId = requiredSessionId(payload.sessionId)
+      } catch (error) {
+        return fail(400, 'invalid-request', error.message)
+      }
+      const action = typeof payload.action === 'string' ? payload.action : ''
+      try {
+        if (action === 'case-save') {
+          const record = payload.case
+          const hashInput = typeof payload.hashInput === 'string' ? payload.hashInput : ''
+          if (!record || typeof record !== 'object' || Array.isArray(record)) {
+            throw new RequestError('这次请求没有带上要保存的评测 Case。请在详情页重新生成一次，再试。')
+          }
+          if (!hashInput.trim()) {
+            throw new RequestError('这次请求没有带上 Case 的身份输入，无法算出它的身份。请在详情页重新生成一次，再试。')
+          }
+          const caseId = bodySha256(hashInput)
+          if (typeof record.caseId === 'string' && record.caseId && record.caseId !== caseId) {
+            throw new RequestError('这个 Case 的身份和它的内容对不上，先不保存 —— 页面上的内容可能已经变了。请重新生成一次。')
+          }
+          const saved = await evaluationStore.saveCase({ ...record, caseId })
+          return { status: 200, body: { ok: true, caseId: saved.caseId, updatedAt: saved.updatedAt } }
+        }
+
+        if (action === 'case-list') {
+          const { cases, warningCount } = await evaluationStore.listCases()
+          const skillName = typeof payload.skillName === 'string' ? payload.skillName.trim() : ''
+          const rows = []
+          for (const entry of cases) {
+            if (skillName && entry.skillName !== skillName) continue
+            const { runs } = await evaluationStore.listRuns(entry.caseId)
+            rows.push({
+              caseId: entry.caseId,
+              skillName: entry.skillName,
+              generatorVersion: entry.generatorVersion,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+              runCount: runs.length,
+            })
+          }
+          return { status: 200, body: { ok: true, cases: rows, warningCount } }
+        }
+
+        if (action === 'case-read') {
+          const caseId = requiredCaseId(payload.caseId)
+          const record = await evaluationStore.readCase(caseId)
+          if (!record) return fail(404, 'case-not-found', '本机没有这一份评测 Case，可能它已经被删掉了。请在详情页重新生成一次。')
+          const { runs, warningCount } = await evaluationStore.listRuns(caseId)
+          return { status: 200, body: { ok: true, case: record, runs, warningCount } }
+        }
+
+        if (action === 'case-delete') {
+          const caseId = requiredCaseId(payload.caseId)
+          const { deleted, runsRemoved } = await evaluationStore.deleteCase(caseId)
+          return { status: 200, body: { ok: true, caseId, deleted, runsRemoved } }
+        }
+
+        if (action === 'run-save') {
+          const input = payload.run && typeof payload.run === 'object' && !Array.isArray(payload.run) ? payload.run : {}
+          const caseId = requiredCaseId(input.caseId ?? payload.caseId)
+          const run = normalizeEvaluationRun({ ...input, caseId })
+          const runId = typeof input.runId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(input.runId.trim())
+            ? input.runId.trim()
+            : `r-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
+          const saved = await evaluationStore.saveRun({ ...run, caseId, runId })
+          return { status: 200, body: { ok: true, caseId: saved.caseId, runId: saved.runId, updatedAt: saved.updatedAt } }
+        }
+
+        if (action === 'run-capture') {
+          // 这一支是「运行时证据」的取数口：**条件与事实由宿主从会话日志与收据里取**，
+          // 客户端只提交它才能给的两样东西 —— 用户自己的判定与 Agent 自报的结果。
+          // 插件在这里不判定任何一条：没有 `outcome` 就记 `unavailable`（`FR-EVAL-015`）。
+          const caseId = requiredCaseId(payload.caseId)
+          const record = await evaluationStore.readCase(caseId)
+          if (!record) return fail(404, 'case-not-found', '本机没有这一份评测 Case，可能它已经被删掉了。请在详情页重新生成一次。')
+          const { registry, liveAgent, cwd } = registryContext(sessionId)
+          const definition = await buildSkillDefinitionView(registry, record.skillName, { cwd, scope: liveAgent, now: Date.now() })
+          const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
+          const { events, found } = readSessionEvents(sessionId)
+          const cursor = readRunCursor(events)
+          const until = cursor.seq ?? undefined
+          const conditions = readRunConditions(events, { untilSeq: until })
+          const observation = compareDefinitionToRun(receipt, record.skillName, definition)
+          const input = {
+            caseId,
+            runId: payload.runId,
+            startedAt: cursor.startedAt,
+            turn: cursor.turn,
+            step: cursor.step,
+            provider: conditions.provider,
+            model: conditions.model,
+            reasoningEffort: conditions.reasoningEffort,
+            contextWindow: conditions.contextWindow,
+            // `FR-EVAL-008`：DSH 版本还没有已验证的读取方式，缺就是缺。
+            dshVersion: RUN_UNAVAILABLE,
+            pluginVersion: PLUGIN_VERSION,
+            observedInstructionSha256: observation.observedInstructionSha256,
+            currentInstructionSha256: observation.currentInstructionSha256,
+            match: observation.match,
+            load: readLoadEvidence(receipt, record.skillName),
+            trigger: { catalogPublished: Boolean(receipt.catalogPublished), offerCount: null },
+            // 日志没找到时，工具活动是「拿不到」而不是「0 次」—— 这两个不能混。
+            runtimeEvents: { ...summarizeToolActivity(events, { untilSeq: until }), available: found === true },
+            outcome: payload.outcome,
+            judgements: payload.judgements,
+          }
+          const run = normalizeEvaluationRun(input)
+          const runId = typeof payload.runId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(payload.runId.trim())
+            ? payload.runId.trim()
+            : `r-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
+          const saved = await evaluationStore.saveRun({ ...run, caseId, runId })
+          return { status: 200, body: { ok: true, caseId: saved.caseId, runId: saved.runId, run: saved } }
+        }
+
+        if (action === 'run-list') {
+          const caseId = requiredCaseId(payload.caseId)
+          const { runs, warningCount } = await evaluationStore.listRuns(caseId)
+          return { status: 200, body: { ok: true, runs, warningCount } }
+        }
+
+        if (action === 'run-read') {
+          const caseId = requiredCaseId(payload.caseId)
+          const runId = typeof payload.runId === 'string' ? payload.runId.trim() : ''
+          const run = await evaluationStore.readRun(caseId, runId)
+          if (!run) return fail(404, 'run-not-found', '本机没有这一次评测运行的记录，可能它已经被清理掉了。')
+          return { status: 200, body: { ok: true, run } }
+        }
+
+        throw new RequestError('这次请求里的动作名不在评测支持的范围内。请刷新页面后重试。')
+      } catch (error) {
+        if (error instanceof RequestError) return fail(error.status, 'invalid-request', error.message)
+        console.error('[dsh-skill-trace] evaluation failed', error)
+        return fail(500, 'evaluation-failed', '这次评测没能完成：读会话日志或写盘的时候出错了。页面上还会显示刚才的内容，但重启 DSH 之后不会留下它。请检查磁盘权限后重试。')
+      }
+    }
+
     async function handleModify(body) {
       const payload = body && typeof body === 'object' ? body : {}
       const fail = (status, code, error, extra) => ({ status, body: { ok: false, code, error, ...extra } })
@@ -1591,6 +1796,15 @@ export function apply(ctx, config = {}) {
           // 真正的写入由 Agent 用 DSH 原生文件工具完成，走 DSH 自己的权限与审批。
           if (method === 'POST' && url.pathname === '/skill-trace/modify') {
             const outcome = await handleModify(await readBody(req))
+            sendJson(res, outcome.status, outcome.body)
+            return
+          }
+
+          // V1.0 §22.7：第 13 条路由。它是**第二处真的会写文件**的路由（第一处是复刻），
+          // 所以它只做四件事：算身份、落盘、读回来、按 caseId 精确删除。
+          // 评测**不建会话、不发消息、不调模型**（`FR-EVAL-015`）—— 跑不跑由用户自己决定。
+          if (method === 'POST' && url.pathname === '/skill-trace/evaluation') {
+            const outcome = await handleEvaluation(await readBody(req))
             sendJson(res, outcome.status, outcome.body)
             return
           }

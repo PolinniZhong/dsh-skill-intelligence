@@ -302,3 +302,29 @@ test('这一层不许出现度量词与「已…」：生成出来的每句话�
   // 但常量表本身要留着这些词：守卫与界面「刻意不出现的东西」那一块靠它。
   assert.ok(EVALUATION_FORBIDDEN_WORDS.length > 0 && EVALUATION_FORBIDDEN_OUTPUTS.length > 0)
 })
+
+test('Use 段分得清「读不到日志」与「0 次活动」——前者是拿不到，后者才是没发生', () => {
+  const built = buildWith()
+  const base = {
+    caseId: built.case.caseId,
+    runId: 'r-use',
+    load: { status: 'loaded', seq: 6, observedInstructionSha256: 'a'.repeat(64), currentInstructionSha256: 'a'.repeat(64), match: 'match' },
+    outcome: { source: 'user', text: '产出可用。' },
+  }
+  const zero = buildRuntimeEvidence({ case: built.case, run: { ...base, runtimeEvents: { activities: [], total: 0 } } })
+  const zeroUse = zero.stages.find((stage) => stage.id === 'use')
+  assert.equal(zeroUse.status, 'not-observed')
+  assert.match(zeroUse.facts.join(' '), /0 次工具活动/)
+
+  const missing = buildRuntimeEvidence({ case: built.case, run: { ...base, runtimeEvents: { available: false, activities: [], total: 0 } } })
+  const missingUse = missing.stages.find((stage) => stage.id === 'use')
+  assert.equal(missingUse.status, 'unavailable')
+  const text = missingUse.facts.join(' ')
+  assert.match(text, /读不到/)
+  assert.equal(text.includes('0 次工具活动'), false, '拿不到就不许写成 0 次')
+
+  // 缺省的 `available` 是 true：老记录（这一版之前写下的）仍然是「数得出来就是数得出来」。
+  const normalized = normalizeEvaluationRun({ caseId: built.case.caseId, runtimeEvents: { activities: [{ name: 'read', count: 2 }], total: 2 } })
+  assert.equal(normalized.runtimeEvents.available, true)
+  assert.equal(normalized.runtimeEvents.total, 2)
+})

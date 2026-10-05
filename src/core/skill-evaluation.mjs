@@ -311,6 +311,9 @@ export function normalizeEvaluationRun(input) {
       offerCount: Number.isFinite(safe.trigger?.offerCount) ? safe.trigger.offerCount : null,
     },
     runtimeEvents: {
+      // 「读不到这一次运行的日志」与「这一次没有工具活动」是两件事，不能都写成 0
+      // （`FR-EVAL-010`：缺就是缺）。只有显式收到 `available: false` 才降级。
+      available: runtime.available === false ? false : true,
       activities: activities
         .filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.name === 'string')
         .map((entry) => ({ name: entry.name, count: Number.isFinite(entry.count) ? entry.count : 0 })),
@@ -514,14 +517,16 @@ export function buildRuntimeEvidence(input) {
 
   stages.push({
     id: 'use',
-    status: run.runtimeEvents.total > 0 ? 'observed' : 'not-observed',
+    status: run.runtimeEvents.available === false ? 'unavailable' : (run.runtimeEvents.total > 0 ? 'observed' : 'not-observed'),
     source: 'protocol',
-    facts: run.runtimeEvents.total > 0
-      ? [
-        `${run.runtimeEvents.total} 次工具活动（仅元数据，不含参数与结果）：`,
-        run.runtimeEvents.activities.map((entry) => `${entry.name} ×${entry.count}`).join(' / '),
-      ]
-      : ['0 次工具活动（仅元数据）。'],
+    facts: run.runtimeEvents.available === false
+      ? ['读不到这一次运行的会话日志，因此工具活动拿不到 —— 缺就是缺，不写成「没有活动」。']
+      : (run.runtimeEvents.total > 0
+        ? [
+          `${run.runtimeEvents.total} 次工具活动（仅元数据，不含参数与结果）：`,
+          run.runtimeEvents.activities.map((entry) => `${entry.name} ×${entry.count}`).join(' / '),
+        ]
+        : ['0 次工具活动（仅元数据）。']),
   })
 
   stages.push({

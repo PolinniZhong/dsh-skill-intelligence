@@ -52,6 +52,19 @@ Lineage never enters the Skill itself, and never enters a receipt. The `lineage`
 
 Nothing about lineage or diff is uploaded, synchronized, or shared between machines. Comparing two Skills sends nothing off the machine: the deterministic diff runs locally, and its response deliberately carries no absolute path — only the scope words 「当前项目 Skill」 / 「用户级 Skill」.
 
+## What the Skill evaluation feature stores
+
+V1.0 adds the first place where **the user's own words** reach the plugin's data area. It is stated separately for that reason.
+
+It writes `<plugin data area>/evaluation/cases/<sha256(caseId)>.json` and `<plugin data area>/evaluation/runs/<sha256(caseId)>/<runId>.json`, with the directory at `0700`, each file at `0600`, and every write a temp file followed by a rename. Deleting a case deletes its runs with it. When the caps are reached — 200 cases, 50 runs per case — the oldest are pruned first.
+
+A **Case** holds the identity and the inputs of a repeatable experiment: `caseId`, the generator version, the schema version, the Skill name, the Skill fingerprint it is bound to (`observedInstructionSha256` and the three-state `match`), the scopes that changed, **the generated task Prompt** (the four-part task / goal / output / note block), the expected observations, the regression constraints, any `limitations`, and timestamps. The task Prompt is derived from the Skill definition by a deterministic local function; the user does not type it.
+
+A **Run** holds the conditions and the evidence of one attempt: `runId`, the `caseId` it belongs to, the start time, the session-log `turn` / `step` cursor, the model metadata (`provider`, `model`, `reasoningEffort`, `contextWindow`), the plugin and DSH versions when they can be read, the observed and current instruction hashes plus `match`, the load evidence (`status`, the `seq` where the body was seen), a **summary of runtime activity** (tool name and count only), and the outcome — which is either **the user's own verdict** or **the Agent's self-report**, never the plugin's judgement.
+
+Nothing else is written. A Case and a Run never hold a session id, a conversation or message, tool arguments or results, an absolute path, tokens, or any aggregate: `score`, `passes`, `rate`, `variance`, `stddev`, `ranking` and `trend` are forbidden field names that the store rejects at any depth, so a payload carrying them fails instead of being trimmed. The evaluation feature sends nothing off the machine, calls no model, creates no session and runs no task — running the task is something the user does in their own session, and the plugin only records the conditions, the `unavailable` entries, and the user's own verdict.
+
+
 ## User control
 
 The current plugin offers no field for the user to author, and v0.6 removed the clear-all and single-receipt deletion routes along with the entire export, backup, and restore chain. There is therefore no in-product deletion action and no safety backup taken before one: receipts live in the plugin's local data area, and removing them is an ordinary local file operation. Removing the plugin does not itself delete the receipts it wrote.
