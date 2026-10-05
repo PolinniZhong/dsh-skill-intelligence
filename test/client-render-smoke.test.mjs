@@ -2223,3 +2223,151 @@ test('the instance-test block hands over a task, never a verdict, and never merg
   }))
   assert.equal(idleModification.length, 0, '没有修改事务时，连实例验收这一段都不该出现')
 })
+
+test('the evaluation card is a ledger: four stages, three inequalities, factual comparison — and no aggregate anywhere', async () => {
+  const client = mountChineseClient()
+  const core = await import('../src/core/skill-evaluation.mjs')
+  const sha = (letter) => `sha256:${letter.repeat(64)}`
+
+  const comparison = {
+    available: true,
+    status: 'changed',
+    scopeIds: ['skill-md-workflow'],
+    scopes: [{ id: 'skill-md-workflow', label: '运行逻辑', target: 'workflow', section: '## 运行逻辑', state: 'changed', changed: true }],
+    sections: { added: [], removed: [], truncated: false },
+    resources: { available: true, added: [], removed: [], modified: [] },
+    outOfScope: [],
+    identity: { state: 'unchanged' },
+    source: { state: 'unchanged', message: '来源 Skill 没有发生变化。' },
+    summary: { scopesChanged: 1, scopesUnchanged: 0, scopesUnknown: 0, outOfScopeCount: 0, addedLines: 2, removedLines: 1 },
+    contentChanged: true,
+    limitations: [],
+    notes: [],
+    lines: { added: 2, removed: 1, exact: true },
+  }
+  const definitionText = ['# demo-skill', '', '## 运行逻辑', '', '1. 先读资料再动手。', '', '## 输出', '', '一份会议纪要。'].join('\n')
+  const built = core.buildEvaluationCase({
+    skillName: 'demo-skill',
+    intent: '把规则收紧一点',
+    comparison,
+    definitionText,
+    description: '当用户需要整理会议纪要时使用。',
+    framework: null,
+    validation: null,
+    scopeIds: ['skill-md-workflow'],
+    skillFingerprint: { instructionSha256: sha('a'), match: 'match' },
+  })
+  assert.equal(built.available, true, '夹具自己得是一份生成得出来的 Case')
+  const caseRecord = { ...built.case, caseId: sha('b') }
+  const observationIds = caseRecord.observations.map((entry) => entry.id)
+
+  const runOf = (runId, observed, match, firstVerdict, outcome, startedAt) => core.normalizeEvaluationRun({
+    caseId: caseRecord.caseId,
+    runId,
+    startedAt,
+    provider: 'deepseek-official',
+    model: 'deepseek-flash',
+    reasoningEffort: 'high',
+    contextWindow: 1000000,
+    pluginVersion: '1.0.0',
+    dshVersion: 'unavailable',
+    turn: 3,
+    step: 12,
+    observedInstructionSha256: observed,
+    currentInstructionSha256: sha('a'),
+    match,
+    load: { status: 'loaded', seq: 6, callSeq: 6, resultSeq: 8 },
+    trigger: { catalogPublished: true, offerCount: null },
+    runtimeEvents: { available: true, activities: [{ name: 'read', count: 2 }], total: 2 },
+    outcome,
+    judgements: Object.fromEntries(observationIds.map((id, index) => [id, index === 0 ? firstVerdict : 'unknown'])),
+  })
+  const beforeRun = runOf('r-before', sha('c'), 'mismatch', 'fail', { source: 'user', text: '产出还是套话排版。' }, 1790858000000)
+  const afterRun = runOf('r-after', sha('a'), 'match', 'pass', { source: 'user', text: '只用了主题 token。' }, 1790858600000)
+
+  // 详情页有一条注入缝（`evaluation`），所以这里不经过网络就能渲染真卡。
+  const nodes = collect(client.__views.SkillDetailPage({
+    sessionId: 's',
+    skillName: 'demo-skill',
+    skill: {
+      skillName: 'demo-skill',
+      summary: { name: 'demo-skill', description: '当用户需要整理会议纪要时使用。' },
+      definition: { available: true, skillName: 'demo-skill', content: { text: definitionText, sha256: sha('a'), lineCount: 9, bytes: definitionText.length }, outline: [], limitations: [] },
+      validation: null,
+      framework: null,
+      runtimeLogic: null,
+      flow: null,
+      evidence: null,
+      runs: [],
+      observation: { match: 'match', observedInstructionSha256: [sha('a')], currentInstructionSha256: sha('a'), loadedDuringRun: true, inPublishedCatalog: true, catalogPublication: null },
+      limitations: [],
+      lineage: null,
+    },
+    evaluation: { phase: 'ready', caseRecord, caseId: caseRecord.caseId, runs: [afterRun, beforeRun], judgements: afterRun.judgements, outcome: afterRun.outcome, runRoles: {} },
+  }))
+
+  const card = nodes.find((node) => node.props['data-role'] === 'eval-card')
+  assert.ok(card, '评测卡必须渲染出来')
+  const cardText = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  assert.ok(cardText.includes('Skill 评测'), '抬头写「Skill 评测」')
+  assert.ok(cardText.includes('不给分、不排序、不画走势'), '这一屏的第一句话就要把边界说清楚')
+
+  // ① Case 的身份只用宿主算出来的那个；客户端不许自己算哈希。
+  const identity = nodes.find((node) => node.props['data-role'] === 'eval-identity')
+  assert.equal(ownText(identity), caseRecord.caseId, '身份来自宿主')
+  assert.ok(ownText(nodes.find((node) => node.props['data-role'] === 'eval-prompt')).includes('【任务】'))
+  assert.equal(nodes.filter((node) => node.props['data-role'] === 'eval-observation').length, caseRecord.observations.length)
+
+  // ② 判定三态都在，且是人不给就写「无法判断」的措辞。
+  assert.ok(cardText.includes('沉默不折算成「未通过」'))
+  for (const id of core.EVALUATION_VERDICT_IDS) {
+    assert.ok(cardText.includes(core.EVALUATION_VERDICT_LABELS[id]), `三态判定要在场：${id}`)
+  }
+
+  // ⑤ 四段证据按固定顺序，每段带「够不着什么」，并念出三条不等式。
+  const stages = nodes.filter((node) => node.props['data-role'] === 'eval-stage')
+  assert.deepEqual(stages.map((node) => node.props['data-stage']), ['trigger', 'load', 'use', 'outcome'])
+  // 三条不等式是这一块里的 `<span>`，所以查整张卡的文本（`ownText` 只收直接字符串子节点）。
+  assert.ok(nodes.some((node) => node.props['data-role'] === 'eval-inequalities'), '不等式那一块要在场')
+  for (const line of core.EVALUATION_INEQUALITIES) assert.ok(cardText.includes(line), `不等式要在场：${line}`)
+  for (const id of core.EVALUATION_EVIDENCE_STAGE_IDS) {
+    assert.ok(cardText.includes(core.EVALUATION_STAGE_REACH[id]), `每段都要写清它够不着什么：${id}`)
+  }
+
+  // 指纹只许出现一层前缀（这一条是渲染级的回归测试：曾经会渲染成 sha256:sha256:…）。
+  const loadStage = stages.find((node) => node.props['data-stage'] === 'load')
+  const loadText = loadStage.children.filter((child) => typeof child === 'string').join(' ')
+  assert.equal(loadText.includes('sha256:sha256:'), false, '指纹不许出现两层前缀')
+
+  // ⑥ 断言与对照：行数与核心模块一致，对照列只用事实词。
+  const expected = core.compareEvaluationRuns({ case: caseRecord, before: beforeRun, after: afterRun })
+  const rows = nodes.filter((node) => node.props['data-role'] === 'eval-assertion')
+  assert.equal(rows.length, expected.rows.length, '断言行数与核心模块逐条对齐')
+  assert.ok(cardText.includes(core.EVALUATION_COMPARISON_WORDS.beforeFailAfterPass), '对照列说的是事实差别')
+
+  // 永久禁令：**除 ⑦「刻意不出现的东西」那一块之外**，整张卡一个聚合口径都不许出现。
+  // ⑦ 那一块本来就要把它们划掉摆出来（`.st-eval-forbidden-item`，`line-through`）——
+  // 「刻意不出现」和「出现了」如果长得一样，这一块就没有意义。所以扫描要排除它。
+  const forbiddenAt = nodes.findIndex((node) => node.props['data-role'] === 'eval-forbidden')
+  assert.ok(forbiddenAt > 0, '⑦「刻意不出现的东西」那一块要在场')
+  const classifiedText = nodes.slice(0, forbiddenAt).filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  for (const banned of core.EVALUATION_FORBIDDEN_OUTPUTS) {
+    assert.equal(classifiedText.includes(banned), false, `评测卡里不许出现聚合口径「${banned}」`)
+  }
+  // 而 ⑦ 本身要把它们逐条划掉摆出来：一个都不许少。
+  const struck = nodes.filter((node) => node.props.className === 'st-eval-forbidden-item')
+  assert.deepEqual(struck.map((node) => ownText(node)), [...core.EVALUATION_FORBIDDEN_OUTPUTS], '⑦ 要逐条列出永久不做的那些口径')
+
+  // 还没有 Case：只给一个入口，一个 Prompt / 一段证据都不画。
+  const empty = collect(client.__views.SkillDetailPage({
+    sessionId: 's',
+    skillName: 'demo-skill',
+    skill: null,
+    evaluation: { phase: 'ready', caseRecord: null, runs: [], judgements: {}, outcome: { source: 'user', text: '' }, runRoles: {} },
+  }))
+  const emptyCard = empty.find((node) => node.props['data-role'] === 'eval-card')
+  if (emptyCard) {
+    assert.ok(empty.find((node) => node.props['data-role'] === 'eval-unavailable'), '没有 Case 时说清楚，不画空壳')
+    assert.equal(empty.filter((node) => node.props['data-role'] === 'eval-stage').length, 0, '没有 Case 就不该有证据段')
+  }
+})

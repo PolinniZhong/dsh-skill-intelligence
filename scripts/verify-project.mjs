@@ -2002,6 +2002,18 @@ console.log('VISUAL_TOKENS_OK')
     "eval-comparison",
     "'data-role': 'eval-comparison-unavailable'",
     "'data-role': 'eval-forbidden'",
+    "'data-role': 'eval-case'",
+    "'data-role': 'eval-scope'",
+    "'data-role': 'eval-observations'",
+    "'data-role': 'eval-hint'",
+    "'data-role': 'eval-unavailable'",
+    "'data-role': 'eval-error'",
+    // 这三块是卡片自己收起来的：④ 两次运行的条件旁边的运行清单（`eval-runs`）、
+    // 「这一条算哪一版」（`eval-run-role`）与 ② 那一段（`eval-capture`）。少一个，
+    // 界面上就少一整块，而源码文本层看不出来。
+    "'data-role': 'eval-capture'",
+    "'data-role': 'eval-runs'",
+    "'data-role': 'eval-run-role'",
     // 三条不等式与那句「刻意不出现」：界面上的三句固定说明句从模块里念出来（同一个来源，
     // 不另抄一份），所以这里钉的是「界面真的念了它」，而不是把字面量再抄一遍。
     '.inequalities',

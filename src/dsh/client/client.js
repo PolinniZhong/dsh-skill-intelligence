@@ -3150,9 +3150,9 @@ function installStyles() {
       evalPost('case-list', { skillName })
         .then((body) => {
           const rows = Array.isArray(body?.cases) ? body.cases : []
-          const row = rows
-            .filter((entry) => entry && typeof entry.caseId === 'string' && entry.caseId)
-            .sort((left, right) => String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')))[0]
+          // 宿主已经按 `updatedAt` 倒序回过（`listCases()`），这里只挑第一条**有身份**的。
+          // 再排一次会变成 `String(毫秒数).localeCompare(...)` —— 把数字当字符串比，不保险。
+          const row = rows.find((entry) => entry && typeof entry.caseId === 'string' && entry.caseId) ?? null
           if (!row) {
             if (!cancelled) setEvaluation((previous) => (previous.caseRecord ? previous : { ...EVALUATION_INITIAL_STATE }))
             return null

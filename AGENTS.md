@@ -35,9 +35,9 @@
 | 插件包版本 | **`0.10.0`**（`package.json`）· tag `v0.10.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**（发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0）；上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.1），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.2），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`0.10.0` = V0.10.0「Skill 实例验收」一版**（不新增路由 / 页面、不调模型、不落盘），逐条登记在 `CHANGELOG.md` 的 `## 0.10.0`；六处状态文字已按 §9.1 同步 |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
 | npm | **`beta` 与 `latest` 都指向 `0.10.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0` |
-| 测试 | **634 项全绿**（**V1.0 工作树口径，未发版**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`0.10.0` 发布口径是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
+| 测试 | **635 项全绿**（**V1.0 工作树口径，未发版**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`0.10.0` 发布口径是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
 | 静态守卫 | **30 组**（**V1.0 工作树口径，未发版**；第 30 组 `SKILL_EVALUATION_OK`、第 29 组 `SKILL_INSTANCE_TEST_OK`）；`0.10.0` 发布口径是 29 组，`0.9.2` 是 28 组（第 26 组 `SKILL_VALIDATION_OK`、第 27 组 `SKILL_MODIFICATION_OK`、第 28 组 `INSTALLED_ORDERING_OK`），`0.8.0` 是 25 组 |
-| 客户端 | **`src/dsh/client/client.js` 4272 行，bundle `dist/client.js` 228739 字节**（source hash `266f0d068db41270`，**V1.0 工作树口径，未发版**），`src/core/` **32 个模块 11657 行**，`src/storage/` **7 个 1411 行**；`0.10.0` 发布口径是 3625 行 / 189256 字节（source hash `faed5e9cef7db24c`）/ core 30 个模块 10924 行 / storage 6 个 1117 行；`0.9.2` 是 3448 行 / 170324 字节（`66dd0b76118e7b85`），`0.8.0` 是 2735 行 / 142672 字节（`f53a7ac5965b38b0`） |
+| 客户端 | **`src/dsh/client/client.js` 4272 行，bundle `dist/client.js` 228662 字节**（source hash `dc3d856c91b0b9e2`，**V1.0 工作树口径，未发版**），`src/core/` **32 个模块 11657 行**，`src/storage/` **7 个 1411 行**；`0.10.0` 发布口径是 3625 行 / 189256 字节（source hash `faed5e9cef7db24c`）/ core 30 个模块 10924 行 / storage 6 个 1117 行；`0.9.2` 是 3448 行 / 170324 字节（`66dd0b76118e7b85`），`0.8.0` 是 2735 行 / 142672 字节（`f53a7ac5965b38b0`） |
 | 本版内容（`0.10.0`） | **V0.10.0「Skill 实例验收」**（`FR-INST-*`，`spec/PRD.md` §5.12 / `spec/SDD.md` §21）：在详情页「本次修改对比」卡里按这次改动生成一份**确定性**的实例验收任务（`src/core/skill-instance-test.mjs`，零依赖纯函数，客户端第 8 支 `require`），Prompt 与观察项**物理分离**、**不新增路由**、不自动运行、不判定成功。真机验收 2026-10-05 通过（28 个检查点）。全部记在 `CHANGELOG.md` 的 `## 0.10.0`。上一版 `0.9.2` 是三批一起发（V0.9.0 验收 / V0.9.1 Modify / V0.9.2 列表排序），见 `## 0.9.2` |
 | 工作树（**V1.0 已实现，未发版**） | **V1.0「Skill Evaluation」**（`FR-EVAL-*`，`spec/PRD.md` §5.13 / `spec/SDD.md` §22）：把 V0.10 临时生成的实例验收任务固化成**可重复的 Evaluation Case**（`src/core/skill-evaluation.mjs`，确定性纯函数）→ 记录每次运行的**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 日志游标；DSH 版本今天读不到，如实写 `unavailable`）与**四段证据**（触发 / 加载 / 使用 / 结果，每段写明够不着什么，并固定陈述三条不等式）→ 同一个 Case 的两侧对照（改前·改后 / 基线·加上 Skill，条件不同就不给对照）→ 用户判定与 Agent 自报。落盘在 `<dataRoot>/evaluation/`（`cases/<hex>.json`、`runs/<hex>/<runId>.json`，`0700`/`0600`，上限 200 个 Case / 每 Case 50 次运行），由第 13 条路由 `POST /skill-trace/evaluation` 读写；详情页多一张「Skill 评测」卡（**不新增页面**）。**不给分、不排名、不做 benchmark、不自动跑**。**版本号由用户定，v1.0 尚未发版** |
 | 宿主机面 | **13 条路由**，`src/dsh/host/index.js` **1844 行**（第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，第 12 条是 v0.9.1 的 `POST /skill-trace/modify`；`0.10.0` 口径是 12 条 / 1625 行，`0.8.0` 口径是 11 条 / 1292 行）。全部由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
@@ -111,7 +111,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
    - 查历史规格 → `docs/archive/`（**是历史，不是权威**）
    - 要发版 → `docs/RELEASE.md`（**照做，不要凭记忆**）
 
-> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**工作树 634 项**，必须全绿）。
+> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**工作树 635 项**，必须全绿）。
 
 ---
 
@@ -361,7 +361,7 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 cd "$(git rev-parse --show-toplevel)"   # 仓库根（本仓库根就是插件包根）
 
 node --check src/dsh/client/client.js   # 改过 CSS/客户端源码先过这一关
-npm test                                # 必须 634 全绿（pretest 会重建 dist）
+npm test                                # 必须 635 全绿（pretest 会重建 dist）
 npm run verify                          # 必须 30 组 OK
 ```
 
@@ -450,7 +450,7 @@ npm run verify                          # 必须 30 组 OK
 ├── scripts/
 │   ├── build-client.mjs      ← esbuild 打包
 │   └── verify-project.mjs    ← 30 组守卫
-├── test/                     ← 634 项
+├── test/                     ← 635 项
 └── 01_重构方案/              ← 本地过程目录，**.gitignore 排除，不发布**（入口：其中 `README.md`）
 ```
 
