@@ -60,6 +60,10 @@ for (const requiredText of [
   'ctx.effect(() => installStyles()',
   'if (previous) previous.replaceWith(style)',
   'if (document.getElementById(STYLE_ID) === style) style.remove()',
+  // 界面自己也要兜一次底：插件上下文被拆掉（宿主重启、HMR 重连）时，屏幕上那一屏还会留着，
+  // 样式表不能跟着上下文一起没 —— 否则就是一屏「有 DOM、没样式」。
+  'if (!document.getElementById(STYLE_ID)) installStyles()',
+  'ensureStylesheet()',
   // §6/§7：两个一级页面各自的空态、读不到、与副标题，必须说自己的那件事。
   '当前对话暂未加载任何 Skill。',
   '正在读取当前对话的 Skill 使用情况…',

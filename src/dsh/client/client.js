@@ -791,6 +791,16 @@ function installStyles() {
     }
   }
 
+  // 样式表是**整份文档级**的东西，但它的生命周期一直挂在插件上下文上：上下文被拆掉（宿主重启、
+  // HMR 重连、配置热载）而这一屏还挂在屏幕上时，样式会跟着上下文一起消失，留下一屏「有 DOM、
+  // 没样式」的界面 —— 2026-10-05 用户报障的那一屏正是这个形状（「已安装的 Skill」大标题可见、
+  // 搜索框被挤到下一行、卡片退回普通按钮）。所以让**界面自己**也确认一次：每次渲染只看一眼，
+  // 一张都没有就补一张（幂等；正常路径下这一次 getElementById 就是全部代价）。
+  // 它不碰上面那套归属规则：谁最后装谁拥有、谁装谁摘，界面只负责「一张都没有」这一种情况。
+  function ensureStylesheet() {
+    if (!document.getElementById(STYLE_ID)) installStyles()
+  }
+
   /**
    * Install React Flow's own stylesheet.
    *
@@ -4192,6 +4202,8 @@ function installStyles() {
       : sessionContent
     const content = detailContent ?? listContent
 
+    // 界面要挂上去了：先确认样式表在（§见 ensureStylesheet 的说明）。
+    ensureStylesheet()
     return h('section', { ref: rootRef, 'data-plugin': 'dsh-skill-trace', 'data-conversation-composer-overlay': '', className: hostComposerHeight ? 'st-host' : undefined, style: {
       // --st-host-composer-h keeps this panel clear of the host composer; --st-host-h is the
       // height measured from the host's own content area (§Layout Contract). Both are plain
