@@ -904,8 +904,11 @@ console.log('VISUAL_TOKENS_OK')
   // 而它同样是**声明层**的事实（只读 SKILL.md 与目录清单），排在运行逻辑之前不构成「用观测反推声明」。
   // v0.9.1 的「本次修改对比」紧跟在验收后面：那两句回答的是同一个问题——「这次改完，现在是什么样」。
   // 它只在一次修改事务里出现（`phase: 'idle'` 时组件自己返回 `null`），所以平时这一行并不占位置。
-  if (!/className: 'st-detail-main' \}, h\(SkillValidationPanel, \{ validation, validationFieldMissing \}\), skillModification, framework, runtimeLogic, stepEvidence, docPanel/.test(client)) {
-    throw new Error('the detail body must read 验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order')
+  // v1.0 的「Skill 评测」卡紧跟在实例验收后面：前三块说的是「这次改了什么」，它说的是
+  // 「改完以后拿同一个 Case 跑两次看到了什么」。它是**观测层**的事实，所以同样必须排在
+  // 声明层的「框架 / 运行逻辑」之前 —— 顺序反了就会让人先读结构、再猜这次跑出了什么。
+  if (!/className: 'st-detail-main' \}, h\(SkillValidationPanel, \{ validation, validationFieldMissing \}\), skillModification, skillEvaluation, framework, runtimeLogic, stepEvidence, docPanel/.test(client)) {
+    throw new Error('the detail body must read 验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order')
   }
 
   // 3. 表格：一个解析器，两个读者。渲染器和翻译校验共用它，否则"画得出来"与"校验得过"
@@ -1685,8 +1688,8 @@ console.log('VISUAL_TOKENS_OK')
   if (!clientCode.includes("action: 'begin'") || !clientCode.includes("action: 'compare'")) {
     throw new Error('一次修改事务有两种动作：begin 发任务、compare 读结果，缺一边都走不通')
   }
-  if (!clientCode.includes('h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, framework, runtimeLogic, stepEvidence, docPanel')) {
-    throw new Error('详情页主列的顺序变了：验收 → 本次修改对比 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md')
+  if (!clientCode.includes('h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, skillEvaluation, framework, runtimeLogic, stepEvidence, docPanel')) {
+    throw new Error('详情页主列的顺序变了：验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md')
   }
   // 界面词表（§6.7）：这一段与验收卡同一条纪律 —— 不许出现声称「已经发生」的词与评分词。
   // 扫的是**去掉注释之后**的代码：注释不是消费者（同 §6.3 第 1 条，英文字典那次的教训）。
@@ -1907,18 +1910,134 @@ console.log('VISUAL_TOKENS_OK')
     if (!client.includes(needle)) throw new Error(`客户端缺少实例验收的「${needle}」`)
   }
   const coreRequires = client.match(/require\('\.\.\/\.\.\/core\/[^']+'\)/g) ?? []
-  if (coreRequires.length !== 8) {
-    throw new Error(`客户端只允许 require 八支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
+  if (coreRequires.length !== 9) {
+    throw new Error(`客户端只允许 require 九支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
   }
 
   // 8. 本版的名字是「实例验收」：界面与模块里不许留下被禁用的产品名。
-  for (const banned of ['Skill Run', 'Skill Execute', 'Skill Benchmark', 'Skill Evaluation', '测试中心']) {
+  for (const banned of ['Skill Run', 'Skill Execute', 'Skill Benchmark', '测试中心']) {
     if (client.includes(banned) || instanceCode.includes(banned)) {
       throw new Error(`V0.10.0 不许出现被禁用的名字「${banned}」`)
     }
   }
 
   console.log('SKILL_INSTANCE_TEST_OK')
+}
+
+// --- v1.0「Skill 评测」：界面只摆事实，判定由人给，插件不产出任何汇总口径 -------------------
+// 这一组守三件事，每一件都对应一次真实的选择：
+//   1. 模块里那几面固定墙不许被改松 —— 四段证据、三条不等式、条件表恰好四项、三值判定、三值来源；
+//   2. 界面上那张卡必须真的把这四段摆出来，而且**卡的源码里不许出现任何聚合口径**（分数、通过率、
+//      方差、标准差、排名、趋势图、平均分）：聚合一旦进了界面，这一页就从「摆事实」变成「下结论」；
+//   3. 落盘路径写在隐私文档里，POST 路由与处理器都在宿主里注册着 —— 界面上的按钮必须真有一条路。
+{
+  const evaluationCode = await readFile(resolve(root, 'src/core/skill-evaluation.mjs'), 'utf8')
+  const hostCode = await readFile(resolve(root, 'src/dsh/host/index.js'), 'utf8')
+  const privacyText = await readFile(resolve(root, 'docs/PRIVACY.md'), 'utf8')
+  const evaluation = await import(pathToFileURL(resolve(root, 'src/core/skill-evaluation.mjs')).href)
+
+  // ① 模块的固定面：改松任何一条，界面上的那句话就会变成假话。
+  if (evaluation.EVALUATION_CASE_GENERATOR_VERSION !== '1.0.0') {
+    throw new Error(`评测 Case 的生成器版本是「${evaluation.EVALUATION_CASE_GENERATOR_VERSION}」，期望 1.0.0`)
+  }
+  const stages = evaluation.EVALUATION_EVIDENCE_STAGE_IDS.join(' ')
+  if (stages !== 'trigger load use outcome') {
+    throw new Error(`证据必须恰好是四段（触发 / 加载 / 使用 / 结果），实际「${stages}」`)
+  }
+  const inequalities = evaluation.EVALUATION_INEQUALITIES.join(' | ')
+  const expectedInequalities = '加载 ≠ 使用 | 使用 ≠ 结果 | 结果 ≠ 这个 Skill 造成的'
+  if (inequalities !== expectedInequalities) {
+    throw new Error(`三条不等式是这一页的底线，期望「${expectedInequalities}」，实际「${inequalities}」`)
+  }
+  const conditionFields = evaluation.EVALUATION_CONDITION_FIELDS.map((field) => field.key).join(' ')
+  if (conditionFields !== 'model provider reasoningEffort contextWindow') {
+    throw new Error(`条件表必须恰好四项（模型 / Provider / 推理档位 / 上下文窗口），实际「${conditionFields}」`)
+  }
+  if (evaluation.EVALUATION_VERDICT_IDS.join(' ') !== 'pass fail unknown') {
+    throw new Error(`判定只有三个值（通过 / 未通过 / 无法判断），实际「${evaluation.EVALUATION_VERDICT_IDS.join(' ')}」`)
+  }
+  if (evaluation.EVALUATION_SOURCE_IDS.join(' ') !== 'protocol user agent') {
+    throw new Error(`来源只有三级（协议事实 / 用户判定 / Agent 自报），实际「${evaluation.EVALUATION_SOURCE_IDS.join(' ')}」`)
+  }
+
+  // ② 客户端：它是第 9 支 require，卡上七段与三句固定话都要在。
+  const cardStart = client.indexOf('V1.0「Skill 评测」卡')
+  const cardEnd = client.indexOf('function SkillDiffPanel(')
+  if (cardStart < 0 || cardEnd < cardStart) {
+    throw new Error('找不到评测卡这一段：它必须与 SkillDiffPanel 之前的注入缝在同一处')
+  }
+  const card = client.slice(cardStart, cardEnd)
+  if (!client.includes("require('../../core/skill-evaluation.mjs')")) {
+    throw new Error('客户端没有 require 评测核心模块')
+  }
+  // 生成 Case 的那个处理器在主列上（卡片只负责画），所以它按整个客户端文件找；
+  // 其余都是从卡里找 —— 卡片自己收起来的东西，界面就没有这一块。
+  for (const outside of ['buildEvaluationCase', 'onGenerate: generateEvaluationCase', 'onCapture: captureEvaluationRun']) {
+    if (!client.includes(outside)) throw new Error(`客户端缺少评测卡与页面的接线「${outside}」`)
+  }
+  const needed = [
+    "compareEvaluationRuns",
+    "buildRuntimeEvidence",
+    "buildEvaluationAssertions",
+    "'data-role': 'eval-card'",
+    "'data-role': 'eval-generate'",
+    "'data-role': 'eval-save'",
+    "'data-role': 'eval-run'",
+    "'data-role': 'eval-identity'",
+    "'data-role': 'eval-fingerprint'",
+    "'data-role': 'eval-prompt'",
+    "'data-role': 'eval-observation'",
+    "'data-role': 'eval-regression'",
+    "'data-role': 'eval-judgement'",
+    "'data-role': 'eval-outcome'",
+    "'data-role': 'eval-conditions'",
+    "'data-role': 'eval-condition'",
+    "'data-role': 'eval-evidence'",
+    "'data-role': 'eval-stage'",
+    "'data-role': 'eval-inequalities'",
+    "'data-role': 'eval-assertions'",
+    "'data-role': 'eval-assertion'",
+    // 对照那一行是**同一个位置上的两种结果**：能对照就是 eval-comparison，不能就是
+    // eval-comparison-unavailable（两个名字都在同一个三目里，所以按裸串找）。
+    "eval-comparison",
+    "'data-role': 'eval-comparison-unavailable'",
+    "'data-role': 'eval-forbidden'",
+    // 三条不等式与那句「刻意不出现」：界面上的三句固定说明句从模块里念出来（同一个来源，
+    // 不另抄一份），所以这里钉的是「界面真的念了它」，而不是把字面量再抄一遍。
+    '.inequalities',
+    '.inequalitiesNote',
+    '这一版刻意不出现的东西',
+  ]
+  for (const needle of needed) {
+    if (!card.includes(needle)) throw new Error(`评测卡里缺少「${needle}」`)
+  }
+  // 卡里不许出现任何聚合口径：这不是文案口味，是 `FR-EVAL-012` / `014` 的永久禁令。
+  for (const banned of evaluation.EVALUATION_FORBIDDEN_OUTPUTS) {
+    if (card.includes(banned)) {
+      throw new Error(`评测卡里不许出现聚合口径「${banned}」：这一页只摆事实，不下结论`)
+    }
+  }
+
+  // ③ 宿主与隐私：界面上的按钮背后必须真有路，落盘路径必须写在文档里。
+  if (!hostCode.includes("'/skill-trace/evaluation'")) {
+    throw new Error('宿主没有注册 POST /skill-trace/evaluation')
+  }
+  if (!hostCode.includes('function handleEvaluation')) {
+    throw new Error('宿主缺少 handleEvaluation')
+  }
+  for (const action of ["'case-save'", "'case-read'", "'run-capture'"]) {
+    if (!hostCode.includes(action)) throw new Error(`宿主缺少评测动作 ${action}`)
+  }
+  for (const stored of ['evaluation/cases', 'evaluation/runs']) {
+    if (!privacyText.includes(stored)) {
+      throw new Error(`docs/PRIVACY.md 里没有写评测的落盘路径「${stored}」`)
+    }
+  }
+  if (!evaluationCode.includes('EVALUATION_CASE_HASH_DOMAIN')) {
+    throw new Error('评测 Case 的哈希必须有自己的域分隔前缀，不能和别的哈希共用一个域')
+  }
+
+  console.log('SKILL_EVALUATION_OK')
 }
 
 // --- v0.9.2「已安装列表的顺序」：刚复刻出来的必须第一眼就看到 -------------------------

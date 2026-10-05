@@ -49,6 +49,16 @@ const {
   INSTANCE_TEST_OBSERVATION_NOTE, INSTANCE_TEST_OBSERVATION_TITLE, INSTANCE_TEST_PROMPT_TITLE,
   INSTANCE_TEST_SCOPE_FOCUS, INSTANCE_TEST_UNAVAILABLE_MESSAGES, buildSkillInstanceTest,
 } = require('../../core/skill-instance-test.mjs')
+
+// 评测（V1.0）：把 V0.10 那份一次性任务升级成**可重复的 Case**，并把「这一次运行看到了什么」
+// 摆成四段证据。它同样是零依赖纯函数（只 import 实例验收那一支），客户端只负责画：
+// 判定由人点出来或 Agent 自报，条件与指纹由宿主取 —— 界面自己一个字都不判定、不聚合。
+const {
+  EVALUATION_UNAVAILABLE_TEXT, EVALUATION_VERDICT_IDS, EVALUATION_VERDICT_LABELS,
+  EVALUATION_SOURCE_IDS, EVALUATION_SOURCE_LABELS, EVALUATION_RUN_FIELD_LABELS,
+  EVALUATION_FORBIDDEN_OUTPUTS, buildEvaluationCase, buildEvaluationAssertions,
+  compareEvaluationRuns, buildRuntimeEvidence,
+} = require('../../core/skill-evaluation.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -711,6 +721,66 @@ function installStyles() {
       .st-detail-doc-inner{padding:8px 18px 24px}
       @media(max-width:1180px){.st-detail-body{grid-template-columns:230px minmax(0,1fr)}}
       @media(max-width:980px){.st-skill-grid{grid-template-columns:minmax(0,1fr)}.st-detail-body{grid-template-columns:minmax(0,1fr)}.st-detail-doc-body{grid-template-columns:minmax(0,1fr)}.st-detail-outline{display:none}}
+      /* §12 V1.0 评测卡（st-eval-*）：颜色一律走 token，高度链每层都留 min-height:0。
+       * 这一块自己不做任何汇总：没有图表、没有分数、没有进度条 —— 只有一条一条摆出来的事实。 */
+      .st-eval-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 18px 0}
+      .st-eval-top h3{margin:0;font-size:13px;color:var(--st-text)}
+      .st-eval-section{padding:10px 18px 14px;border-top:1px solid var(--st-border-soft)}
+      .st-eval-section h4{margin:0 0 6px;font-size:12.5px;color:var(--st-text)}
+      .st-eval-section h5{margin:0 0 4px;font-size:12px;color:var(--st-text-secondary)}
+      .st-eval-block{margin:0 0 10px}
+      .st-eval-block:last-child{margin-bottom:0}
+      .st-eval-hint{margin:4px 0 0;font-size:11.5px;line-height:1.55;color:var(--st-muted);overflow-wrap:anywhere}
+      .st-eval-alert{margin:6px 0 0;font-size:11.5px;line-height:1.55;color:var(--st-danger)}
+      .st-eval-empty{margin:6px 0 0;font-size:12px;color:var(--st-muted)}
+      .st-eval-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+      .st-eval-button{padding:5px 10px;border:1px solid var(--st-border);border-radius:8px;background:var(--st-surface-subtle);color:var(--st-text);font:inherit;font-size:11.5px;cursor:pointer}
+      .st-eval-button:hover:not(:disabled){border-color:var(--st-border-strong)}
+      .st-eval-button:disabled{opacity:.55;cursor:default}
+      .st-eval-button[data-on="true"]{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
+      .st-eval-primary{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
+      .st-eval-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+      .st-eval-chip{padding:2px 8px;border:1px solid var(--st-border-soft);border-radius:999px;background:var(--st-surface-subtle);color:var(--st-text-secondary);font-size:11px}
+      .st-eval-prompt{margin:6px 0 0;max-height:300px;overflow:auto;padding:10px 12px;border:1px solid var(--st-border-soft);border-radius:9px;background:var(--st-code-bg);color:var(--st-code-text);font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+      .st-eval-list{margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+      .st-eval-list li{font-size:11.5px;line-height:1.6;color:var(--st-text-secondary);overflow-wrap:anywhere}
+      .st-eval-grid{display:grid;grid-template-columns:minmax(88px,max-content) minmax(0,1fr);gap:2px 10px;margin:4px 0 0}
+      .st-eval-grid dt{font-size:11px;color:var(--st-faint)}
+      .st-eval-grid dd{margin:0;font-size:11.5px;color:var(--st-text);overflow-wrap:anywhere}
+      .st-eval-columns{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+      .st-eval-column{flex:1 1 280px;min-width:0;padding:9px 11px;border:1px solid var(--st-border-soft);border-radius:9px;background:var(--st-surface-subtle)}
+      .st-eval-conditions{margin-top:4px}
+      .st-eval-condition{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:5px 0;border-top:1px solid var(--st-border-soft)}
+      .st-eval-condition:first-child{border-top:0}
+      .st-eval-condition-name{flex:1 1 120px;min-width:0;font-size:11.5px;color:var(--st-text-secondary);overflow-wrap:anywhere}
+      .st-eval-condition-value{flex:0 0 auto;min-width:56px;font-size:11.5px;color:var(--st-text);overflow-wrap:anywhere}
+      .st-eval-condition[data-equal="false"] .st-eval-condition-value{color:var(--st-warning)}
+      .st-eval-tag{padding:1px 7px;border:1px solid var(--st-border-soft);border-radius:999px;font-size:10.5px;color:var(--st-muted);white-space:nowrap}
+      .st-eval-tag[data-status="observed"]{border-color:var(--st-success);color:var(--st-success)}
+      .st-eval-tag[data-status="not-observed"]{border-color:var(--st-warning);color:var(--st-warning)}
+      .st-eval-tag[data-status="unavailable"]{border-color:var(--st-border);color:var(--st-faint)}
+      .st-eval-stage{padding:8px 0;border-top:1px solid var(--st-border-soft)}
+      .st-eval-stage:first-child{border-top:0}
+      .st-eval-stage-head{display:flex;align-items:baseline;gap:8px}
+      .st-eval-stage-name{font-size:12px;color:var(--st-text)}
+      .st-eval-reach{margin:4px 0 0;padding-left:8px;border-left:2px solid var(--st-border-soft);font-size:11px;line-height:1.55;color:var(--st-muted);overflow-wrap:anywhere}
+      .st-eval-inequalities{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+      .st-eval-inequality{padding:2px 9px;border:1px dashed var(--st-border);border-radius:999px;font-size:11px;color:var(--st-text-secondary)}
+      .st-eval-assertions{margin-top:4px}
+      .st-eval-assertion{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:6px 0;border-top:1px solid var(--st-border-soft)}
+      .st-eval-assertion:first-child{border-top:0}
+      .st-eval-assertion-text{flex:1 1 220px;min-width:0;font-size:12px;color:var(--st-text);overflow-wrap:anywhere}
+      .st-eval-assertion-cell{flex:0 0 auto;min-width:58px;font-size:11.5px;color:var(--st-text-secondary)}
+      .st-eval-judge{padding:7px 0;border-top:1px solid var(--st-border-soft)}
+      .st-eval-judge:first-child{border-top:0}
+      .st-eval-judge-text{margin:0;font-size:12px;line-height:1.5;color:var(--st-text);overflow-wrap:anywhere}
+      .st-eval-textarea{width:100%;min-height:56px;margin-top:4px;padding:7px 9px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:11.5px;line-height:1.6;resize:vertical}
+      .st-eval-run{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:6px 0;border-top:1px solid var(--st-border-soft)}
+      .st-eval-run:first-child{border-top:0}
+      .st-eval-run-id{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;color:var(--st-text)}
+      .st-eval-forbidden{margin-top:4px}
+      .st-eval-forbidden-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+      .st-eval-forbidden-item{padding:3px 9px;border:1px dashed var(--st-border);border-radius:999px;font-size:11px;color:var(--st-faint);text-decoration:line-through}
       /* §11 断点：1180 收窄左右栏，980 收起证据栏（与 Demo 一致）。
        * 再窄时连定义目录一起收起，只留声明流程——总比三栏互相压成一列可读性更差要强。 */
     `
@@ -2430,6 +2500,387 @@ function installStyles() {
    * 打开它的那个按钮。少任何一条，键盘用户都会被留在一个已经关闭的浮层后面。
    * 错误态用 `role="alert"`，因为「读不到来源」必须被辅助技术立刻听到。
    */
+  /**
+   * 评测卡的初始状态。放在组件外面：几次请求回来时都要拿它当底座，
+   * 每处各写一份字面量迟早会出现两处不一样。
+   */
+  const EVALUATION_INITIAL_STATE = {
+    phase: 'idle',
+    caseRecord: null,
+    caseId: '',
+    hashInput: null,
+    runs: [],
+    judgements: {},
+    outcome: { source: 'user', text: '' },
+    runRole: 'after',
+    // 哪一条算「改前 / 改后」由人标：键是 runId，值是 'before' | 'after'。
+    // 空对象不是错误 —— 卡片会先按指纹事实猜一次（`mismatch` 算改前、`match` 算改后）。
+    runRoles: {},
+    saved: false,
+    warningCount: 0,
+    message: '',
+    error: '',
+  }
+
+  /**
+   * Run 的字段与取值：键的**名字与顺序**跟着核心模块的 `EVALUATION_RUN_FIELD_LABELS` 走，
+   * 界面这一层只把值翻译成一句人看得懂的话（不再自己起一套字段名 —— 两套名字迟早会漂开）。
+   */
+  const EVALUATION_RUN_FIELDS = [
+    'startedAt', 'turn', 'model', 'provider', 'reasoningEffort', 'dshVersion', 'pluginVersion',
+    'observedInstructionSha256', 'currentInstructionSha256', 'match', 'load', 'runtimeEvents', 'outcome',
+  ]
+
+  /**
+   * 运行时间：只把宿主给的时间戳摆出来。解析不了就照原样显示 ——
+   * 不猜、更不用「现在」补一个上去（那会让两次运行看起来比实际更近）。
+   */
+  function formatRunTime(value) {
+    if (typeof value !== 'string' && typeof value !== 'number') return EVALUATION_UNAVAILABLE_TEXT
+    const time = new Date(value)
+    if (Number.isNaN(time.getTime())) return String(value) || EVALUATION_UNAVAILABLE_TEXT
+    const pad = (number) => String(number).padStart(2, '0')
+    return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`
+  }
+
+  /**
+   * V1.0「Skill 评测」卡（`FR-EVAL-003` / `006` / `010`–`015`，`spec/SDD.md` §22.8）。
+   *
+   * 这张卡只做三件事：把这次修改固化成一个能反复用的 Case、把「这一次运行看到了什么」摆成四段
+   * 证据、把两次运行逐条对照。判定由人点出来或 Agent 自报，插件一个都不判；界面不产出任何汇总
+   * 口径（`FR-EVAL-012` / `014`）—— 一条一条列，列完为止。
+   */
+  function SkillEvaluationCard({ evaluation, canGenerate, onGenerate, onSave, onCapture, onJudge, onOutcome, onRole }) {
+    const phase = evaluation?.phase ?? 'idle'
+    const busy = phase === 'loading' || phase === 'saving' || phase === 'capturing'
+    const record = evaluation?.caseRecord ?? null
+    const error = typeof evaluation?.error === 'string' ? evaluation.error : ''
+    const message = typeof evaluation?.message === 'string' ? evaluation.message : ''
+    const unavailable = EVALUATION_UNAVAILABLE_TEXT
+    const runs = Array.isArray(evaluation?.runs) ? evaluation.runs : []
+    const judgements = evaluation?.judgements && typeof evaluation.judgements === 'object' ? evaluation.judgements : {}
+    const outcome = evaluation?.outcome && typeof evaluation.outcome === 'object' ? evaluation.outcome : { source: 'user', text: '' }
+    const runRoles = evaluation?.runRoles && typeof evaluation.runRoles === 'object' ? evaluation.runRoles : {}
+    const nextRole = evaluation?.runRole === 'before' ? 'before' : 'after'
+    const saved = typeof evaluation?.caseId === 'string' && Boolean(evaluation.caseId)
+    const observations = Array.isArray(record?.observations) ? record.observations : []
+    const verdictLabel = (id) => EVALUATION_VERDICT_LABELS[id] ?? unavailable
+    const sourceLabel = (id) => EVALUATION_SOURCE_LABELS[id] ?? unavailable
+    const statusTag = (status) => h('span', { className: 'st-eval-tag', 'data-status': status }, raw(status === 'observed'
+      ? localized('有观察', 'Observed')
+      : (status === 'not-observed' ? localized('没有观察到', 'Not observed') : unavailable)))
+
+    // 哪一条算改前、哪一条算改后：**先看事实** —— 运行时指纹与当前文件一致的那一条就是改后
+    // （`match === 'match'`），不一致的那一条是改前；用户在页面上标过的优先。事实也分不出来时
+    // **不给答案**：把两条都摆出来让人点，替用户挑一条等于让这一页看起来比实际更确定。
+    const roleOf = (run) => {
+      const tagged = run && typeof run.runId === 'string' ? runRoles[run.runId] : null
+      return tagged === 'before' || tagged === 'after' ? tagged : null
+    }
+    let beforeRun = runs.filter((run) => roleOf(run) === 'before')[0] ?? null
+    let afterRun = runs.filter((run) => roleOf(run) === 'after')[0] ?? null
+    if (!beforeRun && !afterRun) {
+      beforeRun = runs.filter((run) => run?.match === 'mismatch')[0] ?? null
+      afterRun = runs.filter((run) => run?.match === 'match')[0] ?? null
+    }
+    const paired = Boolean(beforeRun && afterRun && beforeRun !== afterRun)
+    const comparison = paired ? compareEvaluationRuns({ case: record, before: beforeRun, after: afterRun }) : null
+    const focusedRun = afterRun ?? beforeRun ?? runs[0] ?? null
+    const evidence = focusedRun ? buildRuntimeEvidence({ run: focusedRun }) : null
+    const singleAssertions = !comparison && focusedRun && record ? buildEvaluationAssertions({ case: record, run: focusedRun }) : null
+
+    const runValue = (run, key) => {
+      if (key === 'startedAt') return formatRunTime(run?.startedAt)
+      if (key === 'turn') return `turn ${run?.turn ?? unavailable} / step ${run?.step ?? unavailable}`
+      if (key === 'load') {
+        const seq = run?.load?.seq
+        return String(run?.load?.status ?? unavailable) + (seq === null || seq === undefined ? '' : ` · seq ${seq}`)
+      }
+      if (key === 'runtimeEvents') {
+        if (run?.runtimeEvents?.available === false) return unavailable
+        return `${run?.runtimeEvents?.total ?? 0} · ${localized('次工具活动', 'tool activities')}`
+      }
+      if (key === 'outcome') {
+        return run?.outcome?.source === 'unavailable' || !run?.outcome?.source
+          ? unavailable
+          : `${sourceLabel(run.outcome.source)}：${String(run.outcome.text ?? unavailable)}`
+      }
+      return String(run?.[key] ?? unavailable)
+    }
+
+    // ── ① Case ───────────────────────────────────────────────────────────────
+    const caseSection = h('div', { className: 'st-eval-section', 'data-role': 'eval-case' },
+      h('h4', null, raw(localized('① Evaluation Case', '① Evaluation Case'))),
+      h('dl', { className: 'st-eval-grid' },
+        h('dt', { key: 'id:k' }, raw(localized('Case 身份', 'Case identity'))),
+        h('dd', { key: 'id:v', 'data-role': 'eval-identity' }, raw(saved
+          ? evaluation.caseId
+          : localized('还没保存到本机', 'Not saved on this machine yet'))),
+        h('dt', { key: 'fp:k' }, raw(localized('绑定指纹', 'Bound fingerprint'))),
+        h('dd', { key: 'fp:v', 'data-role': 'eval-fingerprint' }, raw(String(record?.skillFingerprint?.instructionSha256 ?? unavailable))),
+        h('dt', { key: 'src:k' }, raw(localized('来源', 'Source'))),
+        h('dd', { key: 'src:v' }, raw(localized('来自这次修改，生成器版本 ', 'From this modification, generator version ')
+          + String(record?.generatorVersion ?? unavailable)))),
+      h('div', { className: 'st-eval-chips', 'data-role': 'eval-scope' },
+        ...(Array.isArray(record?.scopeIds) ? record.scopeIds : []).map((id) => h('span', { key: id, className: 'st-eval-chip', 'data-scope': id }, raw(modifyScopeText(id))))),
+      h('pre', { className: 'st-eval-prompt', 'data-role': 'eval-prompt' }, raw(String(record?.taskPrompt?.text ?? ''))),
+      h('div', { className: 'st-eval-block', 'data-role': 'eval-observations' },
+        h('h5', null, raw(localized('预期观察点', 'Expected observations'))),
+        h('ul', { className: 'st-eval-list' }, ...observations.map((observation) => h('li', {
+          key: observation.id,
+          'data-role': 'eval-observation',
+          'data-observation': observation.id,
+        }, raw(String(observation.text ?? '')))))),
+      h('div', { className: 'st-eval-block', 'data-role': 'eval-regression' },
+        h('h5', null, raw(localized('回归约束', 'Regression constraints'))),
+        record?.regressionUnavailable
+          ? h('p', { className: 'st-eval-hint' }, raw(localized('这一版没有抽到回归约束 —— 没有就是没有，不为了好看补一句。', 'This version extracted no regression constraint — none is none, and nothing is invented to fill the gap.')))
+          : h('ul', { className: 'st-eval-list' }, ...(Array.isArray(record?.regressions) ? record.regressions : []).map((line, index) => h('li', { key: String(index) }, raw(String(line)))))),
+      h('div', { className: 'st-eval-actions' },
+        h('button', {
+          className: 'st-eval-button',
+          type: 'button',
+          'data-role': 'eval-save',
+          disabled: busy,
+          onClick: onSave,
+        }, raw(localized('保存到本机', 'Save on this machine'))),
+        // 「生成」在两个状态里都在：已经有 Case 时它是**重新生成** —— 又改了一次 Skill 之后，
+        // 要测的是新那一版，而旧 Case 绑的是旧指纹（`FR-EVAL-004`：旧 Case 不会被改写）。
+        canGenerate
+          ? h('button', {
+            className: 'st-eval-button',
+            type: 'button',
+            'data-role': 'eval-generate',
+            disabled: busy,
+            onClick: onGenerate,
+          }, raw(localized('按当前内容重新生成', 'Regenerate from the current content')))
+          : null),
+      h('p', { className: 'st-eval-hint' }, raw(saved
+        ? localized('这个 Case 已经在本机上了。它绑的是上面那个指纹 —— 文件再改一次，这个 Case 不会跟着变。', 'This case is on this machine. It is bound to the fingerprint above — a later edit will not move it.')
+        : localized('本机还没有它的副本。「Case 身份」由宿主在保存时按内容算出来，客户端算不了。', 'There is no copy on this machine yet. The host derives the case identity from the content when saving; the client cannot.'))))
+
+    // ── ② 运行记录：判定 + 结果 + 记一次 ───────────────────────────────────────
+    const runHint = !saved
+      ? localized('先把 Case 保存到本机，再记运行 —— 运行记录要挂在一个有身份的 Case 上。', 'Save the case on this machine first, then record a run: a run hangs off a case that has an identity.')
+      : (busy
+        ? localized('正在记……条件、指纹、加载证据与工具活动都由宿主从会话日志与收据里取。', 'Recording… conditions, fingerprints, load evidence and tool activity all come from the host, out of the session log and receipts.')
+        : localized('条件与指纹由宿主取；判定和结果由你给。这条记录会落成一份本机文件。', 'The host takes the conditions and fingerprints; you give the verdicts and the outcome. This run is written to a file on this machine.'))
+
+    // 判定按钮：每一条观察点三个值，再点一次同一个按钮就是撤掉这条判定。
+    const judgementRows = observations.map((observation) => h('div', {
+      key: observation.id,
+      className: 'st-eval-judge',
+      'data-role': 'eval-judgement',
+      'data-observation': observation.id,
+    },
+    h('p', { className: 'st-eval-judge-text' }, raw(String(observation.text ?? ''))),
+    h('div', { className: 'st-eval-actions' }, ...EVALUATION_VERDICT_IDS.map((id) => h('button', {
+      key: id,
+      className: 'st-eval-button',
+      type: 'button',
+      'data-verdict': id,
+      'data-on': judgements[observation.id] === id ? 'true' : 'false',
+      disabled: busy,
+      onClick: () => onJudge(observation.id, judgements[observation.id] === id ? '' : id),
+    }, raw(verdictLabel(id)))))))
+
+    // 结果那一栏：文本是自由输入，来源只认 `user` / `agent`（`protocol` 由宿主从日志里读，不由人填）。
+    const sourceButtons = EVALUATION_SOURCE_IDS
+      .filter((id) => id !== 'protocol')
+      .map((id) => h('button', {
+        key: id,
+        className: 'st-eval-button',
+        type: 'button',
+        'data-source': id,
+        'data-on': outcome.source === id ? 'true' : 'false',
+        disabled: busy,
+        onClick: () => onOutcome({ source: id }),
+      }, raw(sourceLabel(id))))
+    const outcomeBlock = h('div', { className: 'st-eval-block', 'data-role': 'eval-outcome' },
+      h('h5', null, raw(localized('结果', 'Outcome'))),
+      h('textarea', {
+        className: 'st-eval-textarea',
+        rows: 2,
+        value: String(outcome.text ?? ''),
+        placeholder: localized('这一次的产出是什么样。留空就是「还没给」。', 'What the output looked like this time. Blank means “not given yet”.'),
+        disabled: busy,
+        onChange: (event) => onOutcome({ text: event.target.value }),
+      }),
+      h('div', { className: 'st-eval-actions' }, ...sourceButtons))
+
+    // 「这一条算哪一版」：默认值会跟着上一条记录翻面，所以它得能改。
+    const roleButtons = ['after', 'before'].map((id) => h('button', {
+      key: id,
+      className: 'st-eval-button',
+      type: 'button',
+      'data-role': 'eval-run-role',
+      'data-role-of': id,
+      'data-on': nextRole === id ? 'true' : 'false',
+      disabled: busy,
+      onClick: () => onRole(id),
+    }, raw(id === 'after' ? localized('改后', 'After the change') : localized('改前', 'Before the change'))))
+    const roleBlock = h('div', { className: 'st-eval-block' },
+      h('h5', null, raw(localized('这一条算哪一版', 'Which version this run counts as'))),
+      h('div', { className: 'st-eval-actions' }, ...roleButtons))
+
+    // 运行记录要挂在有身份的 Case 上（`caseId` 是宿主算的）：没保存就点它，只会换回一句
+    //「本机没有这一份 Case」。`disabled` 只在这种真的不该点的时候为真。
+    const runActions = h('div', { className: 'st-eval-actions' },
+      h('button', {
+        className: 'st-eval-button st-eval-primary',
+        type: 'button',
+        'data-role': 'eval-run',
+        disabled: busy || !saved,
+        onClick: onCapture,
+      }, raw(localized('记录这一次运行', 'Record this run'))))
+
+    const captureSection = h('div', { className: 'st-eval-section', 'data-role': 'eval-capture' },
+      h('h4', null, raw(localized('② 记录这一次运行', '② Record this run'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized('逐条给判定。没给的那条会写成「无法判断」—— 沉默不折算成「未通过」。', 'Judge them one by one. Anything you leave alone reads as “cannot tell” — silence is never folded into “did not pass”.'))),
+      ...judgementRows,
+      outcomeBlock,
+      roleBlock,
+      runActions,
+      h('p', { className: 'st-eval-hint', 'data-role': 'eval-run-hint' }, raw(runHint)))
+
+    // ── ③ 运行记录列表（也是「哪一条算改前/改后」的改口处）─────────────────────
+    const runsSection = runs.length ? h('div', { className: 'st-eval-section', 'data-role': 'eval-runs' },
+      h('h4', null, raw(localized('③ 已经记下来的运行', '③ Runs recorded so far'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized('每一条都是「跑一次、记一次」。默认按事实分：运行时指纹与当前文件一致的那条算改后，不一致的算改前 —— 不对就在这里自己标。', 'Each entry is one run, recorded once. They are paired by fact: the run whose fingerprint matches the current file counts as “after”, the one that does not counts as “before”. Change it here if that is wrong.'))),
+      h('ul', { className: 'st-eval-list' }, ...runs.map((run) => h('li', { key: String(run?.runId ?? ''), className: 'st-eval-run' },
+        h('span', { className: 'st-eval-run-id' }, raw(String(run?.runId ?? unavailable))),
+        h('span', { className: 'st-eval-hint' }, raw(formatRunTime(run?.startedAt) + ' · ' + String(run?.model ?? unavailable))),
+        h('div', { className: 'st-eval-actions' }, ['before', 'after'].map((id) => h('button', {
+          key: id,
+          className: 'st-eval-button',
+          type: 'button',
+          'data-role': 'eval-run-role',
+          'data-run': String(run?.runId ?? ''),
+          'data-role-of': id,
+          'data-on': roleOf(run) === id ? 'true' : 'false',
+          disabled: busy,
+          onClick: () => onRole(id, String(run?.runId ?? '')),
+        }, raw(id === 'before' ? localized('算改前', 'Count as before') : localized('算改后', 'Count as after'))))))))
+    ) : null
+
+    // ── ④ 条件 Before / After ────────────────────────────────────────────────
+    const runColumn = (title, run) => h('div', { className: 'st-eval-column' },
+      h('h5', null, raw(title)),
+      run
+        ? h('dl', { className: 'st-eval-grid' }, ...EVALUATION_RUN_FIELDS.flatMap((key) => [
+          h('dt', { key: `${key}:k` }, raw(String(EVALUATION_RUN_FIELD_LABELS[key] ?? key))),
+          h('dd', { key: `${key}:v` }, raw(runValue(run, key))),
+        ]))
+        : h('p', { className: 'st-eval-hint' }, raw(localized('还没有这一版的运行记录。', 'There is no run for this version yet.'))))
+
+    const conditionRows = comparison ? comparison.conditions.map((condition) => h('div', {
+      key: condition.key,
+      className: 'st-eval-condition',
+      'data-role': 'eval-condition',
+      'data-condition': condition.key,
+      'data-equal': condition.equal ? 'true' : 'false',
+    },
+    h('span', { className: 'st-eval-condition-name' }, raw(String(condition.label ?? condition.key))),
+    h('span', { className: 'st-eval-condition-value' }, raw(String(condition.before ?? unavailable))),
+    h('span', { className: 'st-eval-condition-value' }, raw(String(condition.after ?? unavailable))),
+    h('span', { className: 'st-eval-tag', 'data-status': condition.equal ? 'observed' : 'not-observed' }, raw(condition.equal
+      ? localized('相同', 'Same')
+      : localized('不同', 'Different'))))) : []
+
+    const conditionSection = h('div', { className: 'st-eval-section', 'data-role': 'eval-conditions' },
+      h('h4', null, raw(localized('④ 两次运行的条件', '④ Conditions of the two runs'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized('条件对不上就不做对照 —— 差异说不清是谁带来的，这一页就不说。', 'When the conditions do not match, nothing is compared: the difference cannot be attributed, so this page will not claim it.'))),
+      h('div', { className: 'st-eval-columns' },
+        runColumn(localized('改前 · 那一条', 'Before · that run'), beforeRun),
+        runColumn(localized('改后 · 这一条', 'After · this run'), afterRun)),
+      conditionRows.length
+        ? h('div', { className: 'st-eval-conditions' }, ...conditionRows)
+        : null,
+      comparison
+        ? h('p', {
+          className: 'st-eval-hint',
+          'data-role': comparison.comparable ? 'eval-comparison' : 'eval-comparison-unavailable',
+          'data-axis': String(comparison.axis ?? unavailable),
+        }, raw(String(comparison.axisLabel ?? '') + ' · ' + String(comparison.reason ?? '')))
+        : h('p', { className: 'st-eval-hint', 'data-role': 'eval-comparison-unavailable' }, raw(runs.length
+          ? localized('要对照得先有两条记录：这一页现在只认出其中一边，或者两边都还没标。', 'A comparison needs two recorded runs: this page can only identify one side so far, or neither is tagged yet.')
+          : localized('还没有运行记录，所以没有条件可摆。', 'There are no runs yet, so there are no conditions to lay out.'))))
+
+    // ── ⑤ 运行时证据：四段各看见了什么 ────────────────────────────────────────
+    const evidenceSection = h('div', { className: 'st-eval-section', 'data-role': 'eval-evidence' },
+      h('h4', null, raw(localized('⑤ 运行时证据', '⑤ Runtime evidence'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized('同一个 Case、这一次运行里，四段各自看见了什么。每一段都写着它够不着什么。', 'For this run of the same case: what each of the four stages did and did not see. Every stage says what it cannot reach.'))),
+      evidence
+        ? h('div', null, ...evidence.stages.map((stage) => h('div', {
+          key: stage.id,
+          className: 'st-eval-stage',
+          'data-role': 'eval-stage',
+          'data-stage': stage.id,
+        },
+        h('div', { className: 'st-eval-stage-head' },
+          h('span', { className: 'st-eval-stage-name' }, raw(String(stage.label ?? stage.id))),
+          statusTag(stage.status),
+          h('span', { className: 'st-eval-hint' }, raw(sourceLabel(stage.source)))),
+        h('ul', { className: 'st-eval-list' }, ...(Array.isArray(stage.facts) ? stage.facts : []).map((fact, index) => h('li', { key: String(index) }, raw(String(fact))))),
+        h('p', { className: 'st-eval-reach' }, raw(String(stage.reach ?? ''))))),
+        h('div', { className: 'st-eval-inequalities', 'data-role': 'eval-inequalities' },
+          ...(Array.isArray(evidence.inequalities) ? evidence.inequalities : []).map((line) => h('span', { key: String(line), className: 'st-eval-inequality' }, raw(String(line)))),
+          h('p', { className: 'st-eval-hint' }, raw(String(evidence.inequalitiesNote ?? '')))))
+        : h('p', { className: 'st-eval-hint' }, raw(localized('还没有运行记录，所以这里没有证据可摆。', 'There is no run yet, so there is no evidence to lay out.'))))
+
+    // ── ⑥ 断言与对照：一条一条列，列完为止 ────────────────────────────────────
+    const assertionRows = comparison
+      ? comparison.rows.map((row) => h('div', { key: row.id, className: 'st-eval-assertion', 'data-role': 'eval-assertion', 'data-assertion': row.id },
+        h('span', { className: 'st-eval-assertion-text' }, raw(String(row.text ?? ''))),
+        h('span', { className: 'st-eval-assertion-cell' }, raw(verdictLabel(row.before))),
+        h('span', { className: 'st-eval-assertion-cell' }, raw(verdictLabel(row.after))),
+        h('span', { className: 'st-eval-assertion-cell' }, raw(String(row.comparison ?? unavailable))),
+        h('span', { className: 'st-eval-hint' }, raw(sourceLabel(row.source)))))
+      : (singleAssertions
+        ? singleAssertions.rows.map((row) => h('div', { key: row.id, className: 'st-eval-assertion', 'data-role': 'eval-assertion', 'data-assertion': row.id },
+          h('span', { className: 'st-eval-assertion-text' }, raw(String(row.text ?? ''))),
+          h('span', { className: 'st-eval-assertion-cell' }, raw(verdictLabel(row.verdict))),
+          h('span', { className: 'st-eval-hint' }, raw(sourceLabel(row.source))),
+          h('span', { className: 'st-eval-hint' }, raw(String(row.why ?? '')))))
+        : [])
+
+    const assertionSection = h('div', { className: 'st-eval-section', 'data-role': 'eval-assertions' },
+      h('h4', null, raw(localized('⑥ 断言与对照', '⑥ Assertions and comparison'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized('每条三样东西：陈述、结论、来源。对照那一列只说事实上的差别（两次都一样 / 改前未通过 → 改后通过 / 两次都无法判断），不折成别的说法。', 'Each row carries three things: the statement, the verdict, the source. The comparison column states only the factual difference (same both times / did not pass before → passes after / cannot tell either time), and is never folded into anything else.'))),
+      assertionRows.length
+        ? h('div', { className: 'st-eval-assertions' }, ...assertionRows)
+        : h('p', { className: 'st-eval-hint' }, raw(localized('还没有可列的断言：先记一条运行。', 'There is nothing to list yet: record a run first.'))))
+
+    // ── ⑦ 这一版刻意不出现的东西 ──────────────────────────────────────────────
+    const forbiddenSection = h('div', { className: 'st-eval-section st-eval-forbidden', 'data-role': 'eval-forbidden' },
+      h('h4', null, raw(localized('⑦ 这一版刻意不出现的东西', '⑦ What this version deliberately leaves out'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized('不是「还没做」，是永久不做。理由不是不想做，而是外部证据不支持批量结论：49 个公开 SWE Skill 里 39 个一点增益都没有、均值 +1.2%、3 个把表现拖低最多 10%、token 开销最高 +451%（arXiv 2603.15401）。所以这里只有证据，没有结论分。', 'Not “not yet” but “not ever”. The reason is not reluctance but evidence: of 49 public SWE skills, 39 showed no gain at all, the mean was +1.2%, three dragged performance down by up to 10%, and token cost rose by as much as +451% (arXiv 2603.15401). So this page holds evidence, never a total.'))),
+      h('div', { className: 'st-eval-forbidden-grid' }, ...EVALUATION_FORBIDDEN_OUTPUTS.map((label) => h('span', { key: String(label), className: 'st-eval-forbidden-item' }, raw(String(label))))))
+
+    const body = record
+      ? [caseSection, captureSection, runsSection, conditionSection, evidenceSection, assertionSection, forbiddenSection].filter(Boolean)
+      : [h('div', { className: 'st-eval-section st-eval-empty', 'data-role': 'eval-unavailable' },
+        h('p', { className: 'st-eval-hint' }, raw(canGenerate
+          ? localized('这个 Skill 还没有评测 Case。生成一个 —— 它把这次修改固化成能反复用的用例。', 'This skill has no evaluation case yet. Generate one: it freezes this modification into a reusable case.')
+          : localized('这个 Skill 还没有评测 Case。它从这里来：先在「Skill 演进」里改一次 Skill，并让插件按那次改动生成对比。', 'This skill has no evaluation case yet. It starts with a modification: change the skill in “Skill evolution”, and let the plugin compare that change.'))),
+        h('div', { className: 'st-eval-actions' }, canGenerate
+          ? h('button', {
+            className: 'st-eval-button st-eval-primary',
+            type: 'button',
+            'data-role': 'eval-generate',
+            disabled: busy,
+            onClick: onGenerate,
+          }, raw(localized('生成评测 Case', 'Generate the evaluation case')))
+          : null))]
+
+    return h('section', { className: 'st-detail-card st-eval', 'data-role': 'eval-card' },
+      h('div', { className: 'st-eval-top' }, h('h3', null, raw(localized('Skill 评测', 'Skill evaluation')))),
+      h('p', { className: 'st-eval-hint', 'data-role': 'eval-hint' }, raw(localized('同一个 Case 跑两次，条件逐项摆出来，逐条对照 —— 不给分、不排序、不画走势。', 'Run the same case twice, lay the conditions out item by item, compare assertion by assertion — no scores, no ordering, no trend line.'))),
+      error ? h('p', { className: 'st-eval-alert', role: 'alert', 'data-role': 'eval-error' }, raw(error)) : null,
+      message ? h('p', { className: 'st-eval-hint' }, raw(message)) : null,
+      ...body)
+  }
+
   function SkillDiffPanel({ sessionId, skillName, diff: suppliedDiff, tab: suppliedTab = 'structure', onClose }) {
     // `diff` 是和 `SkillCloneDialog` 的 `clone` 同一种注入缝：渲染烟测的 React 桩不跑
     // `useEffect`，所以「已经拿到差异」的那一帧只有注得进去才渲染得出来。
@@ -2590,7 +3041,7 @@ function installStyles() {
         : null))
   }
 
-  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification, instanceTest: suppliedInstanceTest }) {
+  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification, instanceTest: suppliedInstanceTest, evaluation: suppliedEvaluation }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
     const [error, setError] = React.useState('')
@@ -2611,6 +3062,9 @@ function installStyles() {
     // v0.10.0：实例验收与 `modification` 同一种注入缝（React 桩不跑 `useEffect`）。
     // 它只是前端状态：刷新页面就没了，重新生成一次即可 —— 这里不存测试历史（§十二）。
     const [instanceTest, setInstanceTest] = React.useState(() => suppliedInstanceTest ?? { phase: 'idle' })
+    // v1.0：评测。它也只活在页面上 —— Case 的**身份由宿主算**（客户端不许自己 sha256），
+    // 要落到本机得用户点一次「保存到本机」；`runs` 是这一次页面会话里记下来的运行。
+    const [evaluation, setEvaluation] = React.useState(() => suppliedEvaluation ?? ({ ...EVALUATION_INITIAL_STATE }))
     // 用户这次说的修改意图。它是实例验收的六样输入之一，但**只活在页面上**：宿主不回传它，
     // 插件也不落盘 —— 页面一刷新就没了，那时生成器照样能跑（只少一样来源，trace 里如实少一项）。
     const [lastIntent, setLastIntent] = React.useState('')
@@ -2678,6 +3132,52 @@ function installStyles() {
         .catch((reason) => { if (!cancelled) setDiffState({ phase: 'error', diff: null, error: String(reason?.message || 'unavailable') }) })
       return () => { cancelled = true }
     }, [sessionId, skillName, lineage ? lineage.lineageId : null])
+
+    // ── v1.0 评测：三个请求，全部落在同一条路由上（宿主按 `action` 分派）。
+    //    `caseId` 由宿主从 `hashInput` 算；条件与指纹由宿主从会话日志与收据里取。
+    //    客户端只回传它才有的两样东西：人点出来的判定、人写下的结论。
+    const evalPost = (action, payload) => api('/evaluation', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, action, ...payload }),
+    })
+
+    // 打开页面时问一次本机有没有这个 Skill 的评测 Case：`case-list` 只给身份摘要，
+    // 挑出最近更新的那一份再 `case-read`（它一次把 runs 也带回来）。**没有 Case 不是错误** ——
+    // 空态自己会说「还没有」，这里绝不弹红字（§6.11：缺和错不能长成同一张脸）。
+    React.useEffect(() => {
+      let cancelled = false
+      setEvaluation((previous) => (previous.caseRecord ? previous : { ...previous, phase: 'loading', message: '', error: '' }))
+      evalPost('case-list', { skillName })
+        .then((body) => {
+          const rows = Array.isArray(body?.cases) ? body.cases : []
+          const row = rows
+            .filter((entry) => entry && typeof entry.caseId === 'string' && entry.caseId)
+            .sort((left, right) => String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')))[0]
+          if (!row) {
+            if (!cancelled) setEvaluation((previous) => (previous.caseRecord ? previous : { ...EVALUATION_INITIAL_STATE }))
+            return null
+          }
+          return evalPost('case-read', { caseId: row.caseId })
+        })
+        .then((body) => {
+          if (cancelled || !body) return
+          const record = body.case && typeof body.case === 'object' ? body.case : null
+          if (!record) return
+          setEvaluation({
+            ...EVALUATION_INITIAL_STATE,
+            phase: 'ready',
+            caseRecord: record,
+            caseId: typeof record.caseId === 'string' ? record.caseId : '',
+            runs: Array.isArray(body.runs) ? body.runs : [],
+            saved: true,
+            warningCount: Number(body.warningCount) || 0,
+          })
+        })
+        .catch((reason) => {
+          if (!cancelled) setEvaluation((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') }))
+        })
+      return () => { cancelled = true }
+    }, [sessionId, skillName])
 
     // 定义换了（重新加载、切 Skill）就换一份译文：一份对不上屏幕正文的译文比没有译文更糟。
     // 依赖是 `skillName` + 指纹，不是 `detail` 对象 —— 同一个定义的两次读取不该清掉译文。
@@ -3060,6 +3560,139 @@ function installStyles() {
         : { phase: 'unavailable', test: built, message: built.message })
     }
 
+    // v1.0：评测 Case 的生成入口。和实例验收同一份输入 —— 它不重算 V0.10 已经算过的东西，
+    // 只是把「这一次修改」固化成能反复用的用例。Case 绑的是**当前文件**那一版指纹：
+    // `currentHash` 与 `content.sha256` 都是它，都拿不到就交给纯函数降级成 `unavailable`
+    // （不许从观察到的那几版里随便挑一个，那会让这个字段看起来比实际更确定）。
+    const generateEvaluationCase = () => {
+      const boundFingerprint = (typeof currentHash === 'string' && currentHash) || sha || null
+      const built = buildEvaluationCase({
+        skillName,
+        intent: lastIntent || null,
+        comparison: modifyState?.comparison ?? null,
+        definitionText: content?.text ?? null,
+        description: summary?.description ?? null,
+        framework: detail?.framework ?? null,
+        validation: validation ?? null,
+        skillFingerprint: { instructionSha256: boundFingerprint, match: matchState },
+      })
+      setEvaluation((previous) => (built.available
+        ? {
+          ...previous,
+          phase: 'ready',
+          // 刚生成的 Case 在本机上**还没有身份**：`caseId` 要宿主从 `hashInput` 算出来，
+          // 客户端不许自己 sha256。`caseId: ''` 就是「还没保存」，不是「身份是空字符串」。
+          caseRecord: { ...built.case, caseId: '' },
+          caseId: '',
+          hashInput: built.hashInput,
+          // 身份还没落盘，之前那些运行记录属于**另一份身份**，不能顺手贴到这一份上。
+          runs: [],
+          // 角色标记跟着 runs 一起清：`runRoles` 的键是 runId，留着别人的标记只会张冠李戴。
+          runRoles: {},
+          runRole: 'after',
+          saved: false,
+          message: '',
+          error: '',
+        }
+        : { ...previous, phase: 'unavailable', caseRecord: null, caseId: '', hashInput: null, runs: [], runRoles: {}, runRole: 'after', saved: false, message: built.message, error: '' }))
+    }
+
+    const saveEvaluationCase = () => {
+      const record = evaluation.caseRecord
+      const hashInput = evaluation.hashInput
+      if (!record || typeof hashInput !== 'string' || !hashInput) return
+      setEvaluation((previous) => ({ ...previous, phase: 'saving', message: '', error: '' }))
+      // 已经保存过的那一份会把 `caseId` 一起回传：宿主拿它和按内容重算的结果对一对，
+      // 对不上就拒收 —— 那条 400 正是「页面上的内容已经变了」的检测器。所以重算过 Case
+      // 之后必须把旧的 `caseId` 丢掉（上面生成时就是这么做的），否则这条检测器会误报。
+      evalPost('case-save', { case: { ...record, skillName }, hashInput })
+        .then((body) => {
+          const caseId = typeof body?.caseId === 'string' ? body.caseId : ''
+          setEvaluation((previous) => ({
+            ...previous,
+            phase: 'ready',
+            caseId,
+            caseRecord: { ...previous.caseRecord, caseId },
+            saved: true,
+            message: localized('这个 Case 已经保存到本机。', 'This case is saved on this machine.'),
+            error: '',
+          }))
+        })
+        .catch((reason) => {
+          setEvaluation((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') }))
+        })
+    }
+
+    const captureEvaluationRun = () => {
+      if (typeof evaluation.caseId !== 'string' || !evaluation.caseId) return
+      // 这一条算哪一版：请求发出去之前先记住，响应回来时界面上的默认值可能已经翻了面。
+      const role = evaluation.runRole === 'before' ? 'before' : 'after'
+      setEvaluation((previous) => ({ ...previous, phase: 'capturing', message: '', error: '' }))
+      // 条件和指纹由宿主取（它会去读会话日志与收据）；这里只提交 `judgements` 与 `outcome`。
+      // 结果那栏留空时提交的 `text` 是空字符串，宿主按 `FR-EVAL-015` 记成 `unavailable` ——
+      // 「还没判」与「判成失败」在界面上永远不是同一句话。
+      evalPost('run-capture', {
+        caseId: evaluation.caseId,
+        outcome: evaluation.outcome,
+        judgements: evaluation.judgements,
+      })
+        .then((body) => {
+          const run = body?.run && typeof body.run === 'object' ? body.run : null
+          const runId = run && typeof run.runId === 'string' ? run.runId : ''
+          setEvaluation((previous) => ({
+            ...previous,
+            phase: 'ready',
+            runs: run ? [run, ...previous.runs] : previous.runs,
+            runRoles: runId ? { ...previous.runRoles, [runId]: role } : previous.runRoles,
+            // 记完一条就把默认翻到另一版：要对照就得两版各有一条，而不是同一条点两次。
+            runRole: role === 'after' ? 'before' : 'after',
+            message: localized('这一次运行已经记下来了。', 'This run has been recorded.'),
+            error: '',
+          }))
+        })
+        .catch((reason) => {
+          setEvaluation((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') }))
+        })
+    }
+
+    // 判定按钮：`pass` / `fail` / `unknown` 由人点，插件一个都不判。再点一次同一个按钮
+    // 就是撤掉这条判定（回到「还没判」）—— 所以传进来的空值是**删除**，不是「判成失败」。
+    const judgeEvaluationObservation = (observationId, verdict) => {
+      if (typeof observationId !== 'string' || !observationId) return
+      if (verdict && !EVALUATION_VERDICT_IDS.includes(verdict)) return
+      setEvaluation((previous) => {
+        const judgements = { ...previous.judgements }
+        if (verdict) judgements[observationId] = verdict
+        else delete judgements[observationId]
+        return { ...previous, phase: 'ready', message: '', error: '', judgements }
+      })
+    }
+
+    // 结果那一栏：文本与来源都只由人给。来源只认 `user` / `agent`（`protocol` 不由人填，
+    // 那是宿主从会话日志里读出来的东西）。
+    const changeEvaluationOutcome = (patch) => {
+      if (!patch || typeof patch !== 'object') return
+      setEvaluation((previous) => {
+        const next = { ...previous.outcome, ...patch }
+        const source = EVALUATION_SOURCE_IDS.includes(next.source) && next.source !== 'protocol' ? next.source : 'user'
+        return {
+          ...previous,
+          phase: 'ready',
+          message: '',
+          error: '',
+          outcome: { source, text: typeof next.text === 'string' ? next.text : '' },
+        }
+      })
+    }
+
+    // 哪一条算改前 / 改后。`runId` 给了就改这一条的标记，没给就是改「下一条记哪一版」的默认值。
+    const tagEvaluationRun = (role, runId) => {
+      if (role !== 'before' && role !== 'after') return
+      setEvaluation((previous) => (typeof runId === 'string' && runId
+        ? { ...previous, phase: 'ready', message: '', error: '', runRoles: { ...previous.runRoles, [runId]: role } }
+        : { ...previous, phase: 'ready', message: '', error: '', runRole: role }))
+    }
+
     // v0.9.1：这一块只在一次修改事务里出现（`phase: 'idle'` 时它自己返回 `null`），
     // 排在验收卡后面 —— 那两句回答的是同一个问题：「这次改完，现在是什么样」。
     // 它必须写在两个处理器之后：`const` 是暂时性死区，往前挪一格就会在渲染那一帧抛
@@ -3072,9 +3705,23 @@ function installStyles() {
       onOpenModify: () => setModifyOpen(true),
     })
 
+    // v1.0：评测卡排在「本次修改对比 / 实例验收」之后 —— 那两块说的是「这次改了什么」，
+    // 它说的是「改完以后拿同一个 Case 跑两次看到了什么」。没有修改事务时它显示空态并说明
+    // Case 从哪里来，不催用户去点一个注定失败的东西。
+    const skillEvaluation = h(SkillEvaluationCard, {
+      evaluation,
+      canGenerate: Boolean(modifyState?.comparison),
+      onGenerate: generateEvaluationCase,
+      onSave: saveEvaluationCase,
+      onCapture: captureEvaluationRun,
+      onJudge: judgeEvaluationObservation,
+      onOutcome: changeEvaluationOutcome,
+      onRole: tagEvaluationRun,
+    })
+
     return h('div', { className: 'st-detail' },
       h('div', { className: 'st-detail-body' }, sidePanel,
-        h('div', { className: 'st-detail-main' }, h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, framework, runtimeLogic, stepEvidence, docPanel)),
+        h('div', { className: 'st-detail-main' }, h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, skillEvaluation, framework, runtimeLogic, stepEvidence, docPanel)),
       cloneOpen
         ? h(SkillCloneDialog, {
           sessionId,

@@ -1626,9 +1626,9 @@ export const INSTALLED_ORDERING_RULE = 'added-desc-then-name'
 
 ---
 
-## 22. Skill 评测（V1.0，计划，未实现）
+## 22. Skill 评测（V1.0）
 
-> **状态**：§22.3–§22.6 的**纯函数层已落地**（`src/core/skill-evaluation.mjs`，545 行，14 项测试）；**§22.7 的落盘与第 13 条路由、§22.8 的界面、§22.9 的第 30 组守卫都还没落地**。需求依据是 `spec/PRD.md` §5.13 的 `FR-EVAL-001`–`018`；用户 2026-10-05 已授权新增本机落盘与一条 `POST` 路由（`FR-EVAL-016`）。
+> **状态**：**全部落地**。§22.3–§22.6 是纯函数层（`src/core/skill-evaluation.mjs`，565 行）；§22.7 的落盘（`src/storage/evaluation-store.mjs`，294 行）与第 13 条路由（`handleEvaluation`，`src/dsh/host/index.js:784`）已实现；§22.8 的界面（客户端 `data-role="eval-card"`，29 个 `eval-*`）已实现；§22.9 的第 30 组守卫 `SKILL_EVALUATION_OK` 已落地。`npm test` 634 项 0 失败，`npm run verify` 全绿。需求依据是 `spec/PRD.md` §5.13 的 `FR-EVAL-001`–`018`；用户 2026-10-05 已授权新增本机落盘与一条 `POST` 路由（`FR-EVAL-016`）。
 
 ### 22.1 为什么是「可重复的实验记录」，而不是评分器
 
@@ -1691,27 +1691,36 @@ V0.10.0 的实例验收是一次性的：生成一份 Prompt，跑一遍，看�
 - **对照列只用事实词**（`FR-EVAL-012`）：两次都通过 / 改前未通过 → 改后通过 / 改前通过 → 改后未通过 / 回归信号 / 两次都无法判断 / 不做对照。**不折算成分数、不排序**；`无法判断` 永远不会被折成「未通过」（缺数据不能证明失败）。
 - **断言每条只有三样东西**：陈述 + 结论（`通过` / `未通过` / `无法判断`）+ 来源（`协议事实` / `用户判定` / `Agent 自报`）。`buildEvaluationAssertions()` **只返回 `{rows, unavailable}`，没有任何聚合字段**（测试逐条扫 `rate` / `score` / `count` / `total` / `average` / `variance` 都不许出现）。协议事实三条固定在前：`load-evidence`（看不到加载证据 → `无法判断`，理由里有「看不到不等于没发生」）、`fingerprint-match`（缺一侧 → `无法判断`，理由里有「不写成『不一致』」）、`references-used`（只在 `scopeIds` 含 `references` 时出现，永远 `无法判断`：工具活动只有元数据）。其后是 Case 的每条观察点，`verdict` 取 `run.judgements[id]`，没人给判定就是 `无法判断` + 「这一条只能由人来给（插件不判定）」。
 
-### 22.7 落盘与第 13 条路由（计划）
+### 22.7 落盘与第 13 条路由（已实现）
 
-- **目录**：`<dataRoot>/evaluation/cases/<caseId 去掉 sha256: 前缀>.json` 与 `<dataRoot>/evaluation/runs/<同一个 hex>/<runId>.json`。`0700` 目录 / `0600` 文件，写盘用 tmp + **原子 `rename`**（与 `receipt-store` / `translation-store` 同一套写法）。
+- **存储模块**：`src/storage/evaluation-store.mjs`（294 行，`createEvaluationStore(root)`），与 `translation-store.mjs` / `receipt-store.mjs` 同一套约定 —— 目录 `0700`、文件 `0600`、写盘 tmp + **原子 `rename`**。
+- **目录**：`<dataRoot>/evaluation/cases/<caseId 去掉 sha256: 前缀>.json` 与 `<dataRoot>/evaluation/runs/<同一个 hex>/<runId>.json`（`evaluationCaseFile()` / `evaluationRunFile()`）。**删 Case 连它的 runs 一起删**，不留孤儿。
 - **文件名只由 `caseId` / `runId` 决定，不含 `sessionId`**（`FR-EVAL-016`）：跨会话复用靠这两个 id，不靠会话。
-- **禁字段闭集**（写进存储模块并被守卫扫）：`sessionId`、绝对路径、工具参数与结果、模型回复正文、任何聚合指标。**Case 的任务 Prompt 正文与用户的判定文本是刻意落盘的**（否则 Case 无法复现），这一条必须写进 `docs/PRIVACY.md`。
-- **保留与清理**（`FR-EVAL-017`）：上限 + `prune`，与 receipts 同风格；具体数值与 V1.0 一起定。
-- **第 13 条路由**：`POST /skill-trace/evaluation`，`action ∈ ['case-save','run-save','list','read','delete']`。**全部需要 `sessionId`**（只用于解析 registry 与权限作用域，**不落盘、不回传**）。响应里 `caseId` / `runId` / 列表项不带会话信息；错误消息必须是给人看的完整句子（§3.3）。客户端请求体必须覆盖宿主真正读的 `payload.*` 字段（§3.3 那道守卫会从源码两边读）。
-- 落盘失败**不影响** Case 的生成与展示：读取端把「读不到」当空态说人话（§15.3）。
+- **上限与清理**（`FR-EVAL-017`）：200 个 Case、每个 Case 50 条 Run，到顶先丢最旧的。
+- **禁字段闭集**：`sessionId`、绝对路径、工具参数与结果、模型回复正文、任何聚合（`score` / `passes` / `rate` / `variance` / `stddev` / `ranking` / `trend` 在任意深度都是**拒收报错**，不是静默裁掉）。**Case 的任务 Prompt 正文与用户的判定文本是刻意落盘的**（否则 Case 无法复现），这一条写在 `docs/PRIVACY.md:55-65`。
+- **第 13 条路由**：`POST /skill-trace/evaluation` → `handleEvaluation(body)`（`src/dsh/host/index.js:784`，注册点 `:1812`），`action ∈ ['case-save','case-list','case-read','case-delete','run-save','run-capture']`。**全部需要 `sessionId`**（只用于确认这次请求属于哪个会话，**不落盘、不回传**）；响应里 `caseId` / `runId` / 列表项不带会话信息，错误消息是完整句子（§3.3）。
+- **身份由宿主算**：`case-save` 收下客户端送来的六行 `hashInput` 与整条 `case`，**`caseId` 由宿主对 `hashInput` 做 sha256 得出**；送来的 `caseId` 与算出来的不一致就**拒绝保存**（页面上的内容和身份已经不是一回事了）。`runId` 由宿主生成。`run-capture` 由宿主**自己**取条件、指纹、加载证据与工具活动，客户端只送 `judgements` 与 `outcome`。
+- 落盘失败**不影响** Case 的生成与展示：读取端把「读不到」当空态说人话（§15.3）。**「没有 Case」不是错误**，客户端回落空态、不弹红字。
+- 测试：`test/evaluation-store.test.mjs`（172 行）+ `test/evaluation-route.test.mjs`（303 行）。
 
-### 22.8 界面（计划）
+### 22.8 界面（已实现）
 
-- **位置**：详情页「本次修改对比」块之后新增一块 `data-role="eval"`，位置条上多一格「**Skill 评测**」。**不新增页面**（`spec/PRD.md` §4.1；一级页面永远只有两个）。
-- **出现条件**：存在 Case（有本次修改事务，或本机已保存过这个 Skill 的 Case）。没有就**整块不出现** —— 与「本次修改对比」同一条纪律。
-- **四个小节**：① Evaluation Case（身份、任务 Prompt 四块、观察点、回归约束）；② Before / After 条件并排（`runId` / 指纹三态 / 开始时间 / 日志游标 / 模型 / DSH 版本 / 插件版本 / 加载证据 / 运行时活动 / 结果 + 来源）；③ Runtime Evidence 四段阶梯（每段带 `reach`）+ 三条不等式；④ 断言与对照表 + 「这一版刻意不出现的东西」。
-- **不做什么**：不调模型、不自动跑（不建会话、不发 Prompt、不重跑 n 次、不读回模型回复）、不给分、不给趋势图、不做排名（`FR-EVAL-014` / `FR-EVAL-015`）。复制按钮只写剪贴板，不发请求。
+- **位置**：详情页「本次修改对比」（`skillModification`）之后、框架（`framework`）之前新增一块 `data-role="eval-card"`。**不新增页面、不新增一级导航**（`spec/PRD.md` §4.1）。
+- **出现条件**：本机有这次修改事务、或已保存过这个 Skill 的 Case。**没有 Case 不是错误** —— 整卡仍然在场，给空态那句「这个 Skill 还没有评测 Case。生成一个 —— 它把这次修改固化成能反复用的用例。」+「生成评测 Case」按钮（`eval-generate`）。有 Case 之后按钮文案变成「按当前内容重新生成」（`FR-EVAL-004`：Skill 又改一次，就该测新那一版）。
+- **七段（`data-role` 前缀 `eval-`，共 29 个）**：① `eval-case` 身份 / 绑定指纹 / 来源 / `eval-scope` 范围 chips / `eval-prompt` 四块任务 Prompt / `eval-observations` 观察点 / `eval-regression` 回归约束 / `eval-save`；② `eval-capture` 逐条 `eval-judgement` 三个按钮（`通过` / `未通过` / `无法判断`）+ `eval-outcome` 结果文本与来源按钮（`用户判定` / `Agent 自报`）+「这一条算哪一版」+ `eval-run` + `eval-run-hint`；③ `eval-runs` 运行记录（每条可改标 `eval-run-role`）；④ `eval-conditions` 两栏条件表（`eval-condition`，带 `data-equal`）+ `eval-comparison` / `eval-comparison-unavailable`；⑤ `eval-evidence` 四段阶梯（`eval-stage` × `data-stage`）+ `eval-inequalities`；⑥ `eval-assertions` 断言与对照表（`eval-assertion`）；⑦ `eval-forbidden`「这一版刻意不出现的东西」。
+- **界面自己一个字都不判定、不聚合**：判定与结果都由人给，原样上行。**再点同一个判定按钮 = 删掉这条判定**（不是判成失败）；来源只认 `用户判定` / `Agent 自报`（`protocol` 不由人填）。三条不等式与「刻意不出现」的清单是**从核心模块的常量念出来的**（`EVALUATION_INEQUALITIES` / `EVALUATION_INEQUALITY_NOTE` / `EVALUATION_FORBIDDEN_OUTPUTS`），界面不另抄一套字面量 —— 否则两处措辞会各自漂移。
+- **「哪条算改前 / 改后」先看事实**：用户标过就听用户的（`runRoles[runId]`）；没标过就按指纹事实分 —— `match === 'mismatch'` 的算改前、`match === 'match'` 的算改后；两边都分不出来就**不给答案**，把两条都摆出来让人点。点「记录这一次运行」前先记住「这一条算哪一版」，响应回来给该 run 打标记，并把默认角色翻到另一版。
+- **缺项照实说**：没有运行记录时，条件区与证据区各给一句「还没有运行记录，所以…」，不拿空表冒充对照；时间戳解析不了就原样显示（不猜、不用「现在」补）。
+- **文案禁用**：`Skill Score` / `通过率` / `方差` / `标准差` / `排名` / `趋势图` / `平均分` 一个都不许出现 —— 由 §22.9 的第 30 组守卫扫。
+- **不做什么**：不调模型、不自动跑（不建会话、不发 Prompt、不重跑 n 次、不读回模型回复）、不给分、不给趋势图、不做排名（`FR-EVAL-014` / `FR-EVAL-015`）。
 
-### 22.9 守卫与测试（计划）
+### 22.9 守卫与测试（已实现）
 
-- **第 30 组 `SKILL_EVALUATION_OK`**：源码文本层钉住 —— 纯函数纪律（无 `Date.now` / `Math.random` / `new Date(`、零 `import`）、无聚合字段名、禁用词表、四段顺序与三条不等式常量在场、`caseHashInput` 的六行定序、客户端请求体覆盖宿主读的字段。
-- **两处要同时改的既有守卫**：`scripts/verify-project.mjs:1909-1912` 数客户端 `require('../../core/…')`，**必须恰好 8 支 → 9 支**（同时改 `AGENTS.md` §6.6）；`scripts/verify-project.mjs:1915` 的禁用名清单里有 **`'Skill Evaluation'`**（V0.10.0 那版不许出现这个名字），V1.0 的界面就叫「Skill 评测」，必须把这一项去掉（`Skill Run` / `Skill Execute` / `Skill Benchmark` / `测试中心` 保留）。
-- **测试**：`test/skill-evaluation.test.mjs` **14 项**（已绿），含「把所有生成出来的句子拼起来扫禁用词与度量词必须 0 命中」这一条。`npm test` 由 590 → **604 项**。
+- **第 30 组 `SKILL_EVALUATION_OK`**（`scripts/verify-project.mjs:2040` 打标）钉四类东西：① 核心模块的固定面（生成器版本 `1.0.0`、四段 id 顺序 `trigger load use outcome`、三条不等式逐字、条件表恰好四项 `model provider reasoningEffort contextWindow`、判定 `pass fail unknown`、来源 `protocol user agent`）；② **卡片区**（从 `client.indexOf('V1.0「Skill 评测」卡')` 到 `client.indexOf('function SkillDiffPanel(')`）必须含 28 个 `eval-*` data-role 与 `.inequalities` / `.inequalitiesNote` / `这一版刻意不出现的东西`，且**不得含** `EVALUATION_FORBIDDEN_OUTPUTS` 里任何一个词；③ 客户端全文含 `buildEvaluationCase` / `onGenerate: generateEvaluationCase` / `onCapture: captureEvaluationRun`；④ 宿主含 `'/skill-trace/evaluation'` / `function handleEvaluation` / 六个动作名，`docs/PRIVACY.md` 含 `evaluation/cases` 与 `evaluation/runs`。
+- **这道守卫红得起来吗：验过。** 往卡片标题里注入 `Skill Score` 再重建，`npm run verify` 直接停在第 30 组：`评测卡里不许出现聚合口径「Skill Score」：这一页只摆事实，不下结论`；还原重建后恢复全绿。**禁用词只扫卡片区**，因为 `src/dsh/client/client.js:1949` 那句 v0.9.0 的注释里本来就有「没有分数、没有排名、没有「优秀」」。
+- **三处既有守卫同时改**：① 数客户端 `require('../../core/…')` 的那一处（`scripts/verify-project.mjs:1913`）**恰好 8 支 → 9 支**（第 9 支是 `src/core/skill-evaluation.mjs`）；② `:1915` 的禁用名清单去掉 **`'Skill Evaluation'`**（`Skill Run` / `Skill Execute` / `Skill Benchmark` / `测试中心` 保留）；③ 两处渲染顺序守卫（`:910` 与 `:1691`）允许评测卡插在 `skillModification` 与 `framework` 之间，文案改成「验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md」。
+- **测试**：`test/skill-evaluation.test.mjs`（361 行）、`test/evaluation-store.test.mjs`（172 行）、`test/evaluation-route.test.mjs`（303 行）全绿；`npm test` 由 590 → **634 项，0 失败**；`npm run verify` 全绿，尾部 `SKILL_INSTANCE_TEST_OK` → `SKILL_EVALUATION_OK` → `INSTALLED_ORDERING_OK` → `GUARD_MARKERS_ARE_BACKED_OK`。
+- **界面证据**：`01_重构方案/render-harness/` 用真 payload 驱动真 bundle 截了四张图 —— `shots/impl-eval-empty.png`（空态 + 生成按钮）、`impl-eval-case.png`（Case 四块 Prompt / 观察点 / 保存）、`impl-eval-capture.png`（逐条判定 + 结果 + 哪一版）、`impl-eval-card.png`（四段证据 + 断言对照 + 刻意不出现的清单）。DOM 自查：29 个 `eval-*` data-role 全部出现。
 
 ### 22.10 本版不做什么，以及和后面几版的边界
 
