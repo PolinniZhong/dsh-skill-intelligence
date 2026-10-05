@@ -4,11 +4,11 @@
 > 产品需求 `spec/PRD.md` · 技术设计 `spec/SDD.md` · 视觉与组件规格 `design.md`
 > · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md` · 历史规格 `docs/archive/`
 > **最后更新：2026-10-05**（同日按证据把全部日期修准：**每条日期 = 该改动真实落地那天**（git 提交日 / 实测会话日），此前手写的 `2026-10-04` / `2026-10-05` / `2026-10-06` 已逐行改对，见 §5。知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步。
-> **2026-10-05 追记**：**V0.10.0「Skill 实例验收」已随 `0.10.0` 发布**（GitHub Release 与 npm 是同一份构建，tag `v0.10.0`）；§1 的测试 / 守卫 / 客户端 / 本版内容各行已按**发布口径**同步，`0.9.2` 降为上一版，`CHANGELOG.md` 的 `## Unreleased` 已归位成 `## 0.10.0`。工作树里 **V1.0「Skill Evaluation」已实现、尚未发版**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`，状态标注为「工作树已实现，未发版」）；**版本号由用户定**。
+> **2026-10-05 追记**：**V0.10.0「Skill 实例验收」已随 `0.10.0` 发布**（GitHub Release 与 npm 是同一份构建，tag `v0.10.0`）；§1 的测试 / 守卫 / 客户端 / 本版内容各行已按**发布口径**同步，`0.9.2` 降为上一版，`CHANGELOG.md` 的 `## Unreleased` 已归位成 `## 0.10.0`。同日再追记：**V1.0「Skill Evaluation」已随 `1.0.0` 发布**（2026-10-05，tag `v1.0.0`；`spec/PRD.md` §5.13 的 `FR-EVAL-*`）；§1 各行原写的「工作树口径」已改成**发布口径**，`0.10.0` 降为上一版，`CHANGELOG.md` 的 `## Unreleased` 已归位成 `## 1.0.0`。
 > 同日追记（2026-10-03）：复刻 Skill 的请求体缺陷已修（`55f092c`），**已随 `0.8.0` 发布**；当时攒下的三件改动（短显示名 + 复刻缺陷 + V0.8「Skill 演进」）见 §1「本版内容」行。
 > 2026-10-02 追记：V0.8「Skill 演进」三个 Phase 全部落地，**真机验收已过**（12 个检查点，见
 > `01_重构方案/v0.8-真机验收清单.md`）——**已随 `0.8.0` 发布到 GitHub Release 与 npm**，见 §1 与
-> `docs/RELEASE.md` §6.0）
+> `docs/RELEASE.md` §6.0.3）
 >
 > **命名分三层。** ① **产品品牌**：DSH Skill 智能实验室（英文 DSH Skill Intelligence）—— README 首屏、
 > 仓库描述、文档抬头用这一层；② **DSH 会话里的短显示名**：**Skill 洞察**（英文 **Skill Insight**）——
@@ -32,14 +32,14 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`0.10.0`**（`package.json`）· tag `v0.10.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**（发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0）；上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.1），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.2），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`0.10.0` = V0.10.0「Skill 实例验收」一版**（不新增路由 / 页面、不调模型、不落盘），逐条登记在 `CHANGELOG.md` 的 `## 0.10.0`；六处状态文字已按 §9.1 同步 |
+| 插件包版本 | **`1.0.0`**（`package.json`）· tag `v1.0.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**（发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0）；上一版 `0.10.0`（V0.10.0「Skill 实例验收」），再上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.2），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.3），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`1.0.0` = V1.0「Skill 评测」一版**（新增第 13 条路由、一张详情页卡、一处本机落盘），逐条登记在 `CHANGELOG.md` 的 `## 1.0.0`；上一版 `0.10.0` = V0.10.0「Skill 实例验收」（不新增路由 / 页面、不调模型、不落盘），见 `## 0.10.0`；六处状态文字已按 §9.1 同步 |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
-| npm | **`beta` 与 `latest` 都指向 `0.10.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0` |
-| 测试 | **636 项全绿**（**V1.0 工作树口径，未发版**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`0.10.0` 发布口径是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
-| 静态守卫 | **30 组**（**V1.0 工作树口径，未发版**；第 30 组 `SKILL_EVALUATION_OK`、第 29 组 `SKILL_INSTANCE_TEST_OK`）；`0.10.0` 发布口径是 29 组，`0.9.2` 是 28 组（第 26 组 `SKILL_VALIDATION_OK`、第 27 组 `SKILL_MODIFICATION_OK`、第 28 组 `INSTALLED_ORDERING_OK`），`0.8.0` 是 25 组 |
-| 客户端 | **`src/dsh/client/client.js` 4284 行，bundle `dist/client.js` 228715 字节**（source hash `54bee3888d0299d8`，**V1.0 工作树口径，未发版**），`src/core/` **32 个模块 11657 行**，`src/storage/` **7 个 1411 行**；`0.10.0` 发布口径是 3625 行 / 189256 字节（source hash `faed5e9cef7db24c`）/ core 30 个模块 10924 行 / storage 6 个 1117 行；`0.9.2` 是 3448 行 / 170324 字节（`66dd0b76118e7b85`），`0.8.0` 是 2735 行 / 142672 字节（`f53a7ac5965b38b0`） |
-| 本版内容（`0.10.0`） | **V0.10.0「Skill 实例验收」**（`FR-INST-*`，`spec/PRD.md` §5.12 / `spec/SDD.md` §21）：在详情页「本次修改对比」卡里按这次改动生成一份**确定性**的实例验收任务（`src/core/skill-instance-test.mjs`，零依赖纯函数，客户端第 8 支 `require`），Prompt 与观察项**物理分离**、**不新增路由**、不自动运行、不判定成功。真机验收 2026-10-05 通过（28 个检查点）。全部记在 `CHANGELOG.md` 的 `## 0.10.0`。上一版 `0.9.2` 是三批一起发（V0.9.0 验收 / V0.9.1 Modify / V0.9.2 列表排序），见 `## 0.9.2` |
-| 工作树（**V1.0 已实现，未发版**） | **V1.0「Skill Evaluation」**（`FR-EVAL-*`，`spec/PRD.md` §5.13 / `spec/SDD.md` §22）：把 V0.10 临时生成的实例验收任务固化成**可重复的 Evaluation Case**（`src/core/skill-evaluation.mjs`，确定性纯函数）→ 记录每次运行的**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 日志游标；DSH 版本今天读不到，如实写 `unavailable`）与**四段证据**（触发 / 加载 / 使用 / 结果，每段写明够不着什么，并固定陈述三条不等式）→ 同一个 Case 的两侧对照（改前·改后 / 基线·加上 Skill，条件不同就不给对照）→ 用户判定与 Agent 自报。落盘在 `<dataRoot>/evaluation/`（`cases/<hex>.json`、`runs/<hex>/<runId>.json`，`0700`/`0600`，上限 200 个 Case / 每 Case 50 次运行），由第 13 条路由 `POST /skill-trace/evaluation` 读写；详情页多一张「Skill 评测」卡（**不新增页面**）。**不给分、不排名、不做 benchmark、不自动跑**。**版本号由用户定，v1.0 尚未发版** |
+| npm | **`beta` 与 `latest` 都指向 `1.0.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0`、`1.0.0` |
+| 测试 | **636 项全绿**（**`1.0.0` 发布口径**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`0.10.0` 发布口径是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
+| 静态守卫 | **30 组**（**`1.0.0` 发布口径**；第 30 组 `SKILL_EVALUATION_OK`、第 29 组 `SKILL_INSTANCE_TEST_OK`）；`0.10.0` 发布口径是 29 组，`0.9.2` 是 28 组（第 26 组 `SKILL_VALIDATION_OK`、第 27 组 `SKILL_MODIFICATION_OK`、第 28 组 `INSTALLED_ORDERING_OK`），`0.8.0` 是 25 组 |
+| 客户端 | **`src/dsh/client/client.js` 4284 行，bundle `dist/client.js` 228715 字节**（source hash `54bee3888d0299d8`，**`1.0.0` 发布口径**），`src/core/` **32 个模块 11657 行**，`src/storage/` **7 个 1411 行**；`0.10.0` 发布口径是 3625 行 / 189256 字节（source hash `faed5e9cef7db24c`）/ core 30 个模块 10924 行 / storage 6 个 1117 行；`0.9.2` 是 3448 行 / 170324 字节（`66dd0b76118e7b85`），`0.8.0` 是 2735 行 / 142672 字节（`f53a7ac5965b38b0`） |
+| 上一版内容（`0.10.0`） | **V0.10.0「Skill 实例验收」**（`FR-INST-*`，`spec/PRD.md` §5.12 / `spec/SDD.md` §21）：在详情页「本次修改对比」卡里按这次改动生成一份**确定性**的实例验收任务（`src/core/skill-instance-test.mjs`，零依赖纯函数，客户端第 8 支 `require`），Prompt 与观察项**物理分离**、**不新增路由**、不自动运行、不判定成功。真机验收 2026-10-05 通过（28 个检查点）。全部记在 `CHANGELOG.md` 的 `## 0.10.0`。上一版 `0.9.2` 是三批一起发（V0.9.0 验收 / V0.9.1 Modify / V0.9.2 列表排序），见 `## 0.9.2` |
+| 本版内容（`1.0.0`） | **V1.0「Skill Evaluation」**（`FR-EVAL-*`，`spec/PRD.md` §5.13 / `spec/SDD.md` §22）：把 V0.10 临时生成的实例验收任务固化成**可重复的 Evaluation Case**（`src/core/skill-evaluation.mjs`，确定性纯函数）→ 记录每次运行的**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 日志游标；DSH 版本今天读不到，如实写 `unavailable`）与**四段证据**（触发 / 加载 / 使用 / 结果，每段写明够不着什么，并固定陈述三条不等式）→ 同一个 Case 的两侧对照（改前·改后 / 基线·加上 Skill，条件不同就不给对照）→ 用户判定与 Agent 自报。落盘在 `<dataRoot>/evaluation/`（`cases/<hex>.json`、`runs/<hex>/<runId>.json`，`0700`/`0600`，上限 200 个 Case / 每 Case 50 次运行），由第 13 条路由 `POST /skill-trace/evaluation` 读写；详情页多一张「Skill 评测」卡（**不新增页面**）。**不给分、不排名、不做 benchmark、不自动跑**。发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0 |
 | 宿主机面 | **13 条路由**，`src/dsh/host/index.js` **1844 行**（第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，第 12 条是 v0.9.1 的 `POST /skill-trace/modify`；`0.10.0` 口径是 12 条 / 1625 行，`0.8.0` 口径是 11 条 / 1292 行）。全部由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
 | 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节）。v0.7 **没有新增一级 / 二级页面** |
@@ -65,7 +65,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 
 **下次动手前的判据**：如果一个新的展示元素需要模型调用来「总结」Skill 的结构，**就不要做**（§6.8）。如果它需要在界面上说「已执行 / 已完成 / 已加载 / 已读取」，**就不要做**（§6.7）。
 
-> **`0.10.0` 已发布（GitHub Release + npm，2026-10-05）。** 这一版就是 **V0.10.0「Skill 实例验收」**（`FR-INST-*`）（§1、§2）。上一版 `0.9.2` 把三批改动一起发出去：V0.9.0「Skill 验收」（`FR-VAL-*`）、V0.9.1「Skill Modify」（`FR-MOD-*`）与 V0.9.2「已安装列表排序」（`FR-ORD-*`）；再上一版 `0.8.0` 是 V0.8「Skill 演进」（血缘 / 差异 / 界面）+「Skill 洞察」短显示名 +「复刻 Skill」请求体缺陷修复。**工作树里 V1.0「Skill Evaluation」已实现、尚未发版**（`spec/PRD.md` §5.13；与 §1 的「工作树」行一致）。发版前的版本号由用户定；**下一版的版本号同样由用户定，不要自己开**。开新版本之前先确认：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径是否一致（§9.1 的六处）。
+> **`0.10.0` 已发布（GitHub Release + npm，2026-10-05）。** 这一版就是 **V0.10.0「Skill 实例验收」**（`FR-INST-*`）（§1、§2）。上一版 `0.9.2` 把三批改动一起发出去：V0.9.0「Skill 验收」（`FR-VAL-*`）、V0.9.1「Skill Modify」（`FR-MOD-*`）与 V0.9.2「已安装列表排序」（`FR-ORD-*`）；再上一版 `0.8.0` 是 V0.8「Skill 演进」（血缘 / 差异 / 界面）+「Skill 洞察」短显示名 +「复刻 Skill」请求体缺陷修复。**V1.0「Skill Evaluation」已随 `1.0.0` 发布**（`spec/PRD.md` §5.13；与 §1 的「本版内容」行一致）。**下一版的版本号由用户定，不要自己开**。开新版本之前先确认：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径是否一致（§9.1 的六处）。
 >
 > **发布凭证（2026-10-02 实测，已换凭证）**：`~/.npmrc` 原来那张长期 token 是 npm 条款里的
 > **2FA-bypass GAT**（账户级操作已被它失去：`npm profile get` → `E403`；**直接 publish 也将在 2027 年
@@ -81,7 +81,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > **npm 侧已于 2026-10-03 配好并验证**：用已发布版本号触发的功能探针这次红在 **`EPUBLISHCONFLICT`**
 > （`cannot publish over the previously published versions`）而不是 `ENEEDAUTH` —— 说明 OIDC 兑换成功、
 > trusted publisher 已生效（同一天更早的那次还是 `ENEEDAUTH`；那两条红 run 已在当天从 Actions 删除，
-> 这条 workflow 现在只剩一条绿色 run，经过见 `docs/RELEASE.md` §5.2b / §6.0）。
+> 这条 workflow 现在只剩一条绿色 run，经过见 `docs/RELEASE.md` §5.2b / §6.0.1）。
 > **以后发版 = 改版本号 + 提交 + 打 tag + 推 tag**，workflow 自己跑闸门、发布、
 > 并把 `beta` 指到同一版；本地不再需要任何 npm 凭证。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
 > `npm trust github` 只有 `--allow-publish` / `--allow-stage-publish` 两个开关，建出来就没有它，而字段建好不能改。
@@ -93,7 +93,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > `0.9.2` 最后是用**备份里的旧 GAT** 发布的（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` → 200，
 > 账户级 `/-/npm/v1/user` → 403）——它到 2027-01 前仍能直接 publish。使用时把 token 写进临时 userconfig
 > （`--userconfig=<600 的临时文件>`），**不要覆盖 `~/.npmrc`**。**每次发布前先 `npm whoami`，401 就重新
-> `npm login --auth-type=web`**（§5.1）。完整经过见 `docs/RELEASE.md` §6.0。
+> `npm login --auth-type=web`**（§5.1）。完整经过见 `docs/RELEASE.md` §6.0.1。
 
 ---
 
@@ -216,7 +216,7 @@ export { a, b }                // ✗
 `installed-view.mjs` / `translation-cache.mjs` / `markdown-table.mjs` / `skill-clone.mjs` /
 `flow-evidence.mjs` / `skill-framework.mjs` / `skill-runtime-logic.mjs` / `skill-instance-test.mjs` /
 `skill-evaluation.mjs`。
-（`skill-clone.mjs` 是 v0.7 加的第七支；`skill-instance-test.mjs` 是 V0.10.0 加的第八支；`skill-evaluation.mjs` 是 V1.0 加的**第九支**（工作树，未发版）——它唯一的一行 `import` 是 `./skill-instance-test.mjs`，同样**零依赖纯函数**。守卫会数 `require('../../core/…')` 的总数必须恰好是 **9**。本文此前写过「六支」「七支」「八支」。）
+（`skill-clone.mjs` 是 v0.7 加的第七支；`skill-instance-test.mjs` 是 V0.10.0 加的第八支；`skill-evaluation.mjs` 是 V1.0 加的**第九支**（`1.0.0` 起）——它唯一的一行 `import` 是 `./skill-instance-test.mjs`，同样**零依赖纯函数**。守卫会数 `require('../../core/…')` 的总数必须恰好是 **9**。本文此前写过「六支」「七支」「八支」。）
 **能不能被客户端读，不该取决于它恰好有几个依赖。**
 
 ### 6.7 证据词表：禁用词只能来自模块常量

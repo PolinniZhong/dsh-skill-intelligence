@@ -658,7 +658,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 
 ## 16. 当前实现与证据
 
-- 实现入口：`src/dsh/client/client.js`（客户端，**4284 行**——V1.0 工作树口径，`0.10.0` 发布口径是 3625 行、`0.9.2` 是 3448 行）、`src/dsh/host/index.js`（宿主，**13 条路由**——第 13 条是 V1.0 的 `POST /skill-trace/evaluation`；`0.10.0` 口径是 12 条）；
+- 实现入口：`src/dsh/client/client.js`（客户端，**4284 行**——V1.0（`1.0.0`）发布口径，`0.10.0` 发布口径是 3625 行、`0.9.2` 是 3448 行）、`src/dsh/host/index.js`（宿主，**13 条路由**——第 13 条是 V1.0 的 `POST /skill-trace/evaluation`；`0.10.0` 口径是 12 条）；
 - 定义侧：`src/core/skill-definition.mjs`、`skill-flow.mjs`、`definition-outline.mjs`、`repository-resolver.mjs`、`markdown-table.mjs`、`step-kind.mjs`；
 - 运行时侧：`src/core/runtime-events.mjs`、`runtime-graph.mjs`、`runtime-evidence.mjs`、`runtime-fingerprint.mjs`、`skill-runtime-scope.mjs`、`source-snapshot.mjs`、`session-log.mjs`、`trace-reducer.mjs`；
 - 组合侧：`src/core/skill-view-model.mjs`、`runtime-alignment.mjs`、`flow-evidence.mjs`、`installed-view.mjs`、`skill-translation.mjs`、`translation-cache.mjs`；
@@ -996,7 +996,7 @@ Agent Skill resolver、Skill 调用引擎。目录失效与刷新交给 `dsh-ski
 宿主挂钩与 `GET /skill-trace/diff`、守卫第 24 与第 25 条（含客户端那半）、详情页左栏的
 `SkillEvolution` 卡与 720px 的 `SkillDiffPanel` 模态，以及 `test/client-render-smoke.test.mjs`
 里的 5 条渲染烟测（`npm test` 474 项 / `npm run verify` 25 组）。
-**已随 `0.8.0` 发布**（2026-10-02：tag `v0.8.0`，GitHub Release + npm；结果见 `docs/RELEASE.md` §6.0）。`spec/SDD.md` §0.1 D8 登记了这条边界。
+**已随 `0.8.0` 发布**（2026-10-02：tag `v0.8.0`，GitHub Release + npm；结果见 `docs/RELEASE.md` §6.0.3）。`spec/SDD.md` §0.1 D8 登记了这条边界。
 
 ### 24.1 只回答一个问题
 

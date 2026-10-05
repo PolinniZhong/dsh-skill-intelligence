@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased — V1.0「Skill 评测」（工作树，未发版）
+## 1.0.0 — 2026-10-05 · Skill 评测
 
 **这一版把 V0.10.0 那份一次性生成的实例验收任务固化成可重复、可对照的评测记录。** 同一个 Case 可以跑很多次：每次运行记下**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 会话日志游标）与**可观察到的事实**（四段证据：触发 / 加载 / 使用 / 结果），然后把两次运行摆在一起逐条对照。**它不是评分器**：不给分、不排名、不做 benchmark、不产出任何聚合指标，也不替你跑任务 —— 插件只摆证据，判定由人给（没给就是「无法判断」，沉默不折算成「未通过」）。
 
-**工作树实测（2026-10-05，未发版；版本号由用户定）**：`npm test` **636 项全绿**（52 个测试文件）· `npm run verify` **30 组 OK**（第 30 组 `SKILL_EVALUATION_OK`）· 客户端 `src/dsh/client/client.js` **4284 行** · bundle `dist/client.js` **228715 字节**（source hash `54bee3888d0299d8`）· `src/core/` **32 个模块 / 11657 行** · `src/storage/` **7 个 1411 行** · 宿主 **13 条路由**（`src/dsh/host/index.js` 1844 行）。
+**发布实测（2026-10-05；V1.0 的版本号由用户定为 `1.0.0`）**：`npm test` **636 项全绿**（52 个测试文件）· `npm run verify` **30 组 OK**（第 30 组 `SKILL_EVALUATION_OK`）· 客户端 `src/dsh/client/client.js` **4284 行** · bundle `dist/client.js` **228715 字节**（source hash `54bee3888d0299d8`）· `src/core/` **32 个模块 / 11657 行** · `src/storage/` **7 个 1411 行** · 宿主 **13 条路由**（`src/dsh/host/index.js` 1844 行）。
 
 - **Evaluation Case（`src/core/skill-evaluation.mjs`，565 行零依赖纯函数，客户端第 9 支 `require`）**：Case 就是「一个可重复的实验」——它的身份 `caseId = sha256(六行哈希输入)`，六行是 `域 / generator:1.0.0 / skill:<名> / fingerprint:<sha256|unavailable> / scopes:<范围> / prompt:<任务正文>`；**哈希在宿主算**，生成器保持零 `import`（客户端要 require 它）。同一份输入永远得到同一个 `caseId`。Case 绑定的是**生成它的那一版 Skill**：文件再改一次，旧 Case 不是「过期」，而是另一个 Case。
 - **Evaluation Run（`run-capture`）**：条件与事实**全部由宿主从会话日志与收据里取**，客户端只提交 `judgements` 与 `outcome`。取数层 `src/core/run-conditions.mjs` 是零时钟纯函数：只取四个只读元数据字段（同一条 `request/header` 事件里的整份工具清单与 `maxTokens` 一个字节都不带出来）、只数工具名与次数（不碰参数与结果）、`turn`/`step` 只作**日志顺序游标**。**DSH 版本今天没有已验证的读取方式，如实写 `unavailable`**（`FR-EVAL-008`）。
@@ -21,7 +21,7 @@
 
 **这一版把「刚改的 Skill 在真实任务里到底有没有按预期工作」做成一屏可以交给 Agent 去跑的任务。** 它落在详情页「本次修改对比」卡里：只有存在一次真实的本次修改时，才出现 `[生成实例验收]`——按这次改动的范围与当前 `SKILL.md` 生成一份**确定性**的测试 Prompt（同一份输入永远得到同一份 Prompt），连同「预期观察点」一起交给用户；用户复制 Prompt、去一个新的 DSH 会话里跑，自己看结果。
 
-**发布实测（2026-10-05）**：`npm test` **590 项全绿** · `npm run verify` **29 组 OK** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· `src/core/` **30 个模块 / 10924 行** · `src/storage/` **6 个 1117 行** · 宿主 **12 条路由**（`src/dsh/host/index.js` 1625 行，这一版一字未改）。发布平台与 `0.9.2` 一致：GitHub Release（tag `v0.10.0`）与 npm 是同一份构建，npm 包名仍是 `dsh-skill-trace`。发布结果见 `docs/RELEASE.md` §6.0。
+**发布实测（2026-10-05）**：`npm test` **590 项全绿** · `npm run verify` **29 组 OK** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· `src/core/` **30 个模块 / 10924 行** · `src/storage/` **6 个 1117 行** · 宿主 **12 条路由**（`src/dsh/host/index.js` 1625 行，这一版一字未改）。发布平台与 `0.9.2` 一致：GitHub Release（tag `v0.10.0`）与 npm 是同一份构建，npm 包名仍是 `dsh-skill-trace`。发布结果见 `docs/RELEASE.md` §6.0.1。
 
 - 新模块 `src/core/skill-instance-test.mjs`（**571 行，零依赖纯函数**），客户端第 8 支 `require`；**不调模型、不读时钟、不掷骰子、不落盘**，同一份输入永远得到逐字节相同的结果。任务句不照搬 `description`，而是写成一句真实的指派；过长的文字走 `clip()` **按词边界**截断（此前会切出 `…to avo.` 这种半个单词）。
 - **两个产物物理分离**：`prompt.text` 交给 Agent（四块：任务 / 工作目标 / 输出要求 / 注意），`observations` 交给用户（全是疑问句，一个字都不进 Prompt——否则等于在 Prompt 里重新教 Agent 该怎么做）。
@@ -105,7 +105,7 @@
   `latest` 都指向 `0.9.2`**，注册表里的 `gitHead` 就是 `1811d98`（**先推成功再 publish**），
   **44 个文件 / 包体 463.1 kB / 解包 1474857 字节**、shasum
   `db47bdb987fc2cfb2eaa9c2e8dc4aeb6c6009c02`；空目录净室 `npm i dsh-skill-trace@0.9.2` 已验证
-  （0 依赖、`dist/client.js` 170324 字节、29 个 core 模块）。完整表格见 `docs/RELEASE.md` §6.0。
+  （0 依赖、`dist/client.js` 170324 字节、29 个 core 模块）。完整表格见 `docs/RELEASE.md` §6.0.2。
 
 ## 0.8.0 — 2026-10-02 · Skill 演进：复刻出来的东西，现在能倒着看回去
 
@@ -291,7 +291,7 @@
   GitHub Release <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v0.8.0>
   （`Latest`，非 prerelease）；npm `dsh-skill-trace@0.8.0`，`beta` 与 `latest` 都指向它
   （`gitHead` = `9a61387`，shasum `42a51dca83c74225d5239d34a985f56892e425fe`，40 个文件 / 包体 386.1 kB），
-  净室 `npm i dsh-skill-trace@0.8.0` 安装通过。推送与注册表传播的细节在 `docs/RELEASE.md` §6.0。
+  净室 `npm i dsh-skill-trace@0.8.0` 安装通过。推送与注册表传播的细节在 `docs/RELEASE.md` §6.0.3。
 
 ## 0.7.1 — 2026-10-02 · 品牌迁移：Skill Trace → DSH Skill Intelligence（DSH Skill 智能实验室）
 
