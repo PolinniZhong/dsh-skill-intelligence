@@ -511,7 +511,13 @@ test('the client registers and its entry component renders without throwing', as
   // 每个分支都对。曾经那个断言（+200 个节点）既测不出 `javascript:` 链接漏成了 `<a>`，
   // 也测不出目录条目截断写错 —— 它只证明「多了不少东西」。
   const listNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 2, onMeta() {}, onRetry() {}, list: skillListFixture }))
-  const detailNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }))
+  // v1.1：详情页从「一屏把六块堆完」改成「一屏一维」。所以「整页渲染出什么」现在是**每一维
+  // 依次渲染一次**的并集 —— 八次渲染加起来正好是重构前那一屏的内容，只是不再假设它们同帧。
+  // 下面的断言因此一句没改：每一维仍然是「真的渲染成正确的形状」，而不是「节点数变了」。
+  const DETAIL_PROBE_MODULES = [undefined, 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document']
+  const detailFrames = (skill) => DETAIL_PROBE_MODULES.flatMap((initialModule) =>
+    collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill, initialModule })))
+  const detailNodes = detailFrames(skillDetailFixture)
   const detailText = detailNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   const detailElements = (type) => detailNodes.filter((node) => node.type === type)
   const childText = (node) => (node.children ?? []).map((child) => (typeof child === 'string' ? child : '')).join('')
@@ -556,14 +562,14 @@ test('the client registers and its entry component renders without throwing', as
     repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] },
     definition: { ...skillDetailFixture.definition, repository: { status: 'unresolved', basis: null, label: null, relativePath: null, cloneCommand: null, limitations: ['no-git-work-tree-found'] } },
   }
-  const unresolvedNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: unresolvedSkill }))
+  const unresolvedNodes = detailFrames(unresolvedSkill)
   assert.equal(unresolvedNodes.filter((node) => node.type === 'a' && node.props.target === '_blank').length, 0, 'an unresolved repository must not invent a link')
   assert.ok(unresolvedNodes.some((node) => node.type === '#text' && node.text.includes('未解析')), 'the surface states the repository is unresolved rather than staying blank')
   assert.ok(unresolvedNodes.some((node) => node.type === '#text' && /没有找到 git work tree/.test(node.text)), 'it repeats the limitation code in words')
 
   // 2c. 定义读不到：正文没有可显示的内容，界面既不能从运行时的调用反推出一串假步骤，也不能
   //     把缺一半哈希写成「文件已改变」——那是从缺失推出的结论（§10.2）。
-  const unavailableNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: unavailableSkill }))
+  const unavailableNodes = detailFrames(unavailableSkill)
   const unavailableText = unavailableNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   assert.ok(unavailableText.includes('这份 Skill 的定义当前读不到'), 'the empty document explains itself')
   assert.ok(unavailableText.includes('无法比对'), 'a missing fingerprint pair is stated as 无法比对')
@@ -581,7 +587,7 @@ test('the client registers and its entry component renders without throwing', as
   assert.ok(detailText.includes('../../examples/animation-storyboard.md'), 'the finding says which reference escaped, verbatim')
   assert.ok(detailText.includes('错误 1') && detailText.includes('未判定 2'), 'the summary counts errors and non-judged rules separately')
   assert.ok(detailText.includes('这次没有判定') && detailText.includes('这份 SKILL.md 没有 compatibility 字段。'), 'a skipped rule states why it was not judged, instead of looking like a pass')
-  const validationNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }))
+  const validationNodes = detailNodes
   assert.equal(validationNodes.filter((node) => node.props['data-role'] === 'validation-finding').length, 1, 'one fired rule renders exactly one finding row')
   assert.equal(validationNodes.filter((node) => node.props['data-role'] === 'validation-skipped-rule').length, 2, 'two skipped rules render two rows')
   assert.ok(validationNodes.some((node) => node.props['data-role'] === 'validation-limitations'), 'the panel states what the check does not cover')
@@ -590,10 +596,50 @@ test('the client registers and its entry component renders without throwing', as
   // 那个键仍然存在（`hasOwnProperty` 为真），走的是另一条分支。
   const { validation: omittedValidation, ...detailWithoutValidation } = skillDetailFixture
   assert.equal(omittedValidation, validationFixture, 'the fixture used below must be the one carrying a validation result')
-  const missingFieldNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: detailWithoutValidation }))
+  const missingFieldNodes = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: detailWithoutValidation, initialModule: 'validation' }))
   const missingFieldText = missingFieldNodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   assert.ok(missingFieldText.includes('这次详情响应里没有验收结果。'), 'a response with no validation field says the host is old, not that the Skill failed')
   assert.ok(!missingFieldText.includes('不符合规范'), 'a missing field must never be read as a verdict')
+
+  // 2e. v1.1「详情级导航」：详情页第一屏只渲染一个维度，默认是 Skill 框架；左列八个按钮各自
+  //     写明它切到哪一维。桩里的 `useState` 不会重渲染，所以「点完之后右侧换成什么」由上面
+  //     `detailFrames` 的逐维渲染覆盖；这里验的是**接线**：点哪一项就选中哪一维。
+  const navPicked = []
+  const navNodes = collect(views.DetailNav({ active: 'framework', onSelect: (id) => navPicked.push(id) }))
+  const navItems = navNodes.filter((node) => typeof node.props['data-module'] === 'string')
+  assert.deepEqual(navItems.map((node) => node.props['data-module']),
+    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document'],
+    'the detail nav lists the eight dimensions in order, starting from Skill 框架')
+  assert.equal(navItems.filter((node) => node.props['data-active'] === 'true').length, 1, 'exactly one dimension is the current one')
+  assert.equal(navItems[0].props['data-active'], 'true', 'Skill 框架 is the dimension the detail page opens on')
+  assert.equal(navItems[0].props['aria-current'], 'page', 'the current dimension is announced, not only coloured')
+  for (const item of navItems) item.props.onClick()
+  assert.deepEqual(navPicked, navItems.map((node) => node.props['data-module']), 'clicking a dimension selects that dimension')
+  const documentNav = collect(views.DetailNav({ active: 'document', onSelect() {} }))
+    .filter((node) => node.props['data-module'] === 'document')
+  assert.equal(documentNav[0].props['data-active'], 'true', 'clicking SKILL.md makes SKILL.md the current dimension')
+  const firstFrameModules = collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture }))
+    .filter((node) => typeof node.props['data-role'] === 'string' && node.props['data-role'].startsWith('detail-module-'))
+    .map((node) => node.props['data-module'])
+  assert.deepEqual(firstFrameModules, ['framework'], 'the detail body renders exactly one dimension, and it is Skill 框架')
+  // 2f. 「本次修改对比」是唯一会缺席的一维：没有修改事务时它整块不渲染（§9.2），
+  //     所以导航里也不留那一格 —— 点进去看空比看不到这一格更像坏掉。
+  const view = (extra) => collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture, ...extra }))
+  const navOf = (nodes) => nodes.filter((node) => typeof node.props['data-module'] === 'string' && typeof node.props['data-role'] === 'string' && node.props['data-role'].startsWith('detail-nav-'))
+  assert.deepEqual(navOf(view({})).map((node) => node.props['data-module']),
+    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'definition', 'document'],
+    'with no modification transaction the nav leaves out 本次修改对比, and points at nothing else')
+  assert.deepEqual(navOf(view({ modification: { phase: 'idle' } })).map((node) => node.props['data-module']),
+    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'definition', 'document'],
+    'phase idle is the same thing as "no transaction" — the nav must not grow a dead entry')
+  assert.deepEqual(navOf(view({ modification: { phase: 'waiting' } })).map((node) => node.props['data-module']),
+    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document'],
+    'once a transaction exists the dimension appears, in its declared place')
+  // 缺席的那一维即使被点名也落回默认：`activeModule` 与导航查的是同一个清单。
+  assert.deepEqual(collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture, initialModule: 'modification' }))
+    .filter((node) => typeof node.props['data-role'] === 'string' && node.props['data-role'].startsWith('detail-module-'))
+    .map((node) => node.props['data-module']), ['framework'],
+    'asking for a dimension this frame does not have falls back to Skill 框架 instead of rendering an empty pane')
 
   // 3. 空列表：宿主答了、答案是空的，这才是空态。三种"没有卡片"的原因必须分开说（§6.5）。
   const emptyNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 0, onMeta() {}, onRetry() {}, list: { ...skillListFixture, skills: [] } }))
@@ -1713,8 +1759,9 @@ test('the evolution card says "not cloned by this plugin" instead of guessing a 
   // 所以「客户端已经是 v0.8、宿主还是 v0.7」是插件升级的正常路径（§6.2 / 附录 B）——那时详情响应里
   // **根本没有 `lineage` 这个键**。把它渲染成「不是由本插件复刻出来的」，就是对着一个真的复刻过的
   // Skill 说假话。这一条走的是 `SkillDetailPage` 的真实接缝，不是直接调 `SkillEvolution`。
+  // v1.1：血缘卡进了 Definition 模块，所以这里要指定那一维 —— 详情页第一屏默认是 Skill 框架。
   const detailOf = (skill) => textOf(collect(client.__views.SkillDetailPage({
-    sessionId: 's', skillName: 'ui-craft', skill,
+    sessionId: 's', skillName: 'ui-craft', skill, initialModule: 'definition',
   })))
   // `validation: null` = 「宿主答了、这次没有验收结果」，与 `lineage: null` 是同一种回答方式。
   // 缺了它，验收卡会替宿主喊「宿主可能还没换到这一版」，把下面那条**只谈血缘**的断言顶红 ——
@@ -2285,10 +2332,12 @@ test('the evaluation card is a ledger: four stages, three inequalities, factual 
   const beforeRun = runOf('r-before', sha('c'), 'mismatch', 'fail', { source: 'user', text: '产出还是套话排版。' }, 1790858000000)
   const afterRun = runOf('r-after', sha('a'), 'match', 'pass', { source: 'user', text: '只用了主题 token。' }, 1790858600000)
 
-  // 详情页有一条注入缝（`evaluation`），所以这里不经过网络就能渲染真卡。
+  // 详情页有两条注入缝（`evaluation` 与 `initialModule`），所以这里不经过网络就能渲染真卡。
+  // v1.1 起评测是详情页的一个独立维度，第一屏默认是 Skill 框架 —— 要看评测就得指到那一维。
   const nodes = collect(client.__views.SkillDetailPage({
     sessionId: 's',
     skillName: 'demo-skill',
+    initialModule: 'evaluation',
     skill: {
       skillName: 'demo-skill',
       summary: { name: 'demo-skill', description: '当用户需要整理会议纪要时使用。' },
@@ -2362,6 +2411,7 @@ test('the evaluation card is a ledger: four stages, three inequalities, factual 
   const empty = collect(client.__views.SkillDetailPage({
     sessionId: 's',
     skillName: 'demo-skill',
+    initialModule: 'evaluation',
     skill: null,
     evaluation: { phase: 'ready', caseRecord: null, runs: [], judgements: {}, outcome: { source: 'user', text: '' }, runRoles: {} },
   }))

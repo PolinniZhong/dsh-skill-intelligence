@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0.1）。**`1.0.0`（V1.0「Skill Evaluation」，`spec/PRD.md` §5.13 的 `FR-EVAL-*`）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0：发布提交 `3cca1ae`、CI run `37335200103`）。它是宿主半边改动（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），验收时按 `AGENTS.md` §6.2 重启过 DSH。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
+**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0.1）。**`1.1.0`（V1.1「详情级导航 + Agent Skills 开放标准」）已于 2026-10-06 发布到 GitHub Release 与 npm**（结果见 §6.0）。它是**客户端半边**改动（详情页导航 + `standard` Profile 与 4 条规则），宿主 `src/dsh/host/index.js` 一字未改、路由仍是 13 条；但 `src/core/*` 改了，验收时按 `AGENTS.md` §6.2 重启过 DSH。上一版 **`1.0.0`**（V1.0「Skill Evaluation」，`spec/PRD.md` §5.13 的 `FR-EVAL-*`）已于 2026-10-05 发布（发布提交 `3cca1ae`、CI run `37335200103`）。它是宿主半边改动（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），验收时按 `AGENTS.md` §6.2 重启过 DSH。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
 
 > **`0.10.0` 的发布扫描（2026-10-05）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
 > `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.10.0` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`
@@ -11,23 +11,25 @@
 > `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致。
 > 下面 §6.0.2 表里的 3448 行 / 170324 字节 / 561 项 / 28 组是 `0.9.2` **发布当时**的实测值，只作历史参照。
 
+> **`1.1.0` 的发布扫描（2026-10-06）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` / `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `1.1.0` 发布口径；`docs/ARCHITECTURE.md` 的 `## V1.1` 段与 `design.md` 的实现入口行也去掉了「工作树」括注；实测数字（测试 643 项 / 守卫 31 组 / 客户端 4495 行 / bundle 234965 字节 / core 32 个模块 11945 行 / `src/storage/` 7 个 1411 行 / 宿主 1844 行 13 条路由一字未改）与 `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致。
+
 **这一版为什么是 minor：** `0.9.2` 加了一条宿主路由（`POST /skill-trace/modify`，11 → 12 条）、三个 core 模块（`src/core/skill-validation.mjs` / `src/core/skill-modification.mjs` / `src/core/skill-profiles.mjs`）与一个 storage 模块（`src/storage/modification-snapshot-store.mjs`），并加了两块界面（详情页「Skill 验收」卡与「本次修改对比」），按语义是 minor。已安装列表排序（规则名 `added-desc-then-name`）只是同一条读取路径上的呈现规则，patch 级，搭同一班车。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此**不需要 npm 迁移**。**验证点：客户端 2735 → 3448 行、宿主 1292 → 1625 行、bundle 142672 → 170324 字节、测试 474 → 561、守卫 25 → 28 组、宿主路由 11 → 12 条。**
 
 ---
 
-## 本次发布的起点（`0.10.0` 发布后实测 2026-10-05）
+## 本次发布的起点（`1.0.0` 发布后实测 2026-10-06）
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `0.10.0` 的发布提交（`package.json` `0.10.0`）= `origin/main`，见 §6.0.1 |
+| 本地 `HEAD` | `1.0.0` 的发布提交 `3cca1ae`（`package.json` `1.0.0`）= `origin/main`，见 §6.0.1 |
 | `origin/main` | 与本地 `main` **0 领先 / 0 落后** |
-| 远端最新 tag | `v0.10.0`（打在发布提交上） |
-| npm | `beta` 与 `latest` **都指向 `0.10.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 远端最新 tag | `v1.0.0`（打在发布提交上） |
+| npm | `beta` 与 `latest` **都指向 `1.0.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
 | 工作区 | 干净（`git status --porcelain` 无输出） |
 
-**当前实测（2026-10-05；接手下一次发布前先读这一段）**：**`1.0.0` 已于 2026-10-05 发布**（见 §6.0 实测结果）。本次发布是 **V1.0「Skill Evaluation」**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`）——它新增了本机落盘（`<dataRoot>/evaluation/`，用户 2026-10-05 已授权）与第 13 条路由 `POST /skill-trace/evaluation`；发版前已按 `AGENTS.md` §6.2 重启 DSH 做真机验收（它是宿主半边改动）。**上表是 `0.10.0` 发布当天那一刻的快照，是本次发布已经走过的起点。**
+**当前实测（2026-10-06；接手下一次发布前先读这一段）**：**`1.0.0` 已于 2026-10-05 发布**（见 §6.0.1 实测结果）。本次要发的是 **V1.1「详情级导航 + Agent Skills 开放标准」**（版本号 `1.1.0`）——它是**客户端半边**改动：详情页改成「左侧详情导航 + 右侧当前模块」，验证层多一个 `standard` Profile 与 4 条规则；**不新增路由 / 页面 / 落盘 / 依赖**，宿主 `src/dsh/host/index.js` 一字未改。`src/core/*` 改了，所以真机验收仍要按 `AGENTS.md` §6.2 重启 DSH。**上表是 `1.0.0` 发布那一刻的快照，是本次发布已经走过的起点。**
 
-**版本号：已由用户定为 `1.0.0`，并已于 2026-10-05 发布**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。这次发版已经把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题（`## 1.0.0`）——`0.9.2` 那次两件事也是这么做的（见 `CHANGELOG.md` 的 `## 0.9.2`）。
+**版本号：已由用户定为 `1.1.0`**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。本次发版已经把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题（`## 1.1.0`）——`1.0.0` 那次两件事也是这么做的（见 `CHANGELOG.md` 的 `## 1.0.0`）。
 
 **第二个要决定的事是 npm —— 从 `0.6.1` 起每一版都是 GitHub + npm 两边一起发。** `0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。npm 包名**不因为品牌迁移而改**——已发布，改名会让安装命令与 `github:` 锚点全部失效。
 
@@ -88,8 +90,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v1.0.0 — Skill 评测（Evaluation Case / Run / 对照 / 四段证据）"
-git tag -a v1.0.0 -m "v1.0.0"
+git commit -m "release: v1.1.0 — 详情级导航 + Agent Skills 开放标准"
+git tag -a v1.1.0 -m "v1.1.0"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -100,7 +102,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v1.0.0
+git push origin v1.1.0
 ```
 
 推送失败过两次：`fatal: unable to access '…': Error in the HTTP2 framing layer`，以及
@@ -110,14 +112,14 @@ git push origin v1.0.0
 ```bash
 curl -s -o /dev/null -w "%{http_code} %{time_total}\n" --max-time 8 --resolve github.com:443:140.82.113.4 https://github.com/
 git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push origin v1.0.0
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push origin v1.1.0
 ```
 
 `2026-10-02` 实测：`140.82.121.4` 与 `140.82.112.3` 都超时（8.0s / `000`），
 `140.82.113.4`（1.88s / `200`）与 `20.27.177.113`（0.79s / `200`）可用；`2026-10-03` 实测只剩
 `20.27.177.113` 可用（1.37s / `200`），其余三个都超时（8.0s / `000`）——**同一天里可达的地址会换人**。
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v1.0.0`。
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v1.1.0`。
 `git ls-remote` **也要带同样的两个 `-c`**（HTTP/2 那条路同样会被打断）。
 
 ---
@@ -125,9 +127,9 @@ git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113
 ## 4. GitHub Release
 
 ```bash
-gh release create v1.0.0 \
-  --title "v1.0.0 — Skill 评测（Evaluation Case / Run / 对照 / 四段证据）" \
-  --notes-file <(sed -n '/^## 1.0.0/,/^## 0.10.0/p' CHANGELOG.md | sed '$d')
+gh release create v1.1.0 \
+  --title "v1.1.0 — 详情级导航 + Agent Skills 开放标准" \
+  --notes-file <(sed -n '/^## 1.1.0/,/^## 1.0.0/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。

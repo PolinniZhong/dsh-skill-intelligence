@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.1.0 — 2026-10-06 · 详情级导航 + Agent Skills 开放标准
+
+**这一版只做两件事，而且做的都不是新能力：把 V1.0 那条纵向长详情页重构成「按认知维度直达」的 Skill Inspector，再把 Agent Skills 开放标准从各平台 Profile 里分出来单独判。** 信息不减少、能力不删除、不新增路由 / 页面 / 落盘 / 依赖、宿主 `src/dsh/host/index.js` 一字未改。
+
+**发布实测（`1.1.0` 口径）**：`npm test` **643 项全绿**（`pretest` 会先重建 `dist/client.js`）· `npm run verify` **31 组 OK**（第 31 组是新增的 `SKILL_STANDARD_ALIGNMENT_OK`）· 客户端 `src/dsh/client/client.js` **4495 行** · bundle `dist/client.js` **234965 字节**（source hash `71125cf37d020c7c`）· `src/core/` **32 个模块 / 11945 行** · `src/storage/` **7 个 1411 行** · 宿主仍是 **13 条路由**（`src/dsh/host/index.js` 1844 行，未改）。
+
+### A. Skill Detail 信息架构重构（详情级导航）
+
+- **V1.0 是纵向长页面，V1.1 是「左侧详情导航 + 右侧当前模块」**：`SkillDetailPage` 里新增 `DETAIL_MODULES`（八个 id + 中文名 + hint）与 `DetailNav` 组件；右列由 `MODULE_CONTENT[activeModule]` 决定**只渲染当前这一维**，不再向下累积。默认进入 **Skill 框架**（`React.useState(initialModule ?? 'framework')` —— `initialModule` 是渲染烟测用的第五条注入缝，不传时就是真实用户看到的第一屏）。
+- **八个模块**：`Skill 框架`（默认，结构 + 声明流程 + 渐进披露，来自 `SKILL.md` 的结构化解析，**不是 Runtime Flow**）/ `Skill 验收` / `Skill 评测` / `步骤证据` / `本次运行逻辑` / `本次修改对比` / `Definition`（事实列：身份 + 定义 + repository）/ `SKILL.md`。**V1.0 的能力全部保留**，只是换了呈现位置：Evaluation Case / Run / Comparison / Runtime Evidence 仍在「Skill 评测」卡里，Lineage / Diff / Translation / Clone / Modify 仍在 `Definition` 与「本次修改对比」里。
+- **「本次修改对比」没有事务时，导航与内容一起收窄**：`hasModification = Boolean(modifyState) && modifyState.phase !== 'idle'`、`availableModules = DETAIL_MODULES.filter(([id]) => id !== 'modification' || hasModification)`。第一版做过的常驻空态卡 `modificationEmpty` 已删除 —— §9.2 的老规矩是「没有修改事务时这一块整块不出现」，点进去才是空的导航项也一样会被读成一种状态。点到这一帧不存在的维度会落回 `Skill 框架`。
+- **新增 2 个渲染烟测段**（2e 导航 / 2f 收窄）：`detailFrames()` 把八个维度各渲染一次取并集，所以重构前那条大烟测的断言一句没改、语义不变。`DetailNav` 进了 `module.exports.__views`（离线渲染 + 逐个调用 `onClick` 验证真的切维度）。
+
+### B. Agent Skills 开放标准对齐（标准合规 / 平台兼容 分离）
+
+- **`SKILL_PROFILE_IDS` 由 5 个变 6 个**，插入 `standard`（Agent Skills Open Standard），与 DSH / OpenAI / Anthropic / Microsoft 四个**平台 Profile 分离**：新增 `skillProfileKind()`（`standard` / `platform`）与 `SKILL_PROFILE_KIND_LABELS`（标准合规 / 平台兼容），界面按 kind 分组显示并给每条 finding 打上 `data-source-kind`。
+- **新增 `SKILL_RULE_SOURCES`（5 条静态 provenance）**：`agentskills` / `dsh` / `openai` / `anthropic` / `microsoft`，每条带双语 label 与 reference；`skillRuleSourceView()` 把它解析成界面上那一行「来源：… · 标准合规」。**不在线拉标准文档**（守卫禁 `fetch(` / `https://agentskills` / `XMLHttpRequest`），也**不允许笼统写成「四个平台都要求」**。
+- **`CORE-DIR-001`（error）**：`name` 必须与父目录同名 —— 已知目录且一致 → pass；不一致 → error；拿不到目录 → `skipped` / `reason: 'no-directory-name'`。**DSH 能加载 ≠ 标准通过**：这条只在 `standard` 层报，`profiles=common,dsh` 时它不出现在结果里，`profiles=common,microsoft` 时是 `MS-DIR-001` 在报。它报错时的那句话特意写明「与 DSH 能不能加载这个 Skill 无关」。
+- **`CORE-LIC-001` / `CORE-META-001` / `CORE-TOOLS-001`**：对 `license` / `metadata` / `allowed-tools` 做**形状**校验（嵌套、块式映射、流式映射），**三个字段缺失一律 `skipped` / `reason: 'optional-field-absent'`，不是错**；`allowed-tools` 属 experimental，severity 是 **`info`**。判「写成映射」时用 `ctx.scan.entries.some((item) => item.path.startsWith('allowed-tools.'))` —— 只看 `entry.opens` 会把**正确**的块式列表也判成打开状态。
+- 规则总数 **32 → 36 条**，每条都有 `note`；`SKILL_VALIDATION_LIMITATIONS` 新增一条同时含「标准合规」「平台兼容」，明说这是两件事。
+
+### 测试与守卫
+
+- **新增第 31 组守卫 `SKILL_STANDARD_ALIGNMENT_OK`**（`scripts/verify-project.mjs`，插在 `SKILL_VALIDATION_OK` 与 `SKILL_MODIFICATION_OK` 之间）：钉住标准层 / 平台层的交集为空、并集等于 `SKILL_PROFILE_IDS`、`standard` 在标准层、逐 id 的 `skillProfileKind()`、`CORE-DIR-001` 的 profile/severity/note、`MS-DIR-001` 仍归 microsoft、每条规则的 source view 三字段齐全、`agentskills` 的中英文 label 都是 `Agent Skills Open Standard`、平台来源恰好 4 条、禁止 `['all','*','every','platforms']`；并做行为断言（同名不报 / 不一致报 `needs-fix` / `directoryName: null` 时 skipped / 三个可选字段缺失时都是 skipped 且 `CORE-TOOLS-001` severity 是 info / 形状写错才报 / 客户端 `VALIDATION_PROFILE_KINDS` 与核心 `SKILL_PROFILE_KINDS` 一致）。
+- **守卫改写**：`SKILL_FIRST_DETAIL_OK`（默认模块 + `DetailNav` + 八个 id 逐字 + `modules: availableModules`）、`SKILL_FRAMEWORK_OK`（原来的「验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md 纵向顺序」断言换成 `MODULE_CONTENT` 的映射逐项断言）、`SKILL_MODIFICATION_OK`（改成钉住 `if (phase === 'idle') return null` 且源码里**不许出现 `modification-empty`**）。
+- **新增 7 条单测**（`test/skill-validation.test.mjs` 末尾，统一用 `profileIds: ['common','standard','dsh']`）：`CORE-DIR-001` 三态、`directoryName: null` → skipped、标准层与 `common,dsh` 在同一输入上的相反结论、`profiles[].kind` 与 `kindLabel`、规则 provenance 齐全、三个可选字段缺失全 skipped、形状写错才报。
+- **`test/skill-validation-route.test.mjs`**：`profileIds` 默认期望改成 `['common','standard','dsh']`（`/skill` 与 `/definition` 两处）；原来那条「DSH 不看目录名，Microsoft 明文要求同名」重写成**三段式**（默认 → `CORE-DIR-001` 报且 `MS-DIR-001` 不在 / `common,dsh` → pass 且 `CORE-DIR-001` 不在 / `common,microsoft` → `MS-DIR-001` 报且 `CORE-DIR-001` 不在），标题改为「同一个 Skill 在标准层与平台层得到不同结论」。
+- **测试 636 → 643 项**（+7），**守卫 30 → 31 组**（+1）；样例 `legacy-skill`（目录名 `legacy-name`：与 frontmatter 的 `name` 不一致）在默认 Profile 下的结论**由 `pass` 变成 `needs-fix`** —— 这是这一版最要紧的那条语义变化，不是回归。
+
+### 明确没做
+
+- 没加一级导航、没加 Skill Dashboard、没加独立 Analytics 页面；没加自动评分 / 排名 / Benchmark 总榜 / 聚合指标 / 自动模型裁决；**没有恢复旧版「运行流程图」「运行图谱」**（`buildRuntimeGraph` / `computeRuntimeLayout` 仍被反向钉住）；没在线拉标准文档；没自动改 Skill；没新增路由 / 依赖 / 落盘。
+- **Evaluation 的「不打分、不排名、不画趋势」原则一个字没动**：V1.1 只让用户能直接点进「Skill 评测」，没往它里面加任何东西。
+
+需求见 `spec/PRD.md` 的 V1.1 段；设计见 `spec/SDD.md` §0.1 的 `D15` 与 §18 / §27、`docs/ARCHITECTURE.md` 的版本口径段。
+
 ## 1.0.0 — 2026-10-05 · Skill 评测
 
 **这一版把 V0.10.0 那份一次性生成的实例验收任务固化成可重复、可对照的评测记录。** 同一个 Case 可以跑很多次：每次运行记下**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 会话日志游标）与**可观察到的事实**（四段证据：触发 / 加载 / 使用 / 结果），然后把两次运行摆在一起逐条对照。**它不是评分器**：不给分、不排名、不做 benchmark、不产出任何聚合指标，也不替你跑任务 —— 插件只摆证据，判定由人给（没给就是「无法判断」，沉默不折算成「未通过」）。

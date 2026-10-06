@@ -658,7 +658,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 
 ## 16. 当前实现与证据
 
-- 实现入口：`src/dsh/client/client.js`（客户端，**4284 行**——V1.0（`1.0.0`）发布口径，`0.10.0` 发布口径是 3625 行、`0.9.2` 是 3448 行）、`src/dsh/host/index.js`（宿主，**13 条路由**——第 13 条是 V1.0 的 `POST /skill-trace/evaluation`；`0.10.0` 口径是 12 条）；
+- 实现入口：`src/dsh/client/client.js`（客户端，**4495 行**——V1.1（`1.1.0`）**发布口径**；V1.0（`1.0.0`）发布口径是 4284 行，`0.10.0` 发布口径是 3625 行、`0.9.2` 是 3448 行）、`src/dsh/host/index.js`（宿主，**13 条路由**——第 13 条是 V1.0 的 `POST /skill-trace/evaluation`；`0.10.0` 口径是 12 条）；
 - 定义侧：`src/core/skill-definition.mjs`、`skill-flow.mjs`、`definition-outline.mjs`、`repository-resolver.mjs`、`markdown-table.mjs`、`step-kind.mjs`；
 - 运行时侧：`src/core/runtime-events.mjs`、`runtime-graph.mjs`、`runtime-evidence.mjs`、`runtime-fingerprint.mjs`、`skill-runtime-scope.mjs`、`source-snapshot.mjs`、`session-log.mjs`、`trace-reducer.mjs`；
 - 组合侧：`src/core/skill-view-model.mjs`、`runtime-alignment.mjs`、`flow-evidence.mjs`、`installed-view.mjs`、`skill-translation.mjs`、`translation-cache.mjs`；

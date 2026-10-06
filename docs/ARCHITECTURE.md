@@ -1086,3 +1086,34 @@ Measured 2026-10-05: `npm test` is **636 tests across 52 `test/*.test.mjs` files
 ### What v1.0 is not
 
 Not a scorer, not a benchmark, not a leaderboard, not a browsable dataset of saved cases, and not a runner: the plugin records what a run was run under and what a person or the Agent said about it, and it can say `unavailable` for anything it could not read. Not a new surface either — no page, no first-level navigation entry, no second runtime; the whole feature is one card inside the detail page that already existed. And not a claim that the difference between two runs was *caused* by the Skill: the comparison states the factual difference between two verdicts and stops, which is why the third inequality — 结果 ≠ 这个 Skill 造成的 — is not decoration but the boundary of the entire version.
+
+---
+
+## V1.1 — Detail navigation + Agent Skills Open Standard
+
+**Released 2026-10-06** (`package.json` reads `1.1.0`, tag `v1.1.0`; every earlier release record above is unchanged and remains what shipped). V1.1 adds no route, no page, no store and no dependency — the host `src/dsh/host/index.js` is untouched at 1844 lines across 13 routes. It changes two things.
+
+### A. The detail page is a navigator, not a scroll
+
+`SkillDetailPage` used to render six blocks one under another (validation → modification → evaluation → framework → runtime logic → step evidence → `SKILL.md`); it now renders **a left navigation column and exactly one module on the right**.
+
+- `DETAIL_MODULES` is the single ordered list of the eight dimensions — `framework` / `validation` / `evaluation` / `evidence` / `runtime` / `modification` / `definition` / `document` — each with its Chinese label and its hint. `DetailNav` renders it; `MODULE_CONTENT[id]` decides the right column.
+- The default is `framework`: `const [detailModule, setDetailModule] = React.useState(initialModule ?? 'framework')`. `initialModule` is the fifth injection seam (alongside `skill` / `modification` / `instanceTest` / `evaluation`) and exists because the render-smoke React stub's `useState` never updates, so "the user clicked another dimension" can only be tested by rendering that dimension directly. Not passing it is what a real user sees.
+- `activeModule = availableModules.some(([id]) => id === detailModule) ? detailModule : 'framework'` — a dimension that is not in this frame falls back to the framework rather than rendering an empty panel.
+- **`本次修改对比` narrows the navigation with the content.** `hasModification = Boolean(modifyState) && modifyState.phase !== 'idle'` and `availableModules = DETAIL_MODULES.filter(([id]) => id !== 'modification' || hasModification)`; `MODULE_CONTENT.modification` is `hasModification ? [skillModification] : []`. There is no `modificationEmpty` card: a permanently visible empty card and a nav item that opens onto nothing are both read as a state, and V0.9's rule was that this block does not appear at all until a modification transaction exists.
+- Nothing was deleted. Evaluation Case / Run / Comparison / Runtime Evidence live in the `evaluation` module, lineage / diff / translation / clone / modify in `definition` and `modification`, `sideDefinition` / `sideRepository` / `sideEvolution` in `definition`, and the raw document plus its translation and outline in `document`.
+
+### B. Standard compliance is a layer, platform compatibility is another
+
+The validation layer now has **six profiles**: `common` / **`standard`** / `dsh` / `microsoft` / `openai` / `anthropic`, and `resolveSkillProfiles()` defaults to `['common','standard','dsh']`. `standard` is the Agent Skills Open Standard; the four after it are platform profiles.
+
+- `skillProfileKind(id)` returns `'standard'` for `common` and `standard` and `'platform'` otherwise; `SKILL_PROFILE_KIND_LABELS` gives the two Chinese labels (标准合规 / 平台兼容) and each profile carries its own `note.zh`. The UI groups findings by kind and tags each one with `data-source-kind`, so a platform constraint can never be read as a violation of the open standard.
+- `SKILL_RULE_SOURCES` is static provenance — `agentskills` (`kind: 'standard'`, label *Agent Skills Open Standard*, reference `agentskills.io specification`), plus `dsh` / `openai` / `anthropic` / `microsoft` as `platform`. `skillRuleSourceView(source)` resolves it into the `{id, kind, label, reference}` the interface prints; an unknown source degrades to `{id, kind:'platform', label:<id>, reference:''}`. **Nothing is fetched at runtime** — the guard rejects `fetch(`, `XMLHttpRequest` and any `https://agentskills` URL in `src/core/skill-profiles.mjs` — and there is no blanket "all four platforms require this" source.
+- Four rules were added, taking the catalogue from 32 to 36. **`CORE-DIR-001`** (profile `standard`, severity `error`): the frontmatter `name` must equal the parent directory name — matching directory and name pass, a mismatch is an error, and a directory that cannot be read is `skipped` with `reason: 'no-directory-name'`. Its finding text says explicitly that this conclusion is about the standard and is unrelated to whether DSH can load the Skill. `CORE-LIC-001` / `CORE-META-001` / `CORE-TOOLS-001` check the *shape* of `license` / `metadata` / `allowed-tools`: all three fields are optional, so an absent field is `skipped` with `reason: 'optional-field-absent'` and never an error, and `CORE-TOOLS-001` — `allowed-tools` is still experimental — carries severity `info`. A written-as-a-mapping value is detected with `ctx.scan.entries.some((item) => item.path.startsWith('allowed-tools.'))`, because `entry.opens` is also true for a *correct* block-style list.
+- The same Skill under two targets is the point: a Skill whose directory name and `name` disagree is `needs-fix` under the default target (`CORE-DIR-001` fires, `MS-DIR-001` does not) and `pass` under `profiles=common,dsh` (`CORE-DIR-001` absent) — **DSH being able to load it is not standard compliance.** `legacy-skill`, the sample fixture, is the case that changed from `pass` to `needs-fix`.
+
+### Release numbers
+
+Measured 2026-10-06: `npm test` is **643 tests**, and `npm run verify` is **31 groups**, the thirty-first being `SKILL_STANDARD_ALIGNMENT_OK`. The client `src/dsh/client/client.js` is **4495 lines** with a bundle of **234965 bytes** whose source hash is `71125cf37d020c7c`; `src/core/` is **32 modules and 11945 lines**; `src/storage/` is **7 modules and 1411 lines**; the host is unchanged at **1844 lines across 13 routes**. The `1.0.0` release numbers remain the ones in the V1.0 section above.
+
+**What v1.1 is not**: not a new page or navigation entry, not a dashboard, not a scorer, ranker, benchmark or trend, not a model-summarised framework, and not the return of the deleted runtime graph — `buildRuntimeGraph` and `computeRuntimeLayout` are still reverse-pinned as absent. Evaluation's "no score, no ranking, no trend" rule is untouched; V1.1 only makes the existing capability one click away.

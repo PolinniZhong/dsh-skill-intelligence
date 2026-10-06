@@ -379,12 +379,20 @@ function installStyles() {
       .st-detail-back{align-self:center;border:0;background:transparent;color:var(--st-muted);font-size:12px;padding:4px 0;cursor:pointer;white-space:nowrap}
       .st-detail-back:hover{color:var(--st-text)}
       .st-detail-body{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:12px 22px 18px}
-      /* 主内容列：框架 / 运行逻辑 / 步骤证据 / SKILL.md 四层自上而下，整列自己滚。
+      /* 主内容列：只承载**当前那一个**详情模块（v1.1）。
        *
-       * 以前这一列不滚、只让文档内部滚，前提是顶部只有一张 4 步的流程图。现在三层分析块
-       * 加起来的自然高度就可能超过一屏，所以整列接管滚动，而文档卡保留一个最小高度 ——
-       * 它仍然是一份要逐字读 300 行的定义，压成一条缝就没法读了。 */
-      .st-detail-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
+       * V1.0 这一列把验收 / 修改对比 / 评测 / 框架 / 运行逻辑 / 步骤证据 / SKILL.md 纵向堆在
+       * 一起，靠整列滚动去找模块 —— 找「Skill 评测」要往下滚过三块。V1.1 由左列导航决定这一列
+       * 显示什么，所以它不再需要自己滚：滚动交给更里层真正会超高的那一块。
+       *
+       * 唯一例外是 SKILL.md：它是一份要逐字读几百行的定义，整块必须填满可用高度、由文档区
+       * 自己滚（见下面的 document 模块选择器），压成一条缝就没法读了。 */
+      .st-detail-main{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+      .st-detail-module{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
+      .st-detail-module[data-module="document"]{overflow:hidden}
+      /* 文档模块里让文档卡吃掉整个高度：那条 min(72vh,640px) 固定高度在 V1.0 是对的
+         （上面还有三块内容），现在它是这一列唯一的东西，固定高度反而会留出一块空白。 */
+      .st-detail-module[data-module="document"] > .st-detail-doc{height:auto;flex:1;min-height:0}
       .st-framework{flex:0 0 auto;min-width:0;border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:12px 14px}
       .st-framework-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
       .st-framework-title-row h3{margin:0;font-size:13px}
@@ -529,6 +537,22 @@ function installStyles() {
       .st-detail-fact span{color:var(--st-muted)}
       .st-detail-fact code{font-size:11.5px;color:var(--st-text)}
       .st-detail-repo-link{display:inline-block;margin-top:2px;color:var(--st-accent);font-size:12px;font-weight:600}
+      /* v1.1 详情级导航（第二层导航）。
+       *
+       * 它替换了 V1.0 左列的 Definition / Repository / 血缘三张卡 —— 那三张卡搬进 Definition
+       * 模块，一条信息都没有少，少的是「在主列里往下滚过三块才找到评测」的那几百像素。
+       *
+       * 一级导航仍然是「本次 Skill / 已安装 Skill」两个入口，这里只回答「我想从哪个维度理解
+       * 这个 Skill」。没有为它新增路由，也没有新增一级导航。
+       *
+       * 选中态用背景 + 颜色 + aria-current 三处一起表达：只靠颜色的话，高对比度模式下这个
+       * 区别会消失。 */
+      .st-detail-nav{border:1px solid var(--st-border);border-radius:10px;background:var(--st-surface);padding:12px 10px}
+      .st-detail-nav-title{margin:0 0 8px;padding:0 6px;color:var(--st-faint);font-size:11px}
+      .st-detail-nav-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+      .st-detail-nav-item{display:block;width:100%;text-align:left;border:0;border-radius:6px;background:transparent;color:var(--st-muted);font-family:inherit;font-size:12.5px;line-height:1.4;padding:6px 8px;cursor:pointer}
+      .st-detail-nav-item:hover{background:var(--st-surface-subtle);color:var(--st-text)}
+      .st-detail-nav-item[data-active="true"]{background:var(--st-accent-soft);color:var(--st-accent);font-weight:600}
       /* v0.9.0「Skill 验收」。整块只用 token 上色：通过 / 需要修正 / 无法判断三态各自一个色，
        * 但**颜色不承担语义** —— 状态词本身就在旁边写着（role=status 会被辅助技术读出来）。
        * 结构靠分隔线（§27），所以发现列表用 border-bottom 而不是一张张圆角卡片。 */
@@ -549,6 +573,14 @@ function installStyles() {
       .st-validation-profile[data-status="unknown"] .st-validation-profile-state{color:var(--st-warning)}
       .st-validation-profile-state{font-weight:600}
       .st-validation-profile-counts{margin-left:auto;color:var(--st-faint)}
+      /* v1.1：Profile 汇总分成「标准合规」与「平台兼容」两层。
+       * 分组标题比 profile 本身更轻 —— 它是标题不是数据，不该跟 profile 行抢注意力。 */
+      .st-validation-kind{list-style:none;margin:0;padding:6px 0 3px;color:var(--st-faint);font-size:10.5px;font-weight:600}
+      .st-validation-kind:first-child{padding-top:0}
+      /* Rule Provenance：来源与说明各占一行，都压到最小字号 ——
+       * 它是「这条结论是谁说的」，要能查到，但不该盖过结论本身。 */
+      .st-validation-provenance{margin:3px 0 0;color:var(--st-faint);font-size:10.5px}
+      .st-validation-rule-note{margin:2px 0 0;color:var(--st-muted);font-size:11px;line-height:1.5}
       .st-validation-findings{list-style:none;margin:0;padding:0}
       .st-validation-finding{padding:6px 0;border-bottom:1px solid var(--st-border-soft)}
       .st-validation-finding-head{display:flex;align-items:baseline;gap:8px}
@@ -1945,6 +1977,7 @@ function installStyles() {
     if (reason === 'no-directory-name') return localized('没能定位到这个 Skill 的目录。', 'The Skill directory could not be located.')
     if (reason === 'body-truncated') return localized('正文太长，这次只读了一部分。', 'The body was too long and only part of it was read.')
     if (reason === 'compatibility-absent') return localized('这份 SKILL.md 没有 compatibility 字段。', 'This SKILL.md has no compatibility field.')
+    if (reason === 'optional-field-absent') return localized('标准把这个字段列为可选，这份 SKILL.md 没有写它。', 'The standard marks this field optional and this SKILL.md omits it.')
     if (reason === 'name-missing') return localized('没有读到 name 字段。', 'No name field was read.')
     if (reason === 'definition-unavailable') return localized('现在读不到这个 Skill 的 SKILL.md。', 'The SKILL.md could not be read now.')
     if (reason === 'no-evaluator') return localized('这条规则还没有判定函数。', 'This rule has no evaluator yet.')
@@ -2002,21 +2035,40 @@ function installStyles() {
         `${summary.errors ?? 0} errors · ${summary.warnings ?? 0} warnings · ${summary.info ?? 0} info · ${summary.skipped ?? 0} not checked`,
       ))),
       h('ul', { className: 'st-validation-profiles', 'data-role': 'validation-profiles' },
-        ...profiles.map((profile) => h('li', {
-          key: profile.id,
-          className: 'st-validation-profile',
-          'data-role': `validation-profile-${profile.id}`,
-          'data-status': profile.status,
-        },
-        // `profile.label` 是核心模块给的双语对象（`{zh, en}`），不是字符串：
-        // 直接当 children 交给 React 会抛 #31（Objects are not valid as a React child），
-        // 而 `conversation.view` 没有错误边界，整页会白屏 —— 这一步必须显式选语言。
-        h('code', null, raw(localized(profile.label?.zh ?? profile.id, profile.label?.en ?? profile.id))),
-        h('span', { className: 'st-validation-profile-state' }, raw(validationStatusText(profile.status))),
-        h('span', { className: 'st-validation-profile-counts' }, raw(localized(
-          `错误 ${profile.errors ?? 0} · 警告 ${profile.warnings ?? 0} · 信息 ${profile.info ?? 0}`,
-          `${profile.errors ?? 0} errors · ${profile.warnings ?? 0} warnings · ${profile.info ?? 0} info`,
-        )))))),
+        // v1.1：Profile 汇总按**两层**渲染 —— 标准合规与平台兼容。
+        //
+        // 这不是排版问题。`common` / `standard` 说的是「开放标准本身要求什么」；
+        // `dsh` / `openai` / `anthropic` / `microsoft` 说的是「这一家能不能装载、好不好用」。
+        // 把两者混在一列里，会让「OpenAI 只读两个字段」读起来像是标准违规，
+        // 也会让「DSH 能加载」看起来像是标准通过了（§五、§六）。
+        ...VALIDATION_PROFILE_KINDS.flatMap(([kind, zhKind, enKind]) => {
+          const mine = profiles.filter((profile) => (profile.kind ?? 'platform') === kind)
+          if (mine.length === 0) return []
+          return [
+            h('li', {
+              key: `kind-${kind}`,
+              className: 'st-validation-kind',
+              'data-role': `validation-kind-${kind}`,
+              'data-kind': kind,
+            }, raw(localized(zhKind, enKind))),
+            ...mine.map((profile) => h('li', {
+              key: profile.id,
+              className: 'st-validation-profile',
+              'data-role': `validation-profile-${profile.id}`,
+              'data-kind': profile.kind ?? 'platform',
+              'data-status': profile.status,
+            },
+            // `profile.label` 是核心模块给的双语对象（`{zh, en}`），不是字符串：
+            // 直接当 children 交给 React 会抛 #31（Objects are not valid as a React child），
+            // 而 `conversation.view` 没有错误边界，整页会白屏 —— 这一步必须显式选语言。
+            h('code', null, raw(localized(profile.label?.zh ?? profile.id, profile.label?.en ?? profile.id))),
+            h('span', { className: 'st-validation-profile-state' }, raw(validationStatusText(profile.status))),
+            h('span', { className: 'st-validation-profile-counts' }, raw(localized(
+              `错误 ${profile.errors ?? 0} · 警告 ${profile.warnings ?? 0} · 信息 ${profile.info ?? 0}`,
+              `${profile.errors ?? 0} errors · ${profile.warnings ?? 0} warnings · ${profile.info ?? 0} info`,
+            ))))),
+          ]
+        })),
       findings.length > 0
         ? h('ul', { className: 'st-validation-findings', 'data-role': 'validation-findings' },
           ...findings.map((finding, index) => h('li', {
@@ -2024,12 +2076,30 @@ function installStyles() {
             className: 'st-validation-finding',
             'data-role': 'validation-finding',
             'data-severity': finding.severity,
+            // v1.1 §七：每条结论都要能追到出处。`standard` / `platform` 分开，
+            // 这样「这条是开放标准说的」和「这条是某家平台说的」在 DOM 里就能分辨。
+            'data-source': finding.source ?? '',
+            'data-source-kind': finding.sourceKind ?? 'platform',
           },
           h('div', { className: 'st-validation-finding-head' },
             h('code', null, raw(finding.id)),
             h('span', { className: 'st-validation-finding-title' }, raw(ruleTitle(finding.id))),
             h('span', { className: 'st-validation-severity' }, raw(validationSeverityText(finding.severity)))),
-          h('p', { className: 'st-validation-detail' }, raw(finding.detail)))))
+          h('p', { className: 'st-validation-detail' }, raw(finding.detail)),
+          // Rule Provenance：规则 id 在上面，这里是「来源」与「说明」。
+          // 来源是静态 metadata（agentskills.io 规范 / DSH 装载源码 / 三家平台文档），
+          // 运行时不联网读取标准文档。
+          h('p', {
+            className: 'st-validation-provenance',
+            'data-role': 'validation-provenance',
+            title: finding.sourceReference || undefined,
+          }, raw(localized(
+            `来源：${finding.sourceLabel || finding.source || '—'} · ${finding.sourceKind === 'standard' ? '标准合规' : '平台兼容'}`,
+            `Source: ${finding.sourceLabel || finding.source || '—'} · ${finding.sourceKind === 'standard' ? 'standard compliance' : 'platform compatibility'}`,
+          ))),
+          finding.note
+            ? h('p', { className: 'st-validation-rule-note', 'data-role': 'validation-rule-note' }, raw(finding.note))
+            : null)))
         : null,
       skipped.length > 0
         ? h('div', { className: 'st-validation-skipped', 'data-role': 'validation-skipped' },
@@ -2074,11 +2144,88 @@ function installStyles() {
     ['assets', 'assets', 'assets'],
   ]
   const MODIFY_PROFILES = [
+    // v1.1：开放标准层排在平台之前。它是「这份 SKILL.md 符不符合 Agent Skills 开放标准」，
+    // 与某一家平台能不能装载是两回事，所以它自己坐一格，不是四家平台的合集。
+    ['standard', 'Agent Skills Standard', 'Agent Skills Standard'],
     ['dsh', 'DSH', 'DSH'],
     ['microsoft', 'Microsoft', 'Microsoft'],
     ['openai', 'OpenAI', 'OpenAI'],
     ['anthropic', 'Anthropic', 'Anthropic'],
   ]
+
+  /**
+   * 两层 Profile：标准合规 / 平台兼容。
+   *
+   * 这两行**必须**与 `src/core/skill-profiles.mjs` 的 `SKILL_PROFILE_KIND_LABELS` 一致，
+   * 客户端不能 import 那一支（§6.6 只放行九支 core 模块），所以由守卫
+   * `SKILL_STANDARD_ALIGNMENT_OK` 逐字对账 —— 少一行、把平台那行说成标准，都会红。
+   *
+   * 它存在的理由不是排版：`platform` 那一组里的每一条都是「某家平台说」，界面不能把
+   * 「OpenAI 不读这个字段」讲成「开放标准被违反了」。
+   */
+  const VALIDATION_PROFILE_KINDS = [
+    ['standard', '标准合规', 'Standard compliance'],
+    ['platform', '平台兼容', 'Platform compatibility'],
+  ]
+
+  /**
+   * v1.1 详情级导航：Skill Detail 的第二层导航。
+   *
+   * 它承担的是「我想从哪个维度理解这个 Skill」，与一级导航（本次 Skill / 已安装 Skill，
+   * 承担「我要看哪个 Skill」）不是一回事。**没有新增页面、没有新增一级导航、没有新增路由**：
+   * 这八项全是 V1.0 已经渲染在同一个长页面里的块，这里只是把它们改成按需切换。
+   *
+   * 顺序即界面顺序。`framework` 是默认项 —— 理解一个 Skill 从「它由什么组成」开始。
+   * `hint` 是按钮的 `title`，也是这一项的口径声明。
+   */
+  const DETAIL_MODULES = [
+    ['framework', 'Skill 框架', 'Skill framework', '这个 Skill 由什么组成：Purpose / Trigger / Rules / Output，以及声明流程。它来自 SKILL.md 的结构化解析，不是运行流程。'],
+    ['validation', 'Skill 验收', 'Skill validation', '静态合规判定：标准合规（Agent Skills Open Standard）与平台兼容（DSH / OpenAI / Anthropic / Microsoft）分开列出，只报事实，不给分。'],
+    ['evaluation', 'Skill 评测', 'Skill evaluation', '同一个 Case、条件逐项提出、逐条对照：不给分、不排序、不画趋势。'],
+    ['evidence', '步骤证据', 'Step evidence', '每个声明步骤各自观察到了什么。Loading ≠ Use，Use ≠ Outcome，Outcome ≠ Skill 导致的。'],
+    ['runtime', '本次运行逻辑', 'Runtime logic this run', '这次会话里观察到的运行逻辑与对齐结论。'],
+    ['modification', '本次修改对比', 'This change', '本次修改范围、对比与实例验收。没有修改事务时这一维不出现。'],
+    ['definition', 'Definition', 'Definition', '文件、当前指纹、本次使用、定义来源、repository 与血缘。'],
+    ['document', 'SKILL.md', 'SKILL.md', '原始文档与中文阅读版。只读展示，原文不会被修改。'],
+  ]
+
+  /**
+   * v1.1 详情级导航本体。
+   *
+   * 它只做一件事：把「当前在看哪个维度」告诉用户，并在点击时切换右侧内容。
+   * 点击后**不滚动**、不锚跳 —— 右侧直接换成那一块（§三：不应该要求用户向下滚几百像素）。
+   *
+   * `aria-current` 而不是只有 `data-active`：这排按钮在语义上就是当前位置，屏幕阅读器
+   * 需要能读出来；只看颜色的话，高对比度模式下这个区别会消失。
+   *
+   * `modules` 允许调用方收窄可选维度。今天只有一维会缺席：**没有修改事务时，「本次修改对比」
+   * 整块不渲染**（§9.2 —— 常驻的空卡会被读成一种状态），既然那一屏没有内容，导航里也不该
+   * 留一格点进去看空。默认仍然是全部维度。
+   */
+  function DetailNav({ active, onSelect, modules }) {
+    const items = Array.isArray(modules) && modules.length > 0 ? modules : DETAIL_MODULES
+    return h('nav', {
+      className: 'st-detail-nav',
+      'data-role': 'detail-nav',
+      'aria-label': localized('Skill 详情导航', 'Skill detail navigation'),
+    },
+    h('h3', { className: 'st-detail-nav-title' }, localized('详情', 'Detail')),
+    h('ul', { className: 'st-detail-nav-list' },
+      ...items.map(([id, zh, en, hint]) => h('li', { key: id },
+        h('button', {
+          key: id,
+          type: 'button',
+          className: 'st-detail-nav-item',
+          'data-role': `detail-nav-${id}`,
+          'data-module': id,
+          'data-active': active === id ? 'true' : 'false',
+          // `page` 而不是 `true`：这一项代表的就是**当前这一屏**，`page` 是它的准确说法；
+          // 只说 `true` 的话，读屏软件会念成「当前项」，但不会说清当前项就是这一页。
+          'aria-current': active === id ? 'page' : undefined,
+          title: hint,
+          onClick: () => onSelect(id),
+        }, raw(localized(zh, en)))))))
+  }
 
   /** 范围 id → 界面上的说法。认不出来就原样显示，不猜。 */
   const modifyScopeText = (id) => {
@@ -3051,11 +3198,25 @@ function installStyles() {
         : null))
   }
 
-  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification, instanceTest: suppliedInstanceTest, evaluation: suppliedEvaluation }) {
+  function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification, instanceTest: suppliedInstanceTest, evaluation: suppliedEvaluation, initialModule }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
     const [error, setError] = React.useState('')
     const [tab, setTab] = React.useState('original')
+    // v1.1：详情级导航当前停在哪个模块。
+    //
+    // 默认 `'framework'`（Skill 框架）—— 它是理解一个 Skill 的第一入口。这只是默认值：
+    // 点「Skill 验收」就立刻显示验收，点「SKILL.md」就立刻显示原始文档，中间没有任何过渡页。
+    //
+    // 这个 state 与 `tab` 是两件事：`tab` 是 SKILL.md 模块**内部**的原文/译文切换，
+    // 而这里是模块之间的切换。合在一起会让「切到验收」变成「顺便改了文档显示方式」。
+    //
+    // 它必须排在第一个提前 return 之前：hooks 顺序是渲染合同（§6.11，HOOK_ORDER_OK）。
+    //
+    // `initialModule` 是第五条注入缝，与上面四个 `supplied*` 同一种用法：渲染烟测的 React 桩
+    // 里 `useState` 不会重渲染，所以「用户点了某一维之后那一屏长什么样」只能靠**指定初始值**来
+    // 渲染。不传就是 `'framework'`，也就是真实用户进来看到的第一屏。
+    const [detailModule, setDetailModule] = React.useState(initialModule ?? 'framework')
     const [translation, setTranslation] = React.useState({ state: 'idle', text: '', sha: '', error: '' })
     const [flash, setFlash] = React.useState('')
     const [activeHeading, setActiveHeading] = React.useState('')
@@ -3401,7 +3562,24 @@ function installStyles() {
       modifyOpenRef,
     })
 
-    const sidePanel = h('aside', { className: 'st-detail-side' }, sideIdentity, sideEvolution, sideDefinition, sideRepository)
+    // v1.1：左列 = **定位**（这是哪个 Skill、能对它做什么、要看哪个维度）；
+    // 右列 = **阅读 / 分析**（当前那一个模块）。
+    //
+    // V1.0 的左列摆的是 Definition / Repository / 血缘三张事实卡，主列把六个模块纵向堆成一条
+    // 长页面，找「Skill 评测」要往下滚过框架、运行逻辑和步骤证据。V1.1 把三张事实卡搬进
+    // Definition 模块，把左列让给导航 —— 信息一条没少，少的是滚动。
+    //
+    // 详情级导航是**第二层**导航：一级导航（本次 Skill / 已安装 Skill）回答「我要看哪个
+    // Skill」，它回答「我想从哪个维度理解这个 Skill」。没有新增路由、没有新增一级导航。
+    //
+    // 没有修改事务时「本次修改对比」整块不存在（§9.2：常驻的空卡会被读成一种状态），
+    // 所以导航里也不留那一格。判据直接沿用 V1.0 那一版自己的分支 ——
+    // `SkillModificationPanel` 在 `phase === 'idle'` 时返回 `null`。
+    const hasModification = Boolean(modifyState) && modifyState.phase !== 'idle'
+    const availableModules = DETAIL_MODULES.filter(([id]) => id !== 'modification' || hasModification)
+    const sidePanel = h('aside', { className: 'st-detail-side' },
+      sideIdentity,
+      h(DetailNav, { active: detailModule, onSelect: setDetailModule, modules: availableModules }))
 
     const segControl = h('div', { className: 'st-seg', role: 'group', 'aria-label': 'SKILL.md 显示方式' },
       h('button', { type: 'button', 'data-active': !translated, onClick: () => setTab('original') }, localized('原文', 'Original')),
@@ -3729,9 +3907,38 @@ function installStyles() {
       onRole: tagEvaluationRun,
     })
 
+    // v1.1：右列只渲染**当前**这一个模块。各维度的 element 都在上面构造好了，
+    // `h(Component, props)` 只是建元素、不调用组件 —— 所以没被选中的那几个这一帧是空转，
+    // 比 V1.0 一次把六个块全部渲染出来更省，而不是更贵。
+    //
+    // 每一项都包一层 `[data-role="detail-module-<id>"]`：测试与守卫靠它确认「点哪个显示哪个」，
+    // 不靠界面文案（文案会改，合同不该跟着改）。
+    // 哪些维度这一帧真的存在，已在上面算好（`availableModules`）—— 判定与导航用的是同一个值，
+    // 不会出现「导航里有这一格、点进去是空的」。
+    const MODULE_CONTENT = {
+      framework: [framework],
+      validation: [h(SkillValidationPanel, { validation, validationFieldMissing })],
+      evaluation: [skillEvaluation],
+      evidence: [stepEvidence],
+      runtime: [runtimeLogic],
+      modification: hasModification ? [skillModification] : [],
+      // Definition 是**基础定义信息**，不是新的一级导航：文件、指纹、本次使用、定义来源、
+      // repository 与血缘这三张卡一直是详情页上的事实，V1.1 只是把它们从左边挪进模块。
+      // 数据模型没有重设计，渲染代码就是原来那三张卡。
+      definition: [sideDefinition, sideRepository, sideEvolution],
+      document: [docPanel],
+    }
+
+    const activeModule = availableModules.some(([id]) => id === detailModule) ? detailModule : 'framework'
+    const moduleContent = h('div', {
+      className: 'st-detail-module',
+      'data-role': `detail-module-${activeModule}`,
+      'data-module': activeModule,
+    }, ...(MODULE_CONTENT[activeModule] ?? [framework]))
+
     return h('div', { className: 'st-detail' },
       h('div', { className: 'st-detail-body' }, sidePanel,
-        h('div', { className: 'st-detail-main' }, h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, skillEvaluation, framework, runtimeLogic, stepEvidence, docPanel)),
+        h('div', { className: 'st-detail-main' }, moduleContent)),
       cloneOpen
         ? h(SkillCloneDialog, {
           sessionId,
@@ -4281,4 +4488,8 @@ function installStyles() {
     // v0.9.1：修改对话框与「本次修改对比」块也要能离线渲染。「无法比较」那一屏尤其要 ——
     // 它一旦渲染成一份空结果，用户读到的就会是「这次修改什么都没变」。
     SkillModifyDialog, SkillModificationPanel,
+    // v1.1：详情级导航本身也要能离线渲染一遍。它是这一版新加的**唯一**入口控件，而它
+    // 不渲染任何 Skill 内容 —— 「点哪一项就选中哪一维」这条接线只有把按钮真的渲染出来、
+    // 再调一次它的 onClick 才验得了（源码断言只能证明那行字符串出现过）。
+    DetailNav,
   }

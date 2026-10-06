@@ -13,25 +13,46 @@
  *   时才是 error；来源写 "Keep … under 500 lines" 这类祈使建议的一律 warning。
  *   没有「质量分」「风险分」这种档位，也不会有 —— 见规划 §十八、§三十三。
  *
+ * V1.1 起 Profile 分成两类（`SKILL_STANDARD_PROFILE_IDS` / `SKILL_PLATFORM_PROFILE_IDS`）：
+ *
+ * - **标准层**（`common` + `standard`）：`standard` 是 Agent Skills 开放规范自身写下的条款，
+ *   与任何一家平台的装载行为无关。它回答「这份 SKILL.md 符不符合开放标准」。
+ * - **平台层**（`dsh` / `microsoft` / `openai` / `anthropic`）：每一家自己的加载器或作者指南。
+ *   它回答「这份 SKILL.md 在某家平台上能不能用、好不好用」。
+ *
+ * 两层必须分开说：一个 Skill 可以在 DSH 上完全正常装载，同时不符合开放标准（例如 name 与父目录
+ * 不同名）；反过来，符合标准也不保证某个平台一定收。所以界面不能把平台约束写成「标准违反了」，
+ * 也不能因为 DSH 能加载就把标准上的不符合判成通过。
+ *
  * 来源：
  * - agentskills.io specification（开放规范，Microsoft 文档显式引用的就是它）
  * - https://learn.microsoft.com/en-us/agent-framework/agents/skills
  * - https://github.com/openai/skills/blob/main/skills/.system/skill-creator/SKILL.md
  * - https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md
  * - DSH 自身：`@deepseek-ai/dsh-skill` 与 `@deepseek-ai/dsh-skill-filesystem` 的装载源码
+ *
+ * 这些来源只是**静态**记录（`SKILL_RULE_SOURCES`），运行时不联网读取标准文档。
  */
 
-export const SKILL_PROFILE_SCHEMA_VERSION = 1
+export const SKILL_PROFILE_SCHEMA_VERSION = 2
 
 /**
- * 五个 Profile。`common` 是基础层，其它四个各自独立。
+ * 六个 Profile：`common` 与 `standard` 是标准层，其余四个是平台层。
  *
- * 顺序就是界面上的显示顺序：先共同规范，再当前平台，再其它平台。
+ * 顺序就是界面上的显示顺序：先开放标准，再当前平台，再其它平台。
  */
-export const SKILL_PROFILE_IDS = Object.freeze(['common', 'dsh', 'microsoft', 'openai', 'anthropic'])
+export const SKILL_PROFILE_IDS = Object.freeze([
+  'common',
+  'standard',
+  'dsh',
+  'microsoft',
+  'openai',
+  'anthropic',
+])
 
 export const SKILL_PROFILE_LABELS = Object.freeze({
   common: Object.freeze({ zh: 'Common Core', en: 'Common Core' }),
+  standard: Object.freeze({ zh: 'Agent Skills Standard', en: 'Agent Skills Standard' }),
   dsh: Object.freeze({ zh: 'DSH', en: 'DSH' }),
   microsoft: Object.freeze({ zh: 'Microsoft', en: 'Microsoft' }),
   openai: Object.freeze({ zh: 'OpenAI', en: 'OpenAI' }),
@@ -39,11 +60,61 @@ export const SKILL_PROFILE_LABELS = Object.freeze({
 })
 
 /**
- * 默认验收目标：DSH + Common。
+ * 两层 Profile：**标准合规** 与 **平台兼容**。
+ *
+ * 界面按这两层分组渲染，规则出处也按这两层分类（`SKILL_RULE_SOURCES[].kind`）。
+ */
+export const SKILL_STANDARD_PROFILE_IDS = Object.freeze(['common', 'standard'])
+export const SKILL_PLATFORM_PROFILE_IDS = Object.freeze(['dsh', 'microsoft', 'openai', 'anthropic'])
+
+export const SKILL_PROFILE_KINDS = Object.freeze(['standard', 'platform'])
+
+export const SKILL_PROFILE_KIND_LABELS = Object.freeze({
+  standard: Object.freeze({ zh: '标准合规', en: 'Standard compliance' }),
+  platform: Object.freeze({ zh: '平台兼容', en: 'Platform compatibility' }),
+})
+
+/** 规则出处。`kind` 决定它属于标准合规还是平台兼容。 */
+export const SKILL_RULE_SOURCES = Object.freeze({
+  agentskills: Object.freeze({
+    id: 'agentskills',
+    kind: 'standard',
+    label: Object.freeze({ zh: 'Agent Skills Open Standard', en: 'Agent Skills Open Standard' }),
+    reference: 'agentskills.io specification',
+  }),
+  dsh: Object.freeze({
+    id: 'dsh',
+    kind: 'platform',
+    label: Object.freeze({ zh: 'DSH', en: 'DSH' }),
+    reference: '@deepseek-ai/dsh-skill / dsh-skill-filesystem 装载源码',
+  }),
+  microsoft: Object.freeze({
+    id: 'microsoft',
+    kind: 'platform',
+    label: Object.freeze({ zh: 'Microsoft', en: 'Microsoft' }),
+    reference: 'learn.microsoft.com/en-us/agent-framework/agents/skills',
+  }),
+  openai: Object.freeze({
+    id: 'openai',
+    kind: 'platform',
+    label: Object.freeze({ zh: 'OpenAI', en: 'OpenAI' }),
+    reference: 'github.com/openai/skills — skill-creator/SKILL.md',
+  }),
+  anthropic: Object.freeze({
+    id: 'anthropic',
+    kind: 'platform',
+    label: Object.freeze({ zh: 'Anthropic', en: 'Anthropic' }),
+    reference: 'github.com/anthropics/skills — skill-creator/SKILL.md',
+  }),
+})
+
+/**
+ * 默认验收目标：Common Core + Agent Skills Standard + DSH。
  *
  * 默认不是「全部平台」—— 一个只给 DSH 用的 Skill 不该因为某个平台的额外建议被报错。
+ * 但开放标准层默认打开：它是「这份 SKILL.md 本身合不合规」，不是某一家的口味。
  */
-export const SKILL_PROFILE_DEFAULT = Object.freeze(['common', 'dsh'])
+export const SKILL_PROFILE_DEFAULT = Object.freeze(['common', 'standard', 'dsh'])
 
 /** 规则的严重度。三档，没有第四档。 */
 export const SKILL_RULE_SEVERITIES = Object.freeze(['error', 'warning', 'info'])
@@ -283,6 +354,56 @@ export const SKILL_RULES = Object.freeze(
       note: '同上。只报观测到的字面模式，不判断这份 Skill 的意图。',
     },
 
+    // --- Agent Skills Open Standard -----------------------------------------
+    // 这一层的每一条都出自开放规范本身，与任何平台能不能装载无关。
+    {
+      id: 'CORE-DIR-001',
+      profile: 'standard',
+      severity: 'error',
+      title: 'name 与父目录名称一致',
+      fact: 'standard-directory-name-match',
+      source: 'agentskills',
+      note:
+        '开放规范：name 必须与 Skill 所在目录同名（`Must match the parent directory name`）。' +
+        '这条只看标准，不看平台 —— DSH 能加载一个目录名与 name 不同的 Skill，那是平台的宽容，' +
+        '不改变标准上的结论。取不到目录时这条判不了，会进「这次没有判定」。',
+    },
+    {
+      id: 'CORE-LIC-001',
+      profile: 'standard',
+      severity: 'warning',
+      title: 'license 写法符合标准的可选字段约定',
+      fact: 'standard-license-shape',
+      source: 'agentskills',
+      note:
+        '开放规范把 license 列为 optional，写 license 名或指向随包的许可文件。' +
+        '没有 license 不是错误（字段本身可选），只有写了但写成一个映射或列表才是问题。',
+    },
+    {
+      id: 'CORE-META-001',
+      profile: 'standard',
+      severity: 'warning',
+      title: 'metadata 是「字符串 → 字符串」的映射',
+      fact: 'standard-metadata-shape',
+      source: 'agentskills',
+      note:
+        '开放规范把 metadata 定义为 arbitrary key-value mapping。V1.1 只做基础校验：' +
+        '顶层是映射、值是标量字符串，不检查键名本身（标准没有规定键名清单）。',
+    },
+    {
+      id: 'CORE-TOOLS-001',
+      profile: 'standard',
+      severity: 'info',
+      title: 'allowed-tools 写法符合实验性字段约定',
+      fact: 'standard-allowed-tools-shape',
+      source: 'agentskills',
+      note:
+        'allowed-tools 在开放规范里是 experimental，且 optional。' +
+        '**没有这个字段不算问题**；标量写法与块式列表都不判错，只有把它写成映射（`allowed-tools: {…}`）' +
+        '才不符合「工具名列表」的约定。' +
+        '本插件不据此判断权限是否安全 —— 那需要运行时证据，不属于静态验收。',
+    },
+
     // --- DSH Profile ---------------------------------------------------------
     {
       id: 'DSH-NAME-001',
@@ -424,6 +545,21 @@ const RULES_BY_ID = new Map(SKILL_RULES.map((rule) => [rule.id, rule]))
  */
 export const SKILL_PROFILE_RULES = Object.freeze({
   common: Object.freeze(SKILL_RULES.filter((rule) => rule.profile === 'common').map((rule) => rule.id)),
+  standard: Object.freeze([
+    'CORE-FM-001',
+    'CORE-FM-002',
+    'CORE-NAME-001',
+    'CORE-NAME-002',
+    'CORE-NAME-003',
+    'CORE-DESC-001',
+    'CORE-DESC-002',
+    'CORE-COMPAT-001',
+    'CORE-BODY-001',
+    'CORE-DIR-001',
+    'CORE-LIC-001',
+    'CORE-META-001',
+    'CORE-TOOLS-001',
+  ]),
   dsh: Object.freeze([
     'CORE-FM-002',
     'CORE-FM-004',
@@ -479,6 +615,14 @@ export const SKILL_PROFILE_NOTES = Object.freeze({
   common: Object.freeze({
     zh: '四份公开来源（agentskills.io 开放规范、Microsoft、OpenAI、Anthropic）都写到的共同条款。',
     en: 'Clauses stated by all four public sources (the agentskills.io spec, Microsoft, OpenAI, Anthropic).',
+  }),
+  standard: Object.freeze({
+    zh:
+      'Agent Skills 开放标准自身的条款：name 与父目录同名、name/description 的长度与字符集、' +
+      '以及 license / metadata / allowed-tools 这几个可选字段的写法。这一层与平台无关 —— ' +
+      '「标准合规」和「某个平台能不能装载」是两件事。',
+    en:
+      'Clauses of the Agent Skills open standard itself: name matching the parent directory, name/description length and charset, and the shape of the optional license / metadata / allowed-tools fields. This layer is platform-independent.',
   }),
   dsh: Object.freeze({
     zh: 'DSH 自身的装载行为：命名语法、必填字符串字段、invocation 字段的合法写法。DSH 不看目录名。',
@@ -587,4 +731,43 @@ export function skillSeverityLabel(severity, language = 'zh') {
   const labels = SKILL_SEVERITY_LABELS[severity]
   if (!labels) return typeof severity === 'string' ? severity : ''
   return language === 'en' ? labels.en : labels.zh
+}
+
+/**
+ * 取某个 Profile 属于哪一层。
+ *
+ * @param profileId - Profile id。
+ * @returns `'standard'` 或 `'platform'`；未知 id 归到 `'platform'`（宁可多算平台，不可把平台说成标准）。
+ */
+export function skillProfileKind(profileId) {
+  return SKILL_STANDARD_PROFILE_IDS.includes(profileId) ? 'standard' : 'platform'
+}
+
+/**
+ * 取某条来源的展示视图。
+ *
+ * 这是 §七「Rule Provenance」的数据面：规则 id / 结论 / 来源 / 说明里，「来源」就是这里。
+ * 未知来源不会被抹成某个平台，而是原样回显并标成 platform —— 宁可显示原始 id，
+ * 也不能把一条不知道出处的规则说成「四家都要求」。
+ *
+ * @param sourceId - `SKILL_RULE_SOURCES` 的键。
+ * @param language - `'zh'` 或 `'en'`。
+ * @returns `{ id, kind, label, reference }`。
+ */
+export function skillRuleSourceView(sourceId, language = 'zh') {
+  const source = SKILL_RULE_SOURCES[sourceId]
+  if (!source) {
+    return {
+      id: typeof sourceId === 'string' ? sourceId : 'unknown',
+      kind: 'platform',
+      label: typeof sourceId === 'string' ? sourceId : 'unknown',
+      reference: '',
+    }
+  }
+  return {
+    id: source.id,
+    kind: source.kind,
+    label: language === 'en' ? source.label.en : source.label.zh,
+    reference: source.reference,
+  }
 }

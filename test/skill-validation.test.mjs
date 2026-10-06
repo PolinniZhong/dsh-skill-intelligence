@@ -313,3 +313,114 @@ test('frontmatter 扫描器看得见显示层丢掉的那两件事', () => {
   assert.equal(list.unknownLines.length, 0)
   assert.equal(list.unsupportedLines.length, 2)
 })
+
+// --- v1.1：Agent Skills 开放标准 -------------------------------------------
+//
+// 这一版新增的是一条**来源**上的区分，不是几条新文案：`common` 与 `standard` 回答「这份
+// SKILL.md 符不符合开放标准」，`dsh` / `microsoft` / `openai` / `anthropic` 回答「某一家平台
+// 能不能装载、好不好用」。同一个事实可能两边都要求（目录名就是），但结论必须挂在各自的规则上，
+// 否则「OpenAI 的要求」和「开放标准的要求」在界面上会变成同一句话。
+
+const standard = (content, options = {}) =>
+  run(content, { profileIds: ['common', 'standard', 'dsh'], ...options })
+
+test('CORE-DIR-001：name 与父目录同名才通过，不一致是标准上的 error', () => {
+  const matched = standard(CLEAN, { directoryName: 'ui-craft' })
+  assert.equal(ruleOf(matched, 'CORE-DIR-001').state, 'clean')
+  assert.equal(matched.status, 'pass')
+
+  const mismatched = standard(CLEAN, { directoryName: 'ui-craft-v2' })
+  assert.equal(ruleOf(mismatched, 'CORE-DIR-001').state, 'fired')
+  assert.equal(mismatched.status, 'needs-fix')
+  const finding = mismatched.findings.find((entry) => entry.id === 'CORE-DIR-001')
+  assert.ok(finding.detail.includes('ui-craft-v2') && finding.detail.includes('ui-craft'), '两个名字都要写出来')
+  // 这是**标准层**的结论，与 DSH 能不能加载无关 —— 界面上因此不能把平台名混进来。
+  assert.equal(finding.sourceKind, 'standard')
+  assert.equal(finding.sourceLabel, 'Agent Skills Open Standard')
+  // 四家平台里只有 DSH 会被提到，而且提到它恰恰是为了**撇清**：能加载 ≠ 标准上没问题。
+  assert.ok(!/OpenAI|Anthropic|Microsoft/.test(finding.detail), '标准层的发现不许把某一家平台说成要求方')
+  assert.ok(finding.detail.includes('开放标准要求'), '要求方要写清楚是开放标准')
+})
+
+test('CORE-DIR-001：拿不到目录就说拿不到，不许把「不知道」当成「通过」', () => {
+  const unknown = standard(CLEAN, { directoryName: null })
+  assert.equal(ruleOf(unknown, 'CORE-DIR-001').state, 'skipped')
+  assert.equal(unknown.skipped.find((entry) => entry.id === 'CORE-DIR-001').reason, 'no-directory-name')
+  // 而且它不会把整体结论拖成 needs-fix：判不了与判不通过是两件事。
+  assert.equal(unknown.status, 'pass')
+})
+
+test('DSH 能装载一个 Skill 不等于它在标准上没问题', () => {
+  // 同一份正文、同一个不一致的目录名，只换验收目标：
+  const platforms = run(CLEAN, { profileIds: ['common', 'dsh'], directoryName: 'ui-craft-v2' })
+  assert.equal(platforms.status, 'pass', 'DSH 装载时不看目录名，所以平台层没有意见')
+  assert.equal(ruleOf(platforms, 'CORE-DIR-001'), undefined, '不挑标准层时，标准层的规则根本不该出现')
+
+  const withStandard = standard(CLEAN, { directoryName: 'ui-craft-v2' })
+  assert.equal(withStandard.status, 'needs-fix', '同一份 Skill 在标准层上是需要修正的')
+})
+
+test('标准层与平台层在结果里分得开，kind 不是靠客户端猜的', () => {
+  const model = standard(CLEAN, { directoryName: 'ui-craft' })
+  const kinds = Object.fromEntries(model.profiles.map((profile) => [profile.id, profile.kind]))
+  assert.deepEqual(kinds, { common: 'standard', standard: 'standard', dsh: 'platform' })
+  assert.equal(model.profiles.find((profile) => profile.id === 'standard').kindLabel.zh, '标准合规')
+  assert.equal(model.profiles.find((profile) => profile.id === 'dsh').kindLabel.zh, '平台兼容')
+  for (const profile of model.profiles) {
+    assert.equal(typeof profile.note.zh, 'string', `${profile.id} 要有自己的说明，而不是共用一句`)
+  }
+})
+
+test('每条规则都带着来源，来源至少能分出开放标准与四家平台', () => {
+  const model = standard(CLEAN, { directoryName: 'ui-craft' })
+  const sources = new Set()
+  for (const rule of model.rules) {
+    assert.ok(rule.source, `${rule.id} 没有来源`)
+    sources.add(rule.source)
+    assert.ok(rule.sourceLabel, `${rule.id} 的来源没有可读标签`)
+    assert.ok(['standard', 'platform'].includes(rule.sourceKind), `${rule.id} 的来源种类不是标准/平台之一`)
+    // 说明可以留空的是「事实本身说话」的那种，但标准层新增的四条必须都说清为什么。
+    assert.equal(typeof rule.note, 'string')
+  }
+  assert.ok(sources.has('agentskills') && sources.has('dsh'), '来源要区分得开，不是笼统一句「各家都要求」')
+  assert.ok(model.rules.every((rule) => rule.source !== 'all' && rule.source !== '*'))
+})
+
+test('可选字段缺失不是问题：license / metadata / allowed-tools 没写就跳过', () => {
+  const model = standard(CLEAN, { directoryName: 'ui-craft' })
+  for (const id of ['CORE-LIC-001', 'CORE-META-001', 'CORE-TOOLS-001']) {
+    assert.equal(ruleOf(model, id).state, 'skipped', `${id} 在字段没写时不该给出判定`)
+    assert.equal(skipped(model, id), true)
+    assert.equal(ruleOf(model, id).severity === 'error', false, `${id} 绝不能是 error`)
+  }
+  assert.equal(ruleOf(model, 'CORE-TOOLS-001').severity, 'info', 'allowed-tools 是 experimental，连警告都不该给')
+  assert.equal(model.status, 'pass')
+  // 三条都跳过了，但它们不是「同一句话复制三遍」：每条都要说明白自己为什么没判。
+  const reasons = ['CORE-LIC-001', 'CORE-META-001', 'CORE-TOOLS-001'].map((id) => model.skipped.find((entry) => entry.id === id).reason)
+  assert.deepEqual(reasons, ['optional-field-absent', 'optional-field-absent', 'optional-field-absent'])
+})
+
+test('可选字段写成了别的形状才报，并且报的是形状不是「没写」', () => {
+  const source = `---
+name: ui-craft
+description: Build UI screens from a token file. Use this when a screen needs to match the design system.
+license:
+  spdx: MIT
+metadata:
+  tags: [a, b]
+allowed-tools:
+  - Read
+---
+Body.
+`
+  const model = standard(source, { directoryName: 'ui-craft' })
+  assert.ok(fired(model, 'CORE-LIC-001'), 'license 写成映射才报')
+  assert.ok(fired(model, 'CORE-META-001'), 'metadata 里的值是列表才报')
+  // 写成 YAML 列表正是 allowed-tools 的**正确**形状，所以它必须安静。
+  assert.equal(ruleOf(model, 'CORE-TOOLS-001').state, 'clean')
+
+  const mapping = standard(`---\nname: ui-craft\ndescription: Does things when asked.\nallowed-tools:\n  Read: true\n---\nBody.\n`, { directoryName: 'ui-craft' })
+  assert.ok(fired(mapping, 'CORE-TOOLS-001'), 'allowed-tools 写成映射不符合「工具名列表」的约定')
+  assert.equal(ruleOf(mapping, 'CORE-TOOLS-001').severity, 'info', '报它也只是信息 —— 这条能力本身还是 experimental')
+})
+

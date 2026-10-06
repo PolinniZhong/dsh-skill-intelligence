@@ -153,7 +153,7 @@ test('详情路由把验收结果放在 skill 里，客户端读的就是这一�
   assert.equal(validation.available, true)
   assert.equal(validation.status, 'pass')
   assert.equal(validation.summary.errors, 0)
-  assert.deepEqual(validation.profileIds, ['common', 'dsh'])
+  assert.deepEqual(validation.profileIds, ['common', 'standard', 'dsh'])
   // 事故回归①：宿主若拿 registry 的正文（没有 frontmatter）去验收，这一条会变成 fired。
   assert.equal(stateOf(validation, 'CORE-FM-002'), 'clean')
   assert.equal(stateOf(validation, 'CORE-FM-004'), 'clean')
@@ -167,7 +167,7 @@ test('definition 路由也带同一份验收结果，两条路不会各说各话
   assert.equal(status, 200)
   assert.equal(payload.validation.status, 'pass')
   assert.equal(payload.validation.skillName, 'ui-craft')
-  assert.deepEqual(payload.validation.profileIds, ['common', 'dsh'])
+  assert.deepEqual(payload.validation.profileIds, ['common', 'standard', 'dsh'])
 })
 
 test('换验收目标真的换了目标，不会静默回退成默认 Profile', async () => {
@@ -182,15 +182,42 @@ test('换验收目标真的换了目标，不会静默回退成默认 Profile', 
   assert.ok(payload.skill.validation.rules.some((rule) => rule.id.startsWith('OA-')))
 })
 
-test('同一个 Skill 在两个 Profile 下得到不同结论：DSH 不看目录名，Microsoft 明文要求同名', async () => {
+// v1.1：这条测试原来问的是「DSH 看目录名吗」—— 答案是「不看」，而能看见目录名不一致的只有
+// Microsoft。V1.1 把 **Agent Skills 开放标准**正式化成一个独立的层，它同样要求 name 与父目录
+// 同名（CORE-DIR-001）。于是同一个事实现在有两个来源，而且必须**分得开**：
+//
+//   * 默认目标（Common + Standard + DSH）→ 标准层报 CORE-DIR-001，Microsoft 的规则不出现；
+//   * 只挑 Common + DSH            → 通过。DSH 装载一个 Skill 时不看目录名，这就是「平台宽容」；
+//   * 只挑 Common + Microsoft      → Microsoft 报 MS-DIR-001，而标准层的规则不出现。
+//
+// 第二行是这一版最要紧的一条：**DSH 能加载，不代表标准上没问题**。反过来第一行说明标准层的
+// 结论不会被摊到某个平台头上（§六：不要把平台约束直接说成 Open Standard 违反）。
+test('同一个 Skill 在标准层与平台层得到不同结论：DSH 不看目录名，开放标准与 Microsoft 都要求同名', async () => {
   const { route } = await setup()
 
-  const dsh = await call(route, { url: `/skill-trace/skill?sessionId=${SESSION_ID}&skillName=legacy-skill` })
-  assert.equal(dsh.payload.skill.validation.status, 'pass')
+  const standard = await call(route, { url: `/skill-trace/skill?sessionId=${SESSION_ID}&skillName=legacy-skill` })
+  assert.equal(standard.payload.skill.validation.status, 'needs-fix')
+  assert.equal(stateOf(standard.payload.skill.validation, 'CORE-DIR-001'), 'fired')
+  const dirFinding = standard.payload.skill.validation.findings.find((finding) => finding.id === 'CORE-DIR-001')
+  assert.equal(dirFinding.sourceKind, 'standard', '目录名这条结论来自开放标准，不是某一家平台')
+  assert.equal(dirFinding.sourceLabel, 'Agent Skills Open Standard')
   assert.equal(
-    dsh.payload.skill.validation.rules.some((rule) => rule.id === 'MS-DIR-001'),
+    standard.payload.skill.validation.rules.some((rule) => rule.id === 'MS-DIR-001'),
     false,
-    '默认目标（DSH + Common）里不该出现 Microsoft 的规则',
+    '默认目标（Standard + DSH + Common）里不该出现 Microsoft 的规则',
+  )
+  // 标准层与平台层在结果里必须能一眼分开，否则界面上只能把两件事都说成「不符合」。
+  const kinds = Object.fromEntries(standard.payload.skill.validation.profiles.map((profile) => [profile.id, profile.kind]))
+  assert.deepEqual(kinds, { common: 'standard', standard: 'standard', dsh: 'platform' })
+
+  const dshOnly = await call(route, {
+    url: `/skill-trace/skill?sessionId=${SESSION_ID}&skillName=legacy-skill&profiles=common,dsh`,
+  })
+  assert.equal(dshOnly.payload.skill.validation.status, 'pass')
+  assert.equal(
+    dshOnly.payload.skill.validation.rules.some((rule) => rule.id === 'CORE-DIR-001'),
+    false,
+    '不挑标准层时，标准层的规则不该出现在结果里 —— DSH 能装载这个 Skill',
   )
 
   const microsoft = await call(route, {
@@ -200,6 +227,11 @@ test('同一个 Skill 在两个 Profile 下得到不同结论：DSH 不看目录
   assert.equal(validation.status, 'needs-fix')
   assert.equal(stateOf(validation, 'MS-DIR-001'), 'fired')
   assert.ok(validation.findings.some((finding) => finding.id === 'MS-DIR-001'))
+  assert.equal(
+    validation.rules.some((rule) => rule.id === 'CORE-DIR-001'),
+    false,
+    'Microsoft 的目录名结论要挂在 MS-DIR-001 上，不能顶替标准层那条',
+  )
 })
 
 test('读不到 SKILL.md 时说「无法判断」，不拿缺 frontmatter 的正文凑一份结论', async () => {

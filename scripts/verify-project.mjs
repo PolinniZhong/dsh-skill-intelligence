@@ -835,6 +835,55 @@ console.log('VISUAL_TOKENS_OK')
   if (/backLabel\s*:\s*'/.test(component) || /onBack:\s*\(\)\s*=>\s*setView/.test(component)) {
     throw new Error('v0.6 §8.4: the detail page must not hard-code which list it returns to')
   }
+  // v1.1：详情页多了一层**详情内导航**（第二层导航）。
+  //
+  // 一级导航没有变，仍然是「本次 Skill / 已安装 Skill」两个入口 —— 它回答「我要看哪个
+  // Skill」；详情内的这一层回答「我想从哪个维度理解这个 Skill」。所以这里既不查新路由，
+  // 也不查新的一级入口，只查一件事：**右列是不是只渲染当前那一个模块**。
+  //
+  // V1.0 是六个模块纵向堆成一条长页面，靠滚动找模块；如果这个重构没做，左列仍然会是
+  // Definition / Repository / 血缘三张事实卡，而主列仍然是那串 component 列表。
+  const moduleIds = ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document']
+  const modulesStart = client.indexOf('const DETAIL_MODULES = [')
+  const navStart = client.indexOf('function DetailNav(')
+  if (modulesStart < 0 || navStart < modulesStart) {
+    throw new Error('v1.1 §二：详情页必须声明自己的详情级模块清单与导航组件')
+  }
+  const listedModules = [...client.slice(modulesStart, navStart).matchAll(/\['([a-z]+)',/g)].map((m) => m[1])
+  if (listedModules.join(',') !== moduleIds.join(',')) {
+    throw new Error(`v1.1 §二：详情级导航的模块是 ${moduleIds.join(' / ')}，实际是 ${listedModules.join(' / ')}`)
+  }
+  // 默认进入 **Skill 框架**：它是理解一个 Skill 的第一入口。默认值不是限制 ——
+  // 点「Skill 验收」必须立刻切到验收，中间不许有过渡页，也不许要求用户往下滚。
+  //
+  // `initialModule` 是给渲染烟测用的注入缝（同 `skill` / `modification` / `instanceTest` /
+  // `evaluation`）：桩里的 `useState` 不会重渲染，所以「点了别的维度之后那一屏」只能靠指定
+  // 初值渲染。这里钉的是**默认值**，也就是真实用户不传任何东西时看到的那一屏。
+  if (!component.includes("React.useState(initialModule ?? 'framework')")) {
+    throw new Error('v1.1 §三：进入详情页时默认打开的是 Skill 框架')
+  }
+  if (!component.includes('h(DetailNav, { active: detailModule, onSelect: setDetailModule, modules: availableModules })')) {
+    throw new Error('v1.1 §三：左侧导航必须直接切换右列内容 —— 它的唯一作用就是切这一列')
+  }
+  if (!component.includes("'data-role': `detail-module-${activeModule}`")) {
+    throw new Error('v1.1 §三：右列必须标出当前是哪一模块，否则「点哪个显示哪个」无法被验证')
+  }
+  // 左列让给导航，不再纵向堆三张事实卡。那三张卡没有删：它们进了 Definition 模块。
+  if (/sidePanel = h\('aside', \{ className: 'st-detail-side' \}, sideIdentity, sideEvolution/.test(component)) {
+    throw new Error('v1.1 §三：左列是详情导航，不再是纵向堆起来的 Definition / Repository / 血缘')
+  }
+  for (const wiring of [
+    'definition: [sideDefinition, sideRepository, sideEvolution]',
+    'document: [docPanel]',
+  ]) {
+    if (!component.includes(wiring)) {
+      throw new Error(`v1.1：模块内容接错了，缺少 ${wiring} —— 这是「模块提取」不是「功能删除」`)
+    }
+  }
+  // 详情级导航是**第二层**。多出一级导航（新的顶层入口）就不是这次重构要的东西了。
+  for (const forbidden of ['function SkillDashboard(', 'function SkillAnalytics(']) {
+    if (client.includes(forbidden)) throw new Error(`v1.1 §十三：不该新增 ${forbidden}`)
+  }
   console.log('SKILL_FIRST_DETAIL_OK')
 }
 
@@ -902,17 +951,46 @@ console.log('VISUAL_TOKENS_OK')
   for (const forbidden of ['ReactFlow', 'window.open', 'location.href']) {
     if (framework.includes(forbidden)) throw new Error(`a step click must stay inside this page, but the framework touches ${forbidden}`)
   }
-  // 顺序：验收 → 本次修改对比 → 框架 → 本次运行逻辑 → 步骤证据 → SKILL.md。位置反过来就是另一种产品
-  // （先读文档、再猜结构）；把运行逻辑排到框架前面，则是把「声明」读成「观察到」。
-  // v0.9.0 把「Skill 验收」加在最前：它回答的是「这份 Skill 现在符不符合规范」，是这一版的主问题；
-  // 而它同样是**声明层**的事实（只读 SKILL.md 与目录清单），排在运行逻辑之前不构成「用观测反推声明」。
-  // v0.9.1 的「本次修改对比」紧跟在验收后面：那两句回答的是同一个问题——「这次改完，现在是什么样」。
-  // 它只在一次修改事务里出现（`phase: 'idle'` 时组件自己返回 `null`），所以平时这一行并不占位置。
-  // v1.0 的「Skill 评测」卡紧跟在实例验收后面：前三块说的是「这次改了什么」，它说的是
-  // 「改完以后拿同一个 Case 跑两次看到了什么」。它是**观测层**的事实，所以同样必须排在
-  // 声明层的「框架 / 运行逻辑」之前 —— 顺序反了就会让人先读结构、再猜这次跑出了什么。
-  if (!/className: 'st-detail-main' \}, h\(SkillValidationPanel, \{ validation, validationFieldMissing \}\), skillModification, skillEvaluation, framework, runtimeLogic, stepEvidence, docPanel/.test(client)) {
-    throw new Error('the detail body must read 验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md, in that order')
+  // 顺序：v1.0 这几个模块是**纵向堆叠**的，所以那时的「顺序」是一条真正的读序 ——
+  // 验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md：声明层（验收/框架）
+  // 永远在观测层（评测/运行逻辑）之前，把运行逻辑排到框架前面就等于把「声明」读成「观察到」。
+  //
+  // v1.1 把这七块拆成**并列的详情维度**，先后关系不存在了（用户点哪个看哪个），
+  // 所以这里要钉的不再是「谁在谁前面」，而是两件更硬的事：
+  //   1. **每一维度都还在**，且接到的是它自己的内容 —— 接错或丢掉一个就是功能删除；
+  //   2. **默认那一维度是框架**，且 `framework` 只读声明流程（下面第 2 条另外钉死）。
+  const moduleMap = {
+    framework: '[framework]',
+    validation: '[h(SkillValidationPanel, { validation, validationFieldMissing })]',
+    evaluation: '[skillEvaluation]',
+    evidence: '[stepEvidence]',
+    runtime: '[runtimeLogic]',
+    modification: 'hasModification ? [skillModification] : []',
+    definition: '[sideDefinition, sideRepository, sideEvolution]',
+    document: '[docPanel]',
+  }
+  for (const [id, body] of Object.entries(moduleMap)) {
+    if (!client.includes(`${id}: ${body}`)) {
+      throw new Error(`v1.1 §三：详情模块 ${id} 必须接上它自己的内容（${body}）—— 模块提取不是功能删除`)
+    }
+  }
+  // 没有修改事务时「本次修改对比」整块不存在（§9.2 老规矩：常驻的空卡会被读成一种状态）。
+  // v1.1 之后它多了一层含义：既然那一屏没有内容，**导航里也不该留那一格** —— 点进去看空，
+  // 比看不到这一格更像坏掉。判定只许有一个来源：导航与内容共用同一个 `availableModules`。
+  if (!client.includes("const hasModification = Boolean(modifyState) && modifyState.phase !== 'idle'")) {
+    throw new Error('v1.1：没有修改事务的判据必须直接沿用 SkillModificationPanel 自己的分支（phase === idle）')
+  }
+  if (!client.includes("const availableModules = DETAIL_MODULES.filter(([id]) => id !== 'modification' || hasModification)")) {
+    throw new Error('v1.1：导航必须按 availableModules 收窄，不能把缺席的维度也列出来')
+  }
+  if (!client.includes('h(DetailNav, { active: detailModule, onSelect: setDetailModule, modules: availableModules })')) {
+    throw new Error('v1.1：DetailNav 必须收到 availableModules，否则导航与内容会各说各话')
+  }
+  if (!client.includes('const activeModule = availableModules.some(([id]) => id === detailModule) ? detailModule : \'framework\'')) {
+    throw new Error('v1.1：当前维度必须在 availableModules 里校验，缺席的维度要落回 Skill 框架')
+  }
+  if (client.includes('modificationEmpty')) {
+    throw new Error('v1.1：不要为「没有修改事务」造一个常驻空卡（§9.2）—— 整块不出现，导航也不留那一格')
   }
 
   // 3. 表格：一个解析器，两个读者。渲染器和翻译校验共用它，否则"画得出来"与"校验得过"
@@ -1473,6 +1551,238 @@ console.log('VISUAL_TOKENS_OK')
   console.log('SKILL_VALIDATION_OK')
 }
 
+// --- v1.1「Agent Skills Open Standard」与平台 Profile 的语义隔离 ------------------------
+// 这一组守的是 V1.1 的第二部分（§五 / §六 / §七）。它防的不是「少写了一条规则」，
+// 而是两种写出来毫无破绽、读起来也像对的东西：
+//
+//   1. **把平台约束说成开放标准。** 「OpenAI 只读 name/description」「Anthropic 允许
+//      compatibility」是**那一家**的口味。把它说成「标准要求」等于替标准立了一条它没立的规矩，
+//      用户照着改反而会更不像标准。
+//   2. **把 DSH 能加载当作标准通过。** 目录名与 name 不一致的 Skill，DSH 照样装得进来；
+//      标准上它就是不符。这两句话必须能分开说，否则「能跑」会一路冒充「合规」。
+//
+// 分工：`common` / `standard` 是标准层（Standard compliance），
+// `dsh` / `microsoft` / `openai` / `anthropic` 是平台层（Platform compatibility）。
+{
+  const profileSrc = await readFile(resolve(root, 'src/core/skill-profiles.mjs'), 'utf8')
+  const validationSrc = await readFile(resolve(root, 'src/core/skill-validation.mjs'), 'utf8')
+  const clientSrc = await readFile(resolve(root, 'src/dsh/client/client.js'), 'utf8')
+  const profiles = await import(pathToFileURL(resolve(root, 'src/core/skill-profiles.mjs')).href)
+  const skills = await import(pathToFileURL(resolve(root, 'src/core/skill-validation.mjs')).href)
+
+  // 两层必须真的分开：交集为空，并集正好是全部 Profile。
+  const standardIds = profiles.SKILL_STANDARD_PROFILE_IDS
+  const platformIds = profiles.SKILL_PLATFORM_PROFILE_IDS
+  const overlap = standardIds.filter((id) => platformIds.includes(id))
+  if (overlap.length > 0) {
+    throw new Error(`标准层与平台层不许重叠：${overlap.join(', ')} —— 一个 Profile 不能既是「标准」又是「某一家」`)
+  }
+  if ([...standardIds, ...platformIds].sort().join(',') !== [...profiles.SKILL_PROFILE_IDS].sort().join(',')) {
+    throw new Error('标准层与平台的并集必须正好是全部 Profile —— 多一层或漏一层，界面上就会少说或多说一层结论')
+  }
+  if (!standardIds.includes('standard') || platformIds.includes('standard')) {
+    throw new Error('v1.1 §五：Agent Skills Open Standard 必须是一个独立的标准层 Profile，不能挤在平台层里')
+  }
+  for (const id of profiles.SKILL_PROFILE_IDS) {
+    const kind = profiles.skillProfileKind(id)
+    const expected = standardIds.includes(id) ? 'standard' : 'platform'
+    if (kind !== expected) throw new Error(`${id} 的层次判定错了：得到 ${kind}，应当是 ${expected}`)
+  }
+  const kindLabels = profiles.SKILL_PROFILE_KIND_LABELS
+  if (kindLabels.standard.zh !== '标准合规' || kindLabels.platform.zh !== '平台兼容') {
+    throw new Error('「标准合规」与「平台兼容」这两个词不能说成别的（§五）—— 它们是两条不同的结论')
+  }
+
+  // CORE-DIR-001：`name` 必须与父目录同名。它属于**标准层**，而且是 error。
+  const dirRule = profiles.skillRuleById('CORE-DIR-001')
+  if (!dirRule) throw new Error('v1.1 §六：缺少 CORE-DIR-001（Skill name 必须与父目录名称一致）')
+  if (dirRule.profile !== 'standard' || dirRule.severity !== 'error') {
+    throw new Error('CORE-DIR-001 必须挂在标准层且是 error —— 它不是某一家平台的偏好（§六）')
+  }
+  if (!profiles.SKILL_PROFILE_RULES.standard.includes('CORE-DIR-001')) {
+    throw new Error('CORE-DIR-001 必须出现在 standard 层的规则清单里，否则它算不出来')
+  }
+  if (!/DSH/.test(dirRule.note)) {
+    throw new Error('CORE-DIR-001 的说明必须点明「DSH 能加载是平台宽容，不改标准结论」（§六）')
+  }
+  // 同一个事实在平台层仍然由 Microsoft 那条表达。并进标准层之后把平台那条删掉，用户就再也
+  // 看不到「这一家是怎么要求的」——两层说的是两件事，两条规则都要在。
+  const msRule = profiles.skillRuleById('MS-DIR-001')
+  if (!msRule || msRule.profile !== 'microsoft' || msRule.source !== 'microsoft') {
+    throw new Error('目录名一致性在平台层仍是 Microsoft 的要求：不能并进标准层就把平台那条删掉')
+  }
+
+  // §七 Rule Provenance：每条规则都要能追到「Rule ID / 结论 / 来源 / 说明」。
+  // 来源是**静态 metadata**，运行时不联网读取标准文档（§七）。
+  const sources = Object.values(profiles.SKILL_RULE_SOURCES)
+  for (const rule of profiles.SKILL_RULES) {
+    const view = profiles.skillRuleSourceView(rule.source)
+    if (!view.label || !view.reference) {
+      throw new Error(`规则 ${rule.id} 的来源「${rule.source}」没有静态 provenance（§七）`)
+    }
+    if (!profiles.SKILL_PROFILE_KINDS.includes(view.kind)) {
+      throw new Error(`规则 ${rule.id} 的来源层次不在「标准 / 平台」两值里：${view.kind}`)
+    }
+    if (!rule.note) {
+      throw new Error(`规则 ${rule.id} 缺少说明（§七要求 Rule ID / 结论 / 来源 / 说明四件都在）`)
+    }
+  }
+  const openStandard = profiles.SKILL_RULE_SOURCES.agentskills
+  if (!openStandard || openStandard.kind !== 'standard'
+    || openStandard.label.zh !== 'Agent Skills Open Standard'
+    || openStandard.label.en !== 'Agent Skills Open Standard') {
+    throw new Error('开放标准的来源标签必须是 Agent Skills Open Standard（中英一致），且属于标准层')
+  }
+  if (!openStandard.reference) {
+    throw new Error('开放标准的来源必须有出处（§七：来源要能追，不是一句「标准规定」）')
+  }
+  // 四家平台各自成条，来源能分开 —— 不允许把它们合成一个「平台们」的来源。
+  const platformSources = sources.filter((source) => source.kind === 'platform')
+  if (platformSources.length !== 4) {
+    throw new Error(`平台层的来源必须有四条（DSH / OpenAI / Anthropic / Microsoft），实际 ${platformSources.length} 条`)
+  }
+  // 「四个平台都要求」这种笼统说法没有证据：规则只按**实际写过它的那一家**标注来源。
+  for (const rule of profiles.SKILL_RULES) {
+    if (['all', '*', 'every', 'platforms'].includes(rule.source)) {
+      throw new Error(`规则 ${rule.id} 用了笼统来源「${rule.source}」：没有证据就不许写成「各家都要求」（§七）`)
+    }
+  }
+
+  // 语义隔离的**行为**证明：一份「DSH 装得进来但标准上不符」的 Skill。
+  // `available: true` 代表宿主确实读到了它，dirBad 仍然必须是 needs-fix —— 这正是要分开的两句话。
+  const body = '# pdf-tools\n\nUse when the user asks to fill a PDF form.\n'
+  const withDir = (directoryName) => skills.buildSkillValidation({
+    skillName: 'pdf-tools',
+    available: true,
+    content: `---\nname: pdf-tools\ndescription: Use when the user asks to fill a PDF form.\n---\n\n${body}`,
+    directoryName,
+  })
+  const dirSame = withDir('pdf-tools')
+  const dirOther = withDir('pdf-tools-v2')
+  const dirUnknown = withDir(null)
+
+  const findingOf = (report) => report.findings.find((finding) => finding.id === 'CORE-DIR-001')
+  if (findingOf(dirSame)) {
+    throw new Error('目录名与 name 一致时 CORE-DIR-001 必须通过（§六）')
+  }
+  const mismatch = findingOf(dirOther)
+  if (!mismatch) throw new Error('目录名与 name 不一致时 CORE-DIR-001 必须报错（§六）')
+  if (dirOther.status !== 'needs-fix') {
+    throw new Error('目录名与 name 不一致必须是 needs-fix —— 「DSH 能加载」不能把标准上的不符洗成通过（§六）')
+  }
+  // 标准层的结论不许写成某一家平台的要求。
+  for (const platformLabel of ['OpenAI', 'Anthropic', 'Microsoft']) {
+    if (mismatch.detail.includes(platformLabel)) {
+      throw new Error(`标准层的结论不许写成「${platformLabel} 要求」：那是平台约束，不是开放标准（§五）`)
+    }
+  }
+  // provenance 必须**跟着发现走**，而不是只挂在规则表上：用户看到的这一条要能自己说明出处。
+  if (mismatch.sourceKind !== 'standard' || mismatch.sourceLabel !== 'Agent Skills Open Standard') {
+    throw new Error('CORE-DIR-001 的发现必须带着标准层的 provenance（§七）')
+  }
+  if (!mismatch.note) throw new Error('CORE-DIR-001 的发现必须带说明（§七）')
+  // 取不到目录时是 unavailable / unknown，**不是** mismatch、更不是 pass（§六）。
+  const unknownDir = dirUnknown.rules.find((rule) => rule.id === 'CORE-DIR-001')
+  if (!unknownDir || unknownDir.state !== 'skipped') {
+    throw new Error('取不到父目录时 CORE-DIR-001 必须进「未判定」：读不到不等于不符合，也不等于通过（§六）')
+  }
+  if (dirUnknown.skipped.find((entry) => entry.id === 'CORE-DIR-001')?.reason !== 'no-directory-name') {
+    throw new Error('取不到父目录时的理由码必须是 no-directory-name')
+  }
+
+  // §六 Common Standard 补充：`license` / `metadata` / `allowed-tools` 三个可选字段。
+  // 关键是 allowed-tools —— 它是 experimental 且 optional，**没有不算错**。
+  const optional = (extra) => skills.buildSkillValidation({
+    skillName: 'pdf-tools',
+    available: true,
+    content: `---\nname: pdf-tools\ndescription: Use when the user asks to fill a PDF form.\n${extra}---\n\n${body}`,
+    directoryName: 'pdf-tools',
+  })
+  const bare = optional('')
+  for (const id of ['CORE-LIC-001', 'CORE-META-001', 'CORE-TOOLS-001']) {
+    if (bare.findings.some((finding) => finding.id === id)) {
+      throw new Error(`${id} 判的是可选字段的**形状**：字段没写不是问题（§六）`)
+    }
+    const rule = bare.rules.find((entry) => entry.id === id)
+    if (!rule || rule.state !== 'skipped') {
+      throw new Error(`${id} 在字段缺失时应当进「未判定」，而不是被算成通过或发现问题（§六）`)
+    }
+  }
+  if (bare.skipped.find((entry) => entry.id === 'CORE-TOOLS-001')?.reason !== 'optional-field-absent') {
+    throw new Error('没有 allowed-tools 时的理由码必须是 optional-field-absent')
+  }
+  // 写成映射 / 列表值就不是这三个字段该有的形状了 —— 这是这三条规则真正要报的东西。
+  // （`allowed-tools` 写成列表本来**就是对的**：它要的就是一张工具名列表。）
+  const shaped = optional('license:\n  name: MIT\nmetadata:\n  tags: [a, b]\nallowed-tools:\n  - Read\n')
+  for (const id of ['CORE-LIC-001', 'CORE-META-001']) {
+    if (!shaped.findings.some((finding) => finding.id === id)) {
+      throw new Error(`${id} 必须报出把标量写成映射这种形状问题（§六）`)
+    }
+  }
+  // allowed-tools 写成列表是**对**的（它本来就是工具名列表）。
+  if (shaped.findings.some((finding) => finding.id === 'CORE-TOOLS-001')) {
+    throw new Error('allowed-tools 写成列表本来就是它该有的形状，不许报错（§六）')
+  }
+  // 这三种判定都只能由标准层给出：平台 Profile 里不许再各抄一份。
+  for (const id of ['CORE-DIR-001', 'CORE-LIC-001', 'CORE-META-001', 'CORE-TOOLS-001']) {
+    const rule = profiles.skillRuleById(id)
+    if (rule.profile !== 'standard') throw new Error(`${id} 只属于标准层，不该挂在 ${rule.profile}`)
+  }
+
+  // Profile 汇总也要带上层次，并且默认那份（common + standard + dsh）正好是「两层各若干」。
+  const rollupKinds = Object.fromEntries(bare.profiles.map((profile) => [profile.id, profile.kind]))
+  if (rollupKinds.standard !== 'standard' || rollupKinds.common !== 'standard' || rollupKinds.dsh !== 'platform') {
+    throw new Error(`Profile 汇总必须标出自己属于标准层还是平台层，实际是 ${JSON.stringify(rollupKinds)}`)
+  }
+  // 客户端不能 import 核心模块（§6.6），所以这两层在界面上是**各写一份**的 ——
+  // 正因为如此，这里必须两边对账，而不是各信一份。
+  const kindsStart = clientSrc.indexOf('const VALIDATION_PROFILE_KINDS = [')
+  const kindsEnd = clientSrc.indexOf('const DETAIL_MODULES = [')
+  if (kindsStart < 0 || kindsEnd < kindsStart) {
+    throw new Error('客户端必须声明「标准合规 / 平台兼容」两层，用于分开渲染 Profile 汇总（§五）')
+  }
+  const clientKinds = [...clientSrc.slice(kindsStart, kindsEnd)
+    .matchAll(/\['([a-z]+)',\s*'([^']+)',\s*'([^']+)'\]/g)]
+    .map((match) => [match[1], match[2], match[3]])
+  if (clientKinds.map(([id]) => id).join(',') !== profiles.SKILL_PROFILE_KINDS.join(',')) {
+    throw new Error(`界面上的层次与核心模块不一致：${clientKinds.map(([id]) => id).join(',')} vs ${profiles.SKILL_PROFILE_KINDS.join(',')}`)
+  }
+  for (const [id, zh, en] of clientKinds) {
+    const label = profiles.SKILL_PROFILE_KIND_LABELS[id]
+    if (!label || label.zh !== zh || label.en !== en) {
+      throw new Error(`界面上「${id}」的层次标签与核心模块不一致`)
+    }
+  }
+  if (!clientSrc.includes("'data-role': `validation-kind-${kind}`")) {
+    throw new Error('验收卡必须把「标准合规」与「平台兼容」分成两组画出来（§五）')
+  }
+  if (!clientSrc.includes("'data-source-kind': finding.sourceKind ?? 'platform'")) {
+    throw new Error('每条结论都要在 DOM 上标出它来自标准层还是平台层（§七）')
+  }
+  if (!clientSrc.includes("'data-role': 'validation-provenance'")) {
+    throw new Error('每条结论都要显示来源（§七）：只看规则 id 看不出这条是谁说的')
+  }
+  if (!clientSrc.includes("'data-role': 'validation-rule-note'")) {
+    throw new Error('每条结论都要显示说明（§七）')
+  }
+  // 验收的限制说明里必须写清这两件事是两件事 —— 否则「DSH 能加载」又会被读成「标准通过」。
+  if (!skills.SKILL_VALIDATION_LIMITATIONS.some((line) => line.includes('标准合规') && line.includes('平台兼容'))) {
+    throw new Error('验收限制里必须写清「标准合规」与「平台兼容」是两件事（§五）')
+  }
+  // 语义隔离不能只写在注释里：核心模块的取值处必须真的分层次。
+  if (!profileSrc.includes('SKILL_PLATFORM_PROFILE_IDS') || !validationSrc.includes('skillProfileKind')) {
+    throw new Error('「标准 / 平台」的分层必须在核心模块的取值处真的发生，而不是只写在界面上')
+  }
+  // 运行时不联网读取标准文档（§七 / §十三）：这里不许出现任何取标准文档的调用。
+  for (const forbidden of ['fetch(', 'https://agentskills', 'XMLHttpRequest']) {
+    if (profileSrc.includes(forbidden)) {
+      throw new Error(`标准来源必须是静态 metadata，不许在运行时读标准文档：核心模块出现了 ${forbidden}（§七）`)
+    }
+  }
+
+  console.log('SKILL_STANDARD_ALIGNMENT_OK')
+}
+
 // --- v0.9.1「Skill 修改」：用户点的发送键，插件不碰文件 -------------------------------
 // 这一组守的是 V0.9.1 的边界，每一条都对应一次真实的设计决定：
 //
@@ -1692,8 +2002,15 @@ console.log('VISUAL_TOKENS_OK')
   if (!clientCode.includes("action: 'begin'") || !clientCode.includes("action: 'compare'")) {
     throw new Error('一次修改事务有两种动作：begin 发任务、compare 读结果，缺一边都走不通')
   }
-  if (!clientCode.includes('h(SkillValidationPanel, { validation, validationFieldMissing }), skillModification, skillEvaluation, framework, runtimeLogic, stepEvidence, docPanel')) {
-    throw new Error('详情页主列的顺序变了：验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md')
+  // v1.1：「本次修改对比」也成了一个详情维度，所以 V1.0 那句「主列顺序」的断言换成了
+  // 一条更贴题的。第一版曾经给它做了一个「这一维是空的」卡片，那是错的 —— §9.2 的老规矩
+  // 是**整块不出现**，常驻的空卡会被读成一种状态。现在改为：这一维不存在时，
+  // 内容与导航同时收窄（见 SKILL_FRAMEWORK_OK 段的 availableModules 断言）。
+  if (!clientCode.includes("if (phase === 'idle') return null")) {
+    throw new Error('v1.1：没有修改事务时这一块必须整块不出现（phase === idle 返回 null），不许改画空卡')
+  }
+  if (clientCode.includes('modification-empty')) {
+    throw new Error('v1.1：不要为「没有修改事务」造一个常驻空卡 —— 导航与内容一起收窄')
   }
   // 界面词表（§6.7）：这一段与验收卡同一条纪律 —— 不许出现声称「已经发生」的词与评分词。
   // 扫的是**去掉注释之后**的代码：注释不是消费者（同 §6.3 第 1 条，英文字典那次的教训）。

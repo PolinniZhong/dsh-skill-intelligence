@@ -24,6 +24,7 @@ import {
   SKILL_NAME_CHARSET_PATTERN,
   SKILL_NAME_MAX,
   SKILL_NAME_PATTERN,
+  SKILL_PROFILE_KIND_LABELS,
   SKILL_REFERENCE_DEPTH_MAX,
   SKILL_RESOURCE_DIRECTORIES,
   SKILL_RULES,
@@ -33,11 +34,13 @@ import {
   DSH_BOOLEAN_FALSE,
   DSH_BOOLEAN_TRUE,
   DSH_LEGACY_INVOCATION_FIELDS,
+  skillProfileKind,
+  skillRuleSourceView,
   skillRulesForProfiles,
   resolveSkillProfiles,
 } from './skill-profiles.mjs'
 
-export const SKILL_VALIDATION_SCHEMA_VERSION = 1
+export const SKILL_VALIDATION_SCHEMA_VERSION = 2
 
 /** 三态。`unknown` 是「判不了」，不是「通过」也不是「失败」。 */
 export const SKILL_VALIDATION_STATUSES = Object.freeze(['pass', 'needs-fix', 'unknown'])
@@ -69,6 +72,7 @@ export const SKILL_VALIDATION_LIMITATIONS = Object.freeze([
   '只有 scripts/ references/ assets/ 下的引用按资源判定；正文里提到的其它路径可能是在说宿主工程，不做判定。',
   '目录名与目录清单只在能定位到 Skill 目录时才检查；线上来源的 Skill 没有目录。',
   '安全两条只报告观测到的字面模式，不代表这份 Skill 的意图。',
+  '「标准合规」与「平台兼容」是两件事：前者看 Agent Skills 开放标准本身，后者看某一家平台能不能装载。DSH 能加载一个 Skill，不代表它在标准上没有问题；反过来也一样。',
 ])
 
 /** 常见于描述触发场景的词。命中其一就不再提醒；不命中只是提醒，不是错误。 */
@@ -663,15 +667,31 @@ export function skillValidationStatusLabel(value, language = 'zh') {
   return language === 'en' ? labels.en : labels.zh
 }
 
-/** 一条规则的展示投影。 */
+/**
+ * 一条规则的展示投影 —— 这就是 §七「Rule Provenance」的载体。
+ *
+ * 每条结果都带得走四件事：规则 id（`id`）、结论（`state` + `detail`）、
+ * 来源（`source` + `sourceLabel` + `sourceKind` + `sourceReference`）、说明（`note`）。
+ *
+ * `sourceKind` 只有 `'standard'` / `'platform'` 两个取值，界面据此把结果分成
+ * 「标准合规」与「平台兼容」两块 —— 平台约束不会被说成标准违反。
+ *
+ * `note` 是**口径声明**：这条规则在断言什么、为什么这么判、什么情况下判不了。
+ * 它是静态来源记录，不是运行时去网上读标准文档（§七明确不做联网）。
+ */
 function ruleView(rule) {
+  const source = skillRuleSourceView(rule.source, 'zh')
   return {
     id: rule.id,
     profile: rule.profile,
     severity: rule.severity,
     title: rule.title,
     fact: rule.fact,
+    note: typeof rule.note === 'string' ? rule.note : '',
     source: rule.source,
+    sourceLabel: source.label,
+    sourceKind: source.kind,
+    sourceReference: source.reference,
   }
 }
 
@@ -685,8 +705,11 @@ function buildProfileRollup(id, rules, findings, skipped) {
   const info = myFindings.filter((finding) => finding.severity === 'info').length
   const mineSkipped = skipped.filter((entry) => ids.has(entry.id)).length
   const judged = mine.filter((rule) => rule.state !== 'skipped').length
+  const kind = skillProfileKind(id)
   return {
     id,
+    kind,
+    kindLabel: SKILL_PROFILE_KIND_LABELS[kind] ?? { zh: kind, en: kind },
     label: SKILL_PROFILE_LABELS[id] ?? { zh: id, en: id },
     note: SKILL_PROFILE_NOTES[id] ?? null,
     status: errors > 0 ? 'needs-fix' : judged === 0 ? 'unknown' : 'pass',
@@ -893,6 +916,88 @@ const EVALUATORS = {
       (found) => `第 ${found.line} 行出现「${found.label}」形态的指令。`,
     ),
   }),
+
+  // --- Agent Skills Open Standard --------------------------------------------
+  // 这一层的判定只回答「符合开放标准吗」，不回答「某家平台能不能装载」。
+  // 平台层的 MS-DIR-001 / OA-DIR-001 关心同一件事，但它们各自有出处，所以各判各的。
+  'CORE-DIR-001': (ctx) => {
+    if (!ctx.directoryName) return { reason: 'no-directory-name' }
+    if (!ctx.name) return { reason: 'name-missing' }
+    if (ctx.directoryName === ctx.name) return { details: [] }
+    return {
+      details: [
+        `开放标准要求 name 与父目录同名：目录是 \`${ctx.directoryName}\`，frontmatter 的 name 是 \`${ctx.name}\`。` +
+          '这是标准层面的结论，与 DSH 能不能加载这个 Skill 无关。',
+      ],
+    }
+  },
+  'CORE-LIC-001': (ctx) => {
+    const entry = ctx.scan.topLevel.find((item) => item.key === 'license')
+    if (!entry) return { reason: 'optional-field-absent' }
+    if (entry.opens) {
+      return {
+        details: [
+          `第 ${entry.line} 行的 \`license\` 写成了嵌套结构：标准把 license 当成一个字符串（许可名或随包许可文件的引用）。`,
+        ],
+      }
+    }
+    const raw = typeof entry.raw === 'string' ? entry.raw.trim() : ''
+    if (raw.startsWith('[')) {
+      return { details: [`第 ${entry.line} 行的 \`license\` 是一个列表：标准期望一个字符串。`] }
+    }
+    if (raw.startsWith('{')) {
+      return { details: [`第 ${entry.line} 行的 \`license\` 是一个映射：标准期望一个字符串。`] }
+    }
+    return { details: [] }
+  },
+  'CORE-META-001': (ctx) => {
+    const entry = ctx.scan.topLevel.find((item) => item.key === 'metadata')
+    if (!entry) return { reason: 'optional-field-absent' }
+    const details = []
+    const raw = typeof entry.raw === 'string' ? entry.raw.trim() : ''
+    if (!entry.opens && raw !== '') {
+      if (raw.startsWith('[')) {
+        details.push(`第 ${entry.line} 行的 \`metadata\` 是一个列表：标准要求它是键值映射。`)
+      } else if (!raw.startsWith('{')) {
+        details.push(`第 ${entry.line} 行的 \`metadata\` 是一个标量：标准要求它是键值映射。`)
+      }
+    }
+    for (const item of ctx.scan.entries) {
+      if (!item.path.startsWith('metadata.')) continue
+      if (item.path.split('.').length > 2 || item.opens) {
+        details.push(
+          `第 ${item.line} 行的 \`${item.path}\` 是嵌套集合：标准把 metadata 定义为一层的键值映射。`,
+        )
+        continue
+      }
+      const value = typeof item.raw === 'string' ? item.raw.trim() : ''
+      if (value.startsWith('[') || value.startsWith('{')) {
+        details.push(
+          `第 ${item.line} 行的 \`${item.path}\` 不是字符串值：标准把 metadata 定义为字符串到字符串的映射。`,
+        )
+      }
+    }
+    return { details }
+  },
+  'CORE-TOOLS-001': (ctx) => {
+    const entry = ctx.scan.topLevel.find((item) => item.key === 'allowed-tools')
+    // 没有这个字段不是问题：标准把它列为 experimental 且 optional。
+    if (!entry) return { reason: 'optional-field-absent' }
+    const raw = typeof entry.raw === 'string' ? entry.raw.trim() : ''
+    // 两种「写成映射」的写法：流式（`{Read: true}`）与块式（下一层缩进的键值对）。
+    // 判据不能只看 `entry.opens` —— 它把**正确**的块式列表（`allowed-tools:` + `- Read`）
+    // 也标成打开状态。块式列表的那几行进的是 `unsupportedLines`，不产生子条目；
+    // 而块式映射会产生 `allowed-tools.Read` 这样的子条目。所以这里数的是子条目。
+    const nestedMapping = ctx.scan.entries.some((item) => item.path.startsWith('allowed-tools.'))
+    if (raw.startsWith('{') || nestedMapping) {
+      return {
+        details: [
+          `第 ${entry.line} 行的 \`allowed-tools\` 是一个映射：标准把它当成工具名列表（experimental 字段）。`,
+        ],
+      }
+    }
+    return { details: [] }
+  },
 
   // --- DSH Profile -----------------------------------------------------------
   'DSH-NAME-001': (ctx) => {
