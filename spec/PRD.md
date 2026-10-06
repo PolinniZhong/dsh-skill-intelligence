@@ -506,7 +506,7 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 - **`FR-ORD-007`**：列表上方有一句话说明按什么排：有时间时说「按加入本机的时间倒序：最近加入的排在最前。」；有读不到时间的时候要**报数**（「另有 N 个 Skill 读不到加入时间，按名称排在最后。」）；一个都读不到时说「读不到加入本机的时间，这里按名称排列。」。响应里没有 `ordering` 时**整句不出现**——不许从看到的第一行倒推顺序。
 - **`FR-ORD-008`**：`ordering.addedAtKnown / addedAtUnknown` 统计的是**整个目录**，不是这一次搜索过滤之后的结果：换一个搜索词不得改变「这台机器上有几个 Skill 说得出来加入时间」。
 - **`FR-ORD-009`**：三种「读不到」要如实分开，用限制码表达：`added-at-unavailable`（一个都读不到）、`added-at-partial`（只读到一部分）、`lineage-unavailable`（宿主没给出可读的血缘）。**「没有复刻过」与「读不到复刻记录」不许混为一谈**：后者还要多一句「读不到复刻记录，所以卡片上没有「复刻自」那一行。」。
-- **`FR-ORD-010`**：排序**不新增路由**：宿主仍是 **12 条**，`GET /skill-trace/catalog` 的响应新增 `ordering`，每个 Skill 新增 `addedAt` 与 `lineage`；两处读盘（目录 birthtime、血缘库 `list()`）都是只读，失败**不抛错**、按 §5.11 的限制码降级。要再加路由必须同时改 `AGENTS.md` §6.12 与 `spec/SDD.md` §3。
+- **`FR-ORD-010`**：排序**不新增路由**：宿主仍是 **12 条**（`0.9.2` 口径；V1.0 起是 **13 条**，见 §5.13），`GET /skill-trace/catalog` 的响应新增 `ordering`，每个 Skill 新增 `addedAt` 与 `lineage`；两处读盘（目录 birthtime、血缘库 `list()`）都是只读，失败**不抛错**、按 §5.11 的限制码降级。要再加路由必须同时改 `AGENTS.md` §6.12 与 `spec/SDD.md` §3。
 - **`FR-ORD-011`**：已知限制如实登记：这个排序说的是「**文件什么时候出现在本机**」，不是「作者什么时候写的」、不是「最后一次修改」、也不是「用过几次」；被复制 / 解压 / 同步过来的目录会带着各自的 birthtime。它**不**提供历史版本对比，也**不**提供用户自定义排序（顺序不是偏好，不写进偏好存储）。
 - **`FR-ORD-012`**：`FR-SKL-007` 的客户端本地搜索与 `FR-SKL-008` 的字段边界不变：排序只改顺序，不扩投影白名单，也不把收据或学习状态带进这个列表。
 - **`FR-ORD-013`**：卡片元信息里**只说例外，不说默认**（2026-10-03 用户：「模型可调用、可用 `/name` 调用，这两个是不是重复？」——不是重复，DSH 的两个开关彼此独立、四种组合都合法，但真机实测 69 个 Skill 全是 `{modelInvocable:true, userInvocable:true}`，于是每张卡都在重复同一句恒为真的话）：①调用方式**只在开关为 `false` 时**出字（「不可由模型调用」/「不能用 `/name` 调用」），默认成立的组合一个字都不写；②`provider` 为默认的 `filesystem` 时不写，只有插件等非常规来源才写出来。载荷里缺字段（`undefined`）**不得**被念成「不成立」——那是编出来的断言，判断用严格的 `=== false`。
@@ -548,7 +548,7 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 
 ### 5.13 Skill Evaluation（`FR-EVAL-*`，V1.0，已随 `1.0.0` 发布）
 
-> **这一节是路线与需求，不是现状。** 下面每一条在实现、守卫与真机验收之前，**都不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备**。它的价值在于：在动手之前把「这一版不做评分器」这句话拆成可执行的边界。
+> **这一节里 V1.0 的部分已随 `1.0.0` 发布**（见本文件头部「版本与实测状态」与 §10.2）；**V1.1 及以后的条目仍是路线与需求，不是现状**：每一条在实现、守卫与真机验收之前，**都不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备**。它的价值在于：在动手之前把「这一版不做评分器」这句话拆成可执行的边界。
 >
 > **外部依据（逐条核过原文，2026-10-03）**：`SWE-Skills-Bench`（arXiv 2603.15401）实测 **49 个公开 SWE Skill 里 39 个对通过率零增益，平均只有 +1.2%，3 个把表现拖低最多 10%，token 开销最高 +451%**；综述 `Agent Skill Evaluation and Evolution`（arXiv 2606.11435）指出既有指标「忽略 token 成本、延迟与错误类型」，且 §4 明确 **no existing benchmark evaluates evolution longitudinally**。官方生态里把评测闭环放进 Skill Creator 的是 **Anthropic**（`anthropics/skills` 的 `skills/skill-creator/SKILL.md`：`eval` / `baseline` / `with-skill` / `assertion` / `variance` / `trigger eval` 都在，带 `aggregate_benchmark.py` / `run_eval.py` / `grader.md` / `comparator.md`）；**OpenAI** 的 `skill-creator/SKILL.md` 只有 `quick_validate.py` 与「按真实使用迭代」，**没有**任何评测闭环。
 
@@ -736,8 +736,8 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 
 ### 10.2 宿主面
 
-- 宿主路由 `0.8.0` 口径 **11 条**（`0.9.2` 发布口径 **12 条**，第 12 条是 §5.10 的 `POST /skill-trace/modify`），全部在 `src/dsh/host/index.js`，由守卫按字面钉住：`GET /skill-trace/context`、`GET /skill-trace/definition`、`POST /skill-trace/translate`、`GET /skill-trace/catalog`、`GET /skill-trace/skills`、`GET /skill-trace/skill`、`POST /skill-trace/preferences`、`GET /skill-trace/translation`、`DELETE /skill-trace/translation`、`POST /skill-trace/clone`、`GET /skill-trace/diff`（V0.8 新增，§5.7）。
-  **（以代码为准）** 归档 PRD 的 §12.1 / §16.6 与 `DEC-27` 写的是「7 条」，其中含 `/installed`；实测没有 `/installed`，多出 `/catalog`、`/translation`（GET + DELETE）、`/clone` 与 `/diff`；`0.9.2` 发布口径再加 `/modify`（§5.10，只记内存与代发消息，**不写文件**）。`0.8.0` 时守卫按字面匹配这 11 条，`0.9.2` 发布口径匹配 12 条，并反向钉住 15 条已删路由。§5.11 的排序**不在这张表里**：它只往 `GET /skill-trace/catalog` 的响应里加 `ordering` 与每个 Skill 的 `addedAt` / `lineage`，条数不变。
+- 宿主路由 `0.8.0` 口径 **11 条**（`0.9.2` 发布口径 **12 条**，第 12 条是 §5.10 的 `POST /skill-trace/modify`；`1.0.0` 发布口径 **13 条**，第 13 条是 §5.13 的 `POST /skill-trace/evaluation`），全部在 `src/dsh/host/index.js`，由守卫按字面钉住：`GET /skill-trace/context`、`GET /skill-trace/definition`、`POST /skill-trace/translate`、`GET /skill-trace/catalog`、`GET /skill-trace/skills`、`GET /skill-trace/skill`、`POST /skill-trace/preferences`、`GET /skill-trace/translation`、`DELETE /skill-trace/translation`、`POST /skill-trace/clone`、`GET /skill-trace/diff`（V0.8 新增，§5.7）。
+  **（以代码为准）** 归档 PRD 的 §12.1 / §16.6 与 `DEC-27` 写的是「7 条」，其中含 `/installed`；实测没有 `/installed`，多出 `/catalog`、`/translation`（GET + DELETE）、`/clone` 与 `/diff`；`0.9.2` 发布口径再加 `/modify`（§5.10，只记内存与代发消息，**不写文件**）。`0.8.0` 时守卫按字面匹配这 11 条，`0.9.2` 发布口径匹配 12 条，`1.0.0` 发布口径匹配 13 条，并反向钉住 15 条已删路由。§5.11 的排序**不在这张表里**：它只往 `GET /skill-trace/catalog` 的响应里加 `ordering` 与每个 Skill 的 `addedAt` / `lineage`，条数不变。
   **V0.9.0 的验收没有新增路由**（`0.9.2` 发布口径，§5.9）：`GET /skill-trace/skill` 与 `GET /skill-trace/definition` 两条响应各多一个同级字段 `validation`，宿主里由同一个 `validationFor()` 产出。
 - 集成点：`ctx.skills.snapshot()`（读发现结果与完整性，作 `buildInstalledView` 输入）；`ctx.skills.get(name)`（用户进详情时按需读取当前定义）；`skills/change`（触发目录重新读取，不作为增删改明细）；`session/event`（观察 Session 事件）；`session/flush`（本地收据一致性收口）；`ctx.llm`（**唯一模型调用入口**，只在用户触发翻译时使用一次）；`ctx.sessionPersistence`（恢复 / 读取既有事件能力）。
 - **宿主改了必须重启 DSH**：宿主把模块读进内存后不会自动换，不重启打接口得到的是旧答案，而且它答得很正常、不会报错。客户端半边硬刷新浏览器即可。
@@ -883,7 +883,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 | 文档 | 管什么 |
 |---|---|
 | `AGENTS.md` | 当前状态（版本 / 测试数 / 路由数）与硬性技术约束；**冲突时以 `AGENTS.md` §1 + 源码 + 测试为准** |
-| `spec/SDD.md` | 当前架构的唯一权威：分层、路由表（V0.8 起 11 条；`0.9.2` 起 12 条）、数据流、存储与隐私、模块清单 |
+| `spec/SDD.md` | 当前架构的唯一权威：分层、路由表（V0.8 起 11 条；`0.9.2` 起 12 条；`1.0.0` 起 13 条）、数据流、存储与隐私、模块清单 |
 | `design.md` | 界面视觉与组件规格（Token、字号带、间距、组件合同表、页面状态）；**不复述视觉数值，以它为准** |
 | `docs/ARCHITECTURE.md` | 运行时那条链的深读：事件 → 收据 → 定义视图，以及布局合同与删除记录 |
 | `docs/PRIVACY.md` | 隐私边界 |

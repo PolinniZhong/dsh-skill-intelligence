@@ -3,7 +3,7 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0.1）。**`1.0.0` 是当前待发布（本次发布）的版本**，版本号已由用户定为 `1.0.0`：本次发布是 **V1.0「Skill Evaluation」**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`）。**注意 V1.0 是宿主半边改动**（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），发版前必须先重启 DSH 做真机验收（`AGENTS.md` §6.2），并确认 `dist/client.js` 已重建。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
+**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0.1）。**`1.0.0`（V1.0「Skill Evaluation」，`spec/PRD.md` §5.13 的 `FR-EVAL-*`）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0：发布提交 `3cca1ae`、CI run `37335200103`）。它是宿主半边改动（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），验收时按 `AGENTS.md` §6.2 重启过 DSH。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
 
 > **`0.10.0` 的发布扫描（2026-10-05）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
 > `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.10.0` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`
@@ -25,13 +25,13 @@
 | npm | `beta` 与 `latest` **都指向 `0.10.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
 | 工作区 | 干净（`git status --porcelain` 无输出） |
 
-**当前实测（2026-10-05；接手本次发布前先读这一段）**：**`1.0.0` 是当前待发布（本次发布）的版本，版本号已由用户定为 `1.0.0`**（起点 = `0.10.0` 的发布提交，`main` 与 `origin/main` 同步、工作区干净；远端最新 tag 是 `v0.10.0`，npm 上 `beta` / `latest` 都指向 `0.10.0`）。本次发布是 **V1.0「Skill Evaluation」**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`）——它新增了本机落盘（`<dataRoot>/evaluation/`，用户 2026-10-05 已授权）与第 13 条路由 `POST /skill-trace/evaluation`；发版前必须先重启 DSH 做真机验收（它是宿主半边改动）。**上表是 `0.10.0` 发布当天那一刻的快照，是本次发布的起点。**
+**当前实测（2026-10-05；接手下一次发布前先读这一段）**：**`1.0.0` 已于 2026-10-05 发布**（见 §6.0 实测结果）。本次发布是 **V1.0「Skill Evaluation」**（`spec/PRD.md` §5.13 的 `FR-EVAL-*`）——它新增了本机落盘（`<dataRoot>/evaluation/`，用户 2026-10-05 已授权）与第 13 条路由 `POST /skill-trace/evaluation`；发版前已按 `AGENTS.md` §6.2 重启 DSH 做真机验收（它是宿主半边改动）。**上表是 `0.10.0` 发布当天那一刻的快照，是本次发布已经走过的起点。**
 
-**版本号：已由用户定为 `1.0.0`**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。发版那天要做的是把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题——`0.9.2` 这次两件事都是这么做的（见 `CHANGELOG.md` 的 `## 0.9.2`）。
+**版本号：已由用户定为 `1.0.0`，并已于 2026-10-05 发布**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。这次发版已经把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题（`## 1.0.0`）——`0.9.2` 那次两件事也是这么做的（见 `CHANGELOG.md` 的 `## 0.9.2`）。
 
 **第二个要决定的事是 npm —— 从 `0.6.1` 起每一版都是 GitHub + npm 两边一起发。** `0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。npm 包名**不因为品牌迁移而改**——已发布，改名会让安装命令与 `github:` 锚点全部失效。
 
-**第三个要决定的事是「什么都不改」的边界。** 技术层（`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]`、storage 结构与 `dsh-skill-trace` 命名空间）与用户理解层是两层；改用户可见措辞时，不要顺手改技术层。守卫按字面钉住那 12 条路由与 15 条已删路由：发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是把一个被删掉的界面带回来了。
+**第三个要决定的事是「什么都不改」的边界。** 技术层（`/skill-trace/*` 路由、模块名、`[data-plugin="dsh-skill-trace"]`、storage 结构与 `dsh-skill-trace` 命名空间）与用户理解层是两层；改用户可见措辞时，不要顺手改技术层。守卫按字面钉住那 13 条路由与 15 条已删路由：发布前如果 `PROJECT_STRUCTURE_OK` 或 `CLIENT_CONTRACT_OK` 报出多出来的路由或页面，那不是要更新守卫，是要先问一句它是不是把一个被删掉的界面带回来了。
 
 **tag 打在 §2 的发布提交上**（也就是推送时 `main` 的顶端）。历史上踩过一次：`bc78e53 release: v0.4.0-beta.69 …` 落在当时的 `HEAD` 之前 9 个提交处，照 commit message 找 tag 位置就会漏掉之后 9 个提交的修复。规则很简单——**tag 名与 `package.json` 的版本逐字相同（带 `v` 前缀），打在当时 `main` 的顶端**。
 
@@ -78,9 +78,9 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 > 后两处是 2026-10-02 加进来的：`spec/` 收拢了当前版 PRD 与 SDD，而它们把版本号和几项实测数字**写死在正文里**。
 > `RELEASE_ASSETS_IN_SYNC_OK` 管不到它们——那条守卫只看 `README.md`。漏改的症状是「规格文档说 0.7.0、包说 0.8.0」。
 
-> **这张表和 `AGENTS.md` §9.1 的「六处」不是同一张表，别对着数。** 这里列的是**发布资产里版本字符串必须逐字相同**的文件（发布前用）；§9.1 列的是**发版后需要顺手更新的状态类文字**（发布后用），因此多出 `AGENTS.md` §1 自己的版本行与 `docs/RELEASE.md` 的「本次发布的起点」表。
+> **这张表和 `AGENTS.md` §9.1 的「八处」不是同一张表，别对着数。** 这里列的是**发布资产里版本字符串必须逐字相同**的文件（发布前用）；§9.1 列的是**发版后需要顺手更新的状态类文字**（发布后用），因此多出 `AGENTS.md` §1 自己的版本行、`docs/RELEASE.md` 的「本次发布的起点」表、`docs/ARCHITECTURE.md` 与 `design.md` 的版本口径段，以及发布后要回填并逐级下移的 `docs/RELEASE.md` §6.0 实录。
 >
-> 两张表的**唯一缺口**在本表这一侧：`AGENTS.md` §1 的版本号也必须等于 `package.json`，而它不在这五个「发布资产」里。所以**发布前请配合 §9.1 第 1 条一起看**，别只照本表改。
+> 两张表**互相补位**：`AGENTS.md` §1 的版本号也必须等于 `package.json`，而它不在这五个「发布资产」里；`docs/ARCHITECTURE.md` 与 `design.md` 的版本口径段更是没有任何守卫盯着。所以**发布前请配合 §9.1 第 1、7 条一起看**，别只照本表改。
 
 ---
 
@@ -337,7 +337,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 本地门槛 | **636 项测试全绿**（52 个测试文件）；**30 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **228715 字节**（source hash `54bee3888d0299d8`），重建后 `git status` 无 `dist` 差异 |
 | 发布提交 / tag | `3cca1ae release: v1.0.0 — Skill 评测（Evaluation Case / Run / 对照 / 四段证据）`（`package.json` `1.0.0`，2026-10-05）；注释 tag `v1.0.0` → 对象 `c5272f4dcb960ee4d5733c3aab69cebb41ac58b9` |
 | GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v1.0.0>（`gh release create v1.0.0`，正文取自 `CHANGELOG.md` 的 `## 1.0.0` 段） |
-| npm | `dsh-skill-trace@1.0.0`，`gitHead` = `3cca1aed2eeb3f32bfb1a16698123a54dd7124bd`（= 发布提交）；`dist-tags` 的 `latest` 与 `beta` **都指向 `1.0.0`` |
+| npm | `dsh-skill-trace@1.0.0`，`gitHead` = `3cca1aed2eeb3f32bfb1a16698123a54dd7124bd`（= 发布提交）；`dist-tags` 的 `latest` 与 `beta` **都指向 `1.0.0`** |
 | 净室安装 | 本次**未做**净室安装（发版当天只回读了 registry：`npm view dsh-skill-trace@1.0.0` 能取到 `version` / `gitHead` / `dist.tarball`）——下游若报安装问题，先照 `0.10.0` 那次的净室步骤补做 |
 | 推送 / 凭证 | **本地没用到任何 npm 凭证**（只推 tag，OCI 由 workflow 走 OIDC）。推送本身很吃力：直连 `Failed to connect to github.com port 443 after 75005 ms`，`140.82.114.4` / `140.82.121.4` → `Empty reply from server`，`140.82.112.3` → `SSL connection timeout`；最终用 `git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.113.4 push origin main`（`033a50b..3cca1ae`）与同名命令推 `v1.0.0` 成功。**可达 IP 当天有效**：`140.82.114.4` / `140.82.121.4` / `140.82.112.3` / `140.82.113.4` / `20.27.177.113` 的 `ls-remote` 都能通，但**只有最后一次 push 真的落地** |
 | CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37335200103](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37335200103)，**success**：OIDC 发布 npm 并把 `beta` 指到同一版 |
@@ -515,7 +515,9 @@ python3 -c 'import json; d=json.load(open("/tmp/translate-probe.json")); print(s
 
 **客户端侧**：横幅里出现「**模型把原文原样返回了**」这九个字，说明 `13a68df` 的客户端在跑（这个字符串是那一版才加进 `TRANSLATION_RULE_TEXT` 的）。它是 `dist/client.js` 里的内容，同样由 §6.4 的文件比对覆盖。
 
-### 6.5c 这一版**没有新路由**，所以没有路由探针
+### 6.5c 反例：没有新路由的那一版，就没有路由探针
+
+> **这是历史记录，不是本版的形状。** `1.0.0`（V1.0）**有**新路由（第 13 条 `POST /skill-trace/evaluation`），所以它照 §6.5 的路由探针走；下面这一段留的是「某一版没有任何新路由时，验收只能靠人眼」的实例。
 
 四层（框架 / 本次运行逻辑 / 步骤证据 / 表格）全在客户端，它们的视图模型也只在 `buildSkillDetail()` 里
 组装（`src/core/skill-view-model.mjs` 新增两支 import，宿主 `src/dsh/host/index.js` 一行没改，路由表
