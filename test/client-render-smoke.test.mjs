@@ -512,9 +512,9 @@ test('the client registers and its entry component renders without throwing', as
   // 也测不出目录条目截断写错 —— 它只证明「多了不少东西」。
   const listNodes = collect(views.CurrentSkillPage({ sessionId: 's', onOpen() {}, loadedSkillCount: 2, onMeta() {}, onRetry() {}, list: skillListFixture }))
   // v1.1：详情页从「一屏把六块堆完」改成「一屏一维」。所以「整页渲染出什么」现在是**每一维
-  // 依次渲染一次**的并集 —— 八次渲染加起来正好是重构前那一屏的内容，只是不再假设它们同帧。
+  // 依次渲染一次**的并集 —— 九次渲染加起来正好是重构前那一屏的内容，只是不再假设它们同帧。
   // 下面的断言因此一句没改：每一维仍然是「真的渲染成正确的形状」，而不是「节点数变了」。
-  const DETAIL_PROBE_MODULES = [undefined, 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document']
+  const DETAIL_PROBE_MODULES = [undefined, 'evidence-model', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document']
   const detailFrames = (skill) => DETAIL_PROBE_MODULES.flatMap((initialModule) =>
     collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill, initialModule })))
   const detailNodes = detailFrames(skillDetailFixture)
@@ -601,15 +601,16 @@ test('the client registers and its entry component renders without throwing', as
   assert.ok(missingFieldText.includes('这次详情响应里没有验收结果。'), 'a response with no validation field says the host is old, not that the Skill failed')
   assert.ok(!missingFieldText.includes('不符合规范'), 'a missing field must never be read as a verdict')
 
-  // 2e. v1.1「详情级导航」：详情页第一屏只渲染一个维度，默认是 Skill 框架；左列八个按钮各自
-  //     写明它切到哪一维。桩里的 `useState` 不会重渲染，所以「点完之后右侧换成什么」由上面
-  //     `detailFrames` 的逐维渲染覆盖；这里验的是**接线**：点哪一项就选中哪一维。
+  // 2e. v1.1「详情级导航」：详情页第一屏只渲染一个维度，默认是 Skill 框架；左列九个按钮各自
+  //     写明它切到哪一维（V1.2 加了「Skill 证据」，所以是九个）。桩里的 `useState` 不会重渲染，
+  //     所以「点完之后右侧换成什么」由上面 `detailFrames` 的逐维渲染覆盖；这里验的是**接线**：
+  //     点哪一项就选中哪一维。
   const navPicked = []
   const navNodes = collect(views.DetailNav({ active: 'framework', onSelect: (id) => navPicked.push(id) }))
   const navItems = navNodes.filter((node) => typeof node.props['data-module'] === 'string')
   assert.deepEqual(navItems.map((node) => node.props['data-module']),
-    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document'],
-    'the detail nav lists the eight dimensions in order, starting from Skill 框架')
+    ['framework', 'evidence-model', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document'],
+    'the detail nav lists the nine dimensions in order, starting from Skill 框架')
   assert.equal(navItems.filter((node) => node.props['data-active'] === 'true').length, 1, 'exactly one dimension is the current one')
   assert.equal(navItems[0].props['data-active'], 'true', 'Skill 框架 is the dimension the detail page opens on')
   assert.equal(navItems[0].props['aria-current'], 'page', 'the current dimension is announced, not only coloured')
@@ -627,13 +628,13 @@ test('the client registers and its entry component renders without throwing', as
   const view = (extra) => collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture, ...extra }))
   const navOf = (nodes) => nodes.filter((node) => typeof node.props['data-module'] === 'string' && typeof node.props['data-role'] === 'string' && node.props['data-role'].startsWith('detail-nav-'))
   assert.deepEqual(navOf(view({})).map((node) => node.props['data-module']),
-    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'definition', 'document'],
+    ['framework', 'evidence-model', 'validation', 'evaluation', 'evidence', 'runtime', 'definition', 'document'],
     'with no modification transaction the nav leaves out 本次修改对比, and points at nothing else')
   assert.deepEqual(navOf(view({ modification: { phase: 'idle' } })).map((node) => node.props['data-module']),
-    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'definition', 'document'],
+    ['framework', 'evidence-model', 'validation', 'evaluation', 'evidence', 'runtime', 'definition', 'document'],
     'phase idle is the same thing as "no transaction" — the nav must not grow a dead entry')
   assert.deepEqual(navOf(view({ modification: { phase: 'waiting' } })).map((node) => node.props['data-module']),
-    ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document'],
+    ['framework', 'evidence-model', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document'],
     'once a transaction exists the dimension appears, in its declared place')
   // 缺席的那一维即使被点名也落回默认：`activeModule` 与导航查的是同一个清单。
   assert.deepEqual(collect(views.SkillDetailPage({ sessionId: 's', skillName: 'code-review', skill: skillDetailFixture, initialModule: 'modification' }))
@@ -1071,6 +1072,75 @@ test('step evidence shows the grounds behind each state', () => {
 
   // flow 为 null 时不能抛。
   assert.ok(collect(client.__views.StepEvidence({ flow: null })).length > 0, 'a missing flow renders rather than throwing')
+})
+
+// ── Skill 证据（V1.2）──────────────────────────────────────────────────────────
+//
+// 这张卡整屏都是措辞，而它最容易出的错不是白屏，是**把「没看到」写成「没发生」**，或者
+// 把「加载过 + 同一 Turn 里有工具调用」顺成「Skill 起作用了」。这两句话在源码层面与正确的
+// 实现长得一模一样（同一个 `unavailable` 分支、同一份计数），只有把卡真的渲染出来才看得见。
+// 所以下面的断言都是句子的性质，不是节点数量。
+
+test('the evidence card states the nature of each conclusion, and never upgrades evidence to causation', () => {
+  const client = mountChineseClient()
+  const fingerprint = `sha256:${'ab'.repeat(32)}`
+  const detail = {
+    skillName: 'code-review',
+    summary: { provider: 'filesystem', source: 'user-agents' },
+    definition: { content: { sha256: fingerprint } },
+    observation: { currentInstructionSha256: fingerprint, observedInstructionSha256: [fingerprint], match: 'match' },
+    runs: [{ status: 'loaded', turn: 4, step: 2, requestedAt: 1 }],
+    evidence: {
+      scope: { established: true, relationStatus: 'correlated', derivation: 'same-turn-containment', eventCount: 12 },
+      invocations: [{ kind: 'tool', name: 'bash' }],
+    },
+    validation: { status: 'pass', summary: { errors: 0, warnings: 0, info: 0, skipped: 4 } },
+  }
+  const nodes = collect(client.__views.SkillEvidenceCard({ detail, evaluation: { runs: [], caseRecord: null }, onOpenEvaluation() {} }))
+  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  const textOf = (node) => collect(node).filter((child) => child.type === '#text').map((child) => child.text).join('\n')
+
+  assert.ok(text.includes('Skill 证据'), 'the card names itself')
+  // 三态必须**写成字**：只有颜色的话，截图、打印、读屏都看不见。
+  assert.ok(text.includes('Skill 声明') && text.includes('已观察') && text.includes('无法取得'),
+    'all three states are written out in words')
+
+  const stages = nodes.filter((node) => typeof node.props['data-stage'] === 'string')
+  assert.deepEqual(stages.map((node) => node.props['data-stage']), ['definition', 'load', 'use', 'outcome'],
+    'the chain keeps its four declared stages, in order')
+  assert.equal(stages[0].props['data-status'], 'declared', 'the definition is what the Skill declares')
+  assert.equal(stages[1].props['data-status'], 'observed', 'a loaded receipt is an observed fact')
+  assert.equal(stages[2].props['data-status'], 'observed', 'follow-on activity in the same turn is observed, as a scope fact')
+  for (const stage of stages) assert.match(stage.props['data-evidence-id'], /^evidence:/, 'each stage carries its own bound id')
+
+  // 加载记录 + 同一 Turn 的后续调用，读起来很像「Skill 起作用了」。界面上必须同时挂着两条
+  // 不等式与那一条恒为「不声明」的因果边界，否则这一屏就在替用户下结论。
+  assert.ok(text.includes('加载 ≠ 使用') && text.includes('结果 ≠ 这个 Skill 造成的'), 'the inequalities are stated on screen')
+  const causal = nodes.filter((node) => node.props['data-boundary'] === 'causal-claim')[0]
+  assert.ok(causal, 'the causal boundary is always rendered')
+  assert.ok(textOf(causal).includes('不声明'), 'the causal boundary always reads "not claimed"')
+
+  // 五类对象各一行，每行都带限制：一行没有限制的表格读起来像一份确定的结论。
+  // 按**类名分词**匹配，不用 `includes('st-evidence-row')` —— 容器类是 `st-evidence-rows`，
+  // 子串匹配会把它也算成一行，于是「六行」这个数字看起来对得上、其实数错了东西。
+  const hasClass = (node, name) => typeof node.props.className === 'string' && node.props.className.split(/\s+/).includes(name)
+  const rows = nodes.filter((node) => hasClass(node, 'st-evidence-row'))
+  assert.equal(rows.filter((node) => hasClass(node, 'st-evidence-row-head')).length, 1, 'exactly one header row')
+  assert.equal(rows.length, 6, 'five subjects plus the header')
+  assert.ok(nodes.filter((node) => typeof node.props['data-code'] === 'string').length > 0, 'limitations are rendered from the closed vocabulary')
+
+  // 导出控件只出现一次，且这一屏不许出现「分数 / 排名 / 百分比 / 已执行」这类词。
+  assert.equal(nodes.filter((node) => node.props['data-role'] === 'evidence-export').length, 1)
+  // 免责声明「本模块不评分、不排名」本身含这两个词，先把它摘掉再验 —— 否则验的是声明在不在，
+  // 而不是界面上有没有真的给出分数。
+  assert.ok(text.includes('不评分、不排名、不自动归因'), 'the card states that it does not score or rank')
+  const withoutDisclaimer = text.split('\n').filter((line) => !line.includes('不评分') && !line.includes('不排名')).join('\n')
+  assert.ok(!/\d+%|得分|排名|评分/.test(withoutDisclaimer), 'the evidence screen carries no score, rank or percentage')
+  assert.ok(!/已执行|已完成|已加载/.test(text), 'the evidence screen never says something was executed or finished')
+
+  // 宿主还没换到这一版（`detail` 为 null）时也要能给出一屏，而不是抛。
+  assert.ok(collect(client.__views.SkillEvidenceCard({ detail: null, evaluation: null })).length > 0,
+    'a missing detail renders rather than throwing')
 })
 
 // ── Markdown 表格 ─────────────────────────────────────────────────────────────

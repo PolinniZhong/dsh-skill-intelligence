@@ -59,6 +59,15 @@ const {
   EVALUATION_FORBIDDEN_OUTPUTS, buildEvaluationCase, buildEvaluationAssertions,
   compareEvaluationRuns, buildRuntimeEvidence,
 } = require('../../core/skill-evaluation.mjs')
+// 证据（V1.2）：把上面这些已经取好的事实收进**同一套三态语义**（Declared / Observed /
+// Unavailable），再交给界面画。这样做不是因为界面需要多一个工具，而是因为「这句话是 Skill
+// 自己说的，还是系统观察到的」这个问题必须在**一个**地方回答 —— 散在每个卡片里各写一套状态词，
+// 迟早会出现两张卡对同一件事给出两种说法。它同样是零依赖纯函数，`evidenceId` 由规范输入串
+// 决定（不用时间、不用随机数），所以同一份事实每次都得到同一个 id。
+const {
+  EVIDENCE_UNAVAILABLE_TEXT, EVIDENCE_STATUS_IDS, EVIDENCE_STATUS_LABELS,
+  EVIDENCE_TABLE_COLUMNS, buildSkillEvidence, buildEvidenceExport, evidenceRows,
+} = require('../../core/skill-evidence.mjs')
   const NS = 'dsh-skill-trace'
   // Keep display copy in the client. Receipt facts, Skill definitions and
   // user-authored notes stay untouched; only our own UI wording is localized.
@@ -598,6 +607,85 @@ function installStyles() {
       .st-validation-limits{margin-top:2px}
       .st-validation-limits summary{cursor:pointer;color:var(--st-muted);font-size:11.5px}
       .st-validation-limits ul{margin:6px 0 0;padding-left:16px;color:var(--st-faint);font-size:11px;line-height:1.5}
+      /* V1.2「Skill 证据」。
+       * 这一屏的重点是**证据关系**，不是数据量：三条状态色只做辅助，状态词一定写在旁边；
+       * 结构与分隔仍然靠边框（§27），不靠色块，也不出现图表、指标墙或进度感的东西。 */
+      .st-evidence{display:flex;flex-direction:column;gap:12px}
+      .st-evidence-top{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px}
+      .st-evidence-heading{min-width:0;flex:1 1 320px}
+      .st-evidence-heading h3{margin:0}
+      .st-evidence-sub{margin:4px 0 0;color:var(--st-muted);font-size:11.5px;line-height:1.5}
+      .st-evidence-actions{display:flex;flex-wrap:wrap;gap:6px}
+      .st-evidence-action{border:1px solid var(--st-border);border-radius:6px;background:var(--st-surface-subtle);color:var(--st-text);font-family:inherit;font-size:11.5px;padding:4px 9px;cursor:pointer}
+      .st-evidence-action:hover{border-color:var(--st-border-strong);color:var(--st-accent)}
+      .st-evidence-export-note{flex:1 0 100%;margin:0;color:var(--st-muted);font-size:11px;line-height:1.5}
+      .st-evidence-hero{border:1px solid var(--st-border-soft);border-radius:8px;background:var(--st-surface-subtle);padding:10px 12px}
+      .st-evidence-hero-title{margin:0;font-size:12.5px;font-weight:650;color:var(--st-text)}
+      .st-evidence-hero-note{margin:5px 0 0;color:var(--st-muted);font-size:11.5px;line-height:1.55}
+      .st-evidence-hero-foot{margin:6px 0 0;color:var(--st-faint);font-size:11px}
+      .st-evidence-legend{list-style:none;display:flex;flex-wrap:wrap;gap:14px;margin:8px 0 0;padding:0}
+      .st-evidence-legend-item{display:flex;align-items:baseline;gap:6px;font-size:11.5px}
+      .st-evidence-legend-count{color:var(--st-faint);font-size:11px}
+      .st-evidence-status{padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;background:var(--st-surface-subtle);color:var(--st-muted)}
+      .st-evidence-status[data-status="declared"]{background:var(--st-accent-soft);color:var(--st-accent)}
+      .st-evidence-status[data-status="observed"]{background:var(--st-success-soft);color:var(--st-success)}
+      .st-evidence-status[data-status="unavailable"]{background:var(--st-warning-soft);color:var(--st-warning)}
+      .st-evidence-block{border-top:1px solid var(--st-border-soft);padding-top:10px}
+      .st-evidence-block h4{margin:0 0 8px;font-size:12px;color:var(--st-text-secondary)}
+      .st-evidence-note{margin:6px 0 0;color:var(--st-faint);font-size:11px;line-height:1.55}
+      .st-evidence-identity{display:grid;grid-template-columns:minmax(140px,auto) 1fr;gap:4px 12px;margin:0}
+      .st-evidence-identity-key{margin:0;color:var(--st-muted);font-size:11.5px}
+      .st-evidence-identity-value{margin:0;min-width:0;font-size:11.5px;color:var(--st-text);word-break:break-all}
+      .st-evidence-identity-value code{font-size:11px}
+      .st-evidence-identity-value[data-status="unavailable"]{color:var(--st-warning)}
+      .st-evidence-chain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+      .st-evidence-stage{padding:9px 0;border-bottom:1px solid var(--st-border-soft)}
+      .st-evidence-stage-head{display:flex;align-items:baseline;gap:8px}
+      .st-evidence-stage-order{color:var(--st-faint);font-size:11px;font-variant-numeric:tabular-nums}
+      .st-evidence-stage-label{font-size:12px;color:var(--st-text);flex:1;min-width:0}
+      .st-evidence-stage-hint{margin:3px 0 0;color:var(--st-faint);font-size:11px}
+      .st-evidence-facts{list-style:none;margin:6px 0 0;padding:0}
+      .st-evidence-fact{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:11.5px;border-bottom:1px solid var(--st-border-soft)}
+      .st-evidence-fact-label{color:var(--st-muted)}
+      .st-evidence-fact code{font-size:11px;color:var(--st-text);word-break:break-all}
+      .st-evidence-count{color:var(--st-text)}
+      .st-evidence-source{margin:5px 0 0;color:var(--st-faint);font-size:11px;word-break:break-all}
+      .st-evidence-limitations{list-style:none;margin:4px 0 0;padding:0}
+      .st-evidence-limitations li{margin:2px 0 0;color:var(--st-warning);font-size:11px;line-height:1.5}
+      .st-evidence-inequalities{margin:8px 0 0;color:var(--st-muted);font-size:11px}
+      .st-evidence-limits{margin-top:12px;border-top:1px solid var(--st-border-soft);padding-top:10px}
+      .st-evidence-limits h4{margin:0 0 8px;font-size:12px;color:var(--st-text-secondary)}
+      .st-evidence-boundary{padding:8px 0;border-bottom:1px solid var(--st-border-soft)}
+      .st-evidence-boundary-head{display:flex;align-items:baseline;gap:8px}
+      .st-evidence-boundary-head strong{font-size:11.5px;color:var(--st-text);flex:1}
+      .st-evidence-boundary-state{font-size:11px;font-weight:600;color:var(--st-muted)}
+      .st-evidence-boundary[data-status="observed"] .st-evidence-boundary-state{color:var(--st-success)}
+      .st-evidence-boundary[data-status="unavailable"] .st-evidence-boundary-state{color:var(--st-warning)}
+      .st-evidence-boundary-claim{margin:3px 0 0;color:var(--st-text-secondary);font-size:11.5px;line-height:1.5}
+      .st-evidence-boundary-source{margin:3px 0 0;color:var(--st-faint);font-size:11px}
+      .st-evidence-rows{display:flex;flex-direction:column}
+      .st-evidence-row{display:grid;grid-template-columns:minmax(96px,1.1fr) minmax(76px,0.8fr) minmax(120px,1.4fr) minmax(96px,1fr) minmax(120px,1.6fr);gap:8px;align-items:start;padding:6px 0;border-bottom:1px solid var(--st-border-soft)}
+      .st-evidence-row-head{color:var(--st-faint);font-size:10.5px;font-weight:600}
+      .st-evidence-cell{min-width:0;font-size:11.5px;color:var(--st-text-secondary);line-height:1.5}
+      .st-evidence-cell-limitation{color:var(--st-warning)}
+      .st-evidence-drift{display:flex;flex-wrap:wrap;gap:12px}
+      .st-evidence-drift-col{min-width:0;flex:1 1 240px}
+      .st-evidence-drift-label{display:block;color:var(--st-muted);font-size:11px}
+      .st-evidence-drift-col code{font-size:11px;color:var(--st-text);word-break:break-all}
+      .st-evidence-drift-claim{margin:8px 0 0;font-size:12px;color:var(--st-text);font-weight:600}
+      .st-evidence-block[data-state="historical"] .st-evidence-drift-claim{color:var(--st-warning)}
+      .st-evidence-condition-list{list-style:none;margin:0;padding:0}
+      .st-evidence-condition{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--st-border-soft);font-size:11.5px}
+      .st-evidence-condition-label{color:var(--st-muted)}
+      .st-evidence-condition code{font-size:11px;color:var(--st-text);word-break:break-all}
+      .st-evidence-runs{list-style:none;margin:0;padding:0}
+      .st-evidence-run{padding:6px 0;border-bottom:1px solid var(--st-border-soft)}
+      .st-evidence-run-id{display:block;font-size:11.5px;color:var(--st-text);word-break:break-all}
+      .st-evidence-run-note{display:block;margin-top:2px;color:var(--st-faint);font-size:11px;word-break:break-all}
+      .st-evidence-comparison-claim{margin:0;font-size:11.5px;line-height:1.55;color:var(--st-text-secondary)}
+      .st-evidence-comparison[data-status="unavailable"] .st-evidence-comparison-claim{color:var(--st-warning)}
+      .st-evidence-blockers{list-style:none;margin:6px 0 0;padding:0;color:var(--st-muted);font-size:11px}
+      @media (max-width: 900px){.st-evidence-row{grid-template-columns:1fr 1fr}.st-evidence-row-head{display:none}}
       /* v0.6.1：文档面板不再用 flex:1 去抢"剩余高度"。框架层长到 1811px 之后剩余高度是负数，
        * 面板被压成 2px —— 中文预览、GFM 表格都在这个面板里，等于整层看不到。
        * 改成面板自己留高度（视口内取 72vh，封顶 640px），内部的目录与正文各自滚动。 */
@@ -2180,6 +2268,7 @@ function installStyles() {
    */
   const DETAIL_MODULES = [
     ['framework', 'Skill 框架', 'Skill framework', '这个 Skill 由什么组成：Purpose / Trigger / Rules / Output，以及声明流程。它来自 SKILL.md 的结构化解析，不是运行流程。'],
+    ['evidence-model', 'Skill 证据', 'Skill evidence', 'V1.2：每个结论的性质、对象、版本、条件与限制。Declared / Observed / Unavailable 三态，外加 Definition → Load → Use → Outcome 四段证据链与证据边界。'],
     ['validation', 'Skill 验收', 'Skill validation', '静态合规判定：标准合规（Agent Skills Open Standard）与平台兼容（DSH / OpenAI / Anthropic / Microsoft）分开列出，只报事实，不给分。'],
     ['evaluation', 'Skill 评测', 'Skill evaluation', '同一个 Case、条件逐项提出、逐条对照：不给分、不排序、不画趋势。'],
     ['evidence', '步骤证据', 'Step evidence', '每个声明步骤各自观察到了什么。Loading ≠ Use，Use ≠ Outcome，Outcome ≠ Skill 导致的。'],
@@ -3198,6 +3287,334 @@ function installStyles() {
         : null))
   }
 
+  /**
+   * V1.2「Skill 证据」卡（`FR-EVIDENCE-001` … `011`，`spec/PRD.md` §5.14）。
+   *
+   * 这一屏回答的不是「这个 Skill 好不好」，而是「我现在看到的结论到底是什么性质的事实」：
+   * 谁声明的、绑的是哪一份 fingerprint、哪一次观察、能证明什么、不能证明什么。
+   * 三态只有三个 —— Declared / Observed / Unavailable，**没有**推断；取不到就写「无法取得」，
+   * 不写「没有发生」。
+   *
+   * 取数一律走 `buildSkillEvidence()`（核心层纯函数），导出走 `buildEvidenceExport()`：
+   * 界面这一层只负责画，自己一个字都不判定、不聚合、不补全 —— 否则同一份证据会在两个地方
+   * 长出两套说法。导出的 JSON 里不含 session、绝对路径、工具参数与工具结果。
+   */
+  function SkillEvidenceCard({ detail, evaluation, onOpenEvaluation }) {
+    const [evaluationTab, setEvaluationTab] = React.useState('current')
+    const [exportMessage, setExportMessage] = React.useState('')
+    const runs = Array.isArray(evaluation?.runs) ? evaluation.runs : []
+    const record = evaluation?.caseRecord ?? null
+    const runRoles = evaluation?.runRoles && typeof evaluation.runRoles === 'object' ? evaluation.runRoles : {}
+    // 哪一条算「改前 / 改后」：与「Skill 评测」卡**同一条规则**（人标过的优先；没人标就按指纹
+    // 事实分：`mismatch` 算改前、`match` 算改后；分不出来就不替用户挑，两条都摆着）。
+    const roleOf = (run) => {
+      const tagged = run && typeof run.runId === 'string' ? runRoles[run.runId] : null
+      return tagged === 'before' || tagged === 'after' ? tagged : null
+    }
+    let beforeRun = runs.filter((run) => roleOf(run) === 'before')[0] ?? null
+    let afterRun = runs.filter((run) => roleOf(run) === 'after')[0] ?? null
+    if (!beforeRun && !afterRun) {
+      beforeRun = runs.filter((run) => run?.match === 'mismatch')[0] ?? null
+      afterRun = runs.filter((run) => run?.match === 'match')[0] ?? null
+    }
+    const paired = Boolean(beforeRun && afterRun && beforeRun !== afterRun)
+    const comparison = paired ? compareEvaluationRuns({ case: record, before: beforeRun, after: afterRun }) : null
+
+    const model = buildSkillEvidence({
+      skillName: detail?.skillName,
+      summary: detail?.summary,
+      definition: detail?.definition,
+      framework: detail?.framework,
+      flow: detail?.flow,
+      runs: detail?.runs,
+      evidence: detail?.evidence,
+      runtimeLogic: detail?.runtimeLogic,
+      observation: detail?.observation,
+      validation: detail?.validation,
+      evaluation: {
+        cases: record ? [record] : [],
+        runs,
+        comparison,
+        selectedCaseId: typeof evaluation?.caseId === 'string' ? evaluation.caseId : '',
+      },
+    })
+    const identity = model.identity
+    const pairedText = (pair) => localized(pair?.zh ?? '', pair?.en ?? '')
+    const statusTag = (status) => h('span', {
+      className: 'st-evidence-status',
+      'data-status': status,
+    }, raw(localized(EVIDENCE_STATUS_LABELS[status].zh, EVIDENCE_STATUS_LABELS[status].en)))
+    const limitationList = (items) => (Array.isArray(items) && items.length > 0
+      ? h('ul', { className: 'st-evidence-limitations' },
+        ...items.map((item, index) => h('li', {
+          key: `${item?.code ?? 'limitation'}-${index}`,
+          'data-code': item?.code ?? undefined,
+        }, raw(pairedText(item)))))
+      : null)
+    const factValue = (item) => {
+      if (item?.kind === 'count') return h('strong', { className: 'st-evidence-count' }, String(item.value))
+      if (item?.kind === 'value' || item?.kind === 'code') return h('code', null, String(item.value))
+      return h('span', null, raw(String(item.value)))
+    }
+
+    // 导出的最短路径：浏览器能下载就下载（Blob + 一个临时 <a>），不能就退回剪贴板，
+    // 都不行就如实说不行 —— 不为它新建导出服务，也不让按钮点了没反应。
+    const exportEvidence = () => {
+      const text = JSON.stringify(buildEvidenceExport(model), null, 2)
+      try {
+        const BlobCtor = globalThis?.Blob
+        const urlApi = globalThis?.URL
+        if (typeof document !== 'undefined' && typeof BlobCtor === 'function' && typeof urlApi?.createObjectURL === 'function') {
+          const url = urlApi.createObjectURL(new BlobCtor([text], { type: 'application/json' }))
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = `${model.skillName}-evidence.json`
+          document.body.appendChild(anchor)
+          anchor.click()
+          anchor.remove()
+          urlApi.revokeObjectURL(url)
+          setExportMessage(localized('证据快照已交给浏览器下载。', 'The evidence snapshot was handed to the browser for download.'))
+          return
+        }
+      } catch (reason) {
+        // 落到剪贴板分支：导出失败不该让这一屏报错，但也绝不假装成功。
+      }
+      const clipboard = globalThis?.navigator?.clipboard
+      if (clipboard && typeof clipboard.writeText === 'function') {
+        Promise.resolve(clipboard.writeText(text))
+          .then(() => setExportMessage(localized('浏览器不让下载，证据快照已放进剪贴板。', 'Downloading is not available here; the snapshot went to the clipboard.')))
+          .catch(() => setExportMessage(localized('当前环境既不能下载也不能写剪贴板。', 'This environment allows neither download nor clipboard access.')))
+        return
+      }
+      setExportMessage(localized('当前环境不支持导出。', 'This environment does not support export.'))
+    }
+
+    const head = h('div', { className: 'st-evidence-top' },
+      h('div', { className: 'st-evidence-heading' },
+        h('h3', null, raw(localized('Skill 证据 · V1.2', 'Skill evidence · V1.2'))),
+        h('p', { className: 'st-evidence-sub' }, raw(localized(
+          '让每个结论都能回到对应的对象、版本、条件与证据',
+          'Every conclusion points back to its object, version, conditions and evidence',
+        )))),
+      h('div', { className: 'st-evidence-actions' },
+        h('button', {
+          type: 'button',
+          className: 'st-evidence-action',
+          'data-role': 'evidence-export',
+          title: localized('导出当前 Skill 的证据快照 JSON', 'Export the evidence snapshot as JSON'),
+          onClick: exportEvidence,
+        }, raw(localized('导出 Evidence JSON', 'Export evidence JSON'))),
+        h('button', {
+          type: 'button',
+          className: 'st-evidence-action',
+          'data-role': 'evidence-open-evaluation',
+          title: localized('切到「Skill 评测」看这次的 Run', 'Switch to the evaluation module'),
+          onClick: typeof onOpenEvaluation === 'function' ? onOpenEvaluation : undefined,
+        }, raw(localized('查看当前评测', 'Open the evaluation')))),
+      exportMessage
+        ? h('p', { className: 'st-evidence-export-note', role: 'status', 'data-role': 'evidence-export-note' }, raw(exportMessage))
+        : null)
+
+    // ① Hero：当前证据状态 + 三态图例。没有 Success / Failure / Score 这类词 ——
+    // 这一屏讲的是证据的性质，不是结果的好坏。
+    const hero = h('div', { className: 'st-evidence-hero', 'data-role': 'evidence-hero' },
+      h('p', { className: 'st-evidence-hero-title' }, raw(localized(
+        `${model.skillName} 的当前证据状态`,
+        `Current evidence state of ${model.skillName}`,
+      ))),
+      h('p', { className: 'st-evidence-hero-note' }, raw(pairedText(model.notes.scope))),
+      h('ul', { className: 'st-evidence-legend', 'data-role': 'evidence-legend' },
+        ...EVIDENCE_STATUS_IDS.map((id) => h('li', {
+          key: id,
+          className: 'st-evidence-legend-item',
+          'data-status': id,
+        }, statusTag(id), h('span', { className: 'st-evidence-legend-count' },
+          `${model.statusCounts[id]} ${localized('条', 'items')}`)))),
+      h('p', { className: 'st-evidence-hero-foot' }, raw(pairedText(model.notes.noScore))))
+
+    // ② Evidence Identity：这一屏每个结论都绑在同一个身份上；取不到的写「无法取得」。
+    const identityRows = [
+      ['evidence-skill-fingerprint', 'Skill fingerprint', identity.skillFingerprint.status, identity.skillFingerprint.value],
+      ['evidence-source-identity', 'Source identity',
+        identity.sourceIdentity.status,
+        `${identity.sourceIdentity.provider} / ${identity.sourceIdentity.kind}`],
+      ['evidence-instruction-fingerprint', 'Instruction Fingerprint',
+        identity.instructionFingerprint.status,
+        identity.instructionFingerprint.current],
+      ['evidence-case', 'Case', identity.caseId === EVIDENCE_UNAVAILABLE_TEXT ? 'unavailable' : 'observed', identity.caseId],
+      ['evidence-run', 'Run', identity.runId === EVIDENCE_UNAVAILABLE_TEXT ? 'unavailable' : 'observed', identity.runId],
+    ]
+    const identityBlock = h('section', { className: 'st-evidence-block', 'data-role': 'evidence-identity' },
+      h('h4', null, raw(localized('Evidence Identity', 'Evidence identity'))),
+      h('dl', { className: 'st-evidence-identity' },
+        ...identityRows.flatMap(([key, label, status, value]) => [
+          h('dt', { key: `${key}-k`, className: 'st-evidence-identity-key' }, label),
+          h('dd', { key: `${key}-v`, className: 'st-evidence-identity-value', 'data-status': status },
+            status === 'unavailable' ? raw(localized('无法取得', 'Unavailable')) : h('code', null, String(value))),
+        ])),
+      h('p', { className: 'st-evidence-note' }, raw(localized(
+        '这里只列系统已有的身份；读不到的写「无法取得」，不推导、不补全。',
+        'Only identities the system already holds appear here; what cannot be read stays unavailable.',
+      ))))
+
+    // ③ 证据链 Definition → Load → Use → Outcome，右侧是这三条边界。
+    const chain = h('section', { className: 'st-evidence-block', 'data-role': 'evidence-chain' },
+      h('h4', null, raw(localized('证据链', 'Evidence chain'))),
+      h('ol', { className: 'st-evidence-chain' },
+        ...model.chain.map((stage) => h('li', {
+          key: stage.id,
+          className: 'st-evidence-stage',
+          'data-stage': stage.id,
+          'data-status': stage.status,
+          'data-evidence-id': stage.evidenceId,
+        },
+        h('div', { className: 'st-evidence-stage-head' },
+          h('span', { className: 'st-evidence-stage-order' }, String(stage.order).padStart(2, '0')),
+          h('strong', { className: 'st-evidence-stage-label' }, raw(pairedText(stage.label))),
+          statusTag(stage.status)),
+        h('p', { className: 'st-evidence-stage-hint' }, raw(pairedText(stage.hint))),
+        h('ul', { className: 'st-evidence-facts' },
+          ...stage.facts.map((item) => h('li', { key: item.id, className: 'st-evidence-fact', 'data-fact': item.id },
+            h('span', { className: 'st-evidence-fact-label' }, raw(pairedText(item.label))),
+            factValue(item)))),
+        h('p', { className: 'st-evidence-source' }, raw(localized(
+          `来源：${stage.source.zh} · ${stage.reference}`,
+          `Source: ${stage.source.en} · ${stage.reference}`,
+        ))),
+        limitationList(stage.limitations))),
+      h('p', { className: 'st-evidence-inequalities' },
+        raw(model.inequalities.join(' · ')))),
+      h('div', { className: 'st-evidence-limits', 'data-role': 'evidence-limits' },
+        h('h4', null, raw(localized('Evidence Limits · 证据边界', 'Evidence limits'))),
+        ...model.boundaries.map((entry) => h('article', {
+          key: entry.id,
+          className: 'st-evidence-boundary',
+          'data-boundary': entry.id,
+          'data-status': entry.status,
+        },
+        h('div', { className: 'st-evidence-boundary-head' },
+          h('strong', null, raw(pairedText(entry.label))),
+          h('span', { className: 'st-evidence-boundary-state' }, raw(entry.id === 'causal-claim'
+            ? localized('不声明', 'Not claimed')
+            : localized('已确认', 'Confirmed')))),
+        h('p', { className: 'st-evidence-boundary-claim' }, raw(pairedText(entry.claim))),
+        h('p', { className: 'st-evidence-boundary-source' }, raw(localized(
+          `来源：${entry.source.zh}`,
+          `Source: ${entry.source.en}`,
+        ))),
+        limitationList([entry.limitation])))))
+
+    // ④ 证据状态语义表：五类对象，逐行给出状态 / 当前事实 / 来源 / 限制。
+    const table = h('section', { className: 'st-evidence-block', 'data-role': 'evidence-table' },
+      h('h4', null, raw(localized('证据状态语义', 'Evidence status semantics'))),
+      h('div', { className: 'st-evidence-rows', role: 'table' },
+        h('div', { className: 'st-evidence-row st-evidence-row-head', role: 'row' },
+          ...EVIDENCE_TABLE_COLUMNS.map((column) => h('span', {
+            key: column.id,
+            role: 'columnheader',
+            className: `st-evidence-cell st-evidence-cell-${column.id}`,
+          }, raw(localized(column.zh, column.en))))),
+        ...evidenceRows(model).map((row) => h('div', {
+          key: row.evidenceId,
+          className: 'st-evidence-row',
+          role: 'row',
+          'data-subject': row.subjectId,
+          'data-status': row.status,
+          'data-evidence-id': row.evidenceId,
+        },
+        h('span', { role: 'cell', className: 'st-evidence-cell st-evidence-cell-subject' }, raw(pairedText(row.subject))),
+        h('span', { role: 'cell', className: 'st-evidence-cell st-evidence-cell-status' }, statusTag(row.status)),
+        h('span', { role: 'cell', className: 'st-evidence-cell st-evidence-cell-fact' }, raw(pairedText(row.fact))),
+        h('span', { role: 'cell', className: 'st-evidence-cell st-evidence-cell-source' }, raw(pairedText(row.source))),
+        h('span', { role: 'cell', className: 'st-evidence-cell st-evidence-cell-limitation' }, raw(pairedText(row.limitation)))))))
+
+    // ⑤ 证据新鲜度 / Drift：只报「这份证据绑的是哪一份 fingerprint」，不判新鲜或过期。
+    const drift = h('section', {
+      className: 'st-evidence-block',
+      'data-role': 'evidence-drift',
+      'data-state': model.drift.state,
+    },
+    h('h4', null, raw(localized('证据新鲜度 · Skill Drift', 'Evidence freshness · Skill drift'))),
+    h('div', { className: 'st-evidence-drift' },
+      h('div', { className: 'st-evidence-drift-col' },
+        h('span', { className: 'st-evidence-drift-label' }, raw(localized('当前 Skill 的 fingerprint', 'Fingerprint of the current Skill'))),
+        h('code', null, model.drift.currentFingerprint)),
+      h('div', { className: 'st-evidence-drift-col' },
+        h('span', { className: 'st-evidence-drift-label' }, raw(localized('证据绑定的 fingerprint', 'Fingerprint the evidence is bound to'))),
+        h('code', null, model.drift.latestEvidenceFingerprint))),
+    h('p', { className: 'st-evidence-drift-claim' }, raw(pairedText(model.drift.claim))),
+    h('p', { className: 'st-evidence-note' }, raw(localized(
+      `本次可用的 Case ${model.drift.caseCount} 个 · Run ${model.drift.runCount} 条。${pairedText(model.drift.note)}`,
+      `${model.drift.caseCount} case(s) and ${model.drift.runCount} run(s) are available. ${pairedText(model.drift.note)}`,
+    ))),
+    limitationList(model.drift.limitations))
+
+    // ⑥ Evaluation → Evidence：条件逐项列出，拿不到就写 unavailable；对照只在条件一致时才成立。
+    const evaluationTabs = [
+      ['current', '本次 Run', 'Current run'],
+      ['history', '历史 Run', 'Run history'],
+      ['comparison', '对照', 'Comparison'],
+    ]
+    const conditions = model.evaluation.conditions
+    const comparability = model.evaluation.comparability
+    const evaluationBody = evaluationTab === 'history'
+      ? (runs.length > 0
+        ? h('ul', { className: 'st-evidence-runs' }, ...runs.map((run, index) => h('li', {
+          key: run?.runId ?? `run-${index}`,
+          className: 'st-evidence-run',
+          'data-run': String(run?.runId ?? ''),
+        },
+        h('span', { className: 'st-evidence-run-id' }, String(run?.runId ?? EVIDENCE_UNAVAILABLE_TEXT)),
+        h('span', { className: 'st-evidence-run-note' }, raw(localized(
+          `指纹 ${run?.observedInstructionSha256 ?? EVIDENCE_UNAVAILABLE_TEXT} · 与当前文件 ${run?.match ?? EVIDENCE_UNAVAILABLE_TEXT}`,
+          `Fingerprint ${run?.observedInstructionSha256 ?? EVIDENCE_UNAVAILABLE_TEXT} · against the file ${run?.match ?? EVIDENCE_UNAVAILABLE_TEXT}`,
+        ))))))
+        : h('p', { className: 'st-evidence-note' }, raw(localized('当前没有可展示的 Run。', 'There is no run to show yet.'))))
+      : evaluationTab === 'comparison'
+        ? h('div', { className: 'st-evidence-comparison', 'data-status': comparability.status },
+          h('p', { className: 'st-evidence-comparison-claim' }, raw(comparability.comparable
+            ? localized('同一个 Case、条件逐项一致：允许把两次运行摆在一起看差异。', 'Same case and matching conditions: the two runs can be shown side by side.')
+            : localized('阻断结论 · Not Comparable：条件不一致时只摆差异，不生成「提升 / 下降」这类结论。',
+              'Blocked · not comparable: conditions differ, so differences are shown without any improvement claim.'))),
+          comparability.blockers.length > 0
+            ? h('ul', { className: 'st-evidence-blockers' }, ...comparability.blockers.map((blocker, index) => h('li', {
+              key: `${blocker.id}-${index}`,
+              'data-blocker': blocker.id,
+            }, raw(`${blocker.label.zh || blocker.label.en || blocker.id}：${blocker.before} → ${blocker.after}`))))
+            : null)
+        : h('div', { className: 'st-evidence-conditions' },
+          h('ul', { className: 'st-evidence-condition-list' },
+            ...conditions.map((entry) => h('li', {
+              key: entry.id,
+              className: 'st-evidence-condition',
+              'data-condition': entry.id,
+              'data-value': entry.value,
+            },
+            h('span', { className: 'st-evidence-condition-label' }, raw(pairedText(entry.label))),
+            h('code', null, String(entry.value))))),
+          h('p', { className: 'st-evidence-note' }, raw(localized(
+            `判断来源：${model.evaluation.outcome.status === 'observed' ? model.evaluation.outcome.source : '当前没有判断记录'}`,
+            `Judgement source: ${model.evaluation.outcome.status === 'observed' ? model.evaluation.outcome.source : 'none recorded yet'}`,
+          ))))
+
+    const evaluationBlock = h('section', { className: 'st-evidence-block', 'data-role': 'evidence-evaluation' },
+      h('h4', null, raw(localized('Evaluation → Evidence', 'Evaluation → evidence'))),
+      h('div', { className: 'st-seg', 'data-role': 'evidence-evaluation-tabs' },
+        ...evaluationTabs.map(([id, zh, en]) => h('button', {
+          key: id,
+          type: 'button',
+          className: 'st-seg-item',
+          'data-active': evaluationTab === id ? 'true' : 'false',
+          'data-role': `evidence-tab-${id}`,
+          'aria-current': evaluationTab === id ? 'true' : undefined,
+          onClick: () => setEvaluationTab(id),
+        }, raw(localized(zh, en))))),
+      evaluationBody)
+
+    return h('section', { className: 'st-detail-card st-evidence', 'data-role': 'skill-evidence' },
+      head, hero, identityBlock, chain, table, drift, evaluationBlock)
+  }
+
   function SkillDetailPage({ sessionId, skillName, skill: suppliedSkill, modification: suppliedModification, instanceTest: suppliedInstanceTest, evaluation: suppliedEvaluation, initialModule }) {
     const [fetched, setFetched] = React.useState(null)
     const [loading, setLoading] = React.useState(!suppliedSkill)
@@ -3907,6 +4324,15 @@ function installStyles() {
       onRole: tagEvaluationRun,
     })
 
+    // V1.2：证据模块复用**同一个** evaluation state（不另开一次请求，也不复制一份状态）——
+    // 证据链里的 Case / Run / 条件应该和评测模块看到的是同一份事实。
+    // 「查看当前评测」只切模块，不新开 session、不新开页面。
+    const skillEvidence = h(SkillEvidenceCard, {
+      detail,
+      evaluation,
+      onOpenEvaluation: () => setDetailModule('evaluation'),
+    })
+
     // v1.1：右列只渲染**当前**这一个模块。各维度的 element 都在上面构造好了，
     // `h(Component, props)` 只是建元素、不调用组件 —— 所以没被选中的那几个这一帧是空转，
     // 比 V1.0 一次把六个块全部渲染出来更省，而不是更贵。
@@ -3917,6 +4343,7 @@ function installStyles() {
     // 不会出现「导航里有这一格、点进去是空的」。
     const MODULE_CONTENT = {
       framework: [framework],
+      'evidence-model': [skillEvidence],
       validation: [h(SkillValidationPanel, { validation, validationFieldMissing })],
       evaluation: [skillEvaluation],
       evidence: [stepEvidence],
@@ -4492,4 +4919,9 @@ function installStyles() {
     // 不渲染任何 Skill 内容 —— 「点哪一项就选中哪一维」这条接线只有把按钮真的渲染出来、
     // 再调一次它的 onClick 才验得了（源码断言只能证明那行字符串出现过）。
     DetailNav,
+    // V1.2：证据卡也要能离线渲染一遍。它整屏都是**措辞**（三态词、四条限制、三条边界、
+    // 「不声明」这一格），而这些词在源码里搜不到 —— 它们由 core 的词表拼出来，且「没看到证据」
+    // 与「没有发生」在源码层面长得一样（都走同一个 unavailable 分支）。只有把这张卡渲染出来，
+    // 才看得见实际落到屏幕上的那句话。
+    SkillEvidenceCard,
   }

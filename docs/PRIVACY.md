@@ -65,6 +65,14 @@ A **Run** holds the conditions and the evidence of one attempt: `runId`, the `ca
 Nothing else is written. A Case and a Run never hold a session id, a conversation or message, tool arguments or results, an absolute path, tokens, or any aggregate: `score`, `passes`, `rate`, `variance`, `stddev`, `ranking` and `trend` are forbidden field names that the store rejects at any depth, so a payload carrying them fails instead of being trimmed. The evaluation feature sends nothing off the machine, calls no model, creates no session and runs no task — running the task is something the user does in their own session, and the plugin only records the conditions, the `unavailable` entries, and the user's own verdict.
 
 
+## What the Skill evidence feature stores
+
+V1.2 stores nothing. The evidence model lives in the plugin's **reader**, not its writer: `buildSkillEvidence()` is a pure function over what the host already exposes (the catalog entry, the definition and its fingerprint, and the observations in the session log), and the card in the detail navigator is a read-only projection of its output. The feature adds no route, no file and no directory.
+
+The **Evidence JSON export happens entirely in the browser.** The module turns the exported object into a `Blob` and hands it to a download anchor, with a clipboard fallback; the host is never asked to write it, and nothing is uploaded or synchronized. The export's forbidden-key list is the same kind of guard as the evaluation store's: tool arguments, tool results, session ids, absolute paths, and any score or percentage may not appear, and a payload carrying one fails instead of being trimmed.
+
+The feature reads no tool arguments and no tool results — the only seam into runtime activity is the metadata the host already reduces — and it calls no model. A conclusion the plugin cannot support is written as `unavailable` (`无法取得`) rather than inferred.
+
 ## User control
 
 The current plugin offers no field for the user to author, and v0.6 removed the clear-all and single-receipt deletion routes along with the entire export, backup, and restore chain. There is therefore no in-product deletion action and no safety backup taken before one: receipts live in the plugin's local data area, and removing them is an ordinary local file operation. Removing the plugin does not itself delete the receipts it wrote.

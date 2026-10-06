@@ -843,13 +843,15 @@ console.log('VISUAL_TOKENS_OK')
   //
   // V1.0 是六个模块纵向堆成一条长页面，靠滚动找模块；如果这个重构没做，左列仍然会是
   // Definition / Repository / 血缘三张事实卡，而主列仍然是那串 component 列表。
-  const moduleIds = ['framework', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document']
+  const moduleIds = ['framework', 'evidence-model', 'validation', 'evaluation', 'evidence', 'runtime', 'modification', 'definition', 'document']
   const modulesStart = client.indexOf('const DETAIL_MODULES = [')
   const navStart = client.indexOf('function DetailNav(')
   if (modulesStart < 0 || navStart < modulesStart) {
     throw new Error('v1.1 §二：详情页必须声明自己的详情级模块清单与导航组件')
   }
-  const listedModules = [...client.slice(modulesStart, navStart).matchAll(/\['([a-z]+)',/g)].map((m) => m[1])
+  // 模块 id 里允许连字符（V1.2 的 `evidence-model`）：`[a-z]+` 会在 `evidence-model` 上
+  // 整个匹配失败 —— 而匹配失败的后果是**清单少一项**，看起来和「守卫通过了」一样。
+  const listedModules = [...client.slice(modulesStart, navStart).matchAll(/\['([a-z-]+)',/g)].map((m) => m[1])
   if (listedModules.join(',') !== moduleIds.join(',')) {
     throw new Error(`v1.1 §二：详情级导航的模块是 ${moduleIds.join(' / ')}，实际是 ${listedModules.join(' / ')}`)
   }
@@ -959,8 +961,13 @@ console.log('VISUAL_TOKENS_OK')
   // 所以这里要钉的不再是「谁在谁前面」，而是两件更硬的事：
   //   1. **每一维度都还在**，且接到的是它自己的内容 —— 接错或丢掉一个就是功能删除；
   //   2. **默认那一维度是框架**，且 `framework` 只读声明流程（下面第 2 条另外钉死）。
+  // V1.2 多出来的这一维（`evidence-model`）不是「又一个视图」，而是**同一批事实的另一种读法**：
+  // 它必须由 `buildSkillEvidence` 单一来源合成，所以这里钉的是「接上了证据模块的合成结果」，
+  // 而不是「又多了一张卡」。把 id 写成 `evidence-model` 而不是 `evidence`，是因为
+  // `evidence` 已经被「步骤证据」占用 —— 两个模块同名会让导航与守卫同时说不清谁是谁。
   const moduleMap = {
     framework: '[framework]',
+    'evidence-model': '[skillEvidence]',
     validation: '[h(SkillValidationPanel, { validation, validationFieldMissing })]',
     evaluation: '[skillEvaluation]',
     evidence: '[stepEvidence]',
@@ -970,7 +977,9 @@ console.log('VISUAL_TOKENS_OK')
     document: '[docPanel]',
   }
   for (const [id, body] of Object.entries(moduleMap)) {
-    if (!client.includes(`${id}: ${body}`)) {
+    // 带连字符的 id 在对象字面量里必须加引号（`'evidence-model': [skillEvidence]`），所以这里
+    // 两种写法都得认 —— 只认裸写的那个，会让一个**真的接上线了**的模块报成「没接上」。
+    if (!client.includes(`${id}: ${body}`) && !client.includes(`'${id}': ${body}`)) {
       throw new Error(`v1.1 §三：详情模块 ${id} 必须接上它自己的内容（${body}）—— 模块提取不是功能删除`)
     }
   }
@@ -1049,14 +1058,35 @@ console.log('VISUAL_TOKENS_OK')
 
   const declared = /当前公开(?:预发布)?版为\s*`([^`]+)`/.exec(readme)
   if (!declared) throw new Error('README must state the current published version')
-  if (declared[1] !== pkgVersion) {
-    throw new Error(`README says the current version is ${declared[1]} but package.json says ${pkgVersion} — README is a release asset`)
+  const published = declared[1]
+
+  // `1.2.0` 起允许「已定版、尚未发布」的工作版本：package.json 先写死号，而 tag 与 npm 都还没有它。
+  // 这时 README 必须**显式写着「未发布」**（否则与「当前公开版为」自相矛盾），且 package.json 必须等于
+  // 工作版本；**安装示例一律只锚已发布版本** —— 那两行是给人照抄的，指向不存在的 tag 比不写更糟。
+  const working = /工作版本为\s*`([^`]+)`\s*（([^）]*)）/.exec(readme)
+  if (working) {
+    if (!/未发布/.test(working[2])) {
+      throw new Error('README declares a working version without saying it is unreleased — write 「尚未发布」 or drop the line')
+    }
+    if (working[1] !== pkgVersion) {
+      throw new Error(`README says the working version is ${working[1]} but package.json says ${pkgVersion} — README is a release asset`)
+    }
+    if (working[1] === published) {
+      throw new Error(`README declares ${published} as both the published and the working version — drop one of them`)
+    }
+  } else if (published !== pkgVersion) {
+    throw new Error(`README says the current version is ${published} but package.json says ${pkgVersion} — README is a release asset`)
   }
 
   const install = /dsh plugin --profile [a-z0-9-]+ add "github:[^"#]+#v([^"&]+)/.exec(readme)
   if (!install) throw new Error('README must show an install command pinned to a tag')
-  if (install[1] !== pkgVersion) {
-    throw new Error(`README's install example pins v${install[1]} but package.json says ${pkgVersion} — people copy this line`)
+  if (install[1] !== published) {
+    throw new Error(`README's install example pins v${install[1]} but the published version is ${published} — people copy this line`)
+  }
+
+  const npmInstall = /dsh-skill-trace@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(readme)
+  if (npmInstall && npmInstall[1] !== published) {
+    throw new Error(`README's npm install example pins @${npmInstall[1]} but the published version is ${published} — people copy this line`)
   }
 
   console.log('RELEASE_ASSETS_IN_SYNC_OK')
@@ -2230,9 +2260,15 @@ console.log('VISUAL_TOKENS_OK')
   for (const needle of needed) {
     if (!client.includes(needle)) throw new Error(`客户端缺少实例验收的「${needle}」`)
   }
+  // V1.2：证据模块（`src/core/skill-evidence.mjs`）是第十支。这个数字是**白名单**，不是计数
+  // 游戏：每多一支都要在这里显式加一次，否则「客户端悄悄多 require 了一支」与「一切正常」
+  // 长得一模一样。它同样是零依赖纯函数层，且必须与服务端同一个文件。
   const coreRequires = client.match(/require\('\.\.\/\.\.\/core\/[^']+'\)/g) ?? []
-  if (coreRequires.length !== 9) {
-    throw new Error(`客户端只允许 require 九支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
+  if (coreRequires.length !== 10) {
+    throw new Error(`客户端只允许 require 十支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
+  }
+  if (!coreRequires.some((entry) => entry.includes('skill-evidence.mjs'))) {
+    throw new Error('V1.2：客户端必须从 src/core/skill-evidence.mjs 取证据模型，不能在组件里另算一套')
   }
 
   // 8. 本版的名字是「实例验收」：界面与模块里不许留下被禁用的产品名。
@@ -2371,6 +2407,245 @@ console.log('VISUAL_TOKENS_OK')
   }
 
   console.log('SKILL_EVALUATION_OK')
+}
+
+// --- V1.2「Skill 证据」：把「我现在看到的结论是什么性质的事实」摆出来，绝不顺手归因 --------
+// V1.0 管的是「不下结论」，V1.2 管得更细：**连这条事实是什么性质都要写清楚** —— 谁声明的、
+// 绑的是哪一份指纹、哪一次观察能证明什么、不能证明什么。这一版最危险的失败不是白屏，而是
+// 把「没看到」写成「没发生」、把「加载过 + 同一 Turn 里有工具调用」顺成「Skill 起作用了」：
+// 这两句话在源码层面与正确实现长得一模一样（同一个 unavailable 分支、同一份计数）。
+// 七组 marker 各守一件事：
+//   1. 固定面（三态 / 四段链 / 三条不等式 / 漂移三态 / 边界三态 / 五类对象 / 限制词表）；
+//   2. 证据 id 与规范输入串是**确定性的**，且与 V1.0 的四段评测证据各有各的 id；
+//   3. 客户端第十支 require 与那张卡真的接上了（导航第 2 项、内容映射、导出控件）；
+//   4. 「结果 ≠ 这个 Skill 造成的」在模块与界面里都只能是「不声明」；
+//   5. 导出：无 session / 无绝对路径 / 无聚合口径，且两次导出逐字节相同；
+//   6. 取不到就写 unavailable：空输入不抛，也不把缺席写成否定；
+//   7. 隐私边界：不读工具参数与结果、不联网、不落盘。
+{
+  const evidenceCode = await readFile(resolve(root, 'src/core/skill-evidence.mjs'), 'utf8')
+  const evaluationCode = await readFile(resolve(root, 'src/core/skill-evaluation.mjs'), 'utf8')
+  const evidence = await import(pathToFileURL(resolve(root, 'src/core/skill-evidence.mjs')).href)
+  // 三条不等式与聚合禁令都要和 V1.0 评测**逐字比**：两处各写一份，改一处就会分叉。
+  const evaluation = await import(pathToFileURL(resolve(root, 'src/core/skill-evaluation.mjs')).href)
+
+  // ① 固定面。三态只有三个，**没有**第四种「推断」；四段链的 id 与 V1.0 的四段评测证据不同名
+  //（同名会让人把「定义」读成「触发」，两张卡的图例会互相解释错）。
+  if (evidence.EVIDENCE_STATUS_IDS.join(' ') !== 'declared observed unavailable') {
+    throw new Error(`证据只有三态（声明 / 观察 / 取不到），实际「${evidence.EVIDENCE_STATUS_IDS.join(' ')}」`)
+  }
+  const statusLabels = evidence.EVIDENCE_STATUS_IDS.map((id) => evidence.EVIDENCE_STATUS_LABELS[id]?.zh).join(' / ')
+  if (statusLabels !== 'Skill 声明 / 已观察 / 无法取得') {
+    throw new Error(`三态在界面上必须写成字（只有颜色的话截图与读屏都看不见），实际「${statusLabels}」`)
+  }
+  if (evidence.EVIDENCE_CHAIN_STAGE_IDS.join(' ') !== 'definition load use outcome') {
+    throw new Error(`证据链必须恰好四段（定义 / 加载 / 使用 / 结果），实际「${evidence.EVIDENCE_CHAIN_STAGE_IDS.join(' ')}」`)
+  }
+  if (evidence.EVIDENCE_CHAIN_STAGE_IDS.join(' ') === evaluation.EVALUATION_EVIDENCE_STAGE_IDS.join(' ')) {
+    throw new Error('V1.2：四段证据链与 V1.0 的四段评测证据必须各有各的 id，共用一套会让人把「定义」读成「触发」')
+  }
+  const inequalities = evidence.EVIDENCE_INEQUALITIES.join(' | ')
+  if (inequalities !== evaluation.EVALUATION_INEQUALITIES.join(' | ')) {
+    throw new Error(`三条不等式这一版必须逐字沿用 V1.0（同一套底线，不许出现第二种说法），实际「${inequalities}」`)
+  }
+  if (evidence.EVIDENCE_DRIFT_IDS.join(' ') !== 'current historical no-matching-evidence') {
+    throw new Error(`漂移只有三态（当前 / 历史 / 没有对应证据），实际「${evidence.EVIDENCE_DRIFT_IDS.join(' ')}」`)
+  }
+  if (evidence.EVIDENCE_BOUNDARY_IDS.join(' ') !== 'load-evidence use-evidence causal-claim') {
+    throw new Error(`边界必须恰好三条（加载 / 使用 / 因果），实际「${evidence.EVIDENCE_BOUNDARY_IDS.join(' ')}」`)
+  }
+  if (evidence.EVIDENCE_SUBJECT_IDS.join(' ') !== 'skill-name skill-load skill-use dsh-version skill-caused-outcome') {
+    throw new Error(`状态表必须恰好覆盖五类对象，实际「${evidence.EVIDENCE_SUBJECT_IDS.join(' ')}」`)
+  }
+  if (evidence.EVIDENCE_TABLE_COLUMNS.length !== 5) {
+    throw new Error(`状态表必须恰好五列，实际 ${evidence.EVIDENCE_TABLE_COLUMNS.length} 列`)
+  }
+  for (const code of evidence.EVIDENCE_LIMITATION_CODES) {
+    if (!evidence.EVIDENCE_LIMITATION_LABELS[code]?.zh) {
+      throw new Error(`限制词表里的「${code}」没有文案：界面按 id 取文案，缺一条就会在表里留下空格`)
+    }
+  }
+  // 因果那一条**固定**读「不声明」：它不是「暂时取不到」，而是这一版永远不做的事。
+  // 所以两边都要钉 —— 模块里它恒为 unavailable 且必须挂着那条限制；界面上那一格写死的
+  // 就是「不声明」两个字（这两个字在 core 里搜不到，不钉住就可能被顺手改成「已确认」）。
+  const causalBoundary = evidence.buildSkillEvidence({}).boundaries.find((entry) => entry.id === 'causal-claim')
+  if (!causalBoundary || causalBoundary.status !== 'unavailable') {
+    throw new Error('因果边界必须恒为「取不到」这一态：把结果归因给 Skill 是这一版明确不做的事')
+  }
+  if (causalBoundary.limitation?.code !== 'outcome-is-not-causal-attribution') {
+    throw new Error('因果边界必须挂上「结果发生不等于结果由 Skill 单独造成」这条限制')
+  }
+  if (!client.includes("entry.id === 'causal-claim'") || !client.includes("localized('不声明', 'Not claimed')")) {
+    throw new Error('证据卡里「因果结论」那一格必须写成「不声明」，不能跟着另外两条读成「已确认」')
+  }
+
+  // ② 纯函数层：零 import、不读时钟、不随机、不联网、不落盘、不读环境变量。
+  // 注释先剥掉再验 —— 文件头注释里就写着「不排名、不聚合、不读网络」，拿原文去搜会搜到注释。
+  const stripped = evidenceCode
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
+    .join('\n')
+  if (/^\s*import\s/m.test(stripped)) {
+    throw new Error('证据模块必须零 import 的纯函数层：它要同时在宿主与浏览器包里跑，多一支依赖就会两边分叉')
+  }
+  for (const banned of ['Date.now', 'Math.random', 'randomUUID', 'fetch(', 'writeFile', 'process.env', 'readFile']) {
+    if (stripped.includes(banned)) {
+      throw new Error(`证据模块里不许出现「${banned}」：同一份事实必须永远算出同一个 id 与同一段文案`)
+    }
+  }
+
+  // ③ id 与规范输入串的确定性：同一份事实两次调用必须得到同一个 id；绑定值优先取既有 sha256。
+  const record = {
+    subjectId: 'skill-load',
+    status: 'observed',
+    skillName: 'code-review',
+    skillFingerprint: `sha256:${'1a'.repeat(32)}`,
+    instructionFingerprint: `sha256:${'2b'.repeat(32)}`,
+    caseId: null,
+    runId: null,
+    sourceType: 'receipt',
+    reference: 'receipt:turn4.step2',
+    ordinal: 0,
+  }
+  const idA = evidence.evidenceIdOf(record)
+  const idB = evidence.evidenceIdOf({ ...record })
+  if (idA !== idB) throw new Error(`同一份事实算出了两个 id：「${idA}」与「${idB}」`)
+  if (!/^evidence:[a-z-]+@sha256:[0-9a-f]{64}$/.test(idA)) {
+    throw new Error(`证据 id 的形状必须是 evidence:<对象>@<既有指纹>，实际「${idA}」`)
+  }
+  if (evidence.evidenceIdOf({ ...record, instructionFingerprint: null }) === idA) {
+    throw new Error('绑定值必须随记录里的指纹变化：换了指纹还是同一个 id，就等于两条证据共用了一个身份')
+  }
+  const hashInput = evidence.evidenceHashInput(record)
+  if (!hashInput.startsWith(`${evidence.EVIDENCE_HASH_DOMAIN}\n`)) {
+    throw new Error(`规范输入串必须以自己的域分隔前缀开头，实际「${hashInput.split('\n')[0]}」`)
+  }
+  if (hashInput !== evidence.evidenceHashInput({ ...record })) {
+    throw new Error('规范输入串必须逐字节稳定：它是宿主要拿去算 sha256 的那一份输入')
+  }
+  if (!/\nsubject skill-load\n/.test(hashInput) || !/\nstatus observed\n/.test(hashInput)) {
+    throw new Error('规范输入串的每一行都必须是「字段名 值」——拼接顺序本身就是身份的一部分')
+  }
+
+  // ④ 客户端：第十支 require、导航第 2 项、内容映射、导出控件，以及这一屏的措辞底线。
+  if (!client.includes("require('../../core/skill-evidence.mjs')")) {
+    throw new Error('客户端没有 require 证据核心模块')
+  }
+  const frameworkAt = client.indexOf("['framework'")
+  const evidenceAt = client.indexOf("['evidence-model'")
+  const validationAt = client.indexOf("['validation'")
+  if (frameworkAt < 0 || evidenceAt < 0 || validationAt < 0) {
+    throw new Error('V1.2：详情导航里必须同时有 framework / evidence-model / validation 三项')
+  }
+  if (!(frameworkAt < evidenceAt && evidenceAt < validationAt)) {
+    throw new Error('V1.2：证据维度排在「Skill 框架」之后、「Skill 验收」之前 —— 声明看完了才谈观察')
+  }
+  if (!/'evidence-model': \[skillEvidence\]/.test(client)) {
+    throw new Error('V1.2：导航多了一格，内容映射却没接上（点进去会是空白）')
+  }
+  const cardStart = client.indexOf('V1.2「Skill 证据」卡（')
+  const cardEnd = client.indexOf('function SkillDetailPage(')
+  if (cardStart < 0 || cardEnd < cardStart) {
+    throw new Error('找不到证据卡这一段：它必须与 SkillDetailPage 之前的注入缝在同一处')
+  }
+  const evidenceCard = client.slice(cardStart, cardEnd)
+  for (const needle of [
+    'buildSkillEvidence(',
+    'buildEvidenceExport(',
+    'evidenceRows(',
+    "'data-role': 'skill-evidence'",
+    "'data-role': 'evidence-export'",
+    "'data-role': 'evidence-open-evaluation'",
+    "'data-role': 'evidence-identity'",
+    "'data-role': 'evidence-chain'",
+    "'data-role': 'evidence-limits'",
+    "'data-role': 'evidence-table'",
+    "'data-role': 'evidence-drift'",
+    "'data-role': 'evidence-evaluation'",
+  ]) {
+    if (!evidenceCard.includes(needle)) throw new Error(`证据卡里缺少「${needle}」`)
+  }
+  // 卡的取数只有一个来源：核心层的合成结果。卡里自己算一套，同一份证据就会长出两套说法。
+  if (!/const model = buildSkillEvidence\(/.test(evidenceCard)) {
+    throw new Error('证据卡必须直接画 buildSkillEvidence() 的结果，不许在组件里另算一套')
+  }
+  // 导出：Blob + a[download]，失败退剪贴板，再失败如实报错 —— 三条路都要在。
+  for (const needle of ['globalThis?.Blob', 'urlApi?.createObjectURL', 'anchor.download', 'globalThis?.navigator?.clipboard']) {
+    if (!evidenceCard.includes(needle)) throw new Error(`证据导出缺少「${needle}」`)
+  }
+
+  // ⑤ 归因禁令：模块与界面都不许把结果说成 Skill 造成的，也不许出现任何聚合口径。
+  for (const banned of ['导致', '因此可以确认', '确认由', '证明是它', 'caused by this skill']) {
+    if (evidenceCode.includes(banned) || evidenceCard.includes(banned)) {
+      throw new Error(`V1.2 不许出现归因措辞「${banned}」：结果发生不等于结果由 Skill 单独造成`)
+    }
+  }
+  for (const banned of evaluation.EVALUATION_FORBIDDEN_OUTPUTS) {
+    if (evidenceCard.includes(banned)) {
+      throw new Error(`证据卡里不许出现聚合口径「${banned}」：这一页只摆性质，不下结论`)
+    }
+  }
+  if (/\d+\s*%|得分|排名|评分/.test(evidenceCard.replace(/不评分|不排名/g, ''))) {
+    throw new Error('证据卡里出现了分数 / 百分比 / 排名：这一类界面一旦给出数字，就会被读成一个结论')
+  }
+
+  // ⑥ 导出与空输入：空输入不抛、不编事实，且导出逐字节稳定。
+  const empty = evidence.buildSkillEvidence({})
+  if (empty.statusCounts.observed !== 0 || empty.statusCounts.total !== 12) {
+    throw new Error(`空输入的计数必须是「一处也没观察到」，实际 ${JSON.stringify(empty.statusCounts)}`)
+  }
+  if (empty.chain.length !== 4 || evidence.evidenceRows(empty).length !== 5) {
+    throw new Error('空输入也必须给全四段链与五行表：少一段，界面读起来就像那一类事实不存在')
+  }
+  if (empty.boundaries.some((boundary) => boundary.id === 'causal-claim' && boundary.status !== 'unavailable')) {
+    throw new Error('因果边界在任何输入下都只能是「不声明」')
+  }
+  // 导出的是**对象**（宿主与界面各自决定怎么序列化），所以这里比的是同一份输入的序列化结果。
+  const exportA = JSON.stringify(evidence.buildEvidenceExport(empty))
+  const exportB = JSON.stringify(evidence.buildEvidenceExport(evidence.buildSkillEvidence({})))
+  if (exportA !== exportB) throw new Error('同一个输入两次导出必须逐字节相同（否则 diff 里全是噪声）')
+  if (!exportA.includes('"schemaVersion"')) throw new Error('导出的 JSON 必须带自己的 schemaVersion')
+  for (const key of evidence.EVIDENCE_EXPORT_FORBIDDEN_KEYS) {
+    if (new RegExp(`"${key}"\\s*:`).test(exportA)) {
+      throw new Error(`导出的 JSON 里出现了禁止键「${key}」：导出件会被贴进 issue，隐私口径在这里断`)
+    }
+  }
+  if (exportA.includes(root) || /"\/[^"]*\/Users\//.test(exportA)) {
+    throw new Error('导出的 JSON 里不许出现绝对路径')
+  }
+  if (!evidence.EVIDENCE_EXPORT_FORBIDDEN_KEYS.includes('sessionId')) {
+    throw new Error('禁止键清单里必须有 sessionId：这一条是导出件的底线')
+  }
+
+  // ⑦ 隐私边界：证据只读元数据。工具参数与结果、隐藏推理、网络、落盘都不进来。
+  // 先把「禁止键清单」那段摘掉 —— 它**逐字列出了**这些字段名，正是为了把它们挡在导出件之外；
+  // 不摘就会把这张黑名单本身当成违规。
+  const privacyScan = evidenceCode.replace(/export const EVIDENCE_EXPORT_FORBIDDEN_KEYS = \[[\s\S]*?\n\]/, '')
+  for (const banned of ['toolInput', 'toolArguments', 'toolResult', 'chainOfThought', 'hiddenReasoning', "require('node:", "import('node:"]) {
+    if (privacyScan.includes(banned)) {
+      throw new Error(`证据模块里不许出现「${banned}」：它只读元数据，不读参数、结果与隐藏推理`)
+    }
+  }
+  if (!evidenceCode.includes('不读取工具参数、工具结果或隐藏推理')) {
+    throw new Error('这条隐私边界必须写在模块里（限制词表的那句文案就是它的落点）')
+  }
+  for (const banned of ['sessionId', 'runKey', 'eventId']) {
+    if (evidenceCard.includes(banned)) {
+      throw new Error(`证据卡里不许出现「${banned}」：这些值形如 <sessionId>:<callId>，进界面就等于泄露会话`)
+    }
+  }
+  if (!evaluationCode.includes('EVALUATION_FORBIDDEN_OUTPUTS')) {
+    throw new Error('证据卡复用了评测的聚合禁令，评测模块必须仍然导出这份清单')
+  }
+
+  console.log('SKILL_EVIDENCE_MODEL_OK')
+  console.log('SKILL_EVIDENCE_BINDING_OK')
+  console.log('SKILL_EVIDENCE_CARD_OK')
+  console.log('SKILL_EVIDENCE_NO_CAUSATION_OK')
+  console.log('SKILL_EVIDENCE_EXPORT_OK')
+  console.log('SKILL_EVIDENCE_UNAVAILABLE_OK')
+  console.log('SKILL_EVIDENCE_PRIVACY_OK')
 }
 
 // --- v0.9.2「已安装列表的顺序」：刚复刻出来的必须第一眼就看到 -------------------------

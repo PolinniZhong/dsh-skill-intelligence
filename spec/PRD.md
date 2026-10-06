@@ -1,14 +1,14 @@
-# DSH Skill Intelligence · DSH Skill 智能实验室 · 产品需求文档（当前版 1.1.0）
+# DSH Skill Intelligence · DSH Skill 智能实验室 · 产品需求文档（当前版 1.2.0）
 
 > **这份文件是什么**：DSH Skill Intelligence（DSH Skill 智能实验室）**当前版本的产品语义唯一权威**。目标、业务对象、状态语义、范围、功能需求与验收标准都以本文件为准；技术实现以 `spec/SDD.md` 为准，界面视觉与组件以 `design.md` 为准。
 >
-> **目录定位**：`spec/PRD.md` 是**现行版** PRD（只描述 `1.0.0` 为真的事实，含**已随 `1.0.0` 发布的 V1.0「Skill Evaluation」**——§5.13 的 `FR-EVAL-*` 与 §12.2 的路线块（V1.1 及以后仍逐条标注「计划，未实现」）；不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
+> **目录定位**：`spec/PRD.md` 是**现行版** PRD（描述 `1.1.0` 已发布的事实与 `1.2.0` 这一**工作版本**的事实：含**已随 `1.2.0` 定版、尚未发布的 V1.2「Skill 证据模型 / Skill Evidence Model」**——§5.14 的 `FR-EVIDENCE-*`——与已发布的 §5.13 `FR-EVAL-*`；**V1.3 及以后的路线仍逐条标注「计划，未实现」**；不含任何修订记录）。0.7 之前的全量 PRD 及其修订记录已冻结归档在 `docs/archive/requirements-v0.7-full.md`，产品命题初稿在 `docs/archive/product-thesis.md`，V0.1–V0.5 技术设计在 `docs/archive/technical-design-v0.1-v0.5.md`——**这三份是历史，不是权威，不再回写**。要改产品措辞，改本文件。文档间冲突时，以 `AGENTS.md` §1 + 源码 + 测试为准。
 >
 > **一句话职责**：把「这次对话加载了哪些 Skill」与「这台机器上有哪些 Skill」变成两个可读页面，点进唯一的详情页，看这个 Skill **声明了什么**，以及本次会话**观察到了什么**。它是**只读观察者**。
 >
-> **版本与实测状态**：插件包 `dsh-skill-trace` 已发布的版本是 **`1.1.0`**（2026-10-06：GitHub Release 与 npm 是同一份构建）。这一版是 **V1.1「详情级导航 + Agent Skills 开放标准」**：`SKILL.md` 详情页从一条纵向长页面改成**左侧详情导航 + 右侧当前模块**（`DETAIL_MODULES` 八个维度、`DetailNav`、`MODULE_CONTENT[activeModule]`，默认进入 `framework`），并把 **Agent Skills 开放标准**从各平台 Profile 里分出来单独判（`standard` Profile、`skillProfileKind()` 的**标准合规 / 平台兼容**两分、新增 `CORE-DIR-001` 与三条形状规则，规则 32 → 36 条）——**不新增路由、不新增页面、不新增落盘、不新增依赖**，宿主 `src/dsh/host/index.js` 一字未改。**实测值（`1.1.0` 发布口径）**：自动化测试 **643 项** · 静态契约守卫 **31 组**（第 31 组 `SKILL_STANDARD_ALIGNMENT_OK`）· 客户端 `src/dsh/client/client.js` **4495 行** · bundle `dist/client.js` **234965 字节**（source hash `71125cf37d020c7c`）· `src/core/` **32 个模块 / 11945 行** · `src/storage/` **7 个 / 1411 行** · 宿主路由 **13 条**（`src/dsh/host/index.js` 1844 行）· `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。**版本号 `1.1.0` 由用户拍板（2026-10-06 发布）。** 发布后的实测结果见 `docs/RELEASE.md` §6.0。上一版 `1.0.0`（V1.0「Skill Evaluation」，§5.13 的 `FR-EVAL-*`，2026-10-05：把临时的实例验收任务固化成**可重复的评测 Case**，逐条记录判定与四段运行时证据，两次运行逐项对照——**不给分、不排名、不做 benchmark、不聚合、不自动跑**）的发布口径是 636 项测试（52 个测试文件）/ 30 组守卫 / 客户端 4284 行 / bundle 228715 字节（source hash `54bee3888d0299d8`）/ `src/core/` 32 个模块 11657 行 / `src/storage/` 7 个 1411 行 / 宿主 13 条路由；再上一版 `0.10.0`（V0.10.0「Skill 实例验收」，2026-10-05）是 590 项测试 / 29 组守卫 / 客户端 3625 行 / bundle 189256 字节（source hash `faed5e9cef7db24c`）/ `src/core/` 30 个模块 / 宿主 12 条路由；再上一版 `0.9.2`（V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」，2026-10-03）是 561 项测试 / 28 组守卫 / 客户端 3448 行 / bundle 170324 字节。逐条登记见 `CHANGELOG.md` 的 `## 1.1.0` 与 `spec/SDD.md` §0.1 的 `D15`。
+> **版本与实测状态**：插件包 `dsh-skill-trace` **已发布**的版本是 **`1.1.0`**（2026-10-06：GitHub Release 与 npm 是同一份构建）；**当前工作版本是 `1.2.0`（已定版、尚未发布）**。`1.2.0` 这一版是 **V1.2「Skill 证据模型 / Skill Evidence Model」**（§5.14 的 `FR-EVIDENCE-*`）：把「这一次会话对这个 Skill 到底观察到了什么」整理成一组有身份、有性质、有边界的证据事实 —— 三态（`declared` / `observed` / `unavailable`，**没有「推断」档**）、四段证据链 Definition → Load → Use → Outcome、五类对象 × 五列的证据状态表、三条边界（因果结论永远「不声明」）、漂移三态（`current` / `historical` / `no-matching-evidence`，**没有「过期」**）、封闭的限制词表（9 条）、可重放的证据 id（`evidence:<对象>@<绑定>`）、以及在**浏览器内**生成的可复核 Evidence JSON —— **不给分、不排名、不聚合、不调模型、不读工具参数与结果、不显示绝对路径**，**不新增路由 / 页面 / 落盘 / 依赖**，宿主 `src/dsh/host/index.js` 一字未改。**实测值（`1.2.0` 工作版本口径，2026-10-06）**：自动化测试 **657 项** · 静态契约守卫 **38 组**（第 32–38 组是 7 条 `SKILL_EVIDENCE_*`）· 客户端 `src/dsh/client/client.js` **4927 行** · bundle `dist/client.js` **275433 字节**（source hash `d34870c8463b35dc`）· `src/core/` **33 个模块 / 12854 行**（新增 `skill-evidence.mjs`，909 行、零 `import`）· `src/storage/` **7 个 / 1411 行**（未改）· 宿主路由 **13 条**（`src/dsh/host/index.js` 1844 行，未改）· `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。**版本号 `1.2.0` 由用户拍板（2026-10-06 定版）：tag、GitHub Release 与 npm 都还没有它，安装示例仍只锚已发布的 `1.1.0`。** 上一版 `1.1.0` 是 **V1.1「详情级导航 + Agent Skills 开放标准」**：`SKILL.md` 详情页从一条纵向长页面改成**左侧详情导航 + 右侧当前模块**（`DETAIL_MODULES` 八个维度、`DetailNav`、`MODULE_CONTENT[activeModule]`，默认进入 `framework`），并把 **Agent Skills 开放标准**从各平台 Profile 里分出来单独判（`standard` Profile、`skillProfileKind()` 的**标准合规 / 平台兼容**两分、新增 `CORE-DIR-001` 与三条形状规则，规则 32 → 36 条）——**不新增路由、不新增页面、不新增落盘、不新增依赖**，宿主 `src/dsh/host/index.js` 一字未改。**实测值（`1.1.0` 发布口径）**：自动化测试 **643 项** · 静态契约守卫 **31 组**（第 31 组 `SKILL_STANDARD_ALIGNMENT_OK`）· 客户端 `src/dsh/client/client.js` **4495 行** · bundle `dist/client.js` **234965 字节**（source hash `71125cf37d020c7c`）· `src/core/` **32 个模块 / 11945 行** · `src/storage/` **7 个 / 1411 行** · 宿主路由 **13 条**（`src/dsh/host/index.js` 1844 行）· `dependencies` 为空 · `devDependencies` 仅 `esbuild` · 可选 peer `@deepseek-ai/dsh-llm`。**上一版 `1.1.0` 的版本号也由用户拍板（2026-10-06 发布）。** 发布后的实测结果见 `docs/RELEASE.md` §6.0。上一版 `1.0.0`（V1.0「Skill Evaluation」，§5.13 的 `FR-EVAL-*`，2026-10-05：把临时的实例验收任务固化成**可重复的评测 Case**，逐条记录判定与四段运行时证据，两次运行逐项对照——**不给分、不排名、不做 benchmark、不聚合、不自动跑**）的发布口径是 636 项测试（52 个测试文件）/ 30 组守卫 / 客户端 4284 行 / bundle 228715 字节（source hash `54bee3888d0299d8`）/ `src/core/` 32 个模块 11657 行 / `src/storage/` 7 个 1411 行 / 宿主 13 条路由；再上一版 `0.10.0`（V0.10.0「Skill 实例验收」，2026-10-05）是 590 项测试 / 29 组守卫 / 客户端 3625 行 / bundle 189256 字节（source hash `faed5e9cef7db24c`）/ `src/core/` 30 个模块 / 宿主 12 条路由；再上一版 `0.9.2`（V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」，2026-10-03）是 561 项测试 / 28 组守卫 / 客户端 3448 行 / bundle 170324 字节。逐条登记见 `CHANGELOG.md` 的 `## 1.1.0` 与 `spec/SDD.md` §0.1 的 `D15`。
 >
-> **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **897 行 / 129893 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
+> **体量说明**：本文件把全部承重内容（`FR-*` 全表及其边界、逐字界面文案、测量数字、来源冲突说明）压缩进正文后为 **918 行 / 140161 字节**，略超 400–600 行的目标——已无可再压的信息，剩余部分只有空行与表格分隔行。
 >
 > **发布状态（2026-10-05）**：**V0.10.0「Skill 实例验收」已随 `0.10.0` 发布**（GitHub Release 与 npm，2026-10-05；tag `v0.10.0`）。这一版**已通过真机验收**（2026-10-05 用户逐项确认 28 条检查点全部通过：没有修改事务时整块不出现、`[生成实例验收]` 只在此后出现、Prompt 四块与观察项物理分离、任务句按词边界截断、全屏无证据禁用词、生成不调模型）。发布实测：自动化测试 **590 项** · 静态契约守卫 **29 组** · 客户端 `src/dsh/client/client.js` **3625 行** · bundle `dist/client.js` **189256 字节** · 宿主路由 **12 条**（这一版**没有**新增路由）· `src/core/` **30 个模块 / 10924 行** · `src/storage/` **6 个模块 / 1117 行**。上一版 `0.9.2` 的发布实测见 `docs/RELEASE.md` §6.0.2。
 
@@ -573,9 +573,27 @@ L4「有输出关联」与 L5「人工确认有用」已随输出引用与学习
 - **`FR-EVAL-015`**：**不自动跑。** 不自动创建会话、不自动发送 Prompt、不自动重复 n 次、不读回模型回复正文、不由插件调用模型做任何判定。运行由**用户在新会话里**完成，插件只负责记录与对照（继承 `FR-INST-013`）。
 - **`FR-EVAL-016`**：**存储与路由需要明确授权（V1.0 开工前必须先拿到）。** Case 与 Run 要**落盘**，就需要**一个新的本机存储**（沿用 `docs/PRIVACY.md` 的 `0700` 目录 / `0600` 文件 / 临时文件 + 原子 rename / 禁字段清单）与**一条新的 POST 路由**（届时同步 `docs/PRIVACY.md`、`spec/SDD.md` §3 与 §11 与契约守卫）。`sessionId` 不进落盘内容；跨会话对照用 `caseId + runId`。**这是 V0.8 以来第一次新增落盘内容（用户的任务正文与用户判定），不得在未获授权的情况下实现。**
 - **`FR-EVAL-017`**：**保留与清理策略必须与 V1.0 一起定**：run 历史的条数上限、按 Case 清理、按 Skill 清理、以及删除后残留什么。否则 V1.3+ 的逐版演进评测面对的是一堆无主数据。
-- **`FR-EVAL-018`**：**后续版本边界（避免混版）**：**V1.1** = Skill Regression / Variance，把**多 Case 套件 × 重复 n 次**的意义限定在「**哪些事实一致、哪些不一致**」，**不给方差数值、不给稳定性分数**；**V1.2** = Skill Trigger Evaluation，`should-trigger` / `should-not-trigger` 场景集，「被提供」「被加载」可测，「该不该触发」由用户判定；**V1.3+** = Skill Evolution Evaluation，沿血缘逐版对照来回答「这个 Skill 有没有在一轮轮反馈里变好」——综述指出这一格**目前没有任何 benchmark 在做**，方向由 `FR-EVAL-017` 的数据保留策略支撑。
+- **`FR-EVAL-018`**：**后续版本边界（避免混版）**：**V1.1** = Skill Regression / Variance，把**多 Case 套件 × 重复 n 次**的意义限定在「**哪些事实一致、哪些不一致**」，**不给方差数值、不给稳定性分数**；**V1.2** = Skill Trigger Evaluation，`should-trigger` / `should-not-trigger` 场景集，「被提供」「被加载」可测，「该不该触发」由用户判定；**V1.3+** = Skill Evolution Evaluation，沿血缘逐版对照来回答「这个 Skill 有没有在一轮轮反馈里变好」——综述指出这一格**目前没有任何 benchmark 在做**，方向由 `FR-EVAL-017` 的数据保留策略支撑。**注（2026-10-06 重分配）：** 这份路线表的格子已被实际发布重新分配 —— `1.1.0` 发的是「详情级导航 + Agent Skills 开放标准」、`1.2.0` 定版的是「Skill 证据模型」（§5.14 的 `FR-EVIDENCE-*`），所以原写在这一格的 **Skill Trigger Evaluation（`should-trigger` / `should-not-trigger` 场景集）顺延到 V1.3+**，Skill Regression / Variance 与 Skill Evolution Evaluation 依次后移；**这些格子一行代码都还没写**，不得被当作已具备。
 
 ---
+
+---
+
+### 5.14 Skill 证据模型（`FR-EVIDENCE-*`，V1.2；`1.2.0` 已定版、尚未发布）
+
+**这一节定义「这一次会话对这个 Skill 到底观察到了什么」该怎么被说出来。** 它不是新的判定层：证据模型**只归一、只投影、只标注性质**，不产生新的运行时事实，也不替用户下结论。实现是 `src/core/skill-evidence.mjs`（909 行、零 `import` 的纯函数层，客户端第十支 `require`）；界面是详情页的第九个模块「**Skill 证据**」（id `evidence-model`，紧跟「Skill 框架」之后）。
+
+- **`FR-EVIDENCE-001`**：**唯一入口是纯函数。** 证据模型由 `buildSkillEvidence(input)` 产出，输入只能是已有的声明与观察（`definition` / `observation` / `runs` / `evidence` / `validation` / `evaluation`）；**不读文件、不读网络、不读时间、不掷骰子、不调模型**（零 `import`、无 `Date.now` / `Math.random` / UUID）。同一份输入必须得到逐字节相同的输出，导出亦然。
+- **`FR-EVIDENCE-002`**：**状态只有三态，缺就是缺。** 每一条证据事实的状态恰好取 `declared`（Skill 自己声明的）/ `observed`（本次会话观察到的）/ `unavailable`（够不着），**没有第四档、也没有「推断」**；任何认不出的值一律归一成 `unavailable`，**不许**用默认值、也不许从别处推一个看起来合理的值填上。
+- **`FR-EVIDENCE-003`**：**四段证据链固定为 Definition → Load → Use → Outcome**，顺序不得变、不得跳段；每一段单独标注自己的状态与限制（同一条链上可以并存 `observed` 与 `unavailable`）。**这四段与 §5.13 `FR-EVAL-010` 的 Trigger / Load / Use / Outcome 不是同一套 id**，两处不得互相套用对方的段落名。
+- **`FR-EVIDENCE-004`**：**三条不等式必须出现在界面上**（不能只写在文档里）：「**加载 ≠ 使用**」「**使用 ≠ 结果**」「**结果 ≠ 这个 Skill 造成的**」——与 `FR-EVAL-011` 同源，理由相同：不能因为最后成功就说这个 Skill 有效。
+- **`FR-EVIDENCE-005`**：**三条边界逐块声明**：`load-evidence`（协议级：这些字节进入了模型可见对话）、`use-evidence`（只有元数据与用户 / Agent 陈述，够不着「模型采用了它」）、`causal-claim`（**永远 `unavailable`**：插件不声明因果关系，界面那一行写死「不声明」）。
+- **`FR-EVIDENCE-006`**：**证据状态表是五类对象 × 五列。** 对象 = Skill 名称 / Skill 加载 / Skill 使用迹象 / DSH 版本 / Skill 造成结果；列 = 对象 / 状态 / 当前事实 / 证据来源 / 限制。**「Skill 造成结果」那一行永远 `unavailable`**，它的限制写的是「因果不归属」。
+- **`FR-EVIDENCE-007`**：**指纹漂移三态**：`current`（证据绑定的指纹就是当前定义）/ `historical`（绑定的是另一份指纹 —— **历史证据仍然有效**，只是对应另一版 Skill）/ `no-matching-evidence`（这份指纹下没有任何运行证据）。**「过期 / 已失效」这类词不许出现**：历史事实不会过期（与 `FR-EVAL-004` 同一条纪律）。
+- **`FR-EVIDENCE-008`**：**限制是封闭词表**，恰好九条：`declared-value-is-not-runtime-behaviour` / `load-does-not-prove-content-use` / `use-evidence-reads-metadata-only` / `use-evidence-is-circumstantial` / `outcome-is-not-causal-attribution` / `current-reading-path-does-not-provide-dsh-version` / `historical-schema-does-not-contain-this-field` / `fingerprint-does-not-match-the-current-definition` / `no-run-evidence-for-this-fingerprint`。界面**按 id 取标签**，不许自己写限制文案，也不许把限制省掉。
+- **`FR-EVIDENCE-009`**：**每一条证据都有可重放的 id**：`evidence:<对象>@<绑定>`，哈希域前缀 `dsh-skill-evidence`，绑定是 `sha256:` 指纹（当前定义指纹 / 历史 Run 的观察到指纹 / Case id）；**不含时间、不含随机数、不含会话 id**。换指纹必须换 id，同一输入必须得到同一 id。
+- **`FR-EVIDENCE-010`**：**Evidence JSON 导出逐字节稳定**，只含身份 / 条件 / 观察 / 限制 / 来源；**禁止键**（工具参数、工具结果、会话 id、绝对路径、任何分数与百分比）出现即视为失败；导出发生在**浏览器内**（`Blob` → 剪贴板兜底 → 如实报错），不新增导出服务、不新增路由。
+- **`FR-EVIDENCE-011`**：**不新增路由 / 落盘 / 依赖 / 页面。** 证据模型不写任何文件、不外发任何内容；「Skill 证据」是详情页的第 9 个模块（`AGENTS.md` §10 的一级 IA 不变）；`dependencies` 保持为空；宿主 `src/dsh/host/index.js` 一字未改。
 
 ---
 
@@ -827,7 +845,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 
 ### 12.1 PRD Gate（本文件自身的完备性）
 
-产品承诺与竞品非重复边界明确；五层业务事实、加载状态与三个对象域无混用；业务框架、信息架构与证据状态语义和功能需求一致；范围、非目标、异常、隐私与风险完整；一级页面恰好两个、二级页面恰好一个、无 `Advanced` 已冻结；详情返回按钮文案由来源 state 派生已冻结；中文阅读版的只读、绑定 `sourceSha256`、结构保留、明示出网、失败可见与**本机资产边界**已冻结；偏好 `PREFERENCES_VERSION = 3`、词汇恰好 `current` / `installed`、无版本号与 v0.5 词汇归一化为 `current` 已冻结。**V1.0 已随 `1.0.0` 发布（2026-10-05）；V1.1 起的路线（§5.13 的后续档与 §12.2 的路线块）仍带「计划，未实现」标注，且「不产出任何聚合指标」已写进 §2.3 非目标与 `FR-EVAL-012` 两处。**
+产品承诺与竞品非重复边界明确；五层业务事实、加载状态与三个对象域无混用；业务框架、信息架构与证据状态语义和功能需求一致；范围、非目标、异常、隐私与风险完整；一级页面恰好两个、二级页面恰好一个、无 `Advanced` 已冻结；详情返回按钮文案由来源 state 派生已冻结；中文阅读版的只读、绑定 `sourceSha256`、结构保留、明示出网、失败可见与**本机资产边界**已冻结；偏好 `PREFERENCES_VERSION = 3`、词汇恰好 `current` / `installed`、无版本号与 v0.5 词汇归一化为 `current` 已冻结。**`1.1.0` 已发布（2026-10-06）；`1.2.0` 已定版、尚未发布（V1.2「Skill 证据模型」，§5.14 的 `FR-EVIDENCE-*`）；V1.3 起的路线（§5.13 的后续档与 §12.2 的路线块）仍带「计划，未实现」标注**，且「不产出任何聚合指标」已写进 §2.3 非目标与 `FR-EVAL-012`、`FR-EVIDENCE-004` / `FR-EVIDENCE-010` 三处。
 
 ### 12.2 自动化 Gate（当前状态）
 
@@ -843,7 +861,9 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 
 **`V0.10.0`（`FR-INST-*`，已随 `0.10.0` 发布 2026-10-05）**：`npm test` **590 项通过** · `npm run verify` **29 组 OK** · `dist/client.js` **189256 字节**（source hash `faed5e9cef7db24c`）· 客户端 3625 行 · `src/core/` 30 个模块 10924 行 · 宿主路由**仍是 12 条**（实例验收**没有**新增路由；原计划的 `POST /skill-trace/instance-test` 已取消，见 `FR-INST-015`）。
 
-**`V1.0`（已随 `1.0.0` 发布）与 V1.1 及以后（路线，全部为「计划，未实现」）**：`V1.0` **Skill Evaluation**（§5.13 的 `FR-EVAL-*`，18 条）：单 Case 可重复运行 + 同 Case 的 Before / After 或 Baseline / With Skill 对照 + 四段证据与来源分级，**无任何分数**，需要一个新的本机存储与一条新路由（`FR-EVAL-016`，**用户 2026-10-05 已授权并已落地**：`<dataRoot>/evaluation/` + 第 13 条路由 `POST /skill-trace/evaluation`）→ `V1.1` **Skill Regression / Variance**：多 Case 套件 × 重复 n 次，只呈现「哪些事实一致、哪些不一致」→ `V1.2` **Skill Trigger Evaluation**：`should-trigger` / `should-not-trigger` 场景集 → `V1.3+` **Skill Evolution Evaluation**：沿血缘逐版对照。**V1.0 已随 `1.0.0` 发布（2026-10-05）；V1.1 / V1.2 / V1.3+ 这四档里的后三档一行代码都还没写**，不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备。
+**`V1.0`（已随 `1.0.0` 发布）· `V1.1`（已随 `1.1.0` 发布：详情级导航 + Agent Skills 开放标准）与 V1.3+（路线，全部为「计划，未实现」）**：`V1.0` **Skill Evaluation**（§5.13 的 `FR-EVAL-*`，18 条）：单 Case 可重复运行 + 同 Case 的 Before / After 或 Baseline / With Skill 对照 + 四段证据与来源分级，**无任何分数**，需要一个新的本机存储与一条新路由（`FR-EVAL-016`，**用户 2026-10-05 已授权并已落地**：`<dataRoot>/evaluation/` + 第 13 条路由 `POST /skill-trace/evaluation`）→ 原计划的 `V1.1` **Skill Regression / Variance**（多 Case 套件 × 重复 n 次，只呈现「哪些事实一致、哪些不一致」）与原计划的 `V1.2` **Skill Trigger Evaluation**（`should-trigger` / `should-not-trigger` 场景集）**都已随后移**（2026-10-06 的路线重分配：`1.1.0` 实际发的是「详情级导航 + Agent Skills 开放标准」，`1.2.0` 定版的是「Skill 证据模型」，见 §5.14）。**V1.0 已随 `1.0.0` 发布（2026-10-05）、V1.1 已随 `1.1.0` 发布（2026-10-06）；Trigger Evaluation / Regression-Variance / Evolution Evaluation 这三格一行代码都还没写**，不得在任何界面、README、CHANGELOG 或发布说明里被当作已具备。
+
+**`V1.2`「Skill 证据模型」（`FR-EVIDENCE-*`，11 条，已定版 `1.2.0`、尚未发布）**：`npm test` **657 项通过** · `npm run verify` **38 组 OK**（第 32–38 组是 7 条 `SKILL_EVIDENCE_*`）· `dist/client.js` **275433 字节**（source hash `d34870c8463b35dc`）· 客户端 **4927 行** · `src/core/` **33 个模块 / 12854 行**（新增 `skill-evidence.mjs`）· `src/storage/` 7 个 1411 行（未改）· 宿主路由**仍是 13 条**（1844 行，未改；证据模型**没有**新增路由与落盘）。
 
 守卫断言的是**源码文本层**的事实，因此它们必须真的跑到那条分支：客户端文案断言跑在「去掉英文字典之后」的源码上（一句只活在 `const EN = { … }` 里的文案不算存在——曾经有 45 条断言因此长期空转）。**改守卫时问一句：这条断言失败过吗？如果它写成 `true` 会怎样？**
 
@@ -859,7 +879,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 - [ ] 「渐进披露」显示「声明引用 N 个 · 已读取 **0** 个」，资源按 Tier 分层，每行带 `SKILL.md` 自己写的那句「什么时候读」；
 - [ ] 「本次运行逻辑」五段，每段有状态与**真实事实**（Skill 数 / 载入位置 / 指纹）；
 - [ ] 「步骤证据」每个声明步骤一行；没有证据的那几行只有一句「没有可展示的证据引用」，不会先立一个名头再由值把它收回；
-- [ ] `SKILL.md` 在**最下面**；
+- [ ] `SKILL.md` 是**左列导航的最后一维**，点它右屏当屏显示原始文档（不是「滚到最下面」）；
 - [ ] 界面里**任何位置**都没有「已执行 / 已完成 / 执行成功 / 已加载 / 已读取 references/…」；
 - [ ] 文档里的表是**真表格**（带边框），不是一列竖线；
 - [ ] 点框架小节 → 滚到 `SKILL.md` 对应章节并高亮；合成小节**不可点**；
@@ -867,6 +887,7 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 - [ ] 复刻：对话框就地校验、同名 `409` 提示改名、成功态来自回读、目录刷新观察不到时写「待确认」、响应与界面都没有绝对路径；
 - [ ] 顶栏：状态行只在有话要说时出现；「正在读取 / 读取失败 / 目录可能不完整 / 目录无法确认」四句一字不少；搜索框只在已安装列表出现；两个列表的元信息行都钉在卡片左下角，且两个列表从同一个位置开始。
 - [ ] **Skill 验收**（`0.9.2` 发布，`FR-VAL-*`）：结论只在三态之间（通过 / 需要修正 / 无法判断）；**警告不为零时结论仍可以是「通过」**；每个 Profile 一行，`Microsoft` 的目录名规则在 `DSH` 下**不存在**（同一份 Skill 两种结论）；「这次没有判定」逐条列出**理由**而不是留白；点开「这次验收查了什么、没查什么」能看到限制；**没有**分数、等级、「优秀 / 最佳」；**没有**「已执行 / 已完成 / 已加载」；发现行同时给出 `rule id` **与**规则标题。
+- [ ] **Skill 证据**（V1.2，`FR-EVIDENCE-*`，`1.2.0`）：左列第 2 项就是它；状态只有 `Skill 声明 / 已观察 / 无法取得` 三个词，**没有任何「推断」档**；四段链**逐段**写着自己的限制；表格里「Skill 造成结果」那一行永远 `无法取得`、限制写的是**因果不归属**；三条边界里因果那块写的是「不声明」；漂移只说 `current / historical / no-matching-evidence`（**不许出现「过期」**）；点「导出 Evidence JSON」真的下载到一个文件，内容里**没有**工具参数 / 工具结果 / 绝对路径 / 任何分数与百分比；
 - [ ] **已安装列表排序**（`0.9.2` 发布，`FR-ORD-*`）：刚复刻出来的那个出现在**第一行**；卡片上有 `MM-DD 加入本机`（**只到日**，没有时:分），复刻过的多一行 `复刻自 <来源>`；默认成立的「模型可调用 / 可用 `/name` 调用」与 `filesystem` **一个字都不出现**，插件提供的 Skill 才写出它的 provider；列表上方那句话与真实顺序一致，读不到时间的 Skill 在末尾且被**报数**；界面里**没有**「今天 / 刚刚 / 几分钟前」；同一个 Skill 不重复出现。
 
 ### 12.4 已知的未验证项（不得声称已完成）
@@ -894,4 +915,4 @@ Browser Viewport ≠ DSH Content Area ≠ Plugin Content Area
 | `docs/archive/product-thesis.md` | 产品命题初稿（历史） |
 | `docs/archive/technical-design-v0.1-v0.5.md` | V0.1–V0.5 技术设计（历史） |
 
-> 本文件只描述 **已发布版本**（含已随 `0.9.2` 发布的 `FR-VAL-*`、`FR-MOD-*` 与 `FR-ORD-*`）为真的事实。任何历史版本的范围声明、修订记录与变更日期都不在本文件内，需要追溯时到 `docs/archive/` 或 `CHANGELOG.md`。
+> 本文件描述 **`1.1.0` 已发布的事实**与 **`1.2.0` 这一工作版本的事实**（含已定版未发布的 `FR-EVIDENCE-*`，以及已随 `0.9.2` 发布的 `FR-VAL-*`、`FR-MOD-*` 与 `FR-ORD-*`）。任何历史版本的范围声明、修订记录与变更日期都不在本文件内，需要追溯时到 `docs/archive/` 或 `CHANGELOG.md`。

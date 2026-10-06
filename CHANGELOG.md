@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.2.0 — 未发布 · Skill 证据模型（Skill Evidence Model）
+
+> **这是「工作版本」**：`package.json` 已按用户 2026-10-06 的决定写死 `1.2.0`，但**尚未发布** —— GitHub Release、tag 与 npm 上都还没有它（npm 的 `beta` 与 `latest` 仍指向 `1.1.0`）。发布后本行补上日期，实测结果回填到 `docs/RELEASE.md` §6.0。
+
+**这一版只做一件事：把「这次会话对这个 Skill 观察到了什么」整理成一组有身份、有性质、有边界的证据事实，并在详情页多一个只读的「Skill 证据」模块。** 不给分、不排名、不聚合、不调模型；**不新增路由、不新增页面、不新增落盘、不新增依赖**，宿主 `src/dsh/host/index.js` 一字未改。
+
+**本地实测（`1.2.0` 工作版本口径，2026-10-06）**：`npm test` **657 项全绿** · `npm run verify` **38 组 OK**（第 32–38 组是 V1.2 新增的 7 条 `SKILL_EVIDENCE_*`）· 客户端 `src/dsh/client/client.js` **4927 行** · bundle `dist/client.js` **275433 字节**（source hash `d34870c8463b35dc`）· `src/core/` **33 个模块 / 12854 行**（新增 `skill-evidence.mjs` 909 行）· `src/storage/` **7 个 1411 行**（未改）· 宿主仍是 **13 条路由**（`src/dsh/host/index.js` 1844 行，未改）· 客户端 `require` 由九支变**十支**。
+
+### A. 证据模型（`src/core/skill-evidence.mjs`，909 行，**零 import**）
+
+- **三态只有三个**（`EVIDENCE_STATUS_IDS`）：`declared`（Skill 自己声明的）/ `observed`（系统确实观察到的）/ `unavailable`（当前已验证的读取路径拿不到）。**没有 `inferred`**：缺就是缺，`normalizeEvidenceStatus()` 把任何认不出的值（含大小写不同）一律归一成 `unavailable`，绝不让「没观察到」写成「没发生」。
+- **四段证据链**（`EVIDENCE_CHAIN_STAGE_IDS`）：Definition → Load → Use → Outcome，每段带自己的 hint 与限制。它**不是** V1.0 评测那套 `trigger / load / use / outcome` 的复用——那套属于 Run，这套属于「一条证据事实在哪一段上」。
+- **证据状态表**（`EVIDENCE_SUBJECT_IDS` × `EVIDENCE_TABLE_COLUMNS`）：五类对象 **Skill 名称 / Skill 加载 / Skill 使用迹象 / DSH 版本 / Skill 造成结果**，五列 **对象 / 状态 / 当前事实 / 证据来源 / 限制**。第一类永远是 `declared`（名字来自 `SKILL.md`），最后一类永远是 `unavailable`（因果结论**永不声明**）。
+- **三条边界**（`EVIDENCE_BOUNDARY_IDS`）：`load-evidence` / `use-evidence` / `causal-claim`，第三块的定论永远是「不声明」——`结果 ≠ 这个 Skill 造成的`（`EVIDENCE_INEQUALITIES` 三句与 V1.0 同义，但归属本模型）。
+- **漂移三态**（`EVIDENCE_DRIFT_IDS`）：`current` / `historical` / `no-matching-evidence`，**没有「过期」这一档**。判据是「手上的 Run 证据绑在哪一份 instruction fingerprint 上」，历史证据**仍然有效**，只是它对应的是另一份定义。
+- **限制是封闭词表**（`EVIDENCE_LIMITATION_CODES`，9 条）：界面按 id 取文案，**不许自己写**——「这是声明值不是运行时行为」「加载不证明内容被使用」「只读工具名与数量」「同 Turn 相关活动不等于被完整使用」「结果不是因果归属」「当前读取路径不提供 DSH 版本」「历史 schema 没这个字段」「指纹与当前定义不一致」「没有 Run 绑定到当前指纹（推不出没执行）」。
+- **id 必须可重放**（`FR-EVIDENCE-009`）：`evidenceHashInput()` 第一行是域前缀 `dsh-skill-evidence`，`evidenceIdOf()` 的形状是 `evidence:<对象>@<绑定>`；同输入逐字同 id，**没有** `Date.now()` / `Math.random()` / UUID（守卫先剥注释再扫源码钉住这一点）。要升级成真 sha256 只需宿主对规范输入串多算一步，模块与界面都不用动。
+- **导出**（`EVIDENCE_EXPORT_SCHEMA_VERSION = 1`）：`buildEvidenceExport(model)` 只含身份、条件、观察、限制与来源，逐字节稳定；`EVIDENCE_EXPORT_FORBIDDEN_KEYS` 明列不许出现的键（工具参数 / 工具结果等），命中即失败。
+
+### B. 界面：详情页第二维「Skill 证据」（客户端第十支 `require`）
+
+- 详情页导航从**八个模块变九个**，新模块 `evidence-model`（`Skill 证据`）插在 `framework` 之后；`MODULE_CONTENT['evidence-model'] = [skillEvidence]`。它**复用**当下这一帧已有的评测状态，不额外发请求。
+- 卡内七块：`evidence-identity`（Skill fingerprint / Source identity / Instruction fingerprint / Case / Run）、`evidence-chain`（四段 + 事实 + 来源 + 限制）、`evidence-limits`（三条边界，因果那行写死「不声明」）、`evidence-table`（五类对象 × 五列）、`evidence-drift`（漂移三态与它对应的说法）、`evidence-evaluation`（本次 Run / 历史 Run / 对照三个 tab）、以及一个「导出 Evidence JSON」按钮。
+- **导出发生在浏览器里**：`Blob` + `URL.createObjectURL` 触发下载，失败退剪贴板，再失败如实报「当前环境不支持导出。」。**没有**导出服务、没有新路由、没有落盘。
+- 每一行的状态都带 `data-status`；缺项一律 `unavailable` 并附限制 id，页面**不出现**任何分数、排名、百分比，也不出现「已执行 / 已完成 / 已加载」。
+
+### C. 没变的东西（这一版的护栏）
+
+- **不新增路由 / 页面 / 落盘 / 依赖**：宿主 13 条路由、1844 行**一字未改**；`src/storage/` 7 个 1411 行未改。
+- 守卫 31 → **38 组**：`SKILL_EVIDENCE_MODEL_OK`（三态 / 四段 / 三句不等式 / 漂移 / 边界 / 五类对象 / 五列 / 限制词表齐全）、`SKILL_EVIDENCE_BINDING_OK`（id 形状与可重放）、`SKILL_EVIDENCE_CARD_OK`（导航位置与卡内 needle）、`SKILL_EVIDENCE_NO_CAUSATION_OK`（归因禁令）、`SKILL_EVIDENCE_EXPORT_OK`（逐字节稳定 + 无禁止键）、`SKILL_EVIDENCE_UNAVAILABLE_OK`（空输入如实报缺）、`SKILL_EVIDENCE_PRIVACY_OK`（无绝对路径、无分数）。
+- 测试 643 → **657 项**（新增 `test/skill-evidence.test.mjs` 13 项与一条渲染烟测）。
+- **触发评测顺延**：仓库原先把 `V1.2` 一格登记为 `Skill Trigger Evaluation`，按用户 2026-10-06 的决定改由**证据模型占 V1.2**，触发评测顺延到 `V1.3+`（`spec/PRD.md` §5.13 `FR-EVAL-018` 与 `spec/SDD.md` 末尾路线行已同步）。
+
 ## 1.1.0 — 2026-10-06 · 详情级导航 + Agent Skills 开放标准
 
 **这一版只做两件事，而且做的都不是新能力：把 V1.0 那条纵向长详情页重构成「按认知维度直达」的 Skill Inspector，再把 Agent Skills 开放标准从各平台 Profile 里分出来单独判。** 信息不减少、能力不删除、不新增路由 / 页面 / 落盘 / 依赖、宿主 `src/dsh/host/index.js` 一字未改。
