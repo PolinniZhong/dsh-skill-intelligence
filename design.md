@@ -996,7 +996,7 @@ Agent Skill resolver、Skill 调用引擎。目录失效与刷新交给 `dsh-ski
 宿主挂钩与 `GET /skill-trace/diff`、守卫第 24 与第 25 条（含客户端那半）、详情页左栏的
 `SkillEvolution` 卡与 720px 的 `SkillDiffPanel` 模态，以及 `test/client-render-smoke.test.mjs`
 里的 5 条渲染烟测（`npm test` 474 项 / `npm run verify` 25 组）。
-**已随 `0.8.0` 发布**（2026-10-02：tag `v0.8.0`，GitHub Release + npm；结果见 `docs/RELEASE.md` §6.0.3）。`spec/SDD.md` §0.1 D8 登记了这条边界。
+**已随 `0.8.0` 发布**（2026-10-02：tag `v0.8.0`，GitHub Release + npm；结果见 `docs/RELEASE.md` §6.0.4）。`spec/SDD.md` §0.1 D8 登记了这条边界。
 
 ### 24.1 只回答一个问题
 
