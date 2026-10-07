@@ -10,7 +10,7 @@
 > 同日追记（2026-10-03）：复刻 Skill 的请求体缺陷已修（`55f092c`），**已随 `0.8.0` 发布**；当时攒下的三件改动（短显示名 + 复刻缺陷 + V0.8「Skill 演进」）见 §1「本版内容」行。
 > 2026-10-02 追记：V0.8「Skill 演进」三个 Phase 全部落地，**真机验收已过**（12 个检查点，见
 > `01_重构方案/v0.8-真机验收清单.md`）——**已随 `0.8.0` 发布到 GitHub Release 与 npm**，见 §1 与
-> `docs/RELEASE.md` §6.0.3）
+> `docs/RELEASE.md` §6.0.5）
 >
 > **命名分三层。** ① **产品品牌**：DSH Skill 智能实验室（英文 DSH Skill Intelligence）—— README 首屏、
 > 仓库描述、文档抬头用这一层；② **DSH 会话里的短显示名**：**Skill 洞察**（英文 **Skill Insight**）——
@@ -34,7 +34,7 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`1.2.0`（`package.json`，**2026-10-07 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.2.0`）**；上一版 **`1.1.0`**（tag `v1.1.0` · 2026-10-06 · **GitHub Release 与 npm 都已发布**，实测值见 `docs/RELEASE.md` §6.0）；上一版 **`1.0.0`**（tag `v1.0.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**，发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0.1）；上一版 `0.10.0`（V0.10.0「Skill 实例验收」），再上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.3），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.4），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`1.2.0` = V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」一版**（`FR-EVIDENCE-*`；第一件事不新增路由 / 页面 / 落盘 / 依赖，**同一版的第四件事（桌面端导出）当天加过第 14 条路由 `POST /skill-trace/evidence-export` 与 `src/storage/evidence-export-writer.mjs`，随后整条撤回**；客户端 `require` 九支 → 十支；同一版里还把详情页「Skill 框架」这一维重组成「蓝图 / 结构地图 / 细节预览 + 声明流程 + 渐进披露」五块，**只动客户端**，核心层一字未改），逐条登记在 `CHANGELOG.md` 的 `## 1.2.0`（含 `### D. 框架重构`）；**`1.1.0` = V1.1「详情级导航 + Agent Skills 开放标准」一版**（不新增路由、不新增页面、不新增落盘），逐条登记在 `CHANGELOG.md` 的 `## 1.1.0`；`1.0.0` = V1.0「Skill 评测」一版（新增第 13 条路由、一张详情页卡、一处本机落盘），见 `## 1.0.0`；`0.10.0` = V0.10.0「Skill 实例验收」（不新增路由 / 页面、不调模型、不落盘），见 `## 0.10.0`；`1.2.0` 这一轮的八处状态文字已按 §9.1 同步为**发布口径**（`package.json` 写死 `1.2.0`、`README.md` 的版本声明与两条安装示例锚点都已改成 `1.2.0`）。上一轮（`1.1.0`）八处状态文字已按 §9.1 同步为发布口径（`package.json`、本 §1、`README.md` 的版本声明与安装示例锚点；`spec/PRD.md` 头部、`spec/SDD.md` §0.1 的 `D15`、`docs/ARCHITECTURE.md` 的 `## V1.1` 段与 `design.md` 的实现入口行都已去掉「工作树」括注）；`docs/RELEASE.md` 与 §9.1 第 8 条按惯例在发版成功后才回填（§6.0 记录本次实测结果） |
+| 插件包版本 | **`1.2.0`（`package.json`，**2026-10-07 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.2.0`）**；上一版 **`1.1.0`**（tag `v1.1.0` · 2026-10-06 · **GitHub Release 与 npm 都已发布**，实测值见 `docs/RELEASE.md` §6.0.1）；上一版 **`1.0.0`**（tag `v1.0.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**，发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0.2）；上一版 `0.10.0`（V0.10.0「Skill 实例验收」），再上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.4），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.5），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`1.2.0` = V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」一版**（`FR-EVIDENCE-*`；第一件事不新增路由 / 页面 / 落盘 / 依赖，**同一版的第四件事（桌面端导出）当天加过第 14 条路由 `POST /skill-trace/evidence-export` 与 `src/storage/evidence-export-writer.mjs`，随后整条撤回**；客户端 `require` 九支 → 十支；同一版里还把详情页「Skill 框架」这一维重组成「蓝图 / 结构地图 / 细节预览 + 声明流程 + 渐进披露」五块，**只动客户端**，核心层一字未改），逐条登记在 `CHANGELOG.md` 的 `## 1.2.0`（含 `### D. 框架重构`）；**`1.1.0` = V1.1「详情级导航 + Agent Skills 开放标准」一版**（不新增路由、不新增页面、不新增落盘），逐条登记在 `CHANGELOG.md` 的 `## 1.1.0`；`1.0.0` = V1.0「Skill 评测」一版（新增第 13 条路由、一张详情页卡、一处本机落盘），见 `## 1.0.0`；`0.10.0` = V0.10.0「Skill 实例验收」（不新增路由 / 页面、不调模型、不落盘），见 `## 0.10.0`；`1.2.0` 这一轮的八处状态文字已按 §9.1 同步为**发布口径**（`package.json` 写死 `1.2.0`、`README.md` 的版本声明与两条安装示例锚点都已改成 `1.2.0`）。上一轮（`1.1.0`）八处状态文字已按 §9.1 同步为发布口径（`package.json`、本 §1、`README.md` 的版本声明与安装示例锚点；`spec/PRD.md` 头部、`spec/SDD.md` §0.1 的 `D15`、`docs/ARCHITECTURE.md` 的 `## V1.1` 段与 `design.md` 的实现入口行都已去掉「工作树」括注）；`docs/RELEASE.md` 与 §9.1 第 8 条按惯例在发版成功后才回填（§6.0 记录本次实测结果） |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
 | npm | **`beta` 与 `latest` 都指向 `1.2.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0`、`1.0.0`、`1.1.0`、`1.2.0` |
 | 测试 | **662 项全绿**（**`1.2.0` 发布口径**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`1.1.0` 发布口径是 643 项，`1.0.0` 是 636 项，`0.10.0` 是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
@@ -87,7 +87,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > **npm 侧已于 2026-10-03 配好并验证**：用已发布版本号触发的功能探针这次红在 **`EPUBLISHCONFLICT`**
 > （`cannot publish over the previously published versions`）而不是 `ENEEDAUTH` —— 说明 OIDC 兑换成功、
 > trusted publisher 已生效（同一天更早的那次还是 `ENEEDAUTH`；那两条红 run 已在当天从 Actions 删除，
-> 这条 workflow 现在只剩一条绿色 run，经过见 `docs/RELEASE.md` §5.2b / §6.0.3）。
+> 这条 workflow 现在只剩一条绿色 run，经过见 `docs/RELEASE.md` §5.2b / §6.0.4）。
 > **以后发版 = 改版本号 + 提交 + 打 tag + 推 tag**，workflow 自己跑闸门、发布、
 > 并把 `beta` 指到同一版；本地不再需要任何 npm 凭证。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
 > `npm trust github` 只有 `--allow-publish` / `--allow-stage-publish` 两个开关，建出来就没有它，而字段建好不能改。
@@ -99,7 +99,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
 > `0.9.2` 最后是用**备份里的旧 GAT** 发布的（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` → 200，
 > 账户级 `/-/npm/v1/user` → 403）——它到 2027-01 前仍能直接 publish。使用时把 token 写进临时 userconfig
 > （`--userconfig=<600 的临时文件>`），**不要覆盖 `~/.npmrc`**。**每次发布前先 `npm whoami`，401 就重新
-> `npm login --auth-type=web`**（§5.1）。完整经过见 `docs/RELEASE.md` §6.0.3。
+> `npm login --auth-type=web`**（§5.1）。完整经过见 `docs/RELEASE.md` §6.0.4。
 
 ---
 

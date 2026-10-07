@@ -1129,7 +1129,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 - ~~§13.1 第 22、23 条 marker 没有断言（D5）~~ **已修**：`FIVE_LAYER_MODEL_OK` 删除、`FINGERPRINT_RESERVED_OK` 补断言、新增 `GUARD_MARKERS_ARE_BACKED_OK` 反向检查。
 - ~~`src/dsh/host/index.js` 两条过期注释（D1、D2）与 `docs/ARCHITECTURE.md` 的「seven routes」（D3）~~ **已修**，连同 `AGENTS.md` §6.6 的六支 core 模块（D6）。
-- `0.8.0` **已发布**（V0.8「Skill 演进」+「Skill 洞察」短显示名 + 复刻请求体缺陷修复）：tag `v0.8.0`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它；测试 474、守卫 25、宿主路由 11 条。发布提交与实测结果见 `docs/RELEASE.md` §6.0.4。
+- `0.8.0` **已发布**（V0.8「Skill 演进」+「Skill 洞察」短显示名 + 复刻请求体缺陷修复）：tag `v0.8.0`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它；测试 474、守卫 25、宿主路由 11 条。发布提交与实测结果见 `docs/RELEASE.md` §6.0.5。
 - `0.7.1` **已发布**（品牌迁移：Skill Trace → DSH Skill Intelligence）：tag `v0.7.1` → 发布提交 `74a161d`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它；功能逻辑与 `0.7.0` 逐字一致。
 - `0.7.0` **已发布**：tag `v0.7.0` → 发布提交 `5fac5d9`，GitHub Release 为 `Latest`，npm 的 `beta` / `latest` 都指向它。
 - **V0.9.1（Skill Modify）已随 `0.9.2` 发布**（§0.1 D11）：`src/core/skill-modification.mjs`（592）与 `src/storage/modification-snapshot-store.mjs`（157）已存在；宿主新增 `POST /skill-trace/modify`（**11 → 恰好 12 条路由**），它只把「改前」写进宿主**内存**、用当前会话的 Agent 代发一条消息、**不写任何文件**；详情页新增「修改 Skill」对话框与「本次修改对比」块；守卫 **27 组**、`npm test` **553 项**。**已随 `0.9.2` 发布**（2026-10-03，GitHub Release + npm；发布说明即 CHANGELOG 的 `## 0.9.2`），**真机验收已于 2026-10-03 通过**（宿主重启后 `POST /skill-trace/modify` 在跑的进程里、`/skill-trace/catalog` 原生返回 `ordering`；同一天也跑通过一次真实的「代发 → Agent 改文件 → 回读」，见 CHANGELOG 的 `## 0.9.2`）。设计、「不做」清单与验收证据见 §19。
