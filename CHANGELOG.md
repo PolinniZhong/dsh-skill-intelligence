@@ -1,12 +1,10 @@
 # Changelog
 
-## 1.2.0 — 未发布 · Skill 证据模型（Skill Evidence Model）
+## 1.2.0 — 2026-10-07 · Skill 证据模型（Skill Evidence Model）+ Skill 框架重构
 
-> **这是「工作版本」**：`package.json` 已按用户 2026-10-06 的决定写死 `1.2.0`，但**尚未发布** —— GitHub Release、tag 与 npm 上都还没有它（npm 的 `beta` 与 `latest` 仍指向 `1.1.0`）。发布后本行补上日期，实测结果回填到 `docs/RELEASE.md` §6.0。
+**这一版做三件事：先把「这次会话对这个 Skill 观察到了什么」整理成一组有身份、有性质、有边界的证据事实，并在详情页多一个只读的「Skill 证据」模块；再把详情页「Skill 框架」这一维从一个「按角色铺开的结构网格」重组成「阅读路径（蓝图）→ 结构地图 → 细节预览 + 声明流程 + 渐进披露」**（五个区域各自独立成卡，结构地图与细节预览并排成对且两列等高），最后把「一个区域 = 一张卡」这条规则**推广到其余详情模块**（验收 / 证据 / 评测 / 修改对比各自成卡），并把选中态改成中性底色（亮色淡灰、暗色比卡面亮一档的浅黑）。 前者不给分、不排名、不聚合、不调模型；后者只读 `SKILL.md` 自己的结构、**不是运行流程**；两件事都**不新增路由、不新增页面、不新增落盘、不新增依赖**，宿主 `src/dsh/host/index.js` 一字未改。
 
-**这一版只做一件事：把「这次会话对这个 Skill 观察到了什么」整理成一组有身份、有性质、有边界的证据事实，并在详情页多一个只读的「Skill 证据」模块。** 不给分、不排名、不聚合、不调模型；**不新增路由、不新增页面、不新增落盘、不新增依赖**，宿主 `src/dsh/host/index.js` 一字未改。
-
-**本地实测（`1.2.0` 工作版本口径，2026-10-06）**：`npm test` **657 项全绿** · `npm run verify` **38 组 OK**（第 32–38 组是 V1.2 新增的 7 条 `SKILL_EVIDENCE_*`）· 客户端 `src/dsh/client/client.js` **4927 行** · bundle `dist/client.js` **275433 字节**（source hash `d34870c8463b35dc`）· `src/core/` **33 个模块 / 12854 行**（新增 `skill-evidence.mjs` 909 行）· `src/storage/` **7 个 1411 行**（未改）· 宿主仍是 **13 条路由**（`src/dsh/host/index.js` 1844 行，未改）· 客户端 `require` 由九支变**十支**。
+**发布实测（`1.2.0` 发布口径，2026-10-07）**：`npm test` **662 项全绿** · `npm run verify` **38 组 OK**（第 32–38 组是 V1.2 新增的 7 条 `SKILL_EVIDENCE_*`；第 20 组 `SKILL_FRAMEWORK_OK` 在本轮框架重构中加了 2b + 2c + 2d 三段断言，**组数不变**；第 26 组 `SKILL_VALIDATION_OK` / 第 27 组 `SKILL_MODIFICATION_OK` / 第 29 组 `SKILL_EVALUATION_OK` / 第 32 组 `SKILL_EVIDENCE_CARD_OK` 在本轮「其余模块各自成卡」中各追加了 needle，**组数仍是 38**）· 客户端 `src/dsh/client/client.js` **5400 行** · bundle `dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`）· `src/core/` **33 个模块 / 12854 行**（新增 `skill-evidence.mjs` 909 行；框架重构**未动核心层**）· `src/storage/` **7 个 1411 行**· 宿主 **13 条路由**（`src/dsh/host/index.js` 1844 行；第 14 条 `POST /skill-trace/evidence-export` 已撤回）· 客户端 `require` 由九支变**十支**。
 
 ### A. 证据模型（`src/core/skill-evidence.mjs`，909 行，**零 import**）
 
@@ -22,23 +20,65 @@
 ### B. 界面：详情页第二维「Skill 证据」（客户端第十支 `require`）
 
 - 详情页导航从**八个模块变九个**，新模块 `evidence-model`（`Skill 证据`）插在 `framework` 之后；`MODULE_CONTENT['evidence-model'] = [skillEvidence]`。它**复用**当下这一帧已有的评测状态，不额外发请求。
-- 卡内七块：`evidence-identity`（Skill fingerprint / Source identity / Instruction fingerprint / Case / Run）、`evidence-chain`（四段 + 事实 + 来源 + 限制）、`evidence-limits`（三条边界，因果那行写死「不声明」）、`evidence-table`（五类对象 × 五列）、`evidence-drift`（漂移三态与它对应的说法）、`evidence-evaluation`（本次 Run / 历史 Run / 对照三个 tab）、以及一个「导出 Evidence JSON」按钮。
-- **导出发生在浏览器里**：`Blob` + `URL.createObjectURL` 触发下载，失败退剪贴板，再失败如实报「当前环境不支持导出。」。**没有**导出服务、没有新路由、没有落盘。
+- 卡内七块：`evidence-identity`（Skill fingerprint / Source identity / Instruction fingerprint / Case / Run）、`evidence-chain`（四段 + 事实 + 来源 + 限制）、`evidence-limits`（三条边界，因果那行写死「不声明」）、`evidence-table`（五类对象 × 五列）、`evidence-drift`（漂移三态与它对应的说法）、`evidence-evaluation`（本次 Run / 历史 Run / 对照三个 tab）、以及一个「复制 JSON」按钮（`'data-role': 'evidence-copy'`；写文件那条路已撤回，见 `### G`）。
+- **取走快照只有一条路：剪贴板。** 点「复制 JSON」把整份快照（同一份逐字节稳定的文本）放进剪贴板，环境不支持就如实说「当前环境不支持复制。」。**没有**导出服务、没有写文件、没有新路由、没有落盘 —— 2026-10-06 曾短暂加过「导出 Evidence JSON」（第 14 条路由 `POST /skill-trace/evidence-export` + `src/storage/evidence-export-writer.mjs`），当天整条撤回，原因与教训见 `### G`。
 - 每一行的状态都带 `data-status`；缺项一律 `unavailable` 并附限制 id，页面**不出现**任何分数、排名、百分比，也不出现「已执行 / 已完成 / 已加载」。
 
 ### C. 没变的东西（这一版的护栏）
 
-- **不新增路由 / 页面 / 落盘 / 依赖**：宿主 13 条路由、1844 行**一字未改**；`src/storage/` 7 个 1411 行未改。
+- **证据模型与框架重构这两件事不新增路由 / 页面 / 落盘 / 依赖**：宿主 13 条路由、1844 行**一字未改**；`src/storage/` 7 个 1411 行未改。**同一版的第四件事（桌面端导出）曾短暂破过这一条**：加了第 14 条路由 `POST /skill-trace/evidence-export`（宿主 1844 → 1899 行）与 `src/storage/evidence-export-writer.mjs`（`src/storage/` 7 个 1411 行 → 8 个 1520 行），**当天全部撤回 —— 现状仍是 13 条路由 / 1844 行、7 个 1411 行，没有新页面、没有新导航项、没有新依赖、核心层一字未改**。
 - 守卫 31 → **38 组**：`SKILL_EVIDENCE_MODEL_OK`（三态 / 四段 / 三句不等式 / 漂移 / 边界 / 五类对象 / 五列 / 限制词表齐全）、`SKILL_EVIDENCE_BINDING_OK`（id 形状与可重放）、`SKILL_EVIDENCE_CARD_OK`（导航位置与卡内 needle）、`SKILL_EVIDENCE_NO_CAUSATION_OK`（归因禁令）、`SKILL_EVIDENCE_EXPORT_OK`（逐字节稳定 + 无禁止键）、`SKILL_EVIDENCE_UNAVAILABLE_OK`（空输入如实报缺）、`SKILL_EVIDENCE_PRIVACY_OK`（无绝对路径、无分数）。
 - 测试 643 → **657 项**（新增 `test/skill-evidence.test.mjs` 13 项与一条渲染烟测）。
 - **触发评测顺延**：仓库原先把 `V1.2` 一格登记为 `Skill Trigger Evaluation`，按用户 2026-10-06 的决定改由**证据模型占 V1.2**，触发评测顺延到 `V1.3+`（`spec/PRD.md` §5.13 `FR-EVAL-018` 与 `spec/SDD.md` 末尾路线行已同步）。
 
+### D. 框架重构：把「结构很多」改成「认知层级清楚」（V1.2 第二件事）
+
+- **只动界面**：`SkillFramework` / `FrameworkStructure` / `DeclaredWorkflow` / `ProgressiveDisclosure` 四支组件与 `.st-fw-*` 样式。`src/core/skill-framework.mjs` 的解析结果、`GET /definition` 的数据、宿主与路由**一个字都没动**；界面仍是那一份确定性解析的三个子块，只是换了一种组织方式。
+- **Skill Blueprint（蓝图）**：五站 `WHY 定位 · Purpose → WHEN 触发 · Trigger → HOW 规则 · Rules → WITH 资源 · Resources → RESULT 输出 · Output`，顺序与 kicker 由 `const BLUEPRINT_STOPS = [` 逐字钉住。它是一条**阅读路径**，页面自己说「这是阅读路径，不是 Agent 的执行顺序。」每一站还配一句「它回答什么」（解决什么问题 / 什么时候使用 / 受什么约束 / 依赖哪些资源 / 最终产出什么）与真实的计数 —— 五个英文 kicker 加一个中文名字，读者不必先读懂下面那张地图。**缺的那一站不消失**，写成「未声明」——一个真的没有 verification 的 Skill，与一个界面忘了画 verification 的 Skill 必须长得不一样。
+- **Structure Map（结构地图）**：**八格**，格子**按核心层 `FRAMEWORK_ROLES` 生成**（界面不自己维护第二份角色清单），每格写自己的 `FRAMEWORK_ROLE_HINTS`、一句它回答什么问题（`st-fw-stop-hint`）与最多三个小节标题；**资源格写的是「N 个引用」**（读者想知道依赖多少资源，不是它占了几节），且「声明 / 未声明」与蓝图**用同一把尺子**（`declaredOf(entry.id)`）——同一屏两处口径不一致，读者只会更糊涂。选中哪一格是**组件内的一个 state**，不是路由、不是新页面、不新增 API。
+- **Detail Preview（细节预览）**：只渲染**选中那一格**的小节（复用 `FrameworkSection`），默认**只铺前三节**（`const DETAIL_SECTION_LIMIT = 3`），剩下的折成按钮上的一句话 ——「还有 2 个章节」↔「收起」；带「最值得读的内容」与一句「为什么这样显示：只列这个角色在 SKILL.md 里真正命中的小节；没有的小节不在这里补出来。」没有任何小节时直说「当前没有独立结构块。」+「当前没有更多可展示的确定性内容，因此不制造额外解释。」**「其它章节」不再占一格**：认不出角色的章节从地图里拿出去（`entries.filter((entry) => entry.id !== 'other')`），改在框架末尾用一行一节的**轻列表**（`OtherSections`，`data-role='other-sections'`）呈现标题 + 行号 + 原文开头，**不丢、也不抢主视觉**。旧的「把全部角色铺成一屏网格」被守卫**反向钉住不许回来**（`className: 'st-fw-module'` 出现即失败）。
+- **每个区域各自独立成卡**：蓝图、结构地图、细节预览、声明流程、渐进披露、其它章节**各是一张自带标题的卡**（`st-fw-region` + `st-fw-region-head`），结构地图与细节预览**并排成对**且**两列等高**（`st-fw-pair`，≤980px 塌成一列；并排容器不带 `align-items:start`，细节卡自己撑满、内容区 `flex:1`，末句落在卡底 —— 右列跟着自己的内容伸缩时，底下那块空白会被读成「这里还没画完」）；`SkillFramework` 外面那层「一个大边框包住几块、内部只靠一条分隔线分层」的写法已删除，`.st-fw-sub` / `.st-fw-block` 两个旧 class 一并删掉并由守卫**反向钉住不许回来** —— 挤在一个边框里时，读者分不清「这是上一段的继续」还是「这是另一件事」。模块标题「Skill 框架」提到 14px，比卡标题高半级，一级 / 二级页面结构与数据一个字都没动。
+- **Workflow Visualization**：声明流程的步骤列表**一字未改**（点击仍是 `flashAnchor` 定位，不跳转、不打开运行图）；空态补上「因此这里不制造一条运行流程图。没有声明流程，本身就是结构事实。」与一枚「不构造」标记 —— 这是运行图谱被删掉之后最容易悄悄长回来的地方。
+- **Resource Pipeline**：`DISCLOSURE_CHAIN` 六段不变，但每段从「只有名字的标签 + 箭头」改成**带序号与一句说明的节点**（`st-fw-chain-order` + `st-fw-chain-label` + `st-fw-chain-hint`：发现这个 Skill / 进入 Skill 定义 / 读到完整定义 / 确定资源基准 / SKILL.md 写到的引用 / 需要时再读）—— 说明按 chain id 从客户端的 `DISCLOSURE_STAGE_HINTS` 取，**没写说明的 id 就不显示说明，不许现编**；**声明引用默认只列 6 条**，多于 6 条才出现 `展开全部 9 个` / `收起资源` 的显式开关（`rows.slice(0, 6)` 由守卫钉住）；分层标题只取自核心层的 `tiers`（正文自己声明的那一层），不自己再分一次；新增读数块 `有读取证据 / 声明引用`（如 `0 / 23`），把「声明了几条」与「有几条读取证据」并排摆出来，末尾仍逐字渲染 `DISCLOSURE_NOTE`（声明资源不等于已读取资源）。
+- **守卫**：**不新增组**，第 20 组 `SKILL_FRAMEWORK_OK` 内新增 2b + 2c + 2d 三段（2b：蓝图五站逐字与五个 kicker、`FRAMEWORK_ROLES.map((role) => {`、`localized('未声明', 'not declared')`、`framework-detail` / `workflow` / `disclosure` / `resource-toggle` 四个 `data-role`、`rows.slice(0, 6)`、`tiers.flatMap((tier) =>`、`st-fw-readstat`，并反向钉住旧网格；2c：`const DISCLOSURE_STAGE_HINTS = {` 与 `st-fw-chain-hint`、`'data-role': 'other-sections'` 与 `entries.filter((entry) => entry.id !== 'other')`、`const DETAIL_SECTION_LIMIT = 3` 与 `'data-role': 'detail-toggle'`、`declaredOf(entry.id)` 同一把尺子与「N 个引用」、`st-fw-stop-hint`；2d：`className: 'st-fw-region'` 与 `'st-fw-region st-fw-other'`（每个区域各自成卡）、`className: 'st-fw-pair'` 与 `st-fw-region-head`（结构地图与细节预览并排成对、各带块标题、**两列等高**：`.st-fw-pair` 不带 `align-items:start`、`.st-fw-detail` 是 `display:flex;flex-direction:column`、`.st-fw-detail-rows{flex:1;min-height:0;…}`），并反向钉住 `.st-fw-sub{` 与 `className: 'st-fw-block'` 不许回来）。守卫总数 38 组不变。
+- **测试**：`test/client-render-smoke.test.mjs` 的框架那条改写成十一组断言（用 `initialStructure` 分别渲染 `identity` / `rules` / `trigger` 三屏，再把 `OtherSections` 单独渲染一次并进并集 —— 即「三屏角色 + 末尾其它章节」，等价于重构前那一屏，所以原有断言的语义一句没变），新增蓝图五句 hint、`cards.length === 8` 且地图里没有 `other` 格、「其它章节」那行不可点、`st-fw-other-row` 的 `type === 'button'` 等断言；渐进披露那条把 `声明引用 2 个 · 已读取 0 个` 改成 `声明 2 · 读取 0`、新增 `0 / 2` 读数与 `st-fw-chain-order === ['01'…'06']` 断言；新增两条：`the resource list expands on demand instead of stacking every path`（9 条引用：收起只列 6 条、展开列 9 条、按钮文案与 `aria-expanded` 一起变）与 `the structure detail shows the first few sections and counts the rest`（5 节的角色默认只渲染 3 节、按钮写「还有 2 个章节」）。末尾新增第 11 组断言：`st-fw-region` 恰两张且 `data-block` 为 `blueprint` / `map`、`st-fw-pair` 恰一个、`SkillFramework` 渲染出的 `st-fw-region` 恰四张（其它章节没有内容时不出现）。测试 657 → **659 项**。
+
+### E. 其余详情模块也各自成卡 + 选中态中性（V1.2 第三件事，用户界面反馈）
+
+- **「一个区域 = 一张卡」从框架推广到其余详情模块**（用户 2026-10-06 的界面反馈：「基于 Skill 框架其他模块的，你也按照这种逻辑更新一下」）。四个模块从「一张长卡里靠分隔线分层」改成「一个区域一张卡」：`SkillValidationPanel` → **三张**（结论 + 计数 + Profile + 发现 /「这次没有判定」/「这次验收查了什么、没查什么」——第三块原来折在 `<details>` 里，要读者点一下才看得到）；`SkillEvidenceCard` → **六张**（抬头 + 当前证据状态 / `Evidence Identity` / 证据链（三条边界留在这一张卡内当子区域）/ 证据状态表 / 漂移 / 本次评测）；`SkillEvaluationCard` → **抬头卡 + 七张区域卡**（① `eval-case` / ② `eval-capture` / ③ `eval-runs` / ④ `eval-conditions` / ⑤ `eval-evidence` / ⑥ `eval-assertions` / ⑦ `eval-forbidden`；空态是 `eval-unavailable`）；`SkillModificationPanel` → **五张**（改了多少 / 资源文件 / 超出修改范围 / 对比状态与边界 / 实例验收）。
+- **不拆的三个模块，以及为什么**：`Definition` 本来就是三张独立 `st-detail-card`；`SKILL.md` 自带边框圆角、只有一张卡；「步骤证据」与「本次运行逻辑」各自只有一个区域、内部是重复行——给它们再套一层卡只会多出一个没有信息的边框。
+- **旧写法删除并反向钉住**：`.st-evidence-block`（靠 `border-top` 把五块连起来）、`.st-eval-section`（靠 `border-top` + `padding` 连七块）、`.st-mod-resources` / `.st-mod-out` / `.st-mod-state` / `.st-mod-instance` 的 `padding-top` 全部删除；卡内小节标题改由新的 `.st-detail-card h5` 承担（承接原 `.st-eval-section h5`）；漂移变色选择器从 `.st-evidence-block[data-state="historical"]` 改写成 `[data-role="evidence-drift"][data-state="historical"]` —— 类名退休了选择器必须跟着改，否则「历史证据」的强调色会静默失效。
+- **选中态一律中性**（用户同一轮反馈：「亮色模式下淡淡灰色，深色模式下是一个浅浅的黑色」）：新增 token `--st-selected: var(--dsw-alias-interactive-bg-hover, color-mix(in srgb, var(--st-text) 6%, var(--st-surface)))` —— **直接取宿主给列表行的那层叠加色**（工作区会话列表用的就是它：亮色 `#2631480f` ≈ 6% 墨、暗色 `#ffffff14` ≈ 8% 白，都是带透明度的叠加色，合成在当前底色上）；宿主没给这个别名时才退回「把正文色混进**当前** surface」的等价做法，亮色下是淡灰、暗色下是比卡面亮一档的浅黑；七处选中底色（框架步骤 / 蓝图站 / 结构地图格 / 细节小节行 / 其它章节行 / 详情导航项 / 文档目录项）从 `--st-highlight` / `--st-accent-soft` 换成它，**不借强调色也不借警告色**（染色在暗色主题里会和「警告」抢同一片色域，选中反而看不出来）。`--st-highlight` 只留给审计视图的「跳到这一节」闪烁。
+- **守卫**：**不新增组**，四组各自追加 needle —— `SKILL_VALIDATION_OK`（`mainCard` / `uncheckedCard` / `limitsCard` / `return [mainCard, uncheckedCard, limitsCard].filter(Boolean)`）、`SKILL_MODIFICATION_OK`（`headCard` / `resourcesCard` / `outCard` / `statusCard` 与反向钉住四条 `padding-top`）、`SKILL_EVALUATION_OK`（八条 `h('section', { key: 'eval-…'` 与反向钉住 `.st-eval-section{padding`）、`SKILL_EVIDENCE_CARD_OK`（`evidence-head` 等七条 + 反向钉住 `.st-evidence-block{` + 正向钉住改写过后的漂移选择器）。总数仍是 **38 组**。
+- **测试**：四条既有烟测各加一段 `cardsOf(list)`（按 `className.split(' ').includes('st-detail-card')`）断言 —— 证据卡 ≥6 张且六个 `data-role` 各自成卡、验收的 `validation-limitations` 必须是 `section.st-detail-card`、修改对比 ≥4 张且 `skill-modification` / `mod-resources` / `mod-instance` 各一张并带 `h3`、评测的七个 `eval-*` 区域卡齐全 —— **不新增测试条数，仍是 659 项**。
+
+### F. 用户界面反馈（第二轮）：记住上次那一页（导出落盘那半已撤回，见 `### G`）
+
+- **「导出 Evidence JSON」以前只说不做。** 代码在 Chromium 里是对的 —— 点一下、Blob 交出去、文件真的落盘（渲染台的 `probe-export.mjs` 走 `Browser.setDownloadBehavior` 能抓到 `downloadWillBegin` → `completed`）；但 DSH 桌面端跑的是 **WebKit**：`click()` 之后下载**才异步开始**，紧跟其后的 `revokeObjectURL()` 与摘掉 `<a>` 会让它**无声取消**，而那句提示是**无条件**写上的，所以界面照样说「已交给浏览器下载」。现在：回收延后到 `EXPORT_RELEASE_DELAY = 60000`（`schedule(() => { anchor.remove(); urlApi.revokeObjectURL(url) }, …)`），提示改成不撒谎的一句（`已请浏览器保存证据快照。等一两秒没看到文件，就用旁边的「复制 JSON」把快照整个放进剪贴板。`），并在旁边常备一条不依赖下载权限的路：**「复制 JSON」**（`navigator.clipboard.writeText`，不允许写剪贴板时如实说，而不是沉默）。
+- **「Skill 洞察」记住上次停在哪一页。** 宿主没关就是同一个浏览会话，回来时应该还在刚才那一页 —— 二级页面因此记在**会话级**存储：`PAGE_KEY = 'dsh-skill-trace.last-page'`（`sessionStorage`，内容是 `{ sessionId, from, skill, module }`），一级页面的默认页仍然走 `localStorage` + 宿主偏好（两者回答的不是同一个问题，所以这个键**不许**落到 `localStorage` 上）。键里带 `sessionId`：换一个会话就不再适用（停在上一个会话的 `SKILL.md` 上，比回到列表更糟）。恢复动作不会被「默认页」偏好顶掉（`if (!queryView && !restoredPage.current)`）。
+- **守卫**：`SKILL_EVIDENCE_EXPORT_OK` 新增三条 —— `'data-role': 'evidence-copy'` 与 `const EXPORT_RELEASE_DELAY` 必须在、读出的时限必须 ≥ 1000ms、**`anchor.click()` 到第一次 `revokeObjectURL` 之间必须有一次 `schedule(`**（钉的是**顺序**，不是「有没有 revoke」）；详情页那一组新增 `report(detailModule)`、四条 `PAGE_KEY` needle、`localStorage.setItem(PAGE_KEY` 的反向禁令、三条接线与 `if (!queryView && !restoredPage.current)`。**组数仍是 38**。
+- **测试**：新增两条 —— `the evidence export keeps the blob alive after the click, and offers a copy path`（假 anchor / 假 `Blob` / 捕获式 `globalThis.setTimeout`：点完 `revoked` 必须仍为空、只有一个 timer 且 ≥ 1s、跑掉 timer 之后才 revoke）与 `a browsing session comes back to the page it was left on, and only for that session`（同会话带记录 → 渲染 `SkillDetailPage` 且 `initialModule === 'validation'`；换会话或无记录 → 渲染列表）。测试 659 → **661 项**。
+
+### G. 桌面端「导出 Evidence JSON」：加过第 14 条路由，当天整条撤回
+
+用户 m04213 的真机反馈推翻了 F 段（旧版）那个诊断：**在 DSH 桌面 App 里点「导出 Evidence JSON」，界面上出现那句「已请浏览器保存证据快照。」，而磁盘上什么都没有。** App 是 Tauri + wry/WKWebView：**既没有下载接收端**（找不到 `on_download` / `download_started_handler` / `download_destination`），**也没有 `fs` / `dialog` / `clipboard-manager` 插件** —— `<a download>` 在那里是无声的空操作，把 Blob 的回收延后 60 秒也变不出文件。「回收太早、WebKit 取消下载」那个诊断只对真正的浏览器成立。
+
+当天按用户要求「两个都做」落地了两件事：
+
+- **诚实文案**：桌面端不再说「已请浏览器保存」。
+- **由宿主写文件**：新增**第 14 条路由** `POST /skill-trace/evidence-export`（`readBody` 单独放宽到 4 MB；唯一一条不要求 `sessionId` 的路由）与 `src/storage/evidence-export-writer.mjs`（**109 行**，零依赖：洗名、`flag: 'wx'` 同名顺延 `x (1).json` … 最多第 50 个、单份上限 1 MB、目录 `0700` / 文件 `0600`、`DSH_SKILL_TRACE_EXPORT_DIR` 可覆盖）；客户端四层退路（宿主写文件 → 浏览器 `Blob` → 剪贴板 → 提示用 `http://127.0.0.1:3080` 再导出）；测试 661 → **670**（新增 `test/evidence-export-route.test.mjs` 7 条 + 渲染烟测 2 条），守卫第 36 组追加宿主与客户端 needle（组数仍 38）。
+
+**但随后用户 m04639 判定这个功能不值得**（原话：「"导出 Evidence JSON" 我们当前导出这个 JSON 有什么用？没什么用」）：这份 JSON 的读者是 Agent 与排障，而界面已经把证据链摆在屏幕上 —— 为它新增一条路由与一处落盘不划算。于是**当天整条撤回**：
+
+- 第 14 条路由、`src/storage/evidence-export-writer.mjs`、`test/evidence-export-route.test.mjs`、`scripts/verify-project.mjs` 里那批正向 needle 全部删除；宿主回到 **13 条路由 / 1844 行**，`src/storage/` 回到 **7 个 1411 行**。
+- 客户端删掉 `EXPORT_ROUTE` / `inDesktopApp()` / `downloadViaBrowser()` 与整套退路文案，**只留「复制 JSON」**（`'data-role': 'evidence-copy'`，`copyEvidence(`）。
+- 守卫第 36 组由正向断言改成**反向**断言：`createObjectURL` / `anchor.download` / `EXPORT_ROUTE` / `inDesktopApp` / `已请浏览器保存` / `已保存到「` / `evidence-export` / `writeEvidenceExport` 出现即失败。
+
+**三条教训**：① **桌面 App 里没有下载通道** —— `<a download>` 既不报错也不落盘，而界面可能照旧说「已交给浏览器」，凡涉及文件的能力必须先确认接收端存在；② **「能不能下载」和「该不该有文件」是两件事** —— 修好通道不等于这个功能有用，先问读者是谁；③ **撤回要撤干净** —— 路由、写入器、测试、守卫、七份文档口径一起回，并且**把守卫改成反向断言**，否则下一个改动会把它悄悄带回来。
+
+撤回后的工程数字（`1.2.0` 发布口径，2026-10-07 第三次重测）：测试 **662 项**、守卫 **38 组**、客户端 **5400 行** / `dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`）、`src/storage/` **7 个 1411 行**、宿主 **13 条路由 1844 行**。
+
 ## 1.1.0 — 2026-10-06 · 详情级导航 + Agent Skills 开放标准
-
-**这一版只做两件事，而且做的都不是新能力：把 V1.0 那条纵向长详情页重构成「按认知维度直达」的 Skill Inspector，再把 Agent Skills 开放标准从各平台 Profile 里分出来单独判。** 信息不减少、能力不删除、不新增路由 / 页面 / 落盘 / 依赖、宿主 `src/dsh/host/index.js` 一字未改。
-
-**发布实测（`1.1.0` 口径）**：`npm test` **643 项全绿**（`pretest` 会先重建 `dist/client.js`）· `npm run verify` **31 组 OK**（第 31 组是新增的 `SKILL_STANDARD_ALIGNMENT_OK`）· 客户端 `src/dsh/client/client.js` **4495 行** · bundle `dist/client.js` **234965 字节**（source hash `71125cf37d020c7c`）· `src/core/` **32 个模块 / 11945 行** · `src/storage/` **7 个 1411 行** · 宿主仍是 **13 条路由**（`src/dsh/host/index.js` 1844 行，未改）。
-
 ### A. Skill Detail 信息架构重构（详情级导航）
 
 - **V1.0 是纵向长页面，V1.1 是「左侧详情导航 + 右侧当前模块」**：`SkillDetailPage` 里新增 `DETAIL_MODULES`（八个 id + 中文名 + hint）与 `DetailNav` 组件；右列由 `MODULE_CONTENT[activeModule]` 决定**只渲染当前这一维**，不再向下累积。默认进入 **Skill 框架**（`React.useState(initialModule ?? 'framework')` —— `initialModule` 是渲染烟测用的第五条注入缝，不传时就是真实用户看到的第一屏）。

@@ -870,6 +870,34 @@ console.log('VISUAL_TOKENS_OK')
   if (!component.includes("'data-role': `detail-module-${activeModule}`")) {
     throw new Error('v1.1 §三：右列必须标出当前是哪一模块，否则「点哪个显示哪个」无法被验证')
   }
+  // 模块换了要报给根组件（用户 m03831）：二级页面的记忆只能由根组件持有 —— 存储 API 进不了
+  // 这一层（上面那条禁令就在同一段切片上跑）。
+  if (!component.includes('report(detailModule)')) {
+    throw new Error('用户 m03831：详情页必须把当前模块报回根组件，否则「上次停在哪一页」记不住')
+  }
+  // 「上次停在哪一页」（用户 m03831）：二级页面记在**会话级**存储里，键里带 sessionId ——
+  // 宿主没关就还在同一个浏览会话，回来时还在刚才那一页；换了会话就不再适用（停在上一个会话的
+  // SKILL.md 上，比回到列表更糟）。一级页面的默认页走的是另一条路（localStorage + 宿主偏好），
+  // 两者回答的不是同一个问题，所以这个键**不许**落到 localStorage 上。
+  for (const needle of [
+    "const PAGE_KEY = 'dsh-skill-trace.last-page'",
+    'sessionStorage.getItem(PAGE_KEY)',
+    'sessionStorage.setItem(PAGE_KEY',
+    'sessionStorage.removeItem(PAGE_KEY)',
+  ]) {
+    if (!client.includes(needle)) throw new Error(`用户 m03831：上次停在哪一页必须记在会话级存储里，缺少「${needle}」`)
+  }
+  if (client.includes('localStorage.setItem(PAGE_KEY')) {
+    throw new Error('用户 m03831：二级页面不许写进 localStorage —— 那会变成「默认页」，而不是「刚才读到哪儿」')
+  }
+  // 记忆必须**真的接进**详情页：根组件把上次那一页灌回去，并把返回与模块变更都接上。
+  for (const needle of ['initialModule: detailModule', 'onModuleChange: rememberModule', 'onBack: closeDetail']) {
+    if (!client.includes(needle)) throw new Error(`用户 m03831：恢复上次页面缺少接线「${needle}」`)
+  }
+  // 恢复动作不许被「默认页」偏好顶掉：那条记录里已经带了返回目标。
+  if (!client.includes('if (!queryView && !restoredPage.current)')) {
+    throw new Error('用户 m03831：从会话记录回到详情页时，宿主偏好不许把这一屏换掉')
+  }
   // 左列让给导航，不再纵向堆三张事实卡。那三张卡没有删：它们进了 Definition 模块。
   if (/sidePanel = h\('aside', \{ className: 'st-detail-side' \}, sideIdentity, sideEvolution/.test(component)) {
     throw new Error('v1.1 §三：左列是详情导航，不再是纵向堆起来的 Definition / Repository / 血缘')
@@ -952,6 +980,114 @@ console.log('VISUAL_TOKENS_OK')
   }
   for (const forbidden of ['ReactFlow', 'window.open', 'location.href']) {
     if (framework.includes(forbidden)) throw new Error(`a step click must stay inside this page, but the framework touches ${forbidden}`)
+  }
+  // 2b. 框架的**结构**本身分成三块（V1.2）：蓝图 = 阅读路径、结构地图 = 有哪些结构、
+  //     细节预览 = 选中的那一块里最该读什么。三块的关系是「选一个 → 看一个」，不是把全部
+  //     小节铺开。铺开正是这一版要改掉的东西，所以这里反向钉住它：旧的角色网格不许回来。
+  if (client.includes("className: 'st-fw-module'")) {
+    throw new Error('V1.2：框架不再把全部角色铺成一屏网格 —— 结构地图 + 细节预览才是这一版的组织方式')
+  }
+  // 蓝图的五站是一条**阅读路径**：顺序与 kicker 都是手写的，必须逐字钉住。否则以后有人
+  // 顺手按字母序重排，一条阅读路径就悄悄变成了一张分类表 —— 而"先读哪个"正是它的全部价值。
+  const blueprint = client.slice(
+    client.indexOf('const BLUEPRINT_STOPS = ['),
+    client.indexOf('function frameworkEntries(framework)'))
+  const stopIds = [...blueprint.matchAll(/\{ id: '([a-z]+)'/g)].map((match) => match[1])
+  if (stopIds.join(',') !== 'identity,trigger,rules,resources,output') {
+    throw new Error(`V1.2：Skill Blueprint 的五站必须是 WHY → WHEN → HOW → WITH → RESULT，实际是 ${stopIds.join(',') || '（空）'}`)
+  }
+  for (const kicker of ['WHY', 'WHEN', 'HOW', 'WITH', 'RESULT']) {
+    if (!blueprint.includes(`kicker: '${kicker}'`)) throw new Error(`V1.2：蓝图缺少 ${kicker} 这一站`)
+  }
+  // 五站**永远全部出现**，缺的那一站写成「未声明」。一个没有 verification 的 Skill 与一个
+  // 界面忘了画 verification 的 Skill 必须长得不一样。
+  if (!client.includes("return localized('未声明', 'not declared')")) {
+    throw new Error('V1.2：蓝图上缺席的角色必须写成「未声明」，不能从阅读路径里消失')
+  }
+  // 结构地图的每一格来自核心层的角色表：界面不自己维护第二份角色清单 —— 核心层多一个角色、
+  // 界面少一格，缺席就会被读成「不存在」。
+  if (!client.includes('FRAMEWORK_ROLES.map((role) => {')) {
+    throw new Error('V1.2：结构地图必须按核心层 FRAMEWORK_ROLES 生成，界面不另立一份角色清单')
+  }
+  if (!client.includes('FRAMEWORK_ROLES, FRAMEWORK_ROLE_LABELS, FRAMEWORK_ROLE_HINTS')) {
+    throw new Error('V1.2：角色表必须来自 ../../core/skill-framework.mjs')
+  }
+  // 选中是**组件内的状态**，不是路由、也不是新页面：点一格只换右边那一段。
+  if (!client.includes("const [structure, setStructure] = React.useState(typeof initialStructure === 'string' ? initialStructure : '')")) {
+    throw new Error('V1.2：结构地图的选中态必须是组件内的一个 state，默认落在第一格')
+  }
+  if (!client.includes("'data-role': 'framework-detail'")) {
+    throw new Error('V1.2：细节预览必须挂上 framework-detail —— 测试与守卫都靠它定位这一块')
+  }
+  // 一个没有任何小节的角色说「没有独立结构块」，而不是编一段解释。这跟「缺席直说」是同一条。
+  if (!client.includes('当前没有独立结构块。') || !client.includes('因此不制造额外解释。')) {
+    throw new Error('V1.2：没有小节的角色必须直说没有，不许补一段解释')
+  }
+  // 声明流程的空态：说清"这里不制造运行流程图"，并给出一枚「不构造」的标记。这两句是运行
+  // 图谱被删掉之后最容易悄悄长回来的地方，所以它必须逐字在源码里。
+  if (!client.includes('因此这里不制造一条运行流程图。没有声明流程，本身就是结构事实。')) {
+    throw new Error('V1.2：没有声明流程的空态必须说清这里不制造运行流程图')
+  }
+  if (!client.includes("'data-role': 'workflow'") || !client.includes("'data-role': 'disclosure'")) {
+    throw new Error('V1.2：声明流程与渐进披露各自要有稳定的 data-role，模块化之后仍然定位得到')
+  }
+  // 资源列表默认只列 6 条，其余靠一次显式点击展开：把 23 条路径一次铺满，是这一版要改掉的
+  // 另一处「信息很多」。分层的标题只能取自 `tiers`（正文自己声明的那一层），不能自己再分一次。
+  if (!client.includes("'data-role': 'resource-toggle'") || !client.includes('rows.slice(0, 6)')) {
+    throw new Error('V1.2：声明引用必须默认收起到 6 条，展开是一次显式点击')
+  }
+  if (!client.includes('tiers.flatMap((tier) =>')) {
+    throw new Error('V1.2：资源分层必须读核心层的 tiers，而不是自己从 declared 里再分一次')
+  }
+  // 「声明」与「读取」两个数必须并排摆出来：它们最容易被读成同一件事。
+  if (!client.includes('st-fw-readstat') || !client.includes('有读取证据 / 声明引用')) {
+    throw new Error('V1.2：渐进披露必须把「有几条读取证据 / 声明了几条引用」摆在一起')
+  }
+  // 2c. 信息**表达形式**（m02346 §三/§九/§十）：统计用数字、流程用管线、认不出角色的章节用轻行。
+  //     只报站名不报"这一步做什么"，读者看到的是一串术语 —— 所以六站各带一句说明，且在客户端
+  //     按核心层的 id 兜底（核心层的 chain 没有说明字段，界面不许自己编一版）。
+  if (!client.includes('const DISCLOSURE_STAGE_HINTS = {') || !client.includes('st-fw-chain-hint')) {
+    throw new Error('V1.2：渐进披露的每一站必须说清"这一步做什么"，而不是只列六个术语')
+  }
+  if (!client.includes("'data-role': 'other-sections'") || !client.includes("entries.filter((entry) => entry.id !== 'other')")) {
+    throw new Error('V1.2：认不出角色的章节要从结构地图里拿出去、改成框架末尾的轻行 —— 它不是一个框架角色')
+  }
+  // 细节预览默认只铺前三节，剩下的用「还有 N 个章节」写在屏幕上。铺开十节，就是把
+  // 「信息很多、层级不清」原样搬回来；而一个不说数量的"更多"，读者还得自己数。
+  if (!client.includes('const DETAIL_SECTION_LIMIT = 3') || !client.includes("'data-role': 'detail-toggle'")) {
+    throw new Error('V1.2：细节预览必须默认只铺前几节，并把剩下的节数写在按钮上')
+  }
+  // 同一屏上两处口径必须一致：蓝图说「39 个声明引用」、结构地图却写「未声明」，读者只会更糊涂。
+  // 资源格的数字是**声明引用数**，不是"它占了几节" —— 读这一格的人想知道依赖多少资源。
+  if (!client.includes("'data-declared': declaredOf(entry.id) ? 'true' : 'false'")) {
+    throw new Error('V1.2：结构地图的「已声明/未声明」必须与蓝图用同一把尺子（declaredOf）')
+  }
+  if (!client.includes("localized(`${declaredCount} 个引用`, `${declaredCount} refs`)")) {
+    throw new Error('V1.2：资源格的数字必须是声明引用数，不能把"小节数 · 引用数"两个量纲并排')
+  }
+  // 蓝图每一站配一句"它回答什么"，否则 WHY/WHEN/HOW 只是三个英文前缀。
+  if (!client.includes('st-fw-stop-hint')) {
+    throw new Error('V1.2：蓝图的每一站要配一句它回答什么，不能只报站名')
+  }
+  // 2d. 信息**层级**：五个区域各自独立成卡，和 Definition 等模块同一套读法（一排同宽的卡、
+  //     块与块之间留缝）。早先它们共用一个边框、只靠一条分隔线分层 —— 读者分不清"这是上一段
+  //     的继续"还是"这是另一件事"。所以这里既正向钉新结构，也反向钉住那个合并写法不许回来。
+  if (!client.includes("className: 'st-fw-region'") || !client.includes("className: 'st-fw-region st-fw-other'")) {
+    throw new Error('V1.2：框架的每个区域必须各自成卡（.st-fw-region），不能再挤在同一个边框里')
+  }
+  if (!client.includes("className: 'st-fw-pair'") || !client.includes('st-fw-region-head')) {
+    throw new Error('V1.2：结构地图与细节预览必须各自成卡、并排成对，且每张卡带自己的标题')
+  }
+  if (client.includes('.st-fw-sub{') || client.includes("className: 'st-fw-block'")) {
+    throw new Error('V1.2：不许把声明流程 / 渐进披露 / 其它章节塞回框架内部当"子块"')
+  }
+  //     并排的两列还要**等高**：右列跟着自己的内容伸缩时，左边铺满八格、右边只写了三行，
+  //     底下那块空白会被读成"这里还没画完"。所以钉住并排容器不带 align-items:start、
+  //     细节卡自己撑满、内容区可伸缩（末句留在卡底）。
+  if (!client.includes('.st-fw-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:12px}')
+    || !client.includes('.st-fw-detail{display:flex;flex-direction:column;')
+    || !client.includes('.st-fw-detail-rows{flex:1;min-height:0;margin-top:6px}')) {
+    throw new Error('V1.2：结构地图与细节预览必须等高 —— 细节卡不跟着内容伸缩，多余高度留在卡内、末句落在卡底')
   }
   // 顺序：v1.0 这几个模块是**纵向堆叠**的，所以那时的「顺序」是一条真正的读序 ——
   // 验收 → 本次修改对比 → 评测 → 框架 → 运行逻辑 → 步骤证据 → SKILL.md：声明层（验收/框架）
@@ -1578,6 +1714,20 @@ console.log('VISUAL_TOKENS_OK')
     if (panelCode.includes(forbidden)) throw new Error(`验收卡里不得出现「${forbidden}」`)
   }
 
+  // V1.3：一个区域 = 一张卡（与 Skill 框架同一套读法）。结论 / 这次没有判定 / 查了什么没查什么
+  // 三块原来连在一张卡里，只靠字号与留白分层，读起来属于同一层；现在各自成卡。
+  for (const needle of [
+    "const mainCard = h('section', { className: 'st-detail-card st-validation'",
+    "const uncheckedCard = (skipped.length > 0 || notes.length > 0)",
+    "const limitsCard = limitations.length > 0",
+    'return [mainCard, uncheckedCard, limitsCard].filter(Boolean)',
+  ]) {
+    if (!panelCode.includes(needle)) throw new Error(`验收卡的每个区域都必须各自成卡：「${needle}」`)
+  }
+  if (panelCode.includes('.st-validation-limits{margin-top:2px}')) {
+    throw new Error('「查了什么、没查什么」又折回 details 了：它现在自己一张卡')
+  }
+
   console.log('SKILL_VALIDATION_OK')
 }
 
@@ -2066,6 +2216,28 @@ console.log('VISUAL_TOKENS_OK')
     }
   }
 
+  // V1.3：一个区域 = 一张卡。改了多少 → 资源文件 → 超出范围 → 对比状态与边界 → 实例验收，
+  // 每张卡自己说自己是什么，不再靠 padding-top + border-top 假装分层。
+  for (const needle of [
+    "const headCard = h('section', { key: 'summary', className: 'st-detail-card st-mod'",
+    "const resourcesCard = h('section', { key: 'resources', className: 'st-detail-card'",
+    'const outCard = outOfScope.length',
+    "const statusCard = h('section', { key: 'status', className: 'st-detail-card'",
+    'return [headCard, resourcesCard, outCard, statusCard, instanceBlock].filter(Boolean)',
+  ]) {
+    if (!clientCode.includes(needle)) {
+      throw new Error(`本次修改对比的每个区域都必须各自成卡：「${needle}」`)
+    }
+  }
+  for (const banned of [
+    '.st-mod-resources{padding-top', '.st-mod-out{padding-top',
+    '.st-mod-state{margin:0;padding-top', '.st-mod-instance{display:flex;flex-direction:column;gap:6px;padding-top',
+  ]) {
+    if (clientCode.includes(banned)) {
+      throw new Error(`本次修改对比的区域又并回一张卡了：「${banned}」——分层要靠卡，不靠分隔线`)
+    }
+  }
+
   console.log('SKILL_MODIFICATION_OK')
 }
 
@@ -2406,6 +2578,24 @@ console.log('VISUAL_TOKENS_OK')
     throw new Error('评测 Case 的哈希必须有自己的域分隔前缀，不能和别的哈希共用一个域')
   }
 
+  // V1.3：一个区域 = 一张卡。①–⑦ 原来靠 `.st-eval-section` 的 border-top 连成一张长卡，
+  // 现在各自成卡；抬头与提示留在第一张。
+  for (const needle of [
+    "h('section', { key: 'eval-head', className: 'st-detail-card st-eval'",
+    "h('section', { key: 'eval-case', className: 'st-detail-card'",
+    "h('section', { key: 'eval-capture', className: 'st-detail-card'",
+    "h('section', { key: 'eval-runs', className: 'st-detail-card'",
+    "h('section', { key: 'eval-conditions', className: 'st-detail-card'",
+    "h('section', { key: 'eval-evidence', className: 'st-detail-card'",
+    "h('section', { key: 'eval-assertions', className: 'st-detail-card'",
+    "h('section', { key: 'eval-forbidden', className: 'st-detail-card st-eval-forbidden'",
+  ]) {
+    if (!card.includes(needle)) throw new Error(`评测卡的每个区域都必须各自成卡：「${needle}」`)
+  }
+  if (client.includes('.st-eval-section{padding')) {
+    throw new Error('评测卡的区域又并回一张卡了：`.st-eval-section` 的 padding / border-top 不许回来')
+  }
+
   console.log('SKILL_EVALUATION_OK')
 }
 
@@ -2528,7 +2718,7 @@ console.log('VISUAL_TOKENS_OK')
     throw new Error('规范输入串的每一行都必须是「字段名 值」——拼接顺序本身就是身份的一部分')
   }
 
-  // ④ 客户端：第十支 require、导航第 2 项、内容映射、导出控件，以及这一屏的措辞底线。
+  // ④ 客户端：第十支 require、导航第 2 项、内容映射、取走快照的控件，以及这一屏的措辞底线。
   if (!client.includes("require('../../core/skill-evidence.mjs')")) {
     throw new Error('客户端没有 require 证据核心模块')
   }
@@ -2555,7 +2745,6 @@ console.log('VISUAL_TOKENS_OK')
     'buildEvidenceExport(',
     'evidenceRows(',
     "'data-role': 'skill-evidence'",
-    "'data-role': 'evidence-export'",
     "'data-role': 'evidence-open-evaluation'",
     "'data-role': 'evidence-identity'",
     "'data-role': 'evidence-chain'",
@@ -2570,9 +2759,41 @@ console.log('VISUAL_TOKENS_OK')
   if (!/const model = buildSkillEvidence\(/.test(evidenceCard)) {
     throw new Error('证据卡必须直接画 buildSkillEvidence() 的结果，不许在组件里另算一套')
   }
-  // 导出：Blob + a[download]，失败退剪贴板，再失败如实报错 —— 三条路都要在。
-  for (const needle of ['globalThis?.Blob', 'urlApi?.createObjectURL', 'anchor.download', 'globalThis?.navigator?.clipboard']) {
-    if (!evidenceCard.includes(needle)) throw new Error(`证据导出缺少「${needle}」`)
+  // 取走快照只有一条路：**剪贴板**。
+  //
+  // 这里曾经有过一条「导出 Evidence JSON」：先请宿主写文件、再退浏览器里的 a[download]、
+  // 再退剪贴板，还带着第 14 条路由与一份 storage 写入器。2026-10-06 整条撤掉（用户 m04639：
+  // 这份 JSON 的读者是 Agent 与排障，不是用户本人 —— 证据链已经摆在屏幕上，不值得为它
+  // 新增路由与落盘，见 §6.12）。**撤掉的东西不许悄悄回来**：下面这条禁用清单就是那个决定的
+  // 合同 —— 只要有人再把下载、写文件或「已保存到…」的说法引进来，这一组立刻红。
+  for (const needle of ["'data-role': 'evidence-copy'", 'buildEvidenceExport(model)', 'globalThis?.navigator?.clipboard']) {
+    if (!evidenceCard.includes(needle)) throw new Error(`证据快照缺少「${needle}」：剪贴板是唯一的取走路径`)
+  }
+  for (const banned of ['createObjectURL', 'revokeObjectURL', 'anchor.download', 'EXPORT_ROUTE', 'EXPORT_RELEASE_DELAY', 'inDesktopApp', '__TAURI_INTERNALS__', 'downloadViaBrowser', '已请浏览器保存', '已保存到「', 'evidence-export']) {
+    if (evidenceCard.includes(banned)) {
+      throw new Error(`证据快照不许再出现「${banned}」：写文件那条路已经撤了（桌面端没有下载接收端，宿主也不必为它多一条路由）`)
+    }
+  }
+  // 区域各自成卡（V1.3）：五个区域各有自己的 key 与 h3，那条把它们连成一整张长卡的 border-top
+  // 不许回来；drift 的历史证据变色改挂在区域自己的 data-role 上（否则会静默失效）。
+  for (const needle of [
+    "h('section', { key: 'evidence-head', className: 'st-detail-card st-evidence'",
+    "h('section', { key: 'evidence-identity', className: 'st-detail-card'",
+    "h('section', { key: 'evidence-chain', className: 'st-detail-card'",
+    "h('section', { key: 'evidence-table', className: 'st-detail-card'",
+    "key: 'evidence-drift',",
+    "h('section', { key: 'evidence-evaluation', className: 'st-detail-card'",
+    'identityBlock, chain, table, drift, evaluationBlock,',
+  ]) {
+    if (!evidenceCard.includes(needle)) throw new Error(`证据卡的每个区域都必须各自成卡：「${needle}」`)
+  }
+  for (const banned of ['.st-evidence-block{', '.st-evidence-block h4']) {
+    if (client.includes(banned)) {
+      throw new Error(`证据卡的区域又并回一张卡了：「${banned}」——分层要靠卡，不靠分隔线`)
+    }
+  }
+  if (!client.includes('[data-role="evidence-drift"][data-state="historical"] .st-evidence-drift-claim')) {
+    throw new Error('drift 的历史证据变色必须挂在区域自己的 data-role 上（它不再依赖已退休的 .st-evidence-block）')
   }
 
   // ⑤ 归因禁令：模块与界面都不许把结果说成 Skill 造成的，也不许出现任何聚合口径。

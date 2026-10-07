@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
-import { seedRequire } from './helpers/react-stub.mjs'
+import { seedRequire, stateWrites } from './helpers/react-stub.mjs'
 
 // A smoke render of the client's real entry point.
 //
@@ -136,9 +136,10 @@ function loadClient(overrides = {}) {
       head: { appendChild() {} },
       documentElement: { dataset: {} },
       body: { setAttribute() {}, removeAttribute() {} },
+      ...overrides.document,
     },
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: overrides.localStorage ?? { getItem: () => null, setItem() {}, removeItem() {} },
+    sessionStorage: overrides.sessionStorage ?? { getItem: () => null, setItem() {}, removeItem() {} },
     addEventListener() {}, removeEventListener() {},
     fetch: overrides.fetch ?? (async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' })),
     setTimeout, clearTimeout, setInterval, clearInterval,
@@ -591,6 +592,15 @@ test('the client registers and its entry component renders without throwing', as
   assert.equal(validationNodes.filter((node) => node.props['data-role'] === 'validation-finding').length, 1, 'one fired rule renders exactly one finding row')
   assert.equal(validationNodes.filter((node) => node.props['data-role'] === 'validation-skipped-rule').length, 2, 'two skipped rules render two rows')
   assert.ok(validationNodes.some((node) => node.props['data-role'] === 'validation-limitations'), 'the panel states what the check does not cover')
+  // V1.3：一个区域 = 一张卡。分层靠「卡」这个结构，不再靠一条 border-top 把长文连起来。
+  const cardsOf = (list) => list.filter((node) => {
+    const cls = (node.props || {}).className
+    return typeof cls === 'string' && cls.split(' ').includes('st-detail-card')
+  })
+  const validationLimitsCard = validationNodes.find((node) => node.props['data-role'] === 'validation-limitations')
+  assert.equal(validationLimitsCard.type, 'section', '区域是 section，不是大卡里的一段 div')
+  assert.equal(validationLimitsCard.props.className, 'st-detail-card', '一个区域就是一张卡')
+  assert.ok(detailText.includes('这次验收查了什么、没查什么'), '「查了什么、没查什么」有自己卡上的标题，不再折进 details 里等人点开')
   // 字段缺失这一支：宿主还没换到这一版时，响应里**没有** `validation` 这个键 —— 必须说清是宿主旧，
   // 而不是「这份 Skill 不符合规范」（§6.11）。注意要真的把键去掉：写成 `{ ...fixture, validation: undefined }`
   // 那个键仍然存在（`hasOwnProperty` 为真），走的是另一条分支。
@@ -911,6 +921,9 @@ const frameFramework = {
   roles: [
     { role: 'identity', label: { zh: '定位 · Purpose', en: 'Purpose' }, hint: { zh: '这个 Skill 是干什么的', en: 'What this Skill is' }, sections: ['framework:preamble'] },
     { role: 'rules', label: { zh: '规则 · Rules', en: 'Rules' }, hint: { zh: '它的核心规则', en: 'Its core rules' }, sections: ['rules'] },
+    // 从 description 合成的那一节也占一个角色：核心层会给它一个条目，界面就得把它当角色画，
+    // 而不是让它掉进「其它章节」—— 那会让读者以为这一段是"没归类"的。
+    { role: 'trigger', label: { zh: '触发 · Trigger', en: 'Trigger' }, hint: { zh: '什么时候用它', en: 'When to use it' }, sections: ['framework:trigger'] },
   ],
   unclassified: ['odd'],
   chain: [
@@ -939,45 +952,152 @@ const frameFramework = {
 test('the framework shows the Skill’s structure, not a four-step strip', () => {
   const client = mountChineseClient()
   const clicked = []
-  const nodes = collect(client.__views.SkillFramework({
+  const shell = collect(client.__views.SkillFramework({
     framework: frameFramework, flow: frameFlow,
     anchors: { 'framework:preamble': 'ui-craft', rules: 'rules' },
     definitionAvailable: true, flash: null, onStepClick() {}, onAnchorClick: (id) => clicked.push(id),
   }))
-  const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  // 一屏只画**一块**结构：所以想知道每一块的详情长什么样，就得分别以它为初值渲染一次。
+  // 这里的四个初值合起来 = 重构前那一张把全部角色铺开的页面，断言的语义没有变。
+  const structure = (initialStructure) => collect(client.__views.FrameworkStructure({
+    framework: frameFramework,
+    anchors: { 'framework:preamble': 'ui-craft', rules: 'rules' },
+    flash: null, onAnchorClick: (id) => clicked.push(id), initialStructure,
+  }))
+  const text = (nodes) => nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+  const of = (nodes, className) => nodes.filter((node) => node.props.className === className)
+  const frames = ['identity', 'rules', 'trigger'].map(structure)
+  // 认不出角色的小节不再占结构地图的一格，但它必须出现在框架里 —— 所以「其它章节」这一块
+  // 单独渲染一次，和三个角色帧一起拼成"整张框架卡"的文面。
+  const otherNodes = collect(client.__views.OtherSections({
+    framework: frameFramework, anchors: { 'framework:preamble': 'ui-craft' }, flash: null, onAnchorClick: (id) => clicked.push(id),
+  }))
+  const nodes = [...frames.flat(), ...otherNodes]
+  const all = text(nodes)
+  const base = frames[0]
+  const baseText = text(base)
 
-  // 1. 角色是模块，标题来自核心层，不是界面自己编的。
-  const modules = nodes.filter((node) => node.props.className === 'st-fw-module')
-  assert.equal(modules.length, 3, '两个认识的角色 + 一组其它章节')
-  assert.ok(text.includes('定位 · Purpose') && text.includes('规则 · Rules'), '角色标签来自核心层')
-  assert.ok(text.includes('其它章节'), '认不出角色的小节收进「其它章节」，而不是丢掉')
+  // 1. Blueprint 是**阅读路径**：五站固定、顺序固定，缺的一站写成「未声明」而不是消失。
+  const stops = of(base, 'st-fw-stop')
+  assert.deepEqual(stops.map((node) => node.props['data-role']),
+    ['identity', 'trigger', 'rules', 'resources', 'output'], '蓝图五站按固定的阅读顺序排列')
+  assert.deepEqual(of(base, 'st-fw-stop-kicker').map((node) => node.children[0]),
+    ['WHY', 'WHEN', 'HOW', 'WITH', 'RESULT'], '每站回答哪个问题，是这一版的阅读骨架')
+  assert.deepEqual(of(base, 'st-fw-stop-hint').map((node) => node.children[0]),
+    ['解决什么问题', '什么时候使用', '受什么约束', '依赖哪些资源', '最终产出什么'],
+    '每一站配一句"它回答什么"：只报站名，读者还得自己去猜这一站在问什么')
+  assert.ok(baseText.includes('定位') && baseText.includes('规则') && baseText.includes('输出'), '站名来自核心层的角色标签')
+  assert.equal(stops.find((node) => node.props['data-role'] === 'output').props['data-declared'], 'false',
+    '正文里没有的角色在蓝图上留着，但标成未声明')
+  assert.ok(baseText.includes('未声明'), '缺席写出来，而不是留白让读者以为漏了')
+  assert.ok(baseText.includes('这是阅读路径，不是 Agent 的执行顺序。'), '蓝图自己说清它是一条阅读路径')
 
-  // 2. 没出现的角色必须说「没有」，而不是留白让读者以为漏了。
-  assert.ok(nodes.some((node) => node.props.className === 'st-fw-absent' && node.children?.some?.((c) => String(c).includes('Verification'))),
-    'a role the document never writes out is named as absent, not left blank')
+  // 2. 结构地图：八个角色一格不缺。「其它章节」**不占地图格** —— 它不是一个框架角色，
+  // 摆进那八格里会被读成它和「规则」「资源」平级（它由 OtherSections 单独列在末尾）。
+  const cards = of(base, 'st-fw-map-card')
+  assert.equal(cards.length, 8, '八个框架角色，一格不缺')
+  assert.equal(cards.filter((node) => node.props['data-role'] === 'other').length, 0, '认不出角色的小节不占角色格')
+  assert.equal(cards.filter((node) => node.props['data-active'] === 'true').length, 1, '同时只有一格是选中的')
+  assert.equal(cards.find((node) => node.props['data-role'] === 'identity').props['data-active'], 'true')
+  assert.ok(baseText.includes('定位 · Purpose') && baseText.includes('规则 · Rules'), '角色标签来自核心层')
+  assert.ok(baseText.includes('2 个引用'),
+    '资源格的数字是**声明引用数**：读这一格的人想知道依赖多少资源，不是它占了几节')
 
-  // 3. 一个小节显示：标题、行号、条目数，以及被截断时的总数。
-  assert.ok(text.includes('核心规则') && text.includes('44 项'), '条目数是**总数**，不是渲染出来的三条')
+  // 3. 细节预览跟着选中的那一格走 —— 选谁就显示谁的小节，不是把全部小节铺在下面。
+  const detail = of(base, 'st-fw-detail')
+  assert.equal(detail.length, 1, '一屏只有一块细节预览')
+  assert.equal(detail[0].props['data-active'], 'identity', '默认预览第一格')
+  assert.ok(baseText.includes('最值得读的内容') && baseText.includes('为什么这样显示：'), '预览说清它为什么只列这些')
+  assert.ok(baseText.includes('你是一个有品味的设计工程师。'), '细节预览渲染的是选中角色的那一节')
+  assert.ok(text(structure('rules')).includes('核心规则'), '换一个初值，预览就换成那一格的小节')
+  assert.equal(of(base, 'st-fw-section').length, 1, '预览里只有选中角色的那一节 — 没有选中的不会同时铺开')
+
+  // 4. 一个小节显示：标题、行号、条目数，以及被截断时的总数。
+  assert.ok(all.includes('核心规则') && all.includes('44 项'), '条目数是**总数**，不是渲染出来的三条')
   const longSection = nodes.find((node) => node.props.className === 'st-fw-section' && node.children?.some?.((c) => c?.props?.className === 'st-fw-items'))
   assert.equal(longSection.children.find((c) => c?.props?.className === 'st-fw-items') === undefined, false, 'items render as a list')
-  assert.ok(text.includes('不要默认用蓝色'), 'the first items are shown verbatim')
+  assert.ok(all.includes('不要默认用蓝色'), 'the first items are shown verbatim')
 
-  // 4. 从 description 合成出来的小节说的是来源，不是「无标题」——原文本来就没有这一节。
-  assert.ok(text.includes('来自 Skill 描述'), 'a synthesised section names its source')
-  assert.ok(!text.includes('（无标题）'), 'nothing is labelled untitled when we know where it came from')
+  // 5. 从 description 合成出来的小节说的是来源，不是「无标题」——原文本来就没有这一节。
+  assert.ok(all.includes('来自 Skill 描述'), 'a synthesised section names its source')
+  assert.ok(!all.includes('（无标题）'), 'nothing is labelled untitled when we know where it came from')
 
-  // 5. 有锚点的小节是按钮，没锚点的是静态元素。合成出来的小节没有锚点。
+  // 6. 有锚点的小节是按钮，没锚点的是静态元素。合成出来的小节没有锚点。
   const sectionNodes = nodes.filter((node) => node.props.className === 'st-fw-section')
   assert.equal(sectionNodes.filter((node) => node.type === 'button').length, 2, '两节在文档里找得到锚点')
-  assert.equal(sectionNodes.filter((node) => node.props['data-static'] === 'true').length, 2, '两节没有锚点，就不做成按钮')
+  assert.equal(sectionNodes.filter((node) => node.props['data-static'] === 'true').length, 1, '没有锚点的那一节不做成按钮')
   sectionNodes.find((node) => node.type === 'button').props.onClick()
   assert.deepEqual(clicked, ['ui-craft'], '点击小节复用同一个 flashAnchor，不新开页面或运行图')
 
-  // 6. 框架的免责句与声明流程的是**两句**：一句说来源，一句说证据的边界。
-  assert.ok(text.includes('框架来自 SKILL.md 自身的章节结构') && text.includes('也不会由运行证据反推'),
+  // 7. 一格都没有的角色照样能选中：它说「没有独立结构块」，而不是编一段解释。
+  const blank = text(structure('verification'))
+  assert.ok(blank.includes('当前没有独立结构块。') && blank.includes('因此不制造额外解释。'),
+    'an empty role says so instead of inventing content')
+
+  // 8. 没出现的角色必须说「没有」，而不是留白让读者以为漏了。
+  assert.ok(nodes.some((node) => node.props.className === 'st-fw-absent' && node.children?.some?.((c) => String(c).includes('Verification'))),
+    'a role the document never writes out is named as absent, not left blank')
+
+  // 9. 框架的免责句与声明流程的是**两句**：一句说来源，一句说证据的边界。
+  const shellText = text(shell)
+  assert.ok(shellText.includes('框架来自 SKILL.md 自身的章节结构') && shellText.includes('也不会由运行证据反推'),
     'the structure note states what the framework is read from, in the core layer’s own words')
-  assert.ok(text.includes('流程来自 SKILL.md 的声明'), 'the declared-flow disclaimer is still rendered')
+  assert.ok(shellText.includes('流程来自 SKILL.md 的声明'), 'the declared-flow disclaimer is still rendered')
+
+  // 10. 认不出角色的小节在框架末尾单独列，视觉重量比八个角色轻一档 —— 不丢，也不抢主视觉。
+  const other = otherNodes
+  const otherText = text(other)
+  const otherRows = other.filter((node) => node.props.className === 'st-fw-other-row')
+  assert.deepEqual(otherRows.map((node) => node.props['data-static']), ['true'],
+    '其它章节是一条条的行，不是八张角色卡那样的卡')
+  assert.ok(otherText.includes('其它章节 · Other Sections') && otherText.includes('1 个小节没有归入已知角色'),
+    '这一块自己说清它收了多少个没归类的节')
+  assert.equal(collect(client.__views.OtherSections({ framework: frameFramework, anchors: { odd: 'odd' }, flash: null, onAnchorClick: (id) => clicked.push(id) }))
+    .find((node) => node.props.className === 'st-fw-other-row').type, 'button',
+  '有锚点的其它章节是可点的行：认不出角色不等于读不到原文')
+
+  // 11. 每个区域各自独立成卡（m02790）：挤在同一个边框里、只靠一条分隔线分层时，读者分不清
+  //     「这是上一段的继续」还是「这是另一件事」—— 层级就拉不开。所以蓝图、结构地图、细节预览、
+  //     声明流程、渐进披露、其它章节各是一张卡，结构地图与细节预览并排成对。
+  const regions = of(base, 'st-fw-region')
+  assert.deepEqual(regions.map((node) => node.props['data-block']), ['blueprint', 'map'],
+    '蓝图与结构地图各自成卡，且蓝图上、地图下')
+  assert.equal(of(base, 'st-fw-pair').length, 1, '结构地图与细节预览并排成对，而不是同一张卡的两个半边')
+  assert.equal(regions.filter((node) => node.props['data-block'] === 'map')[0].children
+    .filter((child) => child?.props?.className === 'st-fw-map-list').length, 1, '八格在地图卡内部')
+  assert.ok(text(shell).includes('细节预览 · Detail Preview'), '细节预览有自己的块标题')
+  assert.equal(shell.filter((node) => node.props.className === 'st-fw-region').length, 4,
+    '蓝图 + 结构地图 + 声明流程 + 渐进披露 = 四张区域卡（其它章节没有内容时不出现）')
 })
+
+test('the structure detail shows the first few sections and counts the rest', () => {
+  const client = mountChineseClient()
+  const rules = Array.from({ length: 5 }, (_, index) => ({
+    id: `rules-${index + 1}`, title: `规则 ${index + 1}`, line: 10 + index, anchorId: `rules-${index + 1}`, role: 'rules',
+    opening: `第 ${index + 1} 条`, items: [], itemCount: 0, itemsTruncated: false,
+  }))
+  const deep = {
+    ...frameFramework,
+    sections: [...frameFramework.sections, ...rules],
+    roles: [{ role: 'rules', label: { zh: '规则 · Rules', en: 'Rules' }, hint: { zh: '它的核心规则', en: 'Its core rules' }, sections: rules.map((section) => section.id) }],
+  }
+  const render = () => collect(client.__views.FrameworkStructure({
+    framework: deep, anchors: {}, flash: null, onAnchorClick() {}, initialStructure: 'rules',
+  }))
+  const of = (nodes, className) => nodes.filter((node) => node.props.className === className)
+  const textOf = (nodes) => nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  const nodes = render()
+  assert.equal(of(nodes, 'st-fw-section').length, 3,
+    '默认只铺前三节：这一屏回答「最值得读什么」，不是把这一格的小节全部铺开')
+  const toggle = nodes.find((node) => node.props['data-role'] === 'detail-toggle')
+  assert.ok(toggle, '被收起来的节数必须写在屏幕上 —— 否则读者会以为这一格只有三节')
+  assert.ok(textOf(nodes).includes('还有 2 个章节'), '收起来的节数是一个实数，不是一句"更多"')
+  assert.equal(toggle.props['aria-expanded'], 'false', '收起态要能读出来')
+  assert.ok(textOf(nodes).includes('规则 1') && !textOf(nodes).includes('规则 5'),
+    '前三节是文档顺序的前三节，不是随便挑的三节')
+})
+
 
 test('progressive disclosure counts the references and claims no reads', () => {
   const client = mountChineseClient()
@@ -989,13 +1109,56 @@ test('progressive disclosure counts the references and claims no reads', () => {
     ['Skill 目录', '载入 Skill', 'SKILL.md 全文', '资源基准路径', '被引用的资源', '按需读取'],
     'the chain comes from the core layer, so the interface cannot invent a stage')
 
-  assert.ok(text.includes('声明引用 2 个 · 已读取 0 个'), 'the counts are declared vs read, said out loud')
+  assert.ok(text.includes('声明 2 · 读取 0'), 'the counts are declared vs read, said out loud')
+  assert.deepEqual(
+    nodes.filter((node) => node.props.className === 'st-fw-chain-order').map((node) => node.children[0]),
+    ['01', '02', '03', '04', '05', '06'],
+    '六个阶段带序号：这是一条管线，不是六个并列的标签')
+  assert.ok(text.includes('发现这个 Skill') && text.includes('需要时再读'),
+    '每一站说出"这一步做什么"，而不是只报一个术语')
+  assert.ok(text.includes('0 / 2') && text.includes('有读取证据 / 声明引用'),
+    '读数块把「声明了几条」和「有几条读取证据」分开摆，不让两个数被读成一个')
   assert.ok(text.includes('Tier 1 — Required'), 'tier titles come from the document’s own headings')
   assert.ok(text.includes('references/brief.md') && text.includes('先读它，它锚定后面每一个决定。'),
     'each reference shows its path and the document’s own words for when to read it')
   assert.ok(text.includes('资源基准：directory（路径已省略）'), 'the resource base says the path was withheld rather than printing a guess')
   assert.ok(text.includes('声明资源不等于已读取资源'), 'the screen shares the core layer’s sentence about the difference')
+  assert.ok(!nodes.some((node) => node.props['data-role'] === 'resource-toggle'),
+    '两条引用不值得一个展开按钮：短列表不制造多余的交互')
 })
+
+test('the resource list expands on demand instead of stacking every path', () => {
+  const client = mountChineseClient()
+  const paths = Array.from({ length: 9 }, (_, index) => `references/file-${index + 1}.md`)
+  const many = {
+    ...frameFramework,
+    resources: {
+      ...frameFramework.resources,
+      declared: paths.map((path) => ({ path, anchorId: '', when: '' })),
+      declaredCount: paths.length,
+      groups: [{ title: null, count: paths.length, resourcePaths: paths }],
+      tiers: [],
+    },
+  }
+  const render = (initialExpanded) => collect(client.__views.ProgressiveDisclosure({
+    framework: many, onAnchorClick() {}, initialExpanded,
+  }))
+  const rowsOf = (nodes) => nodes.filter((node) => node.props.className === 'st-fw-resource')
+  const collapsed = render(false)
+  const expanded = render(true)
+  const textOf = (nodes) => nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
+
+  assert.equal(rowsOf(collapsed).length, 6, '收起时只列前 6 条，剩下的靠一次点击展开')
+  assert.equal(rowsOf(expanded).length, 9, '展开后 9 条全在一处')
+  const toggle = collapsed.find((node) => node.props['data-role'] === 'resource-toggle')
+  assert.ok(toggle, '引用多于 6 条时才给出展开按钮')
+  assert.ok(textOf(collapsed).includes('展开全部 9 个') && collapsed.some((node) => node.props['data-role'] === 'resource-toggle' && node.props['aria-expanded'] === 'false'),
+    'a collapsed list says how many are behind the toggle')
+  assert.ok(textOf(expanded).includes('收起资源'), '展开之后同一个按钮变成收起')
+  assert.ok(rowsOf(expanded).every((node) => node.props['data-static'] === 'true'),
+    '没有锚点的资源行是静态的：一个点了没反应的按钮比一个不可点的元素更糟')
+})
+
 
 const frameRuntimeLogic = {
   schemaVersion: 1, source: 'session-observation',
@@ -1097,6 +1260,17 @@ test('the evidence card states the nature of each conclusion, and never upgrades
     validation: { status: 'pass', summary: { errors: 0, warnings: 0, info: 0, skipped: 4 } },
   }
   const nodes = collect(client.__views.SkillEvidenceCard({ detail, evaluation: { runs: [], caseRecord: null }, onOpenEvaluation() {} }))
+  // V1.3：一个区域 = 一张卡。分层靠「卡」这个结构，不再靠一条 border-top 把长文连起来。
+  const cardsOf = (list) => list.filter((node) => {
+    const cls = (node.props || {}).className
+    return typeof cls === 'string' && cls.split(' ').includes('st-detail-card')
+  })
+  const evidenceCards = cardsOf(nodes)
+  assert.ok(evidenceCards.length >= 6, `证据卡的每个区域都要自己一张卡（现在只有 ${evidenceCards.length} 张）`)
+  for (const role of ['skill-evidence', 'evidence-identity', 'evidence-chain', 'evidence-table', 'evidence-drift', 'evidence-evaluation']) {
+    assert.ok(evidenceCards.some((node) => node.props['data-role'] === role), `「${role}」区域必须自己一张卡`)
+  }
+  assert.ok(!nodes.some((node) => String((node.props || {}).className || '').split(' ').includes('st-evidence-block')), '把长文连起来的旧类不许回来')
   const text = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   const textOf = (node) => collect(node).filter((child) => child.type === '#text').map((child) => child.text).join('\n')
 
@@ -1129,8 +1303,8 @@ test('the evidence card states the nature of each conclusion, and never upgrades
   assert.equal(rows.length, 6, 'five subjects plus the header')
   assert.ok(nodes.filter((node) => typeof node.props['data-code'] === 'string').length > 0, 'limitations are rendered from the closed vocabulary')
 
-  // 导出控件只出现一次，且这一屏不许出现「分数 / 排名 / 百分比 / 已执行」这类词。
-  assert.equal(nodes.filter((node) => node.props['data-role'] === 'evidence-export').length, 1)
+  // 取走快照的控件只出现一次，且这一屏不许出现「分数 / 排名 / 百分比 / 已执行」这类词。
+  assert.equal(nodes.filter((node) => node.props['data-role'] === 'evidence-copy').length, 1)
   // 免责声明「本模块不评分、不排名」本身含这两个词，先把它摘掉再验 —— 否则验的是声明在不在，
   // 而不是界面上有没有真的给出分数。
   assert.ok(text.includes('不评分、不排名、不自动归因'), 'the card states that it does not score or rank')
@@ -1141,6 +1315,133 @@ test('the evidence card states the nature of each conclusion, and never upgrades
   // 宿主还没换到这一版（`detail` 为 null）时也要能给出一屏，而不是抛。
   assert.ok(collect(client.__views.SkillEvidenceCard({ detail: null, evaluation: null })).length > 0,
     'a missing detail renders rather than throwing')
+})
+
+// 取走快照只有一条路：**剪贴板**（用户 m04639：「留复制就行了」）。这一组同时反向钉住
+// **已经撤掉的东西**：桌面 App 里没有下载接收端，所以「导出成文件」那条路连宿主路由一起撤了
+// （禁用清单见 `scripts/verify-project.mjs` 第 36 组）。这里连假 anchor 都不准备 ——
+// 一旦有人把下载逻辑写回来，它会因为「拿不到 document.createElement 的返回值」而暴露。
+function evidenceFixture() {
+  const fingerprint = `sha256:${'cd'.repeat(32)}`
+  return {
+    skillName: 'ui-craft',
+    summary: { provider: 'filesystem', source: 'user-agents' },
+    definition: { content: { sha256: fingerprint } },
+    observation: { currentInstructionSha256: fingerprint, observedInstructionSha256: [fingerprint], match: 'match' },
+    runs: [],
+    evidence: { scope: { established: false }, invocations: [] },
+    validation: { status: 'pass', summary: { errors: 0, warnings: 0, info: 0, skipped: 0 } },
+  }
+}
+
+// 返回证据卡的节点树 + 「这次渲染期间真的发出去了哪些请求」。快照必须**只**经过剪贴板：
+// 宿主那边已经没有这条路由了，所以一个请求都不该有。
+function mountEvidenceCard({ fetchImpl, clipboard }) {
+  const calls = []
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  if (clipboard !== undefined) {
+    Object.defineProperty(globalThis, 'navigator', { value: { clipboard }, configurable: true, writable: true })
+  }
+  const client = mountChineseClient({
+    fetch: async (url, options) => { calls.push({ url, options }); return fetchImpl(url, options) },
+  })
+  const nodes = collect(client.__views.SkillEvidenceCard({
+    detail: evidenceFixture(),
+    evaluation: { runs: [], caseRecord: null },
+    onOpenEvaluation() {},
+  }))
+  return { nodes, calls, restore: () => { if (descriptor) Object.defineProperty(globalThis, 'navigator', descriptor) } }
+}
+
+test('the evidence card hands the snapshot over through the clipboard', async () => {
+  const written = []
+  stateWrites.length = 0
+  const { nodes, calls, restore } = mountEvidenceCard({
+    fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }),
+    clipboard: { writeText: (text) => { written.push(text); return Promise.resolve() } },
+  })
+  try {
+    const copy = nodes.filter((node) => node.props['data-role'] === 'evidence-copy')
+    assert.equal(copy.length, 1, 'there is exactly one way to take the snapshot away')
+    assert.equal(nodes.filter((node) => node.props['data-role'] === 'evidence-export').length, 0,
+      'the export-to-file path is gone: the desktop app has no download channel and its host route was withdrawn')
+    await copy[0].props.onClick()
+    await new Promise((resolve) => setImmediate(resolve))
+
+    assert.equal(written.length, 1, 'the snapshot goes to the clipboard')
+    const snapshot = JSON.parse(written[0])
+    assert.equal(snapshot.skill.name, 'ui-craft', 'the clipboard carries the whole export payload')
+    assert.equal(calls.length, 0, 'nothing is asked of the host: taking the snapshot is a local action')
+    const said = stateWrites.filter((value) => typeof value === 'string')
+    assert.equal(said.some((line) => line.includes('证据快照已复制到剪贴板')), true,
+      `the interface says where it went (said: ${JSON.stringify(said)})`)
+  } finally {
+    restore()
+  }
+})
+
+test('when the clipboard is not available, the card says so instead of pretending', async () => {
+  stateWrites.length = 0
+  const { nodes, restore } = mountEvidenceCard({
+    fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }),
+  })
+  try {
+    const copy = nodes.filter((node) => node.props['data-role'] === 'evidence-copy')[0]
+    assert.equal(typeof copy.props.onClick, 'function')
+    await copy.props.onClick()
+    const said = stateWrites.filter((value) => typeof value === 'string')
+    assert.equal(said.some((line) => line.includes('当前环境不支持复制')), true,
+      `read-not-available is stated, not silent (said: ${JSON.stringify(said)})`)
+  } finally {
+    restore()
+  }
+})
+
+// ── 上次停在哪一页（用户 m03831）────────────────────────────────────────────────
+//
+// 用户的原话是「每次进入 Skill 洞察都进 Skill 列表页，应该记住上次那一页」。这里测两件事：
+// ① 带着会话记录挂载时**直接进详情页**，并且返回目标还是它当初进来的那个列表；
+// ② 换了一个会话就不再适用 —— 停在上一个会话的 SKILL.md 上比回到列表更糟。
+// 一级页面的默认页走的是另一条路（localStorage + 宿主偏好），不在这里测。
+test('a browsing session comes back to the page it was left on, and only for that session', () => {
+  const PAGE_KEY = 'dsh-skill-trace.last-page'
+  const storageWith = (value) => ({
+    getItem: (key) => (key === PAGE_KEY ? value : null),
+    setItem() {}, removeItem() {},
+  })
+  const stored = JSON.stringify({ sessionId: 's1', skill: 'ui-craft', from: 'installed', module: 'validation' })
+  const loadingMessages = (nodes, TraceState) => nodes
+    .filter((node) => node.type === TraceState)
+    .map((node) => String(node.props.message || ''))
+  const mounted = (value, sessionId) => {
+    const client = mountChineseClient({ sessionStorage: storageWith(value) })
+    return { nodes: collect(client.__views.Workbench({ sessionId })), views: client.__views }
+  }
+
+  const restored = mounted(stored, 's1')
+  assert.ok(loadingMessages(restored.nodes, restored.views.TraceState).some((message) => message.includes('这个 Skill 的定义')),
+    'a stored page opens the Skill detail page again, not the list')
+  const detail = restored.nodes.filter((node) => node.type === restored.views.SkillDetailPage)[0]
+  assert.ok(detail, 'the detail page is the one being rendered')
+  // 模块也要回来：停在「Skill 验收」的用户不该被送回「Skill 框架」。
+  assert.equal(detail.props.initialModule, 'validation', 'the module it was left on is handed back in')
+  assert.equal(typeof detail.props.onModuleChange, 'function', 'and switch to another module is reported back')
+  assert.deepEqual(restored.nodes.filter((node) => node.type === restored.views.DetailBackButton).map((node) => node.props.backLabel),
+    ['已安装 Skill'], 'the way back still points at the list the user came from')
+
+  // 换了会话：那条记录不再适用 —— 宁可回到列表，也不停在上一个会话的 SKILL.md 上。
+  const other = mounted(stored, 's2')
+  assert.deepEqual(other.nodes.filter((node) => node.type === other.views.SkillDetailPage), [],
+    'another session does not inherit the page')
+  assert.equal(other.nodes.filter((node) => node.type === other.views.CurrentSkillPage).length, 1,
+    'it starts from the list')
+
+  // 没有记录时也是列表 —— 这条路径是默认值，不是特例。
+  const fresh = mounted(null, 's1')
+  assert.deepEqual(fresh.nodes.filter((node) => node.type === fresh.views.SkillDetailPage), [],
+    'a session with no stored page starts from the list')
+  assert.equal(fresh.nodes.filter((node) => node.type === fresh.views.CurrentSkillPage).length, 1,
+    'the list is what a session without a stored page opens')
 })
 
 // ── Markdown 表格 ─────────────────────────────────────────────────────────────
@@ -2213,6 +2514,21 @@ test('the modification card says "not comparable" instead of an empty result tha
   assert.ok(ready.some((node) => node.props['data-role'] === 'mod-resource' && node.props['data-kind'] === 'modified'))
   assert.ok(ready.some((node) => node.props['data-role'] === 'mod-released'), '快照释放了就要说，否则用户会以为还能再对比一次')
   assert.ok(ready.some((node) => node.props['data-role'] === 'mod-limitations'))
+  // V1.3：一个区域 = 一张卡。分层靠「卡」这个结构，不再靠一条 border-top 把长文连起来。
+  const cardsOf = (list) => list.filter((node) => {
+    const cls = (node.props || {}).className
+    return typeof cls === 'string' && cls.split(' ').includes('st-detail-card')
+  })
+  const readyCards = cardsOf(ready)
+  assert.ok(readyCards.length >= 4, `本次修改对比的区域要各自成卡（现在只有 ${readyCards.length} 张）`)
+  for (const role of ['skill-modification', 'mod-resources', 'mod-instance']) {
+    const regionCard = readyCards.find((node) => node.props['data-role'] === role)
+    assert.ok(regionCard, `「${role}」区域必须自己一张卡`)
+    assert.ok(collect(regionCard).some((node) => node.type === 'h3'), `「${role}」这张卡要用 h3 说出自己是什么`)
+  }
+  if (ready.some((node) => node.props['data-role'] === 'mod-out-of-scope')) {
+    assert.ok(readyCards.some((node) => node.props['data-role'] === 'mod-out-of-scope'), '「超出修改范围」要自己一张卡')
+  }
 
   const text = textOf(ready)
   for (const forbidden of ['已执行', '已完成', '已加载', '已读取', '优秀', '最佳', '分数', '等级', '质量']) {
@@ -2427,6 +2743,16 @@ test('the evaluation card is a ledger: four stages, three inequalities, factual 
 
   const card = nodes.find((node) => node.props['data-role'] === 'eval-card')
   assert.ok(card, '评测卡必须渲染出来')
+  // V1.3：一个区域 = 一张卡。分层靠「卡」这个结构，不再靠一条 border-top 把长文连起来。
+  const cardsOf = (list) => list.filter((node) => {
+    const cls = (node.props || {}).className
+    return typeof cls === 'string' && cls.split(' ').includes('st-detail-card')
+  })
+  const evalCards = cardsOf(nodes)
+  for (const role of ['eval-case', 'eval-capture', 'eval-runs', 'eval-conditions', 'eval-evidence', 'eval-assertions', 'eval-forbidden']) {
+    assert.ok(evalCards.some((node) => node.props['data-role'] === role), `「${role}」区域必须自己一张卡`)
+  }
+  assert.ok(!nodes.some((node) => String((node.props || {}).className || '').split(' ').includes('st-eval-section')), '把 ①–⑦ 连起来的旧类不许回来')
   const cardText = nodes.filter((node) => node.type === '#text').map((node) => node.text).join('\n')
   assert.ok(cardText.includes('Skill 评测'), '抬头写「Skill 评测」')
   assert.ok(cardText.includes('不给分、不排序、不画走势'), '这一屏的第一句话就要把边界说清楚')

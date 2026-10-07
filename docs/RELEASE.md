@@ -17,19 +17,19 @@
 
 ---
 
-## 本次发布的起点（`1.1.0` 发布后实测 2026-10-06）
+## 本次发布的起点（`1.2.0` 发布前实测 2026-10-07）
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `1.1.0` 的发布提交 `1a057bf`（`package.json` `1.1.0`）= `origin/main`，见 §6.0 |
-| `origin/main` | 与本地 `main` **0 领先 / 0 落后** |
-| 远端最新 tag | `v1.1.0`（打在发布提交 `1a057bf` 上） |
-| npm | `beta` 与 `latest` **都指向 `1.1.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
-| 工作区 | 干净（`git status --porcelain` 无输出） |
+| 本地 `HEAD` | `5b9409c feat: V1.2「Skill 证据模型」（`1.2.0` 已定版）`，**领先 `origin/main` 1 个提交**；工作树另有 13 个已修改文件（V1.2 的全部改动） |
+| `origin/main` | `c636273 docs: 回填 v1.1.0 发布实录（§6.0）`（本地 `main` **领先 1**） |
+| 远端最新 tag | `v1.1.0`（打在发布提交 `1a057bf` 上；本次要打 `v1.2.0`） |
+| npm | `beta` 与 `latest` **都指向 `1.1.0`**（`npm view dsh-skill-trace dist-tags`；本次发完要变成 `1.2.0`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 工作区 | **13 个已修改文件**（`AGENTS.md` / `CHANGELOG.md` / `README.md` / `design.md` / `dist/client.js` / `dist/client.js.map` / `docs/ARCHITECTURE.md` / `scripts/verify-project.mjs` / `spec/PRD.md` / `spec/SDD.md` / `src/dsh/client/client.js` / `test/client-render-smoke.test.mjs` / `test/helpers/react-stub.mjs`）——**发布提交里必须全部收进去** |
 
-**当前实测（2026-10-06；接手下一次发布前先读这一段）**：**V1.1「详情级导航 + Agent Skills 开放标准」已随 `1.1.0` 于 2026-10-06 发布**（见 §6.0 实测结果）。它是**客户端半边**改动（详情页改成「左侧详情导航 + 右侧当前模块」，验证层多一个 `standard` Profile 与 4 条规则），**不新增路由 / 页面 / 落盘 / 依赖**，宿主 `src/dsh/host/index.js` 一字未改；`src/core/*` 改了，所以真机验收仍要按 `AGENTS.md` §6.2 重启 DSH。**下一版的版本号由用户定**（`AGENTS.md` §2）；开新版本之前先确认 `package.json` / `README.md` / `CHANGELOG.md` 的版本口径一致（`AGENTS.md` §9.1 的八处）。**上表是 `1.1.0` 发布那一刻的快照，是下一次发布已经走过的起点。**
+**当前实测（2026-10-07；接手下一次发布前先读这一段）**：**V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」已定版 `1.2.0`、正在发布**（版本号由用户 2026-10-06 拍板）。它是**纯客户端 + 一个新 core 模块**的改动（新增 `src/core/skill-evidence.mjs` 909 行与详情页第 9 个模块「Skill 证据」，另把框架维与其余详情模块重组成区域卡），**不新增路由 / 页面 / 落盘 / 依赖**，宿主 `src/dsh/host/index.js` 一字未改（13 条路由 / 1844 行）；客户端 `require` 九支 → 十支；`src/core/*` 改了，真机验收要按 `AGENTS.md` §6.2 重启 DSH。**下一版的版本号仍由用户给**（`AGENTS.md` §2）。**上表是 `1.2.0` 发布开始时的快照。**
 
-**版本号：`1.1.0` 这次由用户定**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。本次发版已经把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题（`## 1.1.0`）——`1.0.0` 那次两件事也是这么做的（见 `CHANGELOG.md` 的 `## 1.0.0`）。**下一次的版本号等用户给，不要自己开。**
+**版本号：`1.2.0` 这次由用户定（2026-10-06）**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。本次发版已经把 README 的「待发布」口径换成已发布口径、把 CHANGELOG 的 `## Unreleased` 换成版本标题（`## 1.1.0`）——`1.0.0` 那次两件事也是这么做的（见 `CHANGELOG.md` 的 `## 1.0.0`）。**下一次的版本号等用户给，不要自己开。**
 
 **第二个要决定的事是 npm —— 从 `0.6.1` 起每一版都是 GitHub + npm 两边一起发。** `0.5.0` 与 `0.6.0` 仍然只在 GitHub，这一点在 `README.md` 里已写明。npm 包名**不因为品牌迁移而改**——已发布，改名会让安装命令与 `github:` 锚点全部失效。
 
@@ -90,8 +90,8 @@ node scripts/verify-project.mjs # 必须全部 OK，尤其是 RELEASE_ASSETS_IN_
 
 ```bash
 git add -A
-git commit -m "release: v1.1.0 — 详情级导航 + Agent Skills 开放标准"
-git tag -a v1.1.0 -m "v1.1.0"
+git commit -m "release: v1.2.0 — Skill 证据模型（Skill Evidence Model）+ Skill 框架重构"
+git tag -a v1.2.0 -m "v1.2.0"
 ```
 
 tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因为 README 的安装示例用的是 `#v…`）。
@@ -102,7 +102,7 @@ tag 名必须与 `package.json` 的版本**逐字相同**（带 `v` 前缀，因
 
 ```bash
 git push origin main
-git push origin v1.1.0
+git push origin v1.2.0
 ```
 
 推送失败过两次：`fatal: unable to access '…': Error in the HTTP2 framing layer`，以及
@@ -112,14 +112,14 @@ git push origin v1.1.0
 ```bash
 curl -s -o /dev/null -w "%{http_code} %{time_total}\n" --max-time 8 --resolve github.com:443:140.82.113.4 https://github.com/
 git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push origin v1.1.0
+git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push origin v1.2.0
 ```
 
 `2026-10-02` 实测：`140.82.121.4` 与 `140.82.112.3` 都超时（8.0s / `000`），
 `140.82.113.4`（1.88s / `200`）与 `20.27.177.113`（0.79s / `200`）可用；`2026-10-03` 实测只剩
 `20.27.177.113` 可用（1.37s / `200`），其余三个都超时（8.0s / `000`）——**同一天里可达的地址会换人**。
 
-推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v1.1.0`。
+推完必须回读核对：`git rev-parse origin/main` 与 `git ls-remote origin refs/tags/v1.2.0`。
 `git ls-remote` **也要带同样的两个 `-c`**（HTTP/2 那条路同样会被打断）。
 
 ---
@@ -127,9 +127,9 @@ git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113
 ## 4. GitHub Release
 
 ```bash
-gh release create v1.1.0 \
-  --title "v1.1.0 — 详情级导航 + Agent Skills 开放标准" \
-  --notes-file <(sed -n '/^## 1.1.0/,/^## 1.0.0/p' CHANGELOG.md | sed '$d')
+gh release create v1.2.0 \
+  --title "v1.2.0 — Skill 证据模型（Skill Evidence Model）+ Skill 框架重构" \
+  --notes-file <(sed -n '/^## 1.2.0/,/^## 1.1.0/p' CHANGELOG.md | sed '$d')
 ```
 
 正文直接从 CHANGELOG 取该版本段落，**不要另写一份**——两份说明一定会漂移。

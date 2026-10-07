@@ -13,6 +13,13 @@
 
 const passthrough = (value) => value
 
+/**
+ * 「界面到底说了哪句话」——桩里的 `useState` 不会重渲染，所以一条消息写进 state 之后
+ * 在渲染树里是看不见的。凡是「文案本身就是需求」的地方（比如导出成功/失败时那句人话），
+ * 断言的落点只能是 setter 的入参：这里把每次写入原样记下来，测试自己清空、自己挑。
+ */
+export const stateWrites = []
+
 function reactStub() {
   return {
     createElement: (type, props, ...children) => ({ type, props, children }),
@@ -22,7 +29,7 @@ function reactStub() {
     isValidElement: () => false,
     createContext: (initial) => ({ Provider: passthrough, Consumer: passthrough, _currentValue: initial }),
     useContext: () => ({}),
-    useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}],
+    useState: (initial) => [typeof initial === 'function' ? initial() : initial, (next) => { stateWrites.push(next) }],
     useReducer: (_reducer, initial) => [initial, () => {}],
     useEffect: () => {},
     useLayoutEffect: () => {},
