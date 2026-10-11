@@ -49,7 +49,18 @@ import {
   MODIFICATION_SOURCE_KIND,
   resolveModificationScopes,
 } from '../../core/skill-modification.mjs'
-import { resolveSkillProfiles } from '../../core/skill-profiles.mjs'
+import { SKILL_NAME_MAX, SKILL_NAME_PATTERN, resolveSkillProfiles } from '../../core/skill-profiles.mjs'
+// v1.3：`skill_review` 是本插件第一个**面向模型**的只读工具（其余 13 条路由只服务界面）。
+// Packet 的每个字段都由纯函数投影，宿主只做三件它才能做的事：取会话、读一次现状、把文字交出去。
+import {
+  buildSkillReviewPacket,
+  renderSkillReviewPacket,
+  SKILL_REVIEW_GUIDANCE,
+  SKILL_REVIEW_PACKET_SCHEMA,
+  SKILL_REVIEW_PARAMETERS_SCHEMA,
+  SKILL_REVIEW_SECTION,
+  SKILL_REVIEW_TOOL_NAME,
+} from '../../core/skill-review.mjs'
 import { createReceiptStore } from '../../storage/receipt-store.mjs'
 import { createPreferenceStore } from '../../storage/preference-store.mjs'
 import { createSkillLineageStore } from '../../storage/skill-lineage-store.mjs'
@@ -665,11 +676,15 @@ export function apply(ctx, config = {}) {
      * 输入 → 回退默认」，于是 `?profiles=openai` 静默变成 common+dsh。让验收器自己解析还多一件
      * 事：不认识的 id 会变成结果里的一句说明，而不是被悄悄丢掉。
      */
-    async function validationFor({ registry, skillName, cwd, scope, searchParams, definition }) {
-      const profilesParam = searchParams.get('profiles')
-      const selection = typeof profilesParam === 'string'
+    async function validationFor({ registry, skillName, cwd, scope, searchParams, definition, profiles }) {
+      // v1.3：显式给的 `profiles` 数组（`skill_review` 工具那条路）优先，其次才是 URL 上那串 id。
+      // 两条路都把**用户原样给的 id**交给验收器：这里不许先跑 `resolveSkillProfiles` ——
+      // 它返回 `{profileIds, unknown}`，把整个对象当数组传下去会静默回退成默认档。
+      const explicit = Array.isArray(profiles) ? profiles.map((value) => String(value).trim()).filter(Boolean) : null
+      const profilesParam = searchParams?.get('profiles')
+      const selection = explicit ?? (typeof profilesParam === 'string'
         ? profilesParam.split(',').map((value) => value.trim()).filter(Boolean)
-        : []
+        : [])
       // 调用方通常已经读好了定义（两条路由都要它），这里只在没给的时候自己读一次 ——
       // 同一次请求里读两遍同一份 SKILL.md 会让「两处事实来自不同时刻」变成可能。
       const view = definition ?? await buildSkillDefinitionView(registry, skillName, { cwd, scope, now: Date.now() })
@@ -689,6 +704,172 @@ export function apply(ctx, config = {}) {
         now: Date.now(),
       })
     }
+
+    /**
+     * 「这个 Skill 现在是什么样」的只读组装（v1.3 从 `/skill-trace/skill` 里抽出来）。
+     *
+     * 那条路由与 `skill_review` 工具走的是**同一条**链：一次请求只读一遍 SKILL.md、算一遍验收。
+     * 两处各读一遍会让「同一个 Skill 的两个回答」来自两个不同时刻。
+     * 只读：不写文件、不进 receipt、不建会话、不调模型。
+     */
+    async function buildSkillDetailForSession(sessionId, skillName, options = {}) {
+      const { registry, liveAgent, session, cwd } = registryContext(sessionId)
+      // The Skill's definition body is read here and returned here — same contract as
+      // `/skill-trace/definition` above: live read, read-only, never written into the
+      // receipt. Everything else about the Skill is assembled from what the run recorded.
+      const definition = await buildSkillDefinitionView(registry, skillName, {
+        cwd,
+        scope: liveAgent,
+        now: Date.now(),
+      })
+      const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
+      const lookup = await buildSkillListLookup(registry, receipt, cwd, liveAgent)
+      const list = buildSessionSkillList(receipt, { lookup })
+      const listEntry = list.skills.find((entry) => entry.name === skillName) ?? null
+      // 血缘与详情一起回，不为它单开路由：它是这个 Skill 的基础事实，跟 summary、
+      // framework 一样属于「这个 Skill 是什么」。`null` 表示本插件没有执行过这次复刻
+      // —— 手动复制的 Skill 得到的也是 `null`，因为那两件事在事实上没有区别。
+      const lineage = await lineageStore.read(skillName)
+      // v0.9.0：验收结果走**这条**路由回界面。详情页读的是 `body.skill`，所以字段必须
+      // 长在 `skill` 里；只在 `/skill-trace/definition` 上挂同级字段的话，验收卡在真机上
+      // 永远只会显示「这次详情响应里没有验收结果」（§8.10：请求体有两半）。
+      const validation = await validationFor({
+        registry,
+        skillName,
+        cwd,
+        scope: liveAgent,
+        searchParams: options.searchParams,
+        profiles: options.profiles,
+        definition,
+      })
+      const detail = buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage, validation })
+      return { detail, definition, list, session }
+    }
+
+    /**
+     * v1.3 `skill_review`：把「这个 Skill 现在是什么样」做成一份**给模型看的**只读审计包。
+     *
+     * 它跟模型已经有的 `skill` 工具是两件事：`skill` 把正文加载进上下文，`skill_review` 只
+     * 出结论、不加载、不执行 `scripts/`、不改任何文件。指引写在 `description` 上（默认口径）——
+     * 模型需要知道的每一句话都在这里，不必再去别处查。
+     *
+     * 失败一律回**信封**而不抛异常：模型该拿到一个能读的答案，而不是一次工具报错。
+     */
+    const skillReviewTool = {
+      name: SKILL_REVIEW_TOOL_NAME,
+      description: SKILL_REVIEW_GUIDANCE,
+      parameters: SKILL_REVIEW_PARAMETERS_SCHEMA,
+      output: {
+        schema: SKILL_REVIEW_PACKET_SCHEMA,
+        render: (_args, value) => [{ type: 'text', text: renderSkillReviewPacket(value).text }],
+      },
+      presentCall: (args) => ({
+        card: 'generic',
+        title: `Review skill ${typeof args?.skillName === 'string' ? args.skillName : ''}`.trim(),
+        kind: 'read',
+        rawInput: typeof args?.skillName === 'string' ? args.skillName : '',
+      }),
+      async execute(args, exec) {
+        const skillName = typeof args?.skillName === 'string' ? args.skillName.trim() : ''
+        const sessionId = exec?.agent?.session?.id
+        // 没有会话就没有「本次会话观察到了什么」——证据轴会整条空掉。所以直接说读不到，
+        // 而不是回一份空 Packet 让模型以为「这个 Skill 什么都没发生过」。
+        if (typeof sessionId !== 'string' || sessionId === '') {
+          return buildSkillReviewPacket({ ok: false, skillName, reason: 'no-agent' })
+        }
+        if (!SKILL_NAME_PATTERN.test(skillName) || skillName.length > SKILL_NAME_MAX) {
+          return buildSkillReviewPacket({ ok: false, skillName, reason: 'invalid-skill-name' })
+        }
+        let profiles
+        if (args?.profiles !== undefined) {
+          if (!Array.isArray(args.profiles) || args.profiles.some((value) => typeof value !== 'string')) {
+            return buildSkillReviewPacket({ ok: false, skillName, reason: 'invalid-profiles' })
+          }
+          profiles = args.profiles.map((value) => value.trim()).filter(Boolean)
+        }
+        // 工具边界上不许抛异常：模型该拿到一份「读不到」的信封，而不是一次工具报错。
+        // 抛出的原因照实打到日志里 —— 悄悄咽掉的话，真机上就只剩「读不到」三个字。
+        let detail
+        try {
+          ;({ detail } = await buildSkillDetailForSession(sessionId, skillName, { profiles }))
+        } catch (error) {
+          console.error('[dsh-skill-trace] skill_review 读取 Skill 现状失败：', error)
+          return buildSkillReviewPacket({ ok: false, skillName, reason: 'registry-unavailable' })
+        }
+        if (detail?.definition?.available !== true) {
+          // 「在不在册」由 `definition.reason` 说：不在册是 `unknown-skill`、名字非法是
+          // `invalid-skill-name`、注册表没挂上是 `registry-unavailable`。
+          //
+          // v1.3 真机修正：**不能**先看验收器的 `validation.reason`。没有正文可读时它一律回
+          // `skill-file-unreadable`，而上面那三种情形同样没有正文可读 —— 先看它就会把「这个 Skill
+          // 根本不在册」说成「读不出来」（真机实测：`definitely-not-a-skill` 回的是
+          // `skill-file-unreadable`，于是 `unknown-skill` 在整个信封里永远不可达）。验收器那一格
+          // 只在 `definition.reason` 说不出所以然时兜底。
+          const definitionReason = detail?.definition?.reason
+          const reason = definitionReason
+            ?? (detail?.validation?.reason === 'skill-file-unreadable' ? 'skill-file-unreadable' : 'unknown-skill')
+          return buildSkillReviewPacket({ ok: false, skillName, reason })
+        }
+        return buildSkillReviewPacket({ ok: true, skillName, detail })
+      },
+    }
+
+    // `tools` 单独 inject：并进上面那条 inject 的话，13 条路由的可用性就绑死在 tools 服务上
+    // —— 一个只读工具没接上，不该让整个界面跟着消失。注册失败要**响亮**，不许静默跳过。
+    ctx.inject(['tools'], (toolCtx) => {
+      try {
+        toolCtx.tools.register(skillReviewTool)
+        // 与其它插件同样的口径：注册成功要留下一行可核对的事实（真机验收就是靠它确认
+        // 「跑着的进程里真的有这个工具」，而不是靠重启后的印象）。
+        console.log(`[dsh-skill-trace] agent tool ready: ${SKILL_REVIEW_TOOL_NAME}`)
+      } catch (error) {
+        console.error('[dsh-skill-trace] skill_review 工具注册失败，模型将看不到这个能力：', error)
+      }
+    })
+
+    // 第二引导通道（任务书 §8 的备选）：工具的 `description` 只有模型已经在想这个工具时才读到，
+    // 真机上「建完 / 改完 Skill 的新会话」三次都没有主动提议审查，所以补一条常驻的 `systemPrompt`
+    // 节。它**只在工具可见时渲染** —— `agent.ctx.tools.get(SKILL_REVIEW_TOOL_NAME, agent)` 取不到
+    // 工具就返回空串，于是 `ctx.tools.restrict()` / 子 agent 的 `toolFilter` 把工具挡掉时，这段
+    // 文字随之消失：指引与工具可见性同生共死，不是各说各话的两套开关。
+    //
+    // `systemPrompt.section` 对同名重复注册会抛错，所以按 agent 幂等安装（内核先例
+    // `dsh-file-reference-local/lib/index.js:339-352`），并在 agent 退场时卸载。
+    const skillReviewPromptFibers = new Map()
+    const installSkillReviewPrompt = (agent) => {
+      if (agent === undefined || agent === null) return
+      if (skillReviewPromptFibers.has(agent)) return
+      try {
+        const fiber = agent.ctx.inject(['systemPrompt', 'tools'], (scope) => {
+          scope.systemPrompt.section({
+            name: 'context:skill-review',
+            // 工具类指引的槽位：`TOOL_SESSION_QUERY`(2300) 之后、`TOOL_GOAL`(2400) 之前。
+            order: scope.systemPrompt.getSectionOrder('TOOL_SESSION_QUERY') + 1,
+            text: () => (agent.ctx.tools.get(SKILL_REVIEW_TOOL_NAME, agent) === undefined
+              ? ''
+              : SKILL_REVIEW_SECTION),
+          })
+        })
+        skillReviewPromptFibers.set(agent, fiber)
+      } catch (error) {
+        // 这一段装不上只是少一条提醒，不该连累 13 条路由或工具本身；但也不许静默。
+        console.error('[dsh-skill-trace] skill_review 指引节安装失败：', error)
+      }
+    }
+    if (typeof webCtx.agents?.list === 'function') {
+      for (const agent of webCtx.agents.list()) installSkillReviewPrompt(agent)
+    } else {
+      console.error('[dsh-skill-trace] agents.list() 不可用：skill_review 指引节只装得在新会话上')
+    }
+    webCtx.on('agent/created', ({ agent }) => installSkillReviewPrompt(agent))
+    webCtx.on('agent/disposed', ({ agent }) => {
+      const fiber = skillReviewPromptFibers.get(agent)
+      if (fiber === undefined) return
+      skillReviewPromptFibers.delete(agent)
+      Promise.resolve(fiber.dispose()).catch((error) => {
+        console.error('[dsh-skill-trace] skill_review 指引节卸载失败：', error)
+      })
+    })
 
     /**
      * 差异比较：只读，不写任何东西，也不缓存。
@@ -1672,40 +1853,17 @@ export function apply(ctx, config = {}) {
           if (method === 'GET' && url.pathname === '/skill-trace/skill') {
             const sessionId = requiredSessionId(url.searchParams.get('sessionId'))
             const skillName = requiredSkillName(url.searchParams.get('skillName'))
-            const { registry, liveAgent, session, cwd } = registryContext(sessionId)
-            // The Skill's definition body is read here and returned here — same contract as
-            // `/skill-trace/definition` above: live read, read-only, never written into the
-            // receipt. Everything else about the Skill is assembled from what the run recorded.
-            const definition = await buildSkillDefinitionView(registry, skillName, {
-              cwd,
-              scope: liveAgent,
-              now: Date.now(),
-            })
-            const receipt = await enqueue(sessionId, () => receiptForRuntime(sessionId))
-            const lookup = await buildSkillListLookup(registry, receipt, cwd, liveAgent)
-            const list = buildSessionSkillList(receipt, { lookup })
-            const listEntry = list.skills.find((entry) => entry.name === skillName) ?? null
-            // 血缘与详情一起回，不为它单开路由：它是这个 Skill 的基础事实，跟 summary、
-            // framework 一样属于「这个 Skill 是什么」。`null` 表示本插件没有执行过这次复刻
-            // —— 手动复制的 Skill 得到的也是 `null`，因为那两件事在事实上没有区别。
-            const lineage = await lineageStore.read(skillName)
-            // v0.9.0：验收结果走**这条**路由回界面。详情页读的是 `body.skill`，所以字段必须
-            // 长在 `skill` 里；只在 `/skill-trace/definition` 上挂同级字段的话，验收卡在真机上
-            // 永远只会显示「这次详情响应里没有验收结果」（§8.10：请求体有两半）。
-            const validation = await validationFor({
-              registry,
-              skillName,
-              cwd,
-              scope: liveAgent,
+            // v1.3：这条链被抽成 `buildSkillDetailForSession` —— `skill_review` 工具走的是
+            // 同一份组装，避免同一个 Skill 的两处回答来自两个不同时刻。
+            const { detail, list, session } = await buildSkillDetailForSession(sessionId, skillName, {
               searchParams: url.searchParams,
-              definition,
             })
             sendJson(res, 200, {
               ok: true,
               sessionId,
               workspaceLabel: session?.header?.cwd ? basename(session.header.cwd) : '工作区未连接',
               list,
-              skill: buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage, validation }),
+              skill: detail,
             })
             return
           }

@@ -9,7 +9,9 @@ supersedes: "2.1"
 
 # DSH Skill Intelligence Design System
 
-**v4.5（当前）**：**桌面端导出整条撤回，`Skill 证据` 的动作区只剩「复制 JSON」**（2026-10-06）。真机反馈（用户 m04213）先暴露了旧退路的假话：**DSH 桌面 App 是 Tauri + wry/WKWebView，根本没有下载接收端**（也没有 `fs` / `dialog` / `clipboard-manager` 插件），`<a download>` 在那里是无声的空操作，而界面却说「已请浏览器保存证据快照」。当天试过的中间方案是把落盘交给宿主（`POST /skill-trace/evidence-export`，第 14 条路由，写进「下载」文件夹），随后用户 m04639 判定这份 JSON 的读者是 Agent 与排障、不值得为它新增一条路由与一处落盘，于是**整条撤回**：宿主回到 13 条路由 / 1844 行，客户端只保留剪贴板这一条取走路径（成功说「证据快照已复制到剪贴板。」、环境不支持就说「当前环境不支持复制。」）。视觉上动作区由三个按钮减成两个（`复制 JSON` / `查看当前评测`），层级与间距一律不动；一级 / 二级页面结构与数据不变。
+**v4.6（当前）**：**V1.3 把一条只读工具交给模型，界面一字未动**（2026-10-07 实现，2026-10-11 随 `1.3.0` 发布）。宿主新增 `ctx.inject(['tools'], …)` 注册**模型可见的只读工具 `skill_review`**（返回 Structured Review Packet；`render ≤ 6000` 码点、超出如实降级不静默截断），与那 13 条路由的可用性解耦 —— 这是本插件第一次改变模型可见的工具集。指引有两条通道：工具的 `description`（主）＋一条 `systemPrompt.section`（`name: 'context:skill-review'`，只在工具对当前 Agent 可见时渲染、不可见即空串）。**视觉规格与组件表一个字都没动**（客户端与 `dist/client.js` 一字未改：5400 行 / 293246 字节），所以本版没有新增界面条目；这一行只是「当前版本」的落点。
+
+**v4.5**：**桌面端导出整条撤回，`Skill 证据` 的动作区只剩「复制 JSON」**（2026-10-06）。真机反馈（用户 m04213）先暴露了旧退路的假话：**DSH 桌面 App 是 Tauri + wry/WKWebView，根本没有下载接收端**（也没有 `fs` / `dialog` / `clipboard-manager` 插件），`<a download>` 在那里是无声的空操作，而界面却说「已请浏览器保存证据快照」。当天试过的中间方案是把落盘交给宿主（`POST /skill-trace/evidence-export`，第 14 条路由，写进「下载」文件夹），随后用户 m04639 判定这份 JSON 的读者是 Agent 与排障、不值得为它新增一条路由与一处落盘，于是**整条撤回**：宿主回到 13 条路由 / 1844 行，客户端只保留剪贴板这一条取走路径（成功说「证据快照已复制到剪贴板。」、环境不支持就说「当前环境不支持复制。」）。视觉上动作区由三个按钮减成两个（`复制 JSON` / `查看当前评测`），层级与间距一律不动；一级 / 二级页面结构与数据不变。
 
 ## 1. 文档职责
 
@@ -666,7 +668,7 @@ Status 继续满足「**颜色不是唯一信息**」。
 
 ## 16. 当前实现与证据
 
-- 实现入口：`src/dsh/client/client.js`（客户端，**5400 行**——V1.2（`1.2.0`）**发布口径**（2026-10-07 已发布）；V1.1（`1.1.0`）发布口径是 4495 行，V1.0（`1.0.0`）发布口径是 4284 行，`0.10.0` 发布口径是 3625 行、`0.9.2` 是 3448 行）、`src/dsh/host/index.js`（宿主，**13 条路由**——第 13 条是 V1.0 的 `POST /skill-trace/evaluation`；`0.10.0` 口径是 12 条）；
+- 实现入口：`src/dsh/client/client.js`（客户端，**5400 行**——V1.3（`1.3.0`）**发布口径**（2026-10-11 已发布，本版一字未改，与 `1.2.0` 发布口径同为 5400 行）；V1.1（`1.1.0`）发布口径是 4495 行，V1.0（`1.0.0`）发布口径是 4284 行，`0.10.0` 发布口径是 3625 行、`0.9.2` 是 3448 行）、`src/dsh/host/index.js`（宿主，**2002 行 / 13 条路由**——V1.3（`1.3.0` 已发布，2026-10-11）新增 `ctx.inject(['tools'], …)` 注册只读工具 `skill_review` 与一条 `context:skill-review` 系统提示节，**路由一字未增**；第 13 条仍是 V1.0 的 `POST /skill-trace/evaluation`；`1.2.0` 口径是 1844 行，`0.10.0` 口径是 12 条）；
 - 定义侧：`src/core/skill-definition.mjs`、`skill-flow.mjs`、`definition-outline.mjs`、`repository-resolver.mjs`、`markdown-table.mjs`、`step-kind.mjs`；
 - 运行时侧：`src/core/runtime-events.mjs`、`runtime-graph.mjs`、`runtime-evidence.mjs`、`runtime-fingerprint.mjs`、`skill-runtime-scope.mjs`、`source-snapshot.mjs`、`session-log.mjs`、`trace-reducer.mjs`；
 - 组合侧：`src/core/skill-view-model.mjs`、`runtime-alignment.mjs`、`flow-evidence.mjs`、`installed-view.mjs`、`skill-translation.mjs`、`translation-cache.mjs`、`skill-evidence.mjs`（V1.2 证据模型的纯函数层，零 `import`）；

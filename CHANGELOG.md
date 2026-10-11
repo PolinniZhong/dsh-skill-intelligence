@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.3.0 — 2026-10-11 · Agent 可调用的只读 Skill 审查（`skill_review`）
+
+**这一版做一件事：把一条模型可见的只读工具交给 Agent。** 它只读 —— 不加载 Skill、不执行 `scripts/`、不写任何文件、不调模型；不给分、不排名、不做 benchmark；三态仍只有 `declared` / `observed` / `unavailable`（**没有 `inferred`**）。**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改。
+
+**发布实测（`1.3.0` 发布口径，2026-10-11）**：`npm test` **690 项全绿** · `npm run verify` **39 组 OK**（第 39 组是 V1.3 新增的 `SKILL_REVIEW_TOOL_OK`）· 客户端 `src/dsh/client/client.js` **5400 行**（本版一字未改） · bundle `dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`） · `src/core/` **34 个模块 / 13973 行**（新增 `skill-review.mjs` 1119 行、零依赖零 `import`） · `src/storage/` **7 个 1411 行**（未改） · 宿主 `src/dsh/host/index.js` **2002 行 / 13 条路由**（路由一字未增；新增的是 `ctx.inject(['tools'], …)` 注册的模型可见只读工具 `skill_review`，以及一条随工具可见性同生共死的 `context:skill-review` 系统提示节）。
+
+### A. 模型可见的新工具（宿主半边）
+
+- **第一次改变模型可见工具集。** 此前宿主只注册 13 条 HTTP 路由，模型看不见这个插件的任何东西；本版新增 `ctx.inject(['tools'], …)` 注册 **`skill_review`**，与那 13 条路由的可用性**解耦**：路由不可用不影响工具可见性。
+- **只读。** 不加载 Skill、不执行 `scripts/`、不写任何文件、不调模型 —— 一次调用只做一次确定性投影。
+- **返回 Structured Review Packet。** `render ≤ 6000` 码点；超出时**如实降级**（写明被省略/折叠了哪些部分），**不静默截断**。
+- **失败一律返回信封，不向宿主抛异常**；工具不可见时，界面上的相关指引随之消失。
+- **第二条引导通道（真机驱动）**：指引原先只放在工具 `description` 里 —— 真机上「建完 / 改完一个 Skill」不会主动提议审查（干净试炼里 0 次）。宿主按内核先例（`@deepseek-ai/dsh-file-reference-local` 的 `systemPrompt.section` 用法）为每个 agent 装一条 **`systemPrompt.section`**（`name: 'context:skill-review'`，槽位 `TOOL_SESSION_QUERY + 1`），文本由 `agent.ctx.tools.get('skill_review', agent)` 是否为 `undefined` 决定 —— 工具不可见即渲染**空串**，指引与工具**同生共死**。加装后真机复测：子 agent 在新会话里逐字复述出该段（通道确实渲染），4 次干净试炼里 1 次主动提议、并明确等用户确认 —— **可触发，但仍不是稳定行为**（不因此加任何自动 followup：自动注入与自动续跑仍是禁止项）。
+- **不给分、不排名、不做 benchmark**。三态仍只有 `declared` / `observed` / `unavailable`（**没有 `inferred`**）。
+
+### B. 核心层新模块 `src/core/skill-review.mjs`（1119 行）
+
+- **零依赖、零 `import`**，复用既有 `buildSkillDetail` / `buildSkillValidation` / `buildSkillEvidence` / `buildSkillFramework` / `buildSkillRuntimeLogic`，不重新解析 `SKILL.md`、不引入第二套事实。
+- 禁止键沿用 `EVIDENCE_EXPORT_FORBIDDEN_KEYS`（工具参数 / 工具结果 / 会话 id / 绝对路径 / 分数），并做**递归断言**：这些键一旦出现在包里的任何深度即失败。
+
+### C. 守卫与测试
+
+- 守卫 **38 → 39 组**：新增第 39 组 **`SKILL_REVIEW_TOOL_OK`**（钉住工具注册、只读边界、`render ≤ 6000` 与降级、失败返回信封）。
+- `npm test` **662 → 690 项**：新增 `test/skill-review.test.mjs`（14 项）与 `test/skill-review-tool.test.mjs`（14 项；其中 5 项专钉第二条引导通道：节装在每个 agent 上、工具不可见时文本为空串、重复 `agent/created` 不装第二份、`agent/disposed` 恰好释放一次、节文与工具同生共死）。
+- **真机修正（`unknown-skill` 可达）**：`skill_review` 对**不在册**的 Skill 现在回 `unknown-skill`（此前回的是 `skill-file-unreadable`）。宿主原先先看验收器的 `validation.reason`，而「不在册」与「读不出来」都没有正文可读、都命中 `skill-file-unreadable`，于是 `unknown-skill` 在整个信封里**永远不可达**（真机实测：`{"skillName":"definitely-not-a-skill"}`）。改成以 `definition.reason` 为第一信号、验收器只兜底，并在 `test/skill-review-tool.test.mjs` 里补 2 条（不在册 / 注册表整个没挂上）。
+- **不新增路由 / 页面 / 落盘 / 依赖**；**`dist/client.js` 与客户端一字未改**（5400 行 / 293246 字节，source hash `9ec62e37d7dbfa2e`，`shasum -a 256` 为 `38d5ee32fbb4c897…`）；宿主 `src/dsh/host/index.js` 1844 → **2002 行**（**路由仍是 13 条**）；`src/core/` 33 个 12854 行 → **34 个 13973 行**；`src/storage/` 7 个 1411 行不变。修改仍由当前 Agent 用 DSH 原生文件工具在对话里做 —— 这个工具只读。
+
 ## 1.2.0 — 2026-10-07 · Skill 证据模型（Skill Evidence Model）+ Skill 框架重构
 
 **这一版做三件事：先把「这次会话对这个 Skill 观察到了什么」整理成一组有身份、有性质、有边界的证据事实，并在详情页多一个只读的「Skill 证据」模块；再把详情页「Skill 框架」这一维从一个「按角色铺开的结构网格」重组成「阅读路径（蓝图）→ 结构地图 → 细节预览 + 声明流程 + 渐进披露」**（五个区域各自独立成卡，结构地图与细节预览并排成对且两列等高），最后把「一个区域 = 一张卡」这条规则**推广到其余详情模块**（验收 / 证据 / 评测 / 修改对比各自成卡），并把选中态改成中性底色（亮色淡灰、暗色比卡面亮一档的浅黑）。 前者不给分、不排名、不聚合、不调模型；后者只读 `SKILL.md` 自己的结构、**不是运行流程**；两件事都**不新增路由、不新增页面、不新增落盘、不新增依赖**，宿主 `src/dsh/host/index.js` 一字未改。

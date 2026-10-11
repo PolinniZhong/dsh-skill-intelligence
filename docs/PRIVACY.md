@@ -73,6 +73,16 @@ The **Evidence JSON export happens entirely in the browser.** The module turns t
 
 The feature reads no tool arguments and no tool results — the only seam into runtime activity is the metadata the host already reduces — and it calls no model. A conclusion the plugin cannot support is written as `unavailable` (`无法取得`) rather than inferred.
 
+## What the skill_review tool puts into the model context
+
+V1.3 adds one model-facing tool, `skill_review`. It is the first thing this plugin ever hands to a model, so it is worth being exact about all three questions.
+
+- **Into the model context.** The packet is the tool's result, so it becomes part of the prompt for that conversation — that is what the tool is for. A packet carries the Skill name, the profile ids being judged, declared facts (framework roles, section titles, resource counts, declared flow steps), observed facts (the three statuses, the four-stage chain, table rows, drift, the inequalities, the limitation codes), the static validation findings (rule id, profile, severity, title, fact, note, source label, one-line detail) and the closed limitation list. It never carries SKILL.md text or excerpts from it, an absolute path, tool arguments or tool results, a session or receipt identifier, a score, or a credential value: the forbidden-key list is inherited from `EVIDENCE_EXPORT_FORBIDDEN_KEYS` and asserted recursively at any depth of the packet, and a credential-shaped hit is reported as "line N has a literal shaped like <label>" — the matched value is never shown.
+- **Into local storage.** A call writes nothing: no new file, no new store, no receipt of its own. It reads the same in-memory receipt the Skill detail route already reads (and that read path itself persists nothing). The only local copy of the packet is the tool result in the DSH session log, which the harness writes the way it writes any other tool result; it stays on this machine and travels only as far as whatever conversation export the user runs in DSH itself.
+- **Export.** The plugin adds no export path for the packet: no download, no clipboard action, no file. The "copy JSON" action on the evidence view is unrelated — it exports the evidence snapshot, not the review packet. Handing a packet to someone else means exporting the conversation, exactly as for any other tool result.
+
+By construction the tool also does not call a model or any network endpoint, does not load or execute the Skill (it never runs `scripts/`), and does not modify any file.
+
 ## User control
 
 The current plugin offers no field for the user to author, and v0.6 removed the clear-all and single-receipt deletion routes along with the entire export, backup, and restore chain. There is therefore no in-product deletion action and no safety backup taken before one: receipts live in the plugin's local data area, and removing them is an ordinary local file operation. Removing the plugin does not itself delete the receipts it wrote.

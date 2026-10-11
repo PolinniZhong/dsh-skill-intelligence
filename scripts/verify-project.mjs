@@ -1608,8 +1608,13 @@ console.log('VISUAL_TOKENS_OK')
     throw new Error('宿主必须从 core 的验收器取结果，不要自己写一套判定')
   }
   if (!hostCode.includes('buildSkillValidation({')) throw new Error('详情路由必须真的调用验收器')
-  if (!hostCode.includes('validation,') || !hostCode.includes("searchParams.get('profiles')")) {
+  if (!hostCode.includes('buildSkillDetail({ receipt, view: definition, skillName, listEntry, lineage, validation })')) {
     throw new Error('详情响应必须带 validation 同级字段，并按 profiles 参数解析验收目标')
+  }
+  // v1.3：组装链抽成了 `buildSkillDetailForSession`（路由与 `skill_review` 工具共用），
+  // 所以这里钉的是那段组装本身，而不是路由里那行调用。
+  if (!hostCode.includes("searchParams?.get('profiles')") || !hostCode.includes('Array.isArray(profiles)')) {
+    throw new Error('宿主必须按 profiles 参数解析验收目标：查询参数与工具显式给的数组走同一个入口')
   }
   // 5.1 验收要判的事实一多半在 frontmatter 里，而 registry 的 `content`（与 `readSkillBody`）
   //     刻意只给正文 —— 真机上 `definition.content.text` 的第一行就是 `# UI Craft`。宿主若拿它
@@ -2995,6 +3000,154 @@ console.log('VISUAL_TOKENS_OK')
   }
 
   console.log('INSTALLED_ORDERING_OK')
+}
+
+// --- v1.3「Agent-native Skill Review」：把「只读审计」做成模型能正式调用的工具 -------------
+// 用户的原话（2026-10-07）：「Agent 偶然用 bash + curl 打 localhost」不该是能力的样子。
+// 这一组守四条底线，每条都对应一个具体的坏结局：
+//   1. **只读**：不加载正文、不执行 scripts/、不改文件、也不新开路由（工具直接读核心层）；
+//   2. **不静默截断**：渲染超预算就降级并如实报数 —— 内核的
+//      `dsh-compaction-tool-result-pruner` 默认在 8192 字符处把中间换成
+//      `[... tool result middle pruned ...]` 再写回会话，那才是真正的静默；
+//   3. **隐私**：Packet 的禁止键从证据导出那份清单派生，且是**递归结构级**断言；
+//   4. **指引与可见性同生共死**：description 与注册写在同一个定义里，模型看不到工具就看不到指引。
+{
+  const reviewCode = await readFile(resolve(root, 'src/core/skill-review.mjs'), 'utf8')
+  const hostCode = await readFile(resolve(root, 'src/dsh/host/index.js'), 'utf8')
+  const review = await import(pathToFileURL(resolve(root, 'src/core/skill-review.mjs')).href)
+
+  // ① 只读：没有文件系统、没有网络、没有时钟与随机数（Packet 必须可重放）。
+  for (const banned of ["require('node:", "import('node:", "'node:fs'", 'writeFile', 'readFileSync', 'fetch(', 'process.cwd', 'Math.random', 'Date.now', 'randomUUID']) {
+    if (reviewCode.includes(banned)) {
+      throw new Error(`审计模块里不许出现「${banned}」：它只投影既有事实，不读盘、不出网、不掷骰子`)
+    }
+  }
+  if (hostCode.includes('/skill-trace/skill-review')) {
+    throw new Error('这个能力不加路由：工具直接读核心层，宿主的路由数必须仍是 13 条')
+  }
+
+  // ② 预算：上限留在内核裁剪器（8192 字符）下面，降级是**说出来**的。
+  if (review.SKILL_REVIEW_RENDER_LIMIT !== 6000) {
+    throw new Error('渲染预算是 6000 码点：再高就会撞上内核那条静默裁剪器')
+  }
+  if (review.SKILL_REVIEW_RENDER_LIMIT >= 8192) {
+    throw new Error('渲染预算必须留在内核裁剪阈值（8192 字符）以下，否则中途会被换成省略号')
+  }
+  const minimal = review.buildSkillReviewPacket({ skillName: 'probe' })
+  const rendered = review.renderSkillReviewPacket(minimal)
+  const renderedLength = Array.from(rendered.text).length
+  if (renderedLength > review.SKILL_REVIEW_RENDER_LIMIT) {
+    throw new Error(`渲染文字必须放得进预算（现在 ${renderedLength} 码点）`)
+  }
+  if (rendered.length !== renderedLength) {
+    throw new Error('render.length 必须是这段文字的码点数，不是 UTF-16 长度')
+  }
+  const tight = review.renderSkillReviewPacket(minimal, { limit: 400 })
+  if (Array.from(tight.text).length > 400) {
+    throw new Error('降级是为了让它放得下：预算内的文字不许超预算')
+  }
+  if (!tight.text.includes('已去掉')) {
+    throw new Error('裁掉了多少必须说出来 —— 静默截断正是这一条要挡的事')
+  }
+  if (!tight.text.includes('仍然完整地留在 Packet 里')) {
+    throw new Error('要说清「文字省了、Packet 里的条目一条没少」，否则模型会以为事实也没了')
+  }
+
+  // ③ 隐私：禁止键**递归**断言（只查顶层会漏掉嵌套数组里的同一个字段）+ 无绝对路径。
+  if (!reviewCode.includes('...EVIDENCE_EXPORT_FORBIDDEN_KEYS')) {
+    throw new Error('禁止键必须从证据导出的那份清单派生：各写一份就会各漏一个字段')
+  }
+  for (const key of ['sessionId', 'eventId', 'args', 'result', 'chainOfThought']) {
+    if (!review.SKILL_REVIEW_FORBIDDEN_KEYS.includes(key)) {
+      throw new Error(`禁止键清单里必须有「${key}」：Packet 会进模型上下文`)
+    }
+  }
+  const hits = []
+  const walk = (value, path) => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => walk(item, `${path}[${index}]`))
+      return
+    }
+    if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value)) {
+        if (review.SKILL_REVIEW_FORBIDDEN_KEYS.includes(key)) hits.push(`${path}.${key}`)
+        walk(child, `${path}.${key}`)
+      }
+      return
+    }
+    if (typeof value === 'string' && /\/(?:Users|home|tmp|var|private)\//.test(value)) hits.push(`${path} 是绝对路径`)
+  }
+  const packets = [minimal, review.buildSkillReviewPacket({ ok: false, skillName: 'probe', reason: 'unknown-skill' })]
+  packets.forEach((packet, index) => walk(packet, `packet[${index}]`))
+  if (hits.length) throw new Error(`Packet 里不许有禁止键或绝对路径：${hits.join('、')}`)
+
+  // ④ 指引与注册同生共死：模型看不到工具就不会看到指引，两处必须一起在、一起走。
+  for (const needle of [
+    "ctx.inject(['tools']",
+    'toolCtx.tools.register(skillReviewTool)',
+    'name: SKILL_REVIEW_TOOL_NAME',
+    'description: SKILL_REVIEW_GUIDANCE',
+    'schema: SKILL_REVIEW_PACKET_SCHEMA',
+    "kind: 'read'",
+  ]) {
+    if (!hostCode.includes(needle)) {
+      throw new Error(`skill_review 工具的注册缺了「${needle}」：指引与工具必须同生共死`)
+    }
+  }
+  for (const needle of [
+    'Read-only audit',
+    'does not load, run or modify the skill',
+    'no rating, no ranking, no benchmark',
+    'wait for the user to confirm',
+  ]) {
+    if (!review.SKILL_REVIEW_GUIDANCE.includes(needle)) {
+      throw new Error(`工具指引必须写清「${needle}」：模型对这次调用的理解全在这段话里`)
+    }
+  }
+  // 因果词只挡**断言式**写法（`导致` / `proves` / `causes`）。`证明` / `一定` / `有效`
+  // 出现在沿用的封闭词表里，而且都在否定句中（「不能单独证明」「不一定」），不是断言。
+  for (const banned of ['导致', 'proves', 'causes']) {
+    if (reviewCode.includes(banned)) throw new Error(`审计模块里不许出现因果断言「${banned}」`)
+    if (rendered.text.includes(banned)) throw new Error(`渲染文字里不许出现因果断言「${banned}」`)
+    if (review.SKILL_REVIEW_SECTION.includes(banned)) {
+      throw new Error(`指引节里不许出现因果断言「${banned}」`)
+    }
+  }
+  if (!rendered.text.includes('加载 ≠ 使用')) {
+    throw new Error('渲染必须把「加载 ≠ 使用」这条不等式原样说出来')
+  }
+
+  // ⑤ 第二引导通道（任务书 §8 的备选）：真机上「建完 / 改完 Skill 的新会话」三次都没有主动提议
+  //    审查，所以除了 tool description 还挂了一节 systemPrompt 提醒。那一节**只在工具可见时
+  //    渲染** —— 否则 `ctx.tools.restrict` / 子 agent `toolFilter` 把工具挡掉之后，模型还会继续
+  //    被提醒去用一个它没有的工具，指引与能力就分家了。
+  for (const needle of [
+    'SKILL_REVIEW_SECTION',
+    "name: 'context:skill-review'",
+    "getSectionOrder('TOOL_SESSION_QUERY')",
+    'agent.ctx.tools.get(SKILL_REVIEW_TOOL_NAME, agent) === undefined',
+    "webCtx.on('agent/created'",
+    "webCtx.on('agent/disposed'",
+  ]) {
+    if (!hostCode.includes(needle)) {
+      throw new Error(`skill_review 的第二引导通道缺了「${needle}」：指引节必须与工具可见性同生共死`)
+    }
+  }
+  for (const needle of [
+    'offer the user',
+    'wait for their confirmation',
+    'read-only',
+    'not the `skill` tool',
+  ]) {
+    if (!review.SKILL_REVIEW_SECTION.includes(needle)) {
+      throw new Error(`指引节必须写清「${needle}」：这一段是主动提议审查的主要来源`)
+    }
+  }
+  if (Array.from(review.SKILL_REVIEW_SECTION).length > 600) {
+    throw new Error('指引节太长：它常驻每个会话的 system prompt，只能是一条极短的提醒')
+  }
+
+  console.log('SKILL_REVIEW_TOOL_OK')
 }
 
 // --- 有断言的 marker 才算数 --------------------------------------------------------
