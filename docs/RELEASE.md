@@ -3,35 +3,37 @@
 > 这份文件是**可执行的**，不是说明性文档。发布会话按顺序照做即可。
 > 每条都写清了「为什么」——凡是出过事故的步骤，都有一次真实的代价在后面。
 
-**本次发布版本：`1.3.0`（V1.3「Agent-native Skill Review」，2026-10-11 发布）** —— 发布实录回填在 §6.0（发布成功之后）。`1.3.0` 新增的是**模型可见的只读工具 `skill_review`**（宿主 `ctx.inject(['tools'], …)` 注册，与 13 条路由的可用性解耦），**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改。**下一版的版本号由用户给，不要自己开。**
+**已发布版本：`1.3.0`（V1.3「Agent-native Skill Review」，2026-10-11 发布；实测实录见 §6.0）** —— `1.3.0` 新增的是**模型可见的只读工具 `skill_review`**（宿主 `ctx.inject(['tools'], …)` 注册，与 13 条路由的可用性解耦），**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改。**当前没有待发布的版本；再下一版的版本号由用户给，不要自己开。**
 
-**`1.2.0`（V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」）已于 2026-10-07 发布到 GitHub Release 与 npm**（结果见 §6.0）。它是**客户端 + 一个新 core 模块**的改动（新增 `src/core/skill-evidence.mjs` 909 行与详情页第 9 个模块「Skill 证据」，另把「Skill 框架」维与其余详情模块重组成区域卡），宿主 `src/dsh/host/index.js` 一字未改、路由仍是 13 条；但 `src/core/*` 改了，验收时按 `AGENTS.md` §6.2 重启过 DSH。**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0.3）。**`1.1.0`（V1.1「详情级导航 + Agent Skills 开放标准」）已于 2026-10-06 发布到 GitHub Release 与 npm**（结果见 §6.0.1）。它是**客户端半边**改动（详情页导航 + `standard` Profile 与 4 条规则），宿主 `src/dsh/host/index.js` 一字未改、路由仍是 13 条；但 `src/core/*` 改了，验收时按 `AGENTS.md` §6.2 重启过 DSH。上一版 **`1.0.0`**（V1.0「Skill Evaluation」，`spec/PRD.md` §5.13 的 `FR-EVAL-*`）已于 2026-10-05 发布（发布提交 `3cca1ae`、CI run `37335200103`）。它是宿主半边改动（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），验收时按 `AGENTS.md` §6.2 重启过 DSH。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
+**`1.2.0`（V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」）已于 2026-10-07 发布到 GitHub Release 与 npm**（结果见 §6.0.1）。它是**客户端 + 一个新 core 模块**的改动（新增 `src/core/skill-evidence.mjs` 909 行与详情页第 9 个模块「Skill 证据」，另把「Skill 框架」维与其余详情模块重组成区域卡），宿主 `src/dsh/host/index.js` 一字未改、路由仍是 13 条；但 `src/core/*` 改了，验收时按 `AGENTS.md` §6.2 重启过 DSH。**`0.10.0`（V0.10.0「Skill 实例验收」）已于 2026-10-05 发布到 GitHub Release 与 npm**（结果见 §6.0.4）。**`1.1.0`（V1.1「详情级导航 + Agent Skills 开放标准」）已于 2026-10-06 发布到 GitHub Release 与 npm**（结果见 §6.0.2）。它是**客户端半边**改动（详情页导航 + `standard` Profile 与 4 条规则），宿主 `src/dsh/host/index.js` 一字未改、路由仍是 13 条；但 `src/core/*` 改了，验收时按 `AGENTS.md` §6.2 重启过 DSH。上一版 **`1.0.0`**（V1.0「Skill Evaluation」，`spec/PRD.md` §5.13 的 `FR-EVAL-*`）已于 2026-10-05 发布（发布提交 `3cca1ae`、CI run `37335200103`）。它是宿主半边改动（第 13 条路由 + `src/core/run-conditions.mjs` + `src/storage/evaluation-store.mjs`），验收时按 `AGENTS.md` §6.2 重启过 DSH。`0.10.0` 的六处口径（`package.json`、`README.md`、`CHANGELOG.md`、`spec/PRD.md`、`spec/SDD.md` 与 `AGENTS.md` §1）描述的是**发布提交那一刻**的事实，不是今天的工作树。发布提交之后工作区必须干净——这条要求不是洁癖，见 §0；发布资产必须版本一致——`RELEASE_ASSETS_IN_SYNC_OK` 会钉住 README 的版本声明与安装示例锚点。
 
 > **`0.10.0` 的发布扫描（2026-10-05）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` /
 > `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `0.10.0` 口径；本文件、`docs/ARCHITECTURE.md` 与 `design.md`
 > 里的实测数字（客户端 3625 行 / bundle 189256 字节 / 测试 590 项 / 守卫 29 组 / 宿主 12 条路由）与
 > `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致。
-> 下面 §6.0.4 表里的 3448 行 / 170324 字节 / 561 项 / 28 组是 `0.9.2` **发布当时**的实测值，只作历史参照。
+> 下面 §6.0.5 表里的 3448 行 / 170324 字节 / 561 项 / 28 组是 `0.9.2` **发布当时**的实测值，只作历史参照。
 
 > **`1.1.0` 的发布扫描（2026-10-06）**：`package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` / `spec/SDD.md` / `AGENTS.md` §1 六处都已改成 `1.1.0` 发布口径；`docs/ARCHITECTURE.md` 的 `## V1.1` 段与 `design.md` 的实现入口行也去掉了「工作树」括注；实测数字（测试 643 项 / 守卫 31 组 / 客户端 4495 行 / bundle 234965 字节 / core 32 个模块 11945 行 / `src/storage/` 7 个 1411 行 / 宿主 1844 行 13 条路由一字未改）与 `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致。
 
 > **`1.2.0` 的发布扫描（2026-10-07）**：八处都已改成 `1.2.0` 发布口径 —— `package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` / `spec/SDD.md` / `AGENTS.md` §1，以及没有守卫盯着的 `docs/ARCHITECTURE.md` 版本口径段与 `design.md` 的实现入口行；实测数字（测试 662 项 / 守卫 38 组 / 客户端 5400 行 / bundle 293246 字节（source hash `9ec62e37d7dbfa2e`）/ core 33 个模块 12854 行 / `src/storage/` 7 个 1411 行 / 宿主 1844 行 13 条路由一字未改）与 `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致；README 里那句「14 条路由」的陈旧数字也一并改成 13 条。
 
+> **`1.3.0` 的发布扫描（2026-10-11）**：八处都已改成 `1.3.0` 发布口径 —— `package.json` / `README.md` / `CHANGELOG.md` / `spec/PRD.md` / `spec/SDD.md` / `AGENTS.md` §1，以及没有守卫盯着的 `docs/ARCHITECTURE.md` 版本口径段（`## V1.3` 标题与 Release numbers）与 `design.md` 的实现入口行；实测数字（测试 690 项 / 守卫 39 组 / 客户端 5400 行（本版一字未改）/ bundle 293246 字节（source hash `9ec62e37d7dbfa2e`）/ core 34 个模块 13973 行 / `src/storage/` 7 个 1411 行 / 宿主 2002 行 13 条路由）与 `wc -l`、`wc -c`、`npm test`、`npm run verify` 的实跑结果一致；另用发布档案（`--config`，8 个版本锚点）跑了一次版本一致性 —— **8/8 查到且一致**。
+
 **这一版为什么是 minor：** `0.9.2` 加了一条宿主路由（`POST /skill-trace/modify`，11 → 12 条）、三个 core 模块（`src/core/skill-validation.mjs` / `src/core/skill-modification.mjs` / `src/core/skill-profiles.mjs`）与一个 storage 模块（`src/storage/modification-snapshot-store.mjs`），并加了两块界面（详情页「Skill 验收」卡与「本次修改对比」），按语义是 minor。已安装列表排序（规则名 `added-desc-then-name`）只是同一条读取路径上的呈现规则，patch 级，搭同一班车。npm 包名 `dsh-skill-trace`、`/skill-trace/*` 路由、`[data-plugin="dsh-skill-trace"]` 与存储结构**一个字都没改**，因此**不需要 npm 迁移**。**验证点：客户端 2735 → 3448 行、宿主 1292 → 1625 行、bundle 142672 → 170324 字节、测试 474 → 561、守卫 25 → 28 组、宿主路由 11 → 12 条。**
 
 ---
 
-## 本次发布的起点（`1.3.0` 发布前实测 2026-10-11；上一版 `1.2.0` 之后工作树的快照）
+## 本次发布的起点（`1.3.0`，2026-10-11 —— **发布已完成，实录见 §6.0**）
 
 | 项 | 值 |
 |---|---|
-| 本地 `HEAD` | `25fc4cf docs: 回填 v1.2.0 发布实录（§6.0），§6.0.x 逐级下移并同步引用`（那次提交的 `package.json` 是 `1.2.0`；**工作树里 `1.3.0` 的改动尚未提交**）= `origin/main` |
+| 本地 `HEAD` | `25fc4cf docs: 回填 v1.2.0 发布实录（§6.0），§6.0.x 逐级下移并同步引用`（那次提交的 `package.json` 是 `1.2.0`；**工作树里 `1.3.0` 的那一批当时尚未提交**，它随后成为发布提交 `bddaac0`）= `origin/main` |
 | `origin/main` | 与本地 `main` **0 领先 / 0 落后** |
 | 远端最新 tag | `v1.2.0`（打在发布提交 `70f4d3e` 上） |
-| npm | `beta` 与 `latest` **都指向 `1.2.0`**（`npm view dsh-skill-trace dist-tags`）；`0.5.0` 与 `0.6.0` 只在 GitHub |
-| 工作区 | `1.3.0` 的改动**尚未提交**：**12 个已跟踪文件已改**（宿主、守卫与 9 处文档 —— 含 `docs/PRIVACY.md` 新增的 `## What the skill_review tool puts into the model context`）＋ **3 个未跟踪新文件**（`src/core/skill-review.mjs`、`test/skill-review.test.mjs`、`test/skill-review-tool.test.mjs`）；`git diff --stat` 为 `12 files changed, 494 insertions(+), 97 deletions(-)`（发布前的版本口径扫描又改了那 9 处文档，所以与 2026-10-07 那次的 482/87 略有出入）。发布前必须先把这一批提交完、再打 tag |
+| npm | `beta` 与 `latest` **都指向 `1.2.0`**（`npm view dsh-skill-trace dist-tags`；发布后已变成 `1.3.0`，见 §6.0）；`0.5.0` 与 `0.6.0` 只在 GitHub |
+| 工作区 | `1.3.0` 的改动**尚未提交**：**12 个已跟踪文件已改**（宿主、守卫与 9 处文档 —— 含 `docs/PRIVACY.md` 新增的 `## What the skill_review tool puts into the model context`）＋ **3 个未跟踪新文件**（`src/core/skill-review.mjs`、`test/skill-review.test.mjs`、`test/skill-review-tool.test.mjs`）；`git diff --stat` 为 `12 files changed, 494 insertions(+), 97 deletions(-)`（发布前的版本口径扫描又改了那 9 处文档，所以与 2026-10-07 那次的 482/87 略有出入）。这一批已随发布提交 `bddaac0` 全部收进去（**15 个文件 / +2405 −97**） |
 
-**当前实测（2026-10-11；接手下一次发布前先读这一段）**：**V1.3「Agent-native Skill Review」已定版 `1.3.0`、正在发布；此前已通过两条真机验收（2026-10-07）**（证据与九节交付见 `01_重构方案/v1.3-交付报告.md`）。它新增一条**模型可见的只读工具 `skill_review`**（宿主 `ctx.inject(['tools'], …)` 注册，与那 13 条路由的可用性解耦）＋ 一条 `systemPrompt.section` 引导通道，**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改。**门槛实测（工作区当前）**：`npm test` **690 项全绿** · `npm run verify` **39 组 OK**（第 39 组 `SKILL_REVIEW_TOOL_OK`）· `dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`；`shasum -a 256` 前 16 为 `38d5ee32fbb4c897`）· 客户端 `src/dsh/client/client.js` **5400 行** · 宿主 `src/dsh/host/index.js` **2002 行 / 13 条路由** · `src/core/` **34 个模块 13973 行**（新增 `skill-review.mjs` 1119 行）· `src/storage/` 7 个 1411 行 · `dependencies` 为空。两条真机验收：正面「帮我审一下 ui-craft」→ 完整 Packet，四项边界检查全过（无 `SKILL.md` 正文原文/摘录、无绝对路径、无会话标识、**如实声明省略 16 条**「小节 3 / 限制 13」）；负面「审一个不存在的名字」→ 三行 `unknown-skill` 信封、**非报错**。**上表是 `1.2.0` 发布那一刻的快照，是下一次发布已经走过的起点。**
+**当前实测（2026-10-11；接手下一次发布前先读这一段）**：**V1.3「Agent-native Skill Review」已随 `1.3.0` 发布（2026-10-11，实录见 §6.0）；此前已通过两条真机验收（2026-10-07）**（证据与九节交付见 `01_重构方案/v1.3-交付报告.md`）。它新增一条**模型可见的只读工具 `skill_review`**（宿主 `ctx.inject(['tools'], …)` 注册，与那 13 条路由的可用性解耦）＋ 一条 `systemPrompt.section` 引导通道，**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改。**门槛实测（工作区当前）**：`npm test` **690 项全绿** · `npm run verify` **39 组 OK**（第 39 组 `SKILL_REVIEW_TOOL_OK`）· `dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`；`shasum -a 256` 前 16 为 `38d5ee32fbb4c897`）· 客户端 `src/dsh/client/client.js` **5400 行** · 宿主 `src/dsh/host/index.js` **2002 行 / 13 条路由** · `src/core/` **34 个模块 13973 行**（新增 `skill-review.mjs` 1119 行）· `src/storage/` 7 个 1411 行 · `dependencies` 为空。两条真机验收：正面「帮我审一下 ui-craft」→ 完整 Packet，四项边界检查全过（无 `SKILL.md` 正文原文/摘录、无绝对路径、无会话标识、**如实声明省略 16 条**「小节 3 / 限制 13」）；负面「审一个不存在的名字」→ 三行 `unknown-skill` 信封、**非报错**。**上表是 `1.3.0` 发布开始时的快照。**
 
 **版本号：`1.3.0` 这次由用户定（2026-10-07）**（`AGENTS.md` §2 的规矩；`0.9.2` 这个号就是用户定的）。本次发版已把 README 的「工作版本（尚未发布）」口径换成已发布口径（`1.3.0` 删掉那段工作版本声明、安装示例从 `v1.2.0` 改锚 `v1.3.0`）、把 CHANGELOG 顶部标题从 `## 1.3.0 — 未发布 · …` 换成 `## 1.3.0 — 2026-10-11 · …`——`1.2.0` / `1.1.0` 两次也是这么做的（见 `CHANGELOG.md` 的 `## 1.1.0`）。**再下一次的版本号等用户给，不要自己开。**
 
@@ -301,7 +303,7 @@ gh run watch "$RID"; gh run view "$RID" --log > /tmp/oidc-probe.log
 （`dsh-skill-trace@x 已经在 npm 上，本次跳过 publish 与 dist-tag —— 这个 run 没有发布任何内容`），run 是绿的。
 于是「版本号忘了 bump 就推 tag」也不会再红；反过来，**真的该发却没发出去**（OIDC 没配、权限没勾、
 注册表拒绝）仍然是红的。2026-10-03 上午那三条红 run（tag 推的那次 + 两次探针；**当天已从
-Actions 里删除**，见 §6.0.3 的 CI 行）是加这一步**之前**的历史。
+Actions 里删除**，见 §6.0.5 的 CI 行）是加这一步**之前**的历史。
 
 **2026-10-02 的实测结果：`POST …/oidc/token/exchange/package/dsh-skill-trace` 回 `404` +
 `OIDC token exchange error - package not found`，随后 `npm error code ENEEDAUTH`** —— 也就是说，
@@ -352,7 +354,21 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 > 连续四个阶段的验收全部落空，用户连续多轮「看不到任何变化」。
 > **`dsh plugin --profile X install` 成功，不等于 `X` 就是正在运行的那个 profile。**
 
-### 6.0 本次 `v1.2.0` 的实际结果（2026-10-07）
+### 6.0 本次 `v1.3.0` 的实际结果（2026-10-11）
+
+| 项 | 结果 |
+|---|---|
+| 本地门槛 | **690 项测试全绿**（`npm test`，≈4.5 s；`pretest` 重建后的 `dist/client.js` 与提交里的一致，重建后 `git status` 无 `dist` 差异）；**39 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK`、第 39 组 `SKILL_REVIEW_TOOL_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`；`shasum -a 256` 前 16 为 `38d5ee32fbb4c897`）、客户端 `src/dsh/client/client.js` **5400 行**（这一版**一字未改**）、`src/core/` **34 个模块 13973 行**（新增 `skill-review.mjs` 1119 行、零依赖零 `import`）、`src/storage/` **7 个 1411 行**、宿主 `src/dsh/host/index.js` **2002 行 13 条路由**（新增的是模型可见只读工具 `skill_review` 的注册与一条 `context:skill-review` 系统提示节，**路由一字未增**） |
+| 发布提交 / tag | `bddaac0 release: v1.3.0 — Agent-native Skill Review（只读工具 skill_review）`（`package.json` `1.3.0`，2026-10-11 09:40 +0800，**15 个文件 / +2405 −97**）= `origin/main`；注释 tag `v1.3.0` → 对象 `5c3c062d5cc5b7ab6105bb4c53a73622439b06af`，解引用到 `bddaac0b0000898a19df79cf4b5934376068f56d`（打在发布提交上） |
+| GitHub Release | <https://github.com/PolinniZhong/dsh-skill-intelligence/releases/tag/v1.3.0>（`gh release create v1.3.0`，`2026-10-11T01:41:08Z` 发布，非 draft、非 prerelease，`targetCommitish: main`），正文取自 `CHANGELOG.md` 的 `## 1.3.0` 段（**5153 字节**） |
+| npm | **`beta` 与 `latest` 都指向 `1.3.0`**；`dsh-skill-trace@1.3.0`，`gitHead` = `bddaac0b0000898a19df79cf4b5934376068f56d`（= 发布提交）；**50 个文件 / 解包 2286431 字节 / shasum `be94fb8a777a55103322e03eee374d00fb4dda7b`**；npm 记了 **provenance**（`predicateType: https://slsa.dev/provenance/v1`，sigstore `logIndex=3197415634`） |
+| 跨端硬判据 | ① 下载下来的 tarball（**706894 B**）`shasum -a 1` = `be94fb8a777a55103322e03eee374d00fb4dda7b`，**== registry 的 `dist.shasum`**；② registry 的 `dist.fileCount` **50** / `dist.unpackedSize` **2286431** == 本地 `npm pack --dry-run --json --ignore-scripts` 报的同样两个数（本地 packedSize 697277 B 与 registry 的 706894 B 历来不同，差的是 tar/gzip 框架元数据 —— **别拿它当判据**） |
+| 注册表传播（又一次两段式） | `发布（latest）` 在 `01:41:22Z` 被接受、`beta` 在 `01:41:24Z` 指好；packument 直到 **`01:45:31Z`** 才有 `1.3.0`（CI 绿之后约 4 分钟），而 `…/-/dsh-skill-trace-1.3.0.tgz` 在本地 `09:42`–`09:46`（`01:42`–`01:46Z`）一直 **404**、带上 `?cb=<随机>` 从 `09:45:38` 起才回 200，**无参数的稳定 200 要到本地 `09:47:10`**（CI 绿之后约 **5.7 分钟**）。判据与 `1.2.0` 相同：**以「tarball 200 + `time['1.3.0']` 在」为发布完成的标志，不要只看 CI 的绿色** |
+| 净室安装 | 等 tarball 200 之后，空目录 `npm i dsh-skill-trace@1.3.0` 通过：版本 `1.3.0`、`dependencies` **为空**、`dist/client.js` **293246 字节**（与本地构建同口径）、`src/core/` **34 个 `.mjs`**（含这一版新增的 `skill-review.mjs`）、`src/storage/` **7 个**、宿主入口 `import` 可加载（导出 `apply` / `createSessionMutationQueue` / `name` / `sessionEventLog` / `shouldPersistReceipt` / `skillEvidenceSignature`）；**`test/` 不随包发布** |
+| 推送 / 凭证 | **直连一次就通**：`curl https://github.com/` → `200` / **1.59 s**，未用代理、未用 `--resolve`；`git push origin main` → `25fc4cf..bddaac0 main -> main`、`git push origin v1.3.0` → `* [new tag] v1.3.0 -> v1.3.0`；回读 `git rev-parse origin/main` = `bddaac0`（0 领先 / 0 落后）、`git ls-remote origin refs/tags/v1.3.0` = `5c3c062d…`、`refs/tags/v1.3.0^{}` = `bddaac0…`。**本地没用到任何 npm 凭证**（OIDC 由 workflow 走） |
+| CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [38102646334](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/38102646334)（job `114361584503`，**31 秒，绿**，`01:40:57Z` → `01:41:28Z`）；`headSha bddaac0…`；第 8 步日志逐字是 `npm 上还没有 dsh-skill-trace@1.3.0` ⇒ 走的是**真正的 publish 分支**（第 13 步「版本已存在 —— 跳过发布」是 skipped）；`发布（latest）` → `+ dsh-skill-trace@1.3.0`（`01:41:22Z`，包体 706.9 kB）、`第二个标签` → `+beta: dsh-skill-trace@1.3.0`（`01:41:24Z`）；provenance 发到 sigstore（`logIndex=3197415634`） |
+
+### 6.0.1 本次 `v1.2.0` 的实际结果（2026-10-07）
 
 | 项 | 结果 |
 |---|---|
@@ -365,7 +381,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 推送 / 凭证 | **直连 `github.com:443` 这次全断** —— `curl https://github.com/` 10 秒超时 `000`，六个已知 IP（含当天 DNS 解析出的 `20.205.243.166`）一律 6 秒 `000`；同一时刻 `api.github.com` / `codeload.github.com` / `registry.npmjs.org` 都正常，说明**只有这一条路被掐**，不是断网。改用本机代理（`127.0.0.1:7897`，先 `nc -z -G 1` 逐个探端口）：`git -c http.proxy=http://127.0.0.1:7897 push origin main` → `c636273..70f4d3e main -> main`、`… push origin v1.2.0` → `* [new tag] v1.2.0 -> v1.2.0`；回读 `git rev-parse origin/main` = `70f4d3e`、`git ls-remote origin refs/tags/v1.2.0` = `8a53f249…`。`gh` 与 `npm` 走 `HTTPS_PROXY=http://127.0.0.1:7897`。**本地没用到任何 npm 凭证**（OIDC 由 workflow 走）；完整判据见 §3 |
 | CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37563772379](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37563772379)（job `112606745899`，**24 秒，绿**，`02:48:51Z`）；`headSha 70f4d3e…`；npm 发布带 provenance（`predicateType: https://slsa.dev/provenance/v1`） |
 
-### 6.0.1 本次 `v1.1.0` 的实际结果（2026-10-06）
+### 6.0.2 本次 `v1.1.0` 的实际结果（2026-10-06）
 
 | 项 | 结果 |
 |---|---|
@@ -378,7 +394,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 推送 / 凭证 | **直连 `git push` 这次一次就通**（未用 `--resolve` 降级）：`b4d935a..1a057bf main -> main`、`* [new tag] v1.1.0`；回读 `git rev-parse origin/main` = `1a057bf`、`git ls-remote origin refs/tags/v1.1.0` = `0be20e5c…`。**本地没用到任何 npm 凭证**（OIDC 由 workflow 走） |
 | CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37400044375](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37400044375)（job `112064956742`，**22 秒，绿**）。`step 10 发布（latest）` → `+ dsh-skill-trace@1.1.0`（`01:37:05Z`，包体 601.5 kB）；`step 11 第二个标签` → `+beta: dsh-skill-trace@1.1.0`（`01:37:07Z`）。**步骤 13「版本已存在 —— 跳过发布」是 skipped**，即这次走的是真正的 publish 分支。日志读法：`gh run view --log` 在本机会 `operation not permitted`，用 `gh api repos/PolinniZhong/dsh-skill-intelligence/actions/jobs/112064956742/logs` |
 
-### 6.0.2 本次 `v1.0.0` 的实际结果（2026-10-05）
+### 6.0.3 本次 `v1.0.0` 的实际结果（2026-10-05）
 
 | 项 | 结果 |
 |---|---|
@@ -390,7 +406,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 推送 / 凭证 | **本地没用到任何 npm 凭证**（只推 tag，OCI 由 workflow 走 OIDC）。推送本身很吃力：直连 `Failed to connect to github.com port 443 after 75005 ms`，`140.82.114.4` / `140.82.121.4` → `Empty reply from server`，`140.82.112.3` → `SSL connection timeout`；最终用 `git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:140.82.113.4 push origin main`（`033a50b..3cca1ae`）与同名命令推 `v1.0.0` 成功。**可达 IP 当天有效**：`140.82.114.4` / `140.82.121.4` / `140.82.112.3` / `140.82.113.4` / `20.27.177.113` 的 `ls-remote` 都能通，但**只有最后一次 push 真的落地** |
 | CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37335200103](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37335200103)，**success**：OIDC 发布 npm 并把 `beta` 指到同一版 |
 
-### 6.0.3 本次 `v0.10.0` 的实际结果（2026-10-05）
+### 6.0.4 本次 `v0.10.0` 的实际结果（2026-10-05）
 
 | 项 | 结果 |
 |---|---|
@@ -402,7 +418,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 推送 / 凭证 | 2026-10-05 探针：`github.com` 直连**超时**（`Failed to connect to github.com port 443 after 75013 ms`），改用 `--resolve` 逐个试：`20.27.177.113` → **200**、`140.82.112.3` → **200**、当天 DNS 给出的 `20.205.243.166` → **连不上**；最终 `git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:20.27.177.113 push` 成功（`b1c4e6c..fd9cf03 main -> main`，tag 为新推）。**本地一个 npm 凭证都没用到**（OIDC trusted publishing 自己发布）——§5.1 那张旧 GAT 与 web-login token 这次都没碰 |
 | CI（`.github/workflows/publish-npm.yml`） | 推 tag 自动触发 run [37245035576](https://github.com/PolinniZhong/dsh-skill-intelligence/actions/runs/37245035576)（`push`，分支 `v0.10.0`，2026-10-04T23:47:40Z，**24 秒，绿**）：闸门全过 → `发布（latest）` → `+ dsh-skill-trace@0.10.0`（并把 provenance 发到 sigstore）→ `第二个标签` → `+beta: dsh-skill-trace@0.10.0`。**这一版没有出现过红 run**：版本在 npm 上不存在，走的是真正的 publish 分支（不是「跳过发布 + 黄色通知」那条路） |
 
-### 6.0.4 本次 `v0.9.2` 的实际结果（2026-10-03）
+### 6.0.5 本次 `v0.9.2` 的实际结果（2026-10-03）
 
 | 项 | 结果 |
 |---|---|
@@ -415,7 +431,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 凭证复检 | **2026-10-05 再测一次**：`npm whoami`（读 `~/.npmrc`）→ **E401**（那张 web-login token 仍失效）；`~/.npmrc.bak-before-2fa-login-20261002-2137` 经临时 userconfig（`600`，测完即删）→ **`whoami` = `polinni`** ✓；另一份 `~/.npmrc.bak.1788094194` → **E401** ✗。⇒ 直接 publish 只能走**第一份备份**那条临时 userconfig 路径；**首选仍是推 `v*` tag 让 OIDC workflow 发布**（不需要任何本地凭证）。 |
 | CI（`.github/workflows/publish-npm.yml`） | **那天先后出现过三条红色 run，它们都不是「CI 验证失败」，红的只有 `发布（latest）` 这一步**：① 推 tag `v0.9.2` 自动触发的那条（`push`，02:26:18 UTC，sha `1811d98`）→ `npm error code ENEEDAUTH`，因为那时 npm 侧还没配 trusted publisher —— 真正的发布是随后按上一条用本地凭证做的；② 手动探针（10:49）→ 同样 `ENEEDAUTH`；③ 手动探针（10:52，npm 侧配好之后）→ `cannot publish over the previously published versions: 0.9.2`，**这是成功信号**（OIDC 兑换成功，红只因版本已存在）。三条里的 checkout / setup-node / `npm install -g npm@^11.5.1` / 版本号比对 / `npm ci` / 闸门（`node --check` + `npm test` + `npm run verify`）**全部是绿的**。**根因当天就修掉了**：workflow 加了「版本已在 npm 上 → 跳过发布 + 黄色通知」的判断与 `probe=true` 模式，随后那次探针 run `37102903688`（sha `b6ce853`）**绿色通过**、注册表未被改动（见 §5.2b）。**上面这三条红 run 已在 2026-10-03 从 Actions 删除**（`gh run delete`）——它们无法变绿（`gh run rerun` 实测仍 failure：重跑用的是 `1811d98` 那份旧 workflow），而这条 workflow 现在只剩一条绿色 run；「当时为什么会红」的记录就留在这里与 §5.2b。 |
 
-### 6.0.5 本次 `v0.8.0` 的实际结果（2026-10-02）
+### 6.0.6 本次 `v0.8.0` 的实际结果（2026-10-02）
 
 | 项 | 结果 |
 |---|---|
@@ -426,7 +442,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 净室安装 | `npm i dsh-skill-trace@0.8.0` 通过：`dist/client.js` **142672 字节**、`src/core/skill-lineage.mjs` / `src/core/skill-diff.mjs` / `src/storage/skill-lineage-store.mjs` 都在、宿主入口可 `require`（导出 `apply` / `createSessionMutationQueue` …）、`dependencies` 为空 |
 | 推送 | 2026-10-02 探针：`140.82.121.4` / `140.82.112.3` / `20.27.177.113` / `140.82.113.4` 此刻全回 `200`（前两个在 0.7.1 发版时超时）；用 `20.27.177.113` 推送成功（`3a1bf0a..9a61387`）。**`-c http.curloptResolve` 的写法是 `HOST:PORT:ADDRESS`（冒号分隔）**——写成 `github.com:443,<IP>` 会报 `Couldn't parse CURLOPT_RESOLVE entry 'github.com:443,<IP>'` |
 
-### 6.0.6 上一版 `v0.7.1` 的实际结果（2026-10-02 已执行）
+### 6.0.7 上一版 `v0.7.1` 的实际结果（2026-10-02 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -438,7 +454,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `RELEASE_ASSETS_IN_SYNC_OK` 与 `GUARD_MARKERS_ARE_BACKED_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129315 字节**（source hash `58ed0ec27f941c3f`），重建后 `git status` 无 `dist` 差异 |
 | 附属产出 | 向 `awesome-dsh-plugin/awesome-dsh-plugin` 投稿：PR [#6351](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6351)，只加 `data/plugins/PolinniZhong__dsh-skill-intelligence.yml`（`category: skill`） |
 
-### 6.0.7 上一版 `v0.7.0` 的实际结果（2026-10-02 已执行）
+### 6.0.8 上一版 `v0.7.0` 的实际结果（2026-10-02 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -449,7 +465,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | npm | **`beta` 与 `latest` 都指向 `0.7.0`**（§5 本次已执行）：口径提交 `9800098` **先推**，`gitHead` 就是它；37 个文件 / 346.6 kB / 解包 1070413 字节 / shasum `015bbf75aee07c5dd921fdc093727e2795c1d155`；约 3.5 分钟后注册表才对上；空目录安装验证通过 |
 | 本地门槛 | **429 项测试全绿**；**23 组守卫全 OK**（含 `GUARD_MARKERS_ARE_BACKED_OK` 与 `RELEASE_ASSETS_IN_SYNC_OK`）；`node scripts/build-client.mjs` → `dist/client.js` **129280 字节**（source hash `31d39c71f13aeeb8`），重建后 `git status` 无 `dist` 差异 |
 
-### 6.0.8 上一版 `v0.6.1` 的实际结果（2026-10-01 已执行）
+### 6.0.9 上一版 `v0.6.1` 的实际结果（2026-10-01 已执行）
 
 | 项 | 结果 |
 |---|---|
@@ -463,7 +479,7 @@ npm v12（已 tag `latest`）起，依赖的安装脚本默认不再执行（`al
 | 渲染台实测 | `.st-detail-doc` 高度 **2px → 640px**，内部滚动区 clientHeight **24 → 539** / scrollHeight 4233；主内容区 scrollHeight 3399 |
 | README 五张截图 | 用 Chrome for Testing 以真实 1600×1050 视口重拍后转 jpg：`skill-list.jpg` 69384B / `installed-skills.jpg` 334705B / `skill-detail.jpg` 266250B / `skill-detail-table.jpg` 289567B / `skill-detail-zh.jpg` 335350B |
 
-### 6.0.9 上一版 `v0.6.0` 的实际结果（2026-10-01）
+### 6.0.10 上一版 `v0.6.0` 的实际结果（2026-10-01）
 
 | 项 | 结果 |
 |---|---|
