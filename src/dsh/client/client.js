@@ -60,6 +60,17 @@ const {
   EVALUATION_FORBIDDEN_OUTPUTS, buildEvaluationCase, buildEvaluationAssertions,
   compareEvaluationRuns, buildRuntimeEvidence,
 } = require('../../core/skill-evaluation.mjs')
+// 触发边界（V1.4）：回答**另一个**问题 —— 这个 Skill 该在什么任务里被加载。它复用同一个
+// 「Skill 评测」模块与同一条路由，但身份与语义是独立的：触发用例的 `caseId` **不含** Skill 指纹
+// （所以改完 description 还能拿同一组用例复测）。词表、三态、对照四态与限制文案全部从这一支取 ——
+// 界面自己不许现写一句结论，也不许把「没读到」说成「没触发」。
+const {
+  TRIGGER_PROMPT_MAX_CHARS, TRIGGER_FIXED_SENTENCES, TRIGGER_OBSERVATION_LABELS,
+  TRIGGER_INVOCATION_LABELS, TRIGGER_COVERAGE_LABELS, TRIGGER_FRESH_SESSION_LABELS,
+  TRIGGER_OUTCOME_LABELS, TRIGGER_OUTCOME_SHORT_LABELS, TRIGGER_LIMITATION_LABELS,
+  TRIGGER_RUN_FIELD_LABELS, TRIGGER_CONDITION_FIELDS, TRIGGER_UNAVAILABLE_TEXT,
+  buildTriggerCase, compareTriggerRuns, triggerObservationSentence,
+} = require('../../core/skill-trigger-evaluation.mjs')
 // 证据（V1.2）：把上面这些已经取好的事实收进**同一套三态语义**（Declared / Observed /
 // Unavailable），再交给界面画。这样做不是因为界面需要多一个工具，而是因为「这句话是 Skill
 // 自己说的，还是系统观察到的」这个问题必须在**一个**地方回答 —— 散在每个卡片里各写一套状态词，
@@ -975,6 +986,10 @@ function installStyles() {
       .st-eval-judge:first-child{border-top:0}
       .st-eval-judge-text{margin:0;font-size:12px;line-height:1.5;color:var(--st-text);overflow-wrap:anywhere}
       .st-eval-textarea{width:100%;min-height:56px;margin-top:4px;padding:7px 9px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:11.5px;line-height:1.6;resize:vertical}
+      /* V1.4 触发边界：输入框与提示词框同一档，勾选框走分隔行而不是卡片（§27：结构靠分隔线）。 */
+      .st-eval-input{width:100%;margin-top:4px;padding:7px 9px;border:1px solid var(--st-border);border-radius:9px;background:var(--st-surface);color:var(--st-text);font:inherit;font-size:11.5px;line-height:1.6}
+      .st-eval-check{display:flex;align-items:flex-start;gap:7px;margin:8px 0 0;font-size:11.5px;line-height:1.55;color:var(--st-text-secondary);overflow-wrap:anywhere}
+      .st-eval-check input{margin:2px 0 0}
       .st-eval-run{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:6px 0;border-top:1px solid var(--st-border-soft)}
       .st-eval-run:first-child{border-top:0}
       .st-eval-run-id{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;color:var(--st-text)}
@@ -3145,6 +3160,28 @@ function installStyles() {
   }
 
   /**
+   * V1.4 触发边界那一屏的初始状态。与评测卡同一个理由放在组件外面：
+   * 几次请求回来时都要拿它当底座，每处各写一份字面量迟早会出现两处不一样。
+   *
+   * `draft` 是**编辑中的**用例（新建或改一份已有的）。它单独存一份，不是「编辑即生效」：
+   * 提示词是用户要原样贴进会话的东西，改到一半就被存下去会让下一次复测测的不是同一件事。
+   */
+  const TRIGGER_INITIAL_STATE = {
+    phase: 'idle',
+    cases: [],
+    selectedCaseId: '',
+    detail: null,
+    runs: [],
+    draft: null,
+    // 「这是新会话」是**用户声明**，默认不声明 —— 不声明就只能给 inconclusive。
+    freshSession: 'unconfirmed',
+    captured: null,
+    message: '',
+    error: '',
+    warningCount: 0,
+  }
+
+  /**
    * Run 的字段与取值：键的**名字与顺序**跟着核心模块的 `EVALUATION_RUN_FIELD_LABELS` 走，
    * 界面这一层只把值翻译成一句人看得懂的话（不再自己起一套字段名 —— 两套名字迟早会漂开）。
    */
@@ -3172,6 +3209,234 @@ function installStyles() {
    * 证据、把两次运行逐条对照。判定由人点出来或 Agent 自报，插件一个都不判；界面不产出任何汇总
    * 口径（`FR-EVAL-012` / `014`）—— 一条一条列，列完为止。
    */
+  /**
+   * V1.4「触发边界」这一屏（`FR-TRIG-*`）。
+   *
+   * 它**自己不带 hook、不发请求**：状态与取数都在外层容器里，和评测卡同一条约定。这样这一屏
+   * 可以自由地提前 `return`（空态、加载中、错误态），不必担心 `conversation.view` 那条
+   * 「hook 不许排在提前 return 之后」的渲染合同（`AGENTS.md` §6.11）。
+   *
+   * 三件它**不做**的事，正是这一版的产品边界：
+   *   1. 不自动跑测试 —— 提示词要由用户**自己**粘进一个新会话；
+   *   2. 不判定 —— 「这一次算不算触发」由宿主的收据说，界面只负责把够不着的地方说清楚；
+   *   3. 不做任何聚合 —— 这一页只逐条摆事实，不给一个看起来像结论的数字（`FR-TRIG-020`）。
+   */
+  function SkillTriggerBoundary({
+    trigger, skillName, onRefresh, onNewCase, onSelectCase, onEditCase,
+    onDraftChange, onSaveCase, onCancelDraft, onDeleteCase, onCapture,
+    onFreshSessionChange, onCopySuite, onCopyPrompt,
+  }) {
+    const phase = trigger?.phase ?? 'idle'
+    const cases = Array.isArray(trigger?.cases) ? trigger.cases : []
+    const runs = Array.isArray(trigger?.runs) ? trigger.runs : []
+    const detail = trigger?.detail ?? null
+    const draft = trigger?.draft ?? null
+    const error = typeof trigger?.error === 'string' ? trigger.error : ''
+    const message = typeof trigger?.message === 'string' ? trigger.message : ''
+    const freshSession = trigger?.freshSession === 'user-confirmed' ? 'user-confirmed' : 'unconfirmed'
+    const selected = cases.find((entry) => entry.caseId === trigger?.selectedCaseId) ?? detail
+    const busy = phase === 'loading' || phase === 'saving' || phase === 'capturing' || phase === 'deleting'
+
+    const boundaryCard = h('section', { key: 'trigger-boundary', className: 'st-detail-card', 'data-role': 'trigger-boundary' },
+      h('h3', null, raw(localized('先说清楚证据边界', 'The evidence boundary, stated first'))),
+      h('ul', { className: 'st-eval-list' },
+        ...TRIGGER_FIXED_SENTENCES.map((sentence) => h('li', { key: sentence, 'data-role': 'trigger-fixed-sentence' }, raw(sentence)))),
+      h('dl', { className: 'st-eval-grid' },
+        h('dt', { key: 'loaded:k' }, raw(TRIGGER_OBSERVATION_LABELS.loaded)),
+        h('dd', { key: 'loaded:v' }, raw(localized('收据里有这个 Skill 的成功加载记录。', 'The receipt holds a successful load record for this skill.'))),
+        h('dt', { key: 'not:k' }, raw(TRIGGER_OBSERVATION_LABELS['not-observed'])),
+        h('dd', { key: 'not:v' }, raw(localized('读到的这一段里没有它的加载记录。要把它当作「与预期对照的证据」，必须同时满足「覆盖完整」与「用户声明这是新会话」—— 缺一条就只是「无法判断」。', 'No load record in what was read. Turning that into evidence against an expectation requires both complete coverage and a user-declared fresh session; with either missing it stays inconclusive.'))),
+        h('dt', { key: 'unknown:k' }, raw(TRIGGER_OBSERVATION_LABELS.unknown)),
+        h('dd', { key: 'unknown:v' }, raw(localized('覆盖不足、读不到日志、身份对不上，或调用方式分不出来。这一档不做任何结论。', 'Coverage is short, no log could be read, identity does not match, or the invocation cannot be classified. No conclusion is drawn here.')))))
+
+    const suiteCard = h('section', { key: 'trigger-suite', className: 'st-detail-card', 'data-role': 'trigger-suite' },
+      h('h3', null, raw(localized('触发测试集', 'Trigger test set'))),
+      h('p', { className: 'st-eval-hint' }, raw(localized(
+        '一组正向（应触发）与负向（不应触发）的任务提示词。测试用例绑定提示词与期望，**不绑定**某一版 Skill —— 所以改完 description 之后，还是用同一组用例复测。',
+        'A set of positive (should trigger) and negative (should not) task prompts. A case binds the prompt and the expectation, not a skill revision, so the same set is reused after a description change.',
+      ))),
+      h('div', { className: 'st-eval-chips', 'data-role': 'trigger-counts' },
+        h('span', { className: 'st-eval-chip' }, raw(localized('用例 ', 'Cases ') + String(cases.length))),
+        h('span', { className: 'st-eval-chip' }, raw(localized('应触发 ', 'Should trigger ') + String(cases.filter((entry) => entry.expectedTrigger === true).length))),
+        h('span', { className: 'st-eval-chip' }, raw(localized('不应触发 ', 'Should not trigger ') + String(cases.filter((entry) => entry.expectedTrigger !== true).length)))),
+      h('div', { className: 'st-eval-actions' },
+        h('button', { type: 'button', className: 'st-eval-button st-eval-primary', 'data-role': 'trigger-new-case', onClick: onNewCase }, raw(localized('＋ 新建测试用例', '＋ New case'))),
+        h('button', { type: 'button', className: 'st-eval-button', 'data-role': 'trigger-refresh', disabled: busy, onClick: onRefresh }, raw(localized('刷新', 'Refresh'))),
+        h('button', { type: 'button', className: 'st-eval-button', 'data-role': 'trigger-copy-suite', disabled: cases.length === 0, onClick: onCopySuite }, raw(localized('复制测试集 JSON', 'Copy test set JSON')))),
+      cases.length === 0
+        ? h('p', { className: 'st-eval-hint', 'data-role': 'trigger-empty' }, raw(localized(
+          '这个 Skill 还没有触发用例。建一条：写下你会真的提交给 Agent 的任务提示词，并标明它**应该**还是**不应该**加载这个 Skill。',
+          'No trigger cases for this skill yet. Create one: write the task prompt you would really submit, and mark whether it should or should not load this skill.',
+        )))
+        : h('ul', { className: 'st-eval-list', 'data-role': 'trigger-case-list' },
+          ...cases.map((entry) => {
+            const latest = entry.latestRun ?? null
+            return h('li', { key: entry.caseId },
+              h('button', {
+                type: 'button',
+                className: 'st-eval-button',
+                'data-role': 'trigger-case',
+                'data-case': entry.caseId,
+                'data-on': String(entry.caseId === trigger?.selectedCaseId),
+                onClick: () => onSelectCase(entry.caseId),
+              }, raw(`${entry.title} · ${entry.expectedTrigger === true ? localized('应触发', 'should trigger') : localized('不应触发', 'should not trigger')} · ${latest ? (TRIGGER_OUTCOME_SHORT_LABELS[latest.outcome] ?? TRIGGER_OUTCOME_SHORT_LABELS.inconclusive) : localized('待测试', 'not run yet')}`)))
+          })))
+
+    const draftCard = !draft ? null : h('section', { key: 'trigger-draft', className: 'st-detail-card', 'data-role': 'trigger-draft' },
+      h('h3', null, raw(draft.caseId ? localized('编辑测试用例', 'Edit the case') : localized('新建触发测试用例', 'New trigger case'))),
+      h('div', { className: 'st-eval-block' },
+        h('h5', null, raw(localized('用例名称', 'Case name'))),
+        h('input', {
+          type: 'text',
+          className: 'st-eval-input',
+          'data-role': 'trigger-draft-title',
+          value: draft.title,
+          placeholder: localized('例如：从 PDF 中抽取表格', 'e.g. Extract tables from a PDF'),
+          onChange: (event) => onDraftChange({ title: event.target.value }),
+        })),
+      h('div', { className: 'st-eval-block' },
+        h('h5', null, raw(localized('测试提示词', 'Test prompt'))),
+        h('textarea', {
+          className: 'st-eval-textarea',
+          'data-role': 'trigger-draft-prompt',
+          rows: 5,
+          maxLength: TRIGGER_PROMPT_MAX_CHARS,
+          value: draft.prompt,
+          placeholder: localized('写下你会真的提交给 Agent 的那句话', 'Write the prompt you would really submit to the agent'),
+          onChange: (event) => onDraftChange({ prompt: event.target.value }),
+        }),
+        h('p', { className: 'st-eval-hint' }, raw(localized(
+          '用完整提示词测，不要用 /skill-name 这种显式调用 —— 那测到的不是自动触发边界。',
+          'Test with the full prompt, not an explicit /skill-name call: that measures something else.',
+        )))),
+      h('div', { className: 'st-eval-block' },
+        h('h5', null, raw(localized('预期行为', 'Expected behaviour'))),
+        h('div', { className: 'st-eval-actions' },
+          h('button', {
+            type: 'button', className: 'st-eval-button', 'data-role': 'trigger-draft-expect-yes',
+            'data-on': String(draft.expectedTrigger === true),
+            onClick: () => onDraftChange({ expectedTrigger: true }),
+          }, raw(localized('应触发：任务适合用这个 Skill', 'Should trigger: the task fits this skill'))),
+          h('button', {
+            type: 'button', className: 'st-eval-button', 'data-role': 'trigger-draft-expect-no',
+            'data-on': String(draft.expectedTrigger !== true),
+            onClick: () => onDraftChange({ expectedTrigger: false }),
+          }, raw(localized('不应触发：任务与它无关', 'Should not trigger: unrelated task'))))),
+      h('p', { className: 'st-eval-hint' }, raw(localized(
+        '测试集只保存提示词、预期行为与必要的身份；不保存完整会话、工具参数、工具结果或会话标识。',
+        'Only the prompt, the expectation and the necessary identity are stored — never the full conversation, tool arguments, tool results or session identifiers.',
+      ))),
+      h('div', { className: 'st-eval-actions' },
+        h('button', { type: 'button', className: 'st-eval-button st-eval-primary', 'data-role': 'trigger-draft-save', disabled: phase === 'saving', onClick: onSaveCase }, raw(draft.caseId ? localized('保存修改', 'Save changes') : localized('创建用例', 'Create the case'))),
+        h('button', { type: 'button', className: 'st-eval-button', 'data-role': 'trigger-draft-cancel', onClick: onCancelDraft }, raw(localized('取消', 'Cancel')))))
+
+    // 两次 Run 只在实验条件一致时才对照（`FR-TRIG-017`）。条件不同就逐项列出差异，
+    // 而不是给一个「看起来像结论」的对比 —— 这一版宁可少说一句。
+    const compared = runs.length > 1 ? compareTriggerRuns({ before: runs[1], after: runs[0] }) : null
+    const comparisonBlock = !compared ? null : (!compared.comparable
+      ? h('div', { className: 'st-eval-block', 'data-role': 'trigger-comparison' },
+        h('h5', null, raw(localized('两次观察能否对照', 'Are the two observations comparable?'))),
+        h('p', { className: 'st-eval-hint' }, raw(localized('条件不同，不做对照。逐项差异如下：', 'Conditions differ, so no comparison is made. The differences, item by item:'))),
+        h('div', { className: 'st-eval-conditions' }, ...compared.differences.map((diff) => h('div', {
+          key: diff.key, className: 'st-eval-condition', 'data-equal': 'false',
+        },
+        h('span', { className: 'st-eval-condition-name' }, raw(diff.label)),
+        h('span', { className: 'st-eval-condition-value' }, raw(`${diff.before} → ${diff.after}`))))))
+      : h('div', { className: 'st-eval-block', 'data-role': 'trigger-comparison' },
+        h('h5', null, raw(localized('两次观察的对照', 'The two observations side by side'))),
+        h('p', { className: 'st-eval-hint' }, raw(compared.descriptionChanged
+          ? localized('实验条件一致；两次的 description 指纹不同（只说明「变了」，不说明改好还是改坏）。', 'Conditions match; the description fingerprint differs. That says the description changed — not whether it changed for the better.')
+          : localized('实验条件一致；两次的 description 指纹相同。', 'Conditions match; the description fingerprint is unchanged.'))),
+        h('ul', { className: 'st-eval-list' },
+          ...TRIGGER_CONDITION_FIELDS.map((field) => h('li', { key: field.key }, raw(`${field.label}：${String(runs[1].conditions?.[field.key] ?? TRIGGER_UNAVAILABLE_TEXT)} → ${String(runs[0].conditions?.[field.key] ?? TRIGGER_UNAVAILABLE_TEXT)}`))))))
+
+    const latestRun = runs.length > 0 ? runs[0] : null
+    const detailCard = !selected ? h('section', { key: 'trigger-detail', className: 'st-detail-card', 'data-role': 'trigger-detail' },
+      h('h3', null, raw(localized('用例详情', 'Case detail'))),
+      h('p', { className: 'st-eval-hint', 'data-role': 'trigger-detail-empty' }, raw(localized('先选一个测试用例，或者新建一条。', 'Select a case, or create one.')))) : h('section', { key: 'trigger-detail', className: 'st-detail-card', 'data-role': 'trigger-detail' },
+      h('h3', null, raw(localized('用例详情', 'Case detail'))),
+      h('div', { className: 'st-eval-chips' },
+        h('span', { className: 'st-eval-chip', 'data-role': 'trigger-detail-expected' }, raw(selected.expectedTrigger === true ? localized('期望 · 应触发', 'Expectation · should trigger') : localized('期望 · 不应触发', 'Expectation · should not trigger'))),
+        h('span', { className: 'st-eval-chip' }, raw(localized('观察 ', 'Runs ') + String(runs.length)))),
+      h('pre', { className: 'st-eval-prompt', 'data-role': 'trigger-detail-prompt' }, raw(String(selected.prompt ?? ''))),
+      h('div', { className: 'st-eval-actions' },
+        h('button', { type: 'button', className: 'st-eval-button', 'data-role': 'trigger-copy-prompt', onClick: () => onCopyPrompt(String(selected.prompt ?? '')) }, raw(localized('复制测试提示词', 'Copy the test prompt'))),
+        h('button', { type: 'button', className: 'st-eval-button', 'data-role': 'trigger-edit-case', onClick: () => onEditCase(selected) }, raw(localized('编辑', 'Edit'))),
+        h('button', { type: 'button', className: 'st-eval-button', 'data-role': 'trigger-delete-case', disabled: busy, onClick: () => onDeleteCase(selected.caseId) }, raw(localized('删除', 'Delete')))),
+      h('p', { className: 'st-eval-hint' }, raw(localized(
+        '把上面的提示词原样放进一个**新** DSH 会话，让 Agent 自然决定是否加载这个 Skill，然后回到这里记录本次观察。',
+        'Paste the prompt above into a **new** DSH session, let the agent decide on its own, then come back here and record the observation.',
+      ))),
+      h('div', { className: 'st-eval-block', 'data-role': 'trigger-capture' },
+        h('h5', null, raw(localized('记录本次观察', 'Record this observation'))),
+        h('label', { className: 'st-eval-check' },
+          h('input', {
+            type: 'checkbox',
+            'data-role': 'trigger-fresh-session',
+            checked: freshSession === 'user-confirmed',
+            onChange: (event) => onFreshSessionChange(event.target.checked ? 'user-confirmed' : 'unconfirmed'),
+          }),
+          raw(localized('本条测试是在新会话里跑的，并且用的是上面那条原始提示词（这是**你的声明**，不是插件观测到的）', 'This run happened in a fresh session with the prompt above (this is your declaration, not something the plugin observed)'))),
+        h('div', { className: 'st-eval-actions' },
+          h('button', { type: 'button', className: 'st-eval-button st-eval-primary', 'data-role': 'trigger-capture-run', disabled: busy, onClick: onCapture }, raw(localized('记录到本机', 'Record on this machine')))),
+        h('p', { className: 'st-eval-hint' }, raw(localized(
+          '观察状态、调用方式、事件覆盖与指纹全部由宿主从收据与会话日志里读 —— 这个按钮不会替你判定，也不会替你发消息。',
+          'Observation, invocation type, coverage and fingerprints are read by the host from the receipt and the session log. This button neither runs anything nor sends anything.',
+        )))),
+      latestRun
+        ? h('div', { className: 'st-eval-block', 'data-role': 'trigger-latest-run' },
+          h('h5', null, raw(localized('最近一次观察', 'Latest observation'))),
+          h('p', { className: 'st-eval-hint', 'data-role': 'trigger-observation-sentence' }, raw(triggerObservationSentence(latestRun))),
+          h('dl', { className: 'st-eval-grid' },
+            h('dt', { key: 'obs:k' }, raw(TRIGGER_RUN_FIELD_LABELS.observation)),
+            h('dd', { key: 'obs:v', 'data-role': 'trigger-run-observation' }, raw(TRIGGER_OBSERVATION_LABELS[latestRun.observation] ?? TRIGGER_OBSERVATION_LABELS.unknown)),
+            h('dt', { key: 'inv:k' }, raw(TRIGGER_RUN_FIELD_LABELS.invocationType)),
+            h('dd', { key: 'inv:v', 'data-role': 'trigger-run-invocation' }, raw(TRIGGER_INVOCATION_LABELS[latestRun.invocationType] ?? TRIGGER_INVOCATION_LABELS.unknown)),
+            h('dt', { key: 'cov:k' }, raw(TRIGGER_RUN_FIELD_LABELS.coverage)),
+            h('dd', { key: 'cov:v', 'data-role': 'trigger-run-coverage' }, raw(TRIGGER_COVERAGE_LABELS[latestRun.coverage] ?? TRIGGER_COVERAGE_LABELS.unknown)),
+            h('dt', { key: 'fresh:k' }, raw(TRIGGER_RUN_FIELD_LABELS.freshSession)),
+            h('dd', { key: 'fresh:v' }, raw(TRIGGER_FRESH_SESSION_LABELS[latestRun.freshSession] ?? TRIGGER_FRESH_SESSION_LABELS.unconfirmed)),
+            h('dt', { key: 'out:k' }, raw(localized('与预期对照', 'Against the expectation'))),
+            h('dd', { key: 'out:v', 'data-role': 'trigger-run-outcome' }, raw(TRIGGER_OUTCOME_LABELS[latestRun.outcome] ?? TRIGGER_OUTCOME_LABELS.inconclusive)),
+            h('dt', { key: 'sf:k' }, raw(TRIGGER_RUN_FIELD_LABELS.skillFingerprint)),
+            h('dd', { key: 'sf:v' }, raw(String(latestRun.skillFingerprint ?? TRIGGER_UNAVAILABLE_TEXT))),
+            h('dt', { key: 'df:k' }, raw(TRIGGER_RUN_FIELD_LABELS.descriptionFingerprint)),
+            h('dd', { key: 'df:v', 'data-role': 'trigger-run-description-fingerprint' }, raw(String(latestRun.descriptionFingerprint ?? TRIGGER_UNAVAILABLE_TEXT)))),
+          h('ul', { className: 'st-eval-list', 'data-role': 'trigger-limitations' },
+            ...(Array.isArray(latestRun.limitations) ? latestRun.limitations : []).map((id) => h('li', { key: id, 'data-limitation': id }, raw(TRIGGER_LIMITATION_LABELS[id] ?? id)))))
+        : h('div', { className: 'st-eval-block', 'data-role': 'trigger-no-run' },
+          h('h5', null, raw(localized('还没有观察记录', 'No observation yet'))),
+          h('p', { className: 'st-eval-hint' }, raw(localized(
+            '先在真实的新会话里把提示词交上去，再回来记录 —— 插件不会替你跑。',
+            'Submit the prompt in a real new session first, then come back and record it. The plugin never runs it for you.',
+          )))),
+      comparisonBlock,
+      runs.length > 1
+        ? h('div', { className: 'st-eval-block', 'data-role': 'trigger-run-history' },
+          h('h5', null, raw(localized('运行历史', 'Run history'))),
+          h('ul', { className: 'st-eval-list' },
+            ...runs.slice(0, 6).map((run) => h('li', { key: run.runId, 'data-run': run.runId }, raw(
+              `${TRIGGER_OBSERVATION_LABELS[run.observation] ?? TRIGGER_OBSERVATION_LABELS.unknown} · ${TRIGGER_INVOCATION_LABELS[run.invocationType] ?? TRIGGER_INVOCATION_LABELS.unknown} · ${TRIGGER_COVERAGE_LABELS[run.coverage] ?? TRIGGER_COVERAGE_LABELS.unknown} · ${TRIGGER_OUTCOME_LABELS[run.outcome] ?? TRIGGER_OUTCOME_LABELS.inconclusive} · ${String(run.descriptionFingerprint ?? TRIGGER_UNAVAILABLE_TEXT)}`,
+            )))))
+        : null)
+
+    const stepsCard = h('section', { key: 'trigger-steps', className: 'st-detail-card', 'data-role': 'trigger-steps' },
+      h('h3', null, raw(localized('一次测试应该怎么跑', 'How one test run goes'))),
+      h('ul', { className: 'st-eval-list' },
+        h('li', { key: 'step-1' }, raw(localized('① 打开一个**新**会话（每条用例建议单独一个：同一个会话里前一条任务留下的上下文会影响这一次观察）。', '① Open a **new** session — one per case, because context left by an earlier task in the same session affects this observation.'))),
+        h('li', { key: 'step-2' }, raw(localized('② 把这条用例的提示词**原样**提交，不要用 /skill-name 之类的显式调用。', '② Submit the prompt **verbatim**; do not use an explicit /skill-name call.'))),
+        h('li', { key: 'step-3' }, raw(localized('③ 回到这里的「Skill 评测 → 触发边界」记录本次观察：宿主只从那个会话的收据与日志里读事实。', '③ Come back to “Skill evaluation → Trigger boundary” and record the observation: the host reads facts only from that session’s receipt and log.')))))
+
+    return h('div', { 'data-role': 'trigger-boundary-root' },
+      h('div', { className: 'st-eval-top' },
+        h('h3', null, raw(localized('Skill 评测 · 触发边界', 'Skill evaluation · Trigger boundary'))),
+        h('span', { className: 'st-eval-tag', 'data-role': 'trigger-skill' }, raw(skillName))),
+      error ? h('p', { className: 'st-eval-alert', role: 'alert', 'data-role': 'trigger-error' }, raw(error)) : null,
+      message ? h('p', { className: 'st-eval-hint', 'data-role': 'trigger-message' }, raw(message)) : null,
+      phase === 'loading' && cases.length === 0 ? h('p', { className: 'st-eval-hint' }, raw(localized('正在读本机的触发用例…', 'Reading the trigger cases on this machine…'))) : null,
+      boundaryCard, suiteCard, draftCard, detailCard, stepsCard)
+  }
+
   function SkillEvaluationCard({ evaluation, canGenerate, onGenerate, onSave, onCapture, onJudge, onOutcome, onRole }) {
     const phase = evaluation?.phase ?? 'idle'
     const busy = phase === 'loading' || phase === 'saving' || phase === 'capturing'
@@ -4045,6 +4310,23 @@ function installStyles() {
     // v1.0：评测。它也只活在页面上 —— Case 的**身份由宿主算**（客户端不许自己 sha256），
     // 要落到本机得用户点一次「保存到本机」；`runs` 是这一次页面会话里记下来的运行。
     const [evaluation, setEvaluation] = React.useState(() => suppliedEvaluation ?? ({ ...EVALUATION_INITIAL_STATE }))
+    // V1.4：触发边界。与评测卡共用同一个模块与同一条路由，但**状态是分开的** —— 两套身份的
+    // 语义不同（触发用例的 `caseId` 不含 Skill 指纹），混成一个 state 迟早会让某一半读错身份。
+    // 默认停在「任务效果」：这是这一维原本的内容，不该因为多了一个模式而改变默认视野。
+    const [evaluationMode, setEvaluationMode] = React.useState('effect')
+    const [trigger, setTrigger] = React.useState(() => ({ ...TRIGGER_INITIAL_STATE }))
+    // 进「触发边界」才第一次取数：停在「任务效果」的人不该为另一屏付一次请求。
+    //
+    // ⚠️ 它必须待在这一组 hook 里：`SkillDetailPage` 在下面有提前 `return`，把 hook 排在
+    // 提前 return 之后会让第一帧与第二帧的 hook 数量不同 → React #310 → 整个会话栏白屏
+    // （`test/client-hook-order.test.mjs` 钉着这一条）。回调里引用的 `loadTriggerCases`
+    // 定义在下面 —— effect 的回调在渲染之后才跑，那时它已经初始化好了。
+    React.useEffect(() => {
+      if (evaluationMode !== 'trigger') return
+      if (trigger.phase !== 'idle') return
+      loadTriggerCases()
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在进入这一屏的那一帧取一次
+    }, [evaluationMode, skillName])
     // 用户这次说的修改意图。它是实例验收的六样输入之一，但**只活在页面上**：宿主不回传它，
     // 插件也不落盘 —— 页面一刷新就没了，那时生成器照样能跑（只少一样来源，trace 里如实少一项）。
     const [lastIntent, setLastIntent] = React.useState('')
@@ -4705,6 +4987,194 @@ function installStyles() {
     // 排在验收卡后面 —— 那两句回答的是同一个问题：「这次改完，现在是什么样」。
     // 它必须写在两个处理器之后：`const` 是暂时性死区，往前挪一格就会在渲染那一帧抛
     // 「Cannot access 'compareModification' before initialization」，而那是整页白屏。
+    // ── V1.4 触发边界：取数与落盘都走同一条评测路由（`FR-TRIG-019`）───────────────
+    //
+    // 这一段的纪律只有一句：**客户端不许自己判定「这一次算不算触发」**。它提交的三样东西是
+    // `caseId`、要读哪个会话、以及「这是新会话」这句用户声明；观察状态、调用方式、事件覆盖与
+    // 指纹全部由宿主从收据与会话日志里取。请求体里就算写上 `observation: 'loaded'`，也不会
+    // 改变落盘记录一个字节 —— 那条缝有用例钉着。
+    const readTriggerCase = (caseId) => {
+      if (typeof caseId !== 'string' || !caseId) return
+      setTrigger((previous) => ({ ...previous, phase: 'loading', error: '' }))
+      evalPost('trigger-case-read', { caseId })
+        .then((body) => {
+          const record = body?.case && typeof body.case === 'object' ? body.case : null
+          const runs = Array.isArray(body?.runs) ? body.runs : []
+          setTrigger((previous) => ({
+            ...previous,
+            phase: 'ready',
+            selectedCaseId: record?.caseId ?? previous.selectedCaseId,
+            detail: record,
+            runs,
+            warningCount: Number(body?.warningCount) || 0,
+            error: '',
+          }))
+        })
+        .catch((reason) => setTrigger((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') })))
+    }
+
+    const loadTriggerCases = (wantedId = trigger.selectedCaseId) => {
+      setTrigger((previous) => ({ ...previous, phase: 'loading', error: '' }))
+      evalPost('trigger-case-list', { skillName })
+        .then((body) => {
+          const rows = Array.isArray(body?.cases) ? body.cases : []
+          setTrigger((previous) => ({
+            ...previous,
+            phase: 'ready',
+            cases: rows,
+            warningCount: Number(body?.warningCount) || 0,
+            error: '',
+          }))
+          const next = rows.some((entry) => entry.caseId === wantedId) ? wantedId : (rows[0]?.caseId ?? '')
+          if (next) readTriggerCase(next)
+          else setTrigger((previous) => ({ ...previous, selectedCaseId: '', detail: null, runs: [] }))
+        })
+        .catch((reason) => setTrigger((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') })))
+    }
+
+    const newTriggerCase = () => setTrigger((previous) => ({
+      ...previous,
+      draft: { caseId: '', title: '', prompt: '', expectedTrigger: true },
+      message: '',
+      error: '',
+    }))
+
+    const editTriggerCase = (record) => setTrigger((previous) => ({
+      ...previous,
+      draft: {
+        caseId: typeof record?.caseId === 'string' ? record.caseId : '',
+        title: String(record?.title ?? ''),
+        prompt: String(record?.prompt ?? ''),
+        expectedTrigger: record?.expectedTrigger === true,
+      },
+      message: '',
+      error: '',
+    }))
+
+    const changeTriggerDraft = (patch) => setTrigger((previous) => (
+      previous.draft ? { ...previous, draft: { ...previous.draft, ...patch } } : previous
+    ))
+
+    const cancelTriggerDraft = () => setTrigger((previous) => ({ ...previous, draft: null, error: '' }))
+
+    // 提示词超长时**拒绝保存并说明原因**，不许静默截断（`FR-TRIG-006`）：截断会让
+    // 「这条用例测的是什么」失真，而用户以为自己测的还是原来那句话。
+    const saveTriggerCase = () => {
+      const draft = trigger.draft
+      if (!draft) return
+      const built = buildTriggerCase({
+        skillName,
+        title: draft.title,
+        prompt: draft.prompt,
+        expectedTrigger: draft.expectedTrigger,
+        caseId: draft.caseId || undefined,
+      })
+      if (!built.available) {
+        const reason = built.reason === 'prompt-too-long'
+          ? localized(`提示词太长了（最多 ${TRIGGER_PROMPT_MAX_CHARS} 个字符）。请把它拆成两条用例 —— 这一版不会替你截断。`, `The prompt is too long (at most ${TRIGGER_PROMPT_MAX_CHARS} characters). Split it into two cases; this version will not truncate it for you.`)
+          : built.reason === 'missing-prompt'
+            ? localized('请先写下测试提示词。', 'Write the test prompt first.')
+            : localized('请先填写用例名称与测试提示词。', 'Fill in the case name and the test prompt first.')
+        setTrigger((previous) => ({ ...previous, phase: 'error', error: reason }))
+        return
+      }
+      setTrigger((previous) => ({ ...previous, phase: 'saving', message: '', error: '' }))
+      evalPost('trigger-case-save', { case: built.case, hashInput: built.hashInput })
+        .then((body) => {
+          const caseId = typeof body?.caseId === 'string' ? body.caseId : ''
+          setTrigger((previous) => ({
+            ...previous,
+            phase: 'ready',
+            draft: null,
+            message: localized('这条触发用例已经保存到本机。', 'The trigger case is saved on this machine.'),
+            error: '',
+          }))
+          loadTriggerCases(caseId || trigger.selectedCaseId)
+        })
+        .catch((reason) => setTrigger((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') })))
+    }
+
+    const deleteTriggerCase = (caseId) => {
+      if (typeof caseId !== 'string' || !caseId) return
+      setTrigger((previous) => ({ ...previous, phase: 'deleting', message: '', error: '' }))
+      evalPost('trigger-case-delete', { caseId })
+        .then(() => {
+          setTrigger((previous) => ({
+            ...previous,
+            phase: 'ready',
+            draft: null,
+            detail: null,
+            runs: [],
+            selectedCaseId: '',
+            message: localized('这条用例和它的观察记录已经从本机删掉。', 'The case and its observations are deleted from this machine.'),
+            error: '',
+          }))
+          loadTriggerCases('')
+        })
+        .catch((reason) => setTrigger((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') })))
+    }
+
+    const captureTriggerRun = () => {
+      const caseId = typeof trigger.selectedCaseId === 'string' && trigger.selectedCaseId
+        ? trigger.selectedCaseId
+        : (typeof trigger.detail?.caseId === 'string' ? trigger.detail.caseId : '')
+      if (!caseId) return
+      setTrigger((previous) => ({ ...previous, phase: 'capturing', message: '', error: '' }))
+      evalPost('trigger-run-capture', {
+        caseId,
+        // 要读的是**哪一个会话**：默认就是当前这个（用户正在那个新会话里记录观察）。
+        targetSessionId: sessionId,
+        // 这句是用户声明，不是观测；不给声明就只能是 unconfirmed。
+        freshSession: trigger.freshSession === 'user-confirmed' ? 'user-confirmed' : 'unconfirmed',
+      })
+        .then((body) => {
+          const run = body?.run && typeof body.run === 'object' ? body.run : null
+          setTrigger((previous) => ({
+            ...previous,
+            phase: 'ready',
+            captured: run,
+            message: localized('这一次观察已经记下来了。', 'The observation is recorded.'),
+            error: '',
+          }))
+          loadTriggerCases(caseId)
+        })
+        .catch((reason) => setTrigger((previous) => ({ ...previous, phase: 'error', error: String(reason?.message || 'unavailable') })))
+    }
+
+    // 复制只走剪贴板，**不写文件、不新增路由**：这条纪律 V1.2 已经付过一次代价（见
+    // `FR-EVIDENCE-012`）。失败就如实说，不许给出一个假的成功态。
+    const copyTriggerText = (text, done) => {
+      const clipboard = globalThis?.navigator?.clipboard
+      const refused = localized('当前环境不允许写剪贴板。', 'This environment does not allow clipboard writes.')
+      if (clipboard && typeof clipboard.writeText === 'function') {
+        Promise.resolve(clipboard.writeText(text))
+          .then(() => setTrigger((previous) => ({ ...previous, message: done, error: '' })))
+          .catch(() => setTrigger((previous) => ({ ...previous, error: refused })))
+        return
+      }
+      setTrigger((previous) => ({ ...previous, error: refused }))
+    }
+
+    const copyTriggerSuite = () => {
+      // 只带用例内容（提示词 / 期望 / 身份），**不带**任何一次运行的细节 ——
+      // 测试集是用户资产，运行记录不是它的附件。
+      const payload = {
+        schemaVersion: 1,
+        kind: 'trigger-suite',
+        skillName,
+        cases: trigger.cases.map((entry) => ({
+          caseId: entry.caseId,
+          title: entry.title,
+          expectedTrigger: entry.expectedTrigger === true,
+          prompt: entry.prompt,
+        })),
+      }
+      copyTriggerText(
+        JSON.stringify(payload, null, 2),
+        localized('测试集 JSON 已复制到剪贴板。', 'The test-set JSON is on the clipboard.'),
+      )
+    }
+
     const skillModification = h(SkillModificationPanel, {
       modification: modifyState,
       instanceTest,
@@ -4725,6 +5195,42 @@ function installStyles() {
       onJudge: judgeEvaluationObservation,
       onOutcome: changeEvaluationOutcome,
       onRole: tagEvaluationRun,
+    })
+
+    // V1.4：同一个「Skill 评测」模块里的两个模式。**不新增模块、不新增页面** ——
+    // 两件事回答的是同一个问题的两面：任务效果问「做完这件事效果如何」，触发边界问
+    // 「这个 Skill 该不该在这类任务里出现」。模式条本身没有 hook，切换只改容器里那个 state。
+    const evaluationModeBar = h('div', { className: 'st-eval-actions', 'data-role': 'evaluation-mode-bar' },
+      h('button', {
+        type: 'button',
+        className: 'st-eval-button',
+        'data-role': 'evaluation-mode-effect',
+        'data-on': String(evaluationMode !== 'trigger'),
+        onClick: () => setEvaluationMode('effect'),
+      }, raw(localized('任务效果', 'Task effect'))),
+      h('button', {
+        type: 'button',
+        className: 'st-eval-button',
+        'data-role': 'evaluation-mode-trigger',
+        'data-on': String(evaluationMode === 'trigger'),
+        onClick: () => setEvaluationMode('trigger'),
+      }, raw(localized('触发边界', 'Trigger boundary'))))
+
+    const triggerBoundary = h(SkillTriggerBoundary, {
+      trigger,
+      skillName,
+      onRefresh: () => loadTriggerCases(),
+      onNewCase: newTriggerCase,
+      onSelectCase: readTriggerCase,
+      onEditCase: editTriggerCase,
+      onDraftChange: changeTriggerDraft,
+      onSaveCase: saveTriggerCase,
+      onCancelDraft: cancelTriggerDraft,
+      onDeleteCase: deleteTriggerCase,
+      onCapture: captureTriggerRun,
+      onFreshSessionChange: (value) => setTrigger((previous) => ({ ...previous, freshSession: value === 'user-confirmed' ? 'user-confirmed' : 'unconfirmed' })),
+      onCopySuite: copyTriggerSuite,
+      onCopyPrompt: (text) => copyTriggerText(text, localized('测试提示词已复制到剪贴板。', 'The test prompt is on the clipboard.')),
     })
 
     // V1.2：证据模块复用**同一个** evaluation state（不另开一次请求，也不复制一份状态）——
@@ -4748,7 +5254,7 @@ function installStyles() {
       framework: [framework],
       'evidence-model': [skillEvidence],
       validation: [h(SkillValidationPanel, { validation, validationFieldMissing })],
-      evaluation: [skillEvaluation],
+      evaluation: [evaluationModeBar, evaluationMode === 'trigger' ? triggerBoundary : skillEvaluation],
       evidence: [stepEvidence],
       runtime: [runtimeLogic],
       modification: hasModification ? [skillModification] : [],

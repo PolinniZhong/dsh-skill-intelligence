@@ -3,15 +3,8 @@
 > 本文件是 Agent 进入本项目的**第一读物**：只说「怎么在这个项目里干活」和「哪些不能动」。
 > 产品需求 `spec/PRD.md` · 技术设计 `spec/SDD.md` · 视觉与组件规格 `design.md`
 > · 实现细节 `docs/ARCHITECTURE.md` · 发布步骤 `docs/RELEASE.md` · 历史规格 `docs/archive/`
-> **最后更新：2026-10-05**（同日按证据把全部日期修准：**每条日期 = 该改动真实落地那天**（git 提交日 / 实测会话日），此前手写的 `2026-10-04` / `2026-10-05` / `2026-10-06` 已逐行改对，见 §5。知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD；§1 的数字与它同步。**2026-10-05 知识管理总对账（V1.1 开工前）**：全仓的「现状措辞」已对齐 `1.0.0` 已发布口径，逐处核过 §1 / §2 / §5 / §6.12 / §9.1 / §10 与 `README.md` / `spec/PRD.md` / `spec/SDD.md` / `docs/RELEASE.md` / `docs/ARCHITECTURE.md` / `design.md`；**§9.1 的发版清单这次从六处扩到八处**（补上 `docs/ARCHITECTURE.md` 与 `design.md` 的版本口径段、`docs/RELEASE.md` §6.0 的发布后回填与 §6.0.x 下移）。
-> **2026-10-11 追记（V1.3 已随 `1.3.0` 发布）**：**V1.3「Agent-native Skill Review」已随 `1.3.0` 发布**（2026-10-11，GitHub Release 与 npm 是同一份构建，tag `v1.3.0`，npm 的 `beta` 与 `latest` 都指向它，`README.md` 的安装示例已锚 `v1.3.0`）。这是本插件**第一次从「纯客户端插件」变成「会改变模型可见工具集的宿主插件」**：宿主新增 `ctx.inject(['tools'], …)` 注册**只读**工具 **`skill_review`**（返回 Structured Review Packet；`render ≤ 6000` 码点、超出如实降级不静默截断；失败一律返回信封不抛异常），并与那 13 条路由的可用性**解耦**。指引有两条通道：工具的 `description`（主）＋宿主为每个 agent 装的一条 `systemPrompt.section`（`name: 'context:skill-review'`），后者只在工具对当前 Agent 可见时渲染、与工具**同生共死**（真机实测：新会话系统提示末尾逐字出现该段）。**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改；工具只读：不加载、不执行、不写文件、不调模型，不给分、不排名、不做 benchmark（三态仍只有 `declared` / `observed` / `unavailable`）。隐私边界见 `docs/PRIVACY.md` 的 `## What the skill_review tool puts into the model context`。§1 各行已按**发布口径**同步（测试 690 / 守卫 39 组 / 宿主 2002 行 13 条路由 / core 34 个模块 13973 行）。
-> **2026-10-07 追记（V1.2 已发布）**：**V1.2「Skill 证据模型（Skill Evidence Model）」已随 `1.2.0` 发布**（2026-10-07，GitHub Release 与 npm 是同一份构建，tag `v1.2.0`）—— `package.json` 写的是 `1.2.0`，npm 的 `beta` 与 `latest` 都指向 `1.2.0`，`README.md` 的安装示例已锚 `v1.2.0`。§1 的版本 / npm / 测试 / 守卫 / 客户端 / 本版内容各行已按**发布口径**同步，`1.1.0` 降为上一版，`CHANGELOG.md` 顶部的 `## 1.2.0` 已补上日期（2026-10-07）并已回填 `docs/RELEASE.md` §6.0.1。**不新增路由 / 页面 / 落盘 / 依赖**，宿主一字未改；客户端 `require` 九支 → 十支。路线图同步：证据模型占 **V1.2**，原先登记在这一格的 Skill Trigger Evaluation 顺延到 **V1.3+**。
-> **2026-10-06 追记**：**V1.1「详情级导航 + Agent Skills 开放标准」已随 `1.1.0` 发布**（GitHub Release 与 npm 是同一份构建，tag `v1.1.0`）；§1 的版本 / npm / 测试 / 守卫 / 客户端各行已按**发布口径**同步，`1.0.0` 降为上一版，`CHANGELOG.md` 的 `## Unreleased` 已归位成 `## 1.1.0`。**不新增路由 / 页面 / 落盘 / 依赖**，宿主一字未改（改了 `src/core/*`，真机验收仍要按 §6.2 重启 DSH）。
-> **2026-10-05 追记**：**V0.10.0「Skill 实例验收」已随 `0.10.0` 发布**（GitHub Release 与 npm 是同一份构建，tag `v0.10.0`）；§1 的测试 / 守卫 / 客户端 / 本版内容各行已按**发布口径**同步，`0.9.2` 降为上一版，`CHANGELOG.md` 的 `## Unreleased` 已归位成 `## 0.10.0`。同日再追记：**V1.0「Skill Evaluation」已随 `1.0.0` 发布**（2026-10-05，tag `v1.0.0`；`spec/PRD.md` §5.13 的 `FR-EVAL-*`）；§1 各行原写的「工作树口径」已改成**发布口径**，`0.10.0` 降为上一版，`CHANGELOG.md` 的 `## Unreleased` 已归位成 `## 1.0.0`。
-> 同日追记（2026-10-03）：复刻 Skill 的请求体缺陷已修（`55f092c`），**已随 `0.8.0` 发布**；当时攒下的三件改动（短显示名 + 复刻缺陷 + V0.8「Skill 演进」）见 §1「本版内容」行。
-> 2026-10-02 追记：V0.8「Skill 演进」三个 Phase 全部落地，**真机验收已过**（12 个检查点，见
-> `01_重构方案/v0.8-真机验收清单.md`）——**已随 `0.8.0` 发布到 GitHub Release 与 npm**，见 §1 与
-> `docs/RELEASE.md` §6.0.6）
+> **最后更新：2026-10-12**。日期一律用**该改动真实落地那天**（git 提交日 / 实测会话日），见 §5；知识库治理：根目录只留入口，`spec/` 收拢当前版 PRD 与 SDD，§1 的数字与它同步（发版后改哪八处见 §9.1）。
+> **版本沿革**：当前公开版 `1.4.0`（V1.4「Skill Trigger Evaluation」，2026-10-12 发布）。**逐版做了什么见 `CHANGELOG.md`（顶部即当前版），发布实录见 `docs/RELEASE.md` §6.0.x —— 本文件不再复述**（`AGENTS.md` 有字节预算：生效上限 65536 B，历史叙述一律外置）。
 >
 > **命名分三层。** ① **产品品牌**：DSH Skill 智能实验室（英文 DSH Skill Intelligence）—— README 首屏、
 > 仓库描述、文档抬头用这一层；② **DSH 会话里的短显示名**：**Skill 洞察**（英文 **Skill Insight**）——
@@ -35,18 +28,14 @@
 
 | 项目项 | 当前值 |
 |---|---|
-| 插件包版本 | **`1.3.0`（`package.json`，**2026-10-11 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.3.0`，npm 的 `beta` 与 `latest` 都指向它，`README.md` 的安装示例已锚 `v1.3.0`；V1.3「Agent-native Skill Review」）**；上一版 **`1.2.0`**（tag `v1.2.0` · 2026-10-07 · **GitHub Release 与 npm 都已发布**）；再上一版 **`1.1.0`**（tag `v1.1.0` · 2026-10-06 · **GitHub Release 与 npm 都已发布**，实测值见 `docs/RELEASE.md` §6.0.2）；上一版 **`1.0.0`**（tag `v1.0.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**，发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0.3）；上一版 `0.10.0`（V0.10.0「Skill 实例验收」），再上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.5），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.6），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`1.2.0` = V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」一版**（`FR-EVIDENCE-*`；第一件事不新增路由 / 页面 / 落盘 / 依赖，**同一版的第四件事（桌面端导出）当天加过第 14 条路由 `POST /skill-trace/evidence-export` 与 `src/storage/evidence-export-writer.mjs`，随后整条撤回**；客户端 `require` 九支 → 十支；同一版里还把详情页「Skill 框架」这一维重组成「蓝图 / 结构地图 / 细节预览 + 声明流程 + 渐进披露」五块，**只动客户端**，核心层一字未改），逐条登记在 `CHANGELOG.md` 的 `## 1.2.0`（含 `### D. 框架重构`）；**`1.1.0` = V1.1「详情级导航 + Agent Skills 开放标准」一版**（不新增路由、不新增页面、不新增落盘），逐条登记在 `CHANGELOG.md` 的 `## 1.1.0`；`1.0.0` = V1.0「Skill 评测」一版（新增第 13 条路由、一张详情页卡、一处本机落盘），见 `## 1.0.0`；`0.10.0` = V0.10.0「Skill 实例验收」（不新增路由 / 页面、不调模型、不落盘），见 `## 0.10.0`；`1.2.0` 这一轮的八处状态文字已按 §9.1 同步为**发布口径**（`package.json` 写死 `1.2.0`、`README.md` 的版本声明与两条安装示例锚点都已改成 `1.2.0`）。上一轮（`1.1.0`）八处状态文字已按 §9.1 同步为发布口径（`package.json`、本 §1、`README.md` 的版本声明与安装示例锚点；`spec/PRD.md` 头部、`spec/SDD.md` §0.1 的 `D15`、`docs/ARCHITECTURE.md` 的 `## V1.1` 段与 `design.md` 的实现入口行都已去掉「工作树」括注）；`docs/RELEASE.md` 与 §9.1 第 8 条按惯例在发版成功后才回填（§6.0 记录本次实测结果） |
+| 插件包版本 | **`1.4.0`（`package.json`，**2026-10-12 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.4.0`，npm 的 `beta` 与 `latest` 都指向它；V1.4「Skill Trigger Evaluation」）**；上一版 **`1.3.0`（`package.json`，**2026-10-11 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.3.0`，npm 的 `beta` 与 `latest` 都指向它，`README.md` 的安装示例已锚 `v1.3.0`；V1.3「Agent-native Skill Review」）**；上一版 **`1.2.0`**（tag `v1.2.0` · 2026-10-07 · **GitHub Release 与 npm 都已发布**）；再上一版 **`1.1.0`**（tag `v1.1.0` · 2026-10-06 · **GitHub Release 与 npm 都已发布**，实测值见 `docs/RELEASE.md` §6.0.2）；上一版 **`1.0.0`**（tag `v1.0.0` · 2026-10-05 · **GitHub Release 与 npm 都已发布**，发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0.3）；上一版 `0.10.0`（V0.10.0「Skill 实例验收」），再上一版 `0.9.2`（发布提交 `1811d98`，注释对象 `b5f1e0c`，见 `docs/RELEASE.md` §6.0.5），再上一版 `0.8.0`（发布提交 `9a61387`，注释对象 `783c4b2`，见 §6.0.6），再上一版 `0.7.1`（发布提交 `74a161d`），再上一版 `0.7.0`（发布提交 `5fac5d9`）。**`1.2.0` = V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」一版**（`FR-EVIDENCE-*`；第一件事不新增路由 / 页面 / 落盘 / 依赖，**同一版的第四件事（桌面端导出）当天加过第 14 条路由 `POST /skill-trace/evidence-export` 与 `src/storage/evidence-export-writer.mjs`，随后整条撤回**；客户端 `require` 九支 → 十支；同一版里还把详情页「Skill 框架」这一维重组成「蓝图 / 结构地图 / 细节预览 + 声明流程 + 渐进披露」五块，**只动客户端**，核心层一字未改），逐条登记在 `CHANGELOG.md` 的 `## 1.2.0`（含 `### D. 框架重构`）；**`1.1.0` = V1.1「详情级导航 + Agent Skills 开放标准」一版**（不新增路由、不新增页面、不新增落盘），逐条登记在 `CHANGELOG.md` 的 `## 1.1.0`；`1.0.0` = V1.0「Skill 评测」一版（新增第 13 条路由、一张详情页卡、一处本机落盘），见 `## 1.0.0`；`0.10.0` = V0.10.0「Skill 实例验收」（不新增路由 / 页面、不调模型、不落盘），见 `## 0.10.0`；`1.2.0` 这一轮的八处状态文字已按 §9.1 同步为**发布口径**（`package.json` 写死 `1.2.0`、`README.md` 的版本声明与两条安装示例锚点都已改成 `1.2.0`）。上一轮（`1.1.0`）八处状态文字已按 §9.1 同步为发布口径（`package.json`、本 §1、`README.md` 的版本声明与安装示例锚点；`spec/PRD.md` 头部、`spec/SDD.md` §0.1 的 `D15`、`docs/ARCHITECTURE.md` 的 `## V1.1` 段与 `design.md` 的实现入口行都已去掉「工作树」括注）；`docs/RELEASE.md` 与 §9.1 第 8 条按惯例在发版成功后才回填（§6.0 记录本次实测结果） |
 | 上游仓库 | `https://github.com/PolinniZhong/dsh-skill-intelligence`（分支 `main`；2026-10-02 由 `dsh-skill-trace` 改名，旧地址自动重定向） |
-| npm | **`beta` 与 `latest` 都指向 `1.3.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0`、`1.0.0`、`1.1.0`、`1.2.0`、`1.3.0` |
-| 测试 | **690 项全绿**（**`1.3.0` 发布口径**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`1.2.0` 发布口径是 662 项，`1.1.0` 是 643 项，`1.0.0` 是 636 项，`0.10.0` 是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
-| 静态守卫 | **39 组**（**`1.3.0` 发布口径**；**第 39 组 `SKILL_REVIEW_TOOL_OK` 是 V1.3 新增的**（钉住 `skill_review` 的注册、只读边界、`render ≤ 6000` 码点与如实降级、失败返回信封），**第 32–38 组是 V1.2 新增的 7 条 `SKILL_EVIDENCE_*`**（`MODEL_OK` / `BINDING_OK` / `CARD_OK` / `NO_CAUSATION_OK` / `EXPORT_OK` / `UNAVAILABLE_OK` / `PRIVACY_OK`），**第 31 组 `SKILL_STANDARD_ALIGNMENT_OK`**（V1.1 新增：钉住「标准合规 / 平台兼容」的语义隔离与 Rule Provenance），第 30 组 `SKILL_EVALUATION_OK`、第 29 组 `SKILL_INSTANCE_TEST_OK`；**第 20 组 `SKILL_FRAMEWORK_OK` 在 V1.2 的框架重构里加了 2b + 2c + 2d 三段断言**（2b：蓝图五站逐字与五个 kicker、结构地图按 `FRAMEWORK_ROLES` 生成、细节预览的 `framework-detail`、缺席写「未声明」、声明流程空态「不制造运行流程图」、资源默认 6 条 + 分层取自 `tiers` + 读数块，并反向钉住旧的角色网格 `st-fw-module`；2c：蓝图每站一句 `st-fw-stop-hint`、渐进披露每段带序号与 `st-fw-chain-hint`、认不出角色的章节改走 `other-sections` 轻行、细节预览 `DETAIL_SECTION_LIMIT = 3` + `detail-toggle`、地图与蓝图共用 `declaredOf(entry.id)` 与「N 个引用」；2d：五个区域各自成卡（`className: 'st-fw-region'`、`'st-fw-region st-fw-other'`）、结构地图与细节预览并排成对（`className: 'st-fw-pair'`）、**两列等高**（`.st-fw-pair` 不带 `align-items:start`、`.st-fw-detail` 是 `display:flex;flex-direction:column`、`.st-fw-detail-rows{flex:1;min-height:0;…}`）且各带块标题 `st-fw-region-head`，并反向钉住 `.st-fw-sub{` 与 `className: 'st-fw-block'` 不许回来），**组数不变**；同一轮（V1.2 第三件事）还给第 26 组 `SKILL_VALIDATION_OK` / 第 27 组 `SKILL_MODIFICATION_OK` / 第 29 组 `SKILL_EVALUATION_OK` / 第 32 组 `SKILL_EVIDENCE_CARD_OK` 各追加了 needle（钉住各自模块的区域卡与它们退休掉的旧类），**组数仍是 38**）；`1.1.0` 发布口径是 31 组，`1.0.0` 是 30 组，`0.10.0` 是 29 组，`0.9.2` 是 28 组（第 26 组 `SKILL_VALIDATION_OK`、第 27 组 `SKILL_MODIFICATION_OK`、第 28 组 `INSTALLED_ORDERING_OK`），`0.8.0` 是 25 组 |
-| 客户端 | **`src/dsh/client/client.js` 5400 行，bundle `dist/client.js` 293246 字节**（source hash `9ec62e37d7dbfa2e`；`shasum -a 256 dist/client.js` 是 `38d5ee32fbb4c897…`；**`1.3.0` 本版客户端一字未改，`1.2.0` 发布口径也是 5400 行 / 293246 字节**；框架重构 +387 行），`src/core/` **34 个模块 13973 行**（V1.3 新增 `skill-review.mjs` 1119 行、零依赖零 `import`；`1.2.0` 是 33 个模块 12854 行——新增 `skill-evidence.mjs` 909 行，框架重构**未动核心层**），`src/storage/` **7 个 1411 行**；`1.1.0` 发布口径是 4495 行 / 234965 字节（source hash `71125cf37d020c7c`）/ core 32 个模块 11945 行 / storage 7 个 1411 行；`1.0.0` 发布口径是 4284 行 / 228715 字节（source hash `54bee3888d0299d8`）/ core 32 个模块 11657 行 / storage 7 个 1411 行；`0.10.0` 发布口径是 3625 行 / 189256 字节（source hash `faed5e9cef7db24c`）/ core 30 个模块 10924 行 / storage 6 个 1117 行；`0.9.2` 是 3448 行 / 170324 字节（`66dd0b76118e7b85`），`0.8.0` 是 2735 行 / 142672 字节（`f53a7ac5965b38b0`） |
-| 本版内容（`1.3.0`） | **V1.3「Agent-native Skill Review」（`1.3.0` 已发布，2026-10-11）**：模型可见的**只读**工具 **`skill_review`**（宿主 `ctx.inject(['tools'], …)` 注册，与 13 条路由的可用性解耦）返回 **Structured Review Packet**；`render ≤ 6000` 码点，超出**如实降级**（写明省略了什么）而不静默截断；任何取不到的前提都以**信封**返回、不向宿主抛异常；工具不可见时界面上的相关指引随之消失；指引另有一条 `systemPrompt.section` 通道（`name: 'context:skill-review'`），只在工具对当前 Agent 可见时渲染。核心层新增 `src/core/skill-review.mjs`（**1119 行、零依赖零 `import`**，复用 `buildSkillDetail` / `buildSkillValidation` / `buildSkillEvidence` / `buildSkillFramework` / `buildSkillRuntimeLogic`，禁止键沿用 `EVIDENCE_EXPORT_FORBIDDEN_KEYS` 并做递归断言）。**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改；修改仍由当前 Agent 用 DSH 原生文件工具在对话里做 —— 这个工具只读。守卫 38 → **39 组**（第 39 组 `SKILL_REVIEW_TOOL_OK`），测试 662 → **690** 项（新增 `test/skill-review.test.mjs` 14 项与 `test/skill-review-tool.test.mjs` 14 项）。 |
-| 上一版内容（`1.2.0`） | **V1.2「Skill 证据模型（Skill Evidence Model）」**（`spec/PRD.md` §5.14 的 `FR-EVIDENCE-001`–`012`；**已随 `1.2.0` 发布，2026-10-07**）：把「这一次会话对这个 Skill 到底观察到了什么」整理成一组有身份、有性质、有边界的证据事实 —— 纯函数层 `src/core/skill-evidence.mjs`（**909 行、零 import**，客户端**第十支 `require`**）＋ 详情页第九个模块「**Skill 证据**」（id `evidence-model`，紧跟 `Skill 框架` 之后，**只读投影**）。要点：**三态** `declared` / `observed` / `unavailable`（**没有 `inferred`**；认不出的值一律归一成 `unavailable`，缺就是缺）；**四段证据链** Definition → Load → Use → Outcome（**与 V1.0 评测那套 `trigger/load/use/outcome` 不是同一套 id**）；**五类对象 × 五列的证据状态表**（Skill 名称 / Skill 加载 / Skill 使用迹象 / DSH 版本 / Skill 造成结果 × 对象 / 状态 / 当前事实 / 证据来源 / 限制 —— 因果那一行永远 `unavailable`）；**三条边界** `load-evidence` / `use-evidence` / `causal-claim`（第三块的定论永远是「不声明」）；**漂移三态** `current` / `historical` / `no-matching-evidence`（**没有「过期」这一档**：历史证据仍然有效，只是绑在另一份 fingerprint 上）；**限制是封闭词表**（9 条，界面按 id 取文案、不许自己写）；**id 可重放**（`evidence:<对象>@<绑定>`，域前缀 `dsh-skill-evidence`，无 `Date.now` / `Math.random` / UUID）；**Evidence JSON 导出**逐字节稳定，只含身份 / 条件 / 观察 / 限制 / 来源，禁止键（工具参数 / 工具结果 / 会话 id / 绝对路径 / 分数）命中即失败，导出**只走剪贴板**（「复制 JSON」；写文件那条路 2026-10-06 已整条撤回，见 `CHANGELOG.md` `### G`）。**不给分、不排名、不聚合、不调模型、不读工具参数与结果、不显示绝对路径**；**证据模型这件事不新增路由 / 页面 / 落盘 / 依赖**，**同一版里短暂存在过的第 14 条路由与那处落盘（桌面端导出，见 `CHANGELOG.md` `### G`）已经撤回，现状仍是 13 条路由 / 1844 行与 7 个 1411 行**。**同一版的第二件事是详情页「Skill 框架」这一维的界面重构**（`spec/PRD.md` `FR-UI-054` / `spec/SDD.md` §9）：把「按八个角色铺成一屏网格」换成 **Skill Blueprint（五站阅读路径 WHY 定位 → WHEN 触发 → HOW 规则 → WITH 资源 → RESULT 输出，缺的那一站写「未声明」而不是消失）→ Structure Map（**八格**，格子按核心层 `FRAMEWORK_ROLES` 生成，每格写它回答什么问题与最多三个小节标题；认不出角色的章节不占格、改在框架末尾走一行一节的轻列表 `other-sections`，选中格是组件内的 state，不是路由也不是新页面；资源格与蓝图共用 `declaredOf()`，写的是「N 个引用」）→ Detail Preview（只渲染选中那一格的小节，默认只铺前三节，其余折成按钮上那句「还有 N 个章节」；带「为什么这样显示」；没有任何小节时直说「当前没有独立结构块」，不编解释）**；声明流程的步骤列表与点击定位一字未改、空态补上「因此这里不制造一条运行流程图」与「不构造」；渐进披露的 `DISCLOSURE_CHAIN` 六段不变，**每段带序号与一句说明**（按段 id 兜底，没写说明的 id 就不显示说明、不许现编），声明引用**默认只列 6 条**（`rows.slice(0, 6)`，多于 6 条才出现 `展开全部 N 个` / `收起资源` 开关），分层标题只取自核心层的 `tiers`，新增读数块 `有读取证据 / 声明引用` 把「声明几条」与「有几条读取证据」并排摆出来。**五个区域各自独立成卡**（`st-fw-region`：蓝图 / 结构地图 / 细节预览 / 声明流程 / 渐进披露，其它章节按需出现），结构地图与细节预览并排成对（`st-fw-pair`）且**两列等高**（右列不跟着内容伸缩，多余高度留在卡内、末句落在卡底）——此前它们共用一个边框、只靠一条分隔线分层，读者分不清「上一段的继续」和「另一件事」；**`src/core/skill-framework.mjs` 的解析结果、`GET /definition` 的数据、宿主与路由一个字都没动**；旧的「角色网格」与旧的 `.st-fw-sub` / `.st-fw-block` 合并写法由守卫反向钉住不许回来（`className: 'st-fw-module'` 出现即失败）。守卫 31 → **38 组**（7 条 `SKILL_EVIDENCE_*`，第 20 组在框架重构中加了 2b + 2c + 2d 三段断言但**组数不变**），测试 643 → **662** 项。**同一版的第三件事（用户界面反馈）**：把「一个区域 = 一张卡」推广到其余详情模块（`Skill 验收` 三张 / `Skill 证据` 六张 / `Skill 评测` 抬头 + 七张 / `本次修改对比` 五张；`Definition` / `SKILL.md` / `步骤证据` / `本次运行逻辑` 不动），并把选中态统一成中性底色 `--st-selected`（亮色淡灰、暗色比卡面亮一档的浅黑，不再借强调色与警告色） |
-| 上一版内容（`1.1.0`） | **V1.1「详情级导航 + Agent Skills 开放标准」**（`spec/PRD.md` / `spec/SDD.md` 的 V1.1 段）：**A. Skill Detail 信息架构重构** —— 详情页从「一个纵向长页面」改成「左侧详情导航 + 右侧当前模块」，八个模块 `Skill 框架`（默认）/ `Skill 验收` / `Skill 评测` / `步骤证据` / `本次运行逻辑` / `本次修改对比` / `Definition` / `SKILL.md`，**信息不减少、能力不删除**，只是把纵向堆叠提取成可按认知维度直达的一屏。**B. Agent Skills 开放标准对齐** —— `SKILL_PROFILE_IDS` 由 5 个变 6 个，在 `common` 与各平台之后插入 **`standard`（Agent Skills Open Standard）**，并与 DSH / OpenAI / Anthropic / Microsoft 四个**平台 Profile 分离**：新增 `skillProfileKind()`（`standard` / `platform`）、`SKILL_PROFILE_KIND_LABELS`、`SKILL_RULE_SOURCES`（5 条静态 provenance，**不在线拉标准文档**）；新增 4 条标准规则 `CORE-DIR-001`（`name` 必须与父目录同名，error）、`CORE-LIC-001` / `CORE-META-001` / `CORE-TOOLS-001`（`license` / `metadata` / `allowed-tools` 形状校验，**缺失一律 skipped 而不是错**；`allowed-tools` 属 experimental，severity 是 `info`）；每条 finding 带 `来源：<sourceLabel> · 标准合规|平台兼容`。**不新增路由 / 页面 / 落盘 / 依赖**，宿主 `src/dsh/host/index.js` 一字未改 |
-| 更早版本（`1.0.0`） | **V1.0「Skill Evaluation」**（`FR-EVAL-*`，`spec/PRD.md` §5.13 / `spec/SDD.md` §22）：把 V0.10 临时生成的实例验收任务固化成**可重复的 Evaluation Case**（`src/core/skill-evaluation.mjs`，确定性纯函数）→ 记录每次运行的**条件**（模型 / Provider / 推理档位 / 上下文窗口 / 插件版本 / 日志游标；DSH 版本今天读不到，如实写 `unavailable`）与**四段证据**（触发 / 加载 / 使用 / 结果，每段写明够不着什么，并固定陈述三条不等式）→ 同一个 Case 的两侧对照（改前·改后 / 基线·加上 Skill，条件不同就不给对照）→ 用户判定与 Agent 自报。落盘在 `<dataRoot>/evaluation/`（`cases/<hex>.json`、`runs/<hex>/<runId>.json`，`0700`/`0600`，上限 200 个 Case / 每 Case 50 次运行），由第 13 条路由 `POST /skill-trace/evaluation` 读写；详情页多一张「Skill 评测」卡（**不新增页面**）。**不给分、不排名、不做 benchmark、不自动跑**。发布提交 / 注释对象 / npm `gitHead` 的实测值见 `docs/RELEASE.md` §6.0.3 |
-| 更早版本（`0.10.0` 及以前） | **V0.10.0「Skill 实例验收」**（`FR-INST-*`，`spec/PRD.md` §5.12 / `spec/SDD.md` §21）：在详情页「本次修改对比」卡里按这次改动生成一份**确定性**的实例验收任务（`src/core/skill-instance-test.mjs`，零依赖纯函数，客户端第 8 支 `require`），Prompt 与观察项**物理分离**、**不新增路由**、不自动运行、不判定成功。真机验收 2026-10-05 通过（28 个检查点）。全部记在 `CHANGELOG.md` 的 `## 0.10.0`。`0.9.2` 是三批一起发（V0.9.0 验收 / V0.9.1 Modify / V0.9.2 列表排序），见 `## 0.9.2` |
-| 宿主机面 | **13 条路由**，`src/dsh/host/index.js` **2002 行**（V1.3 新增只读工具 `skill_review` 的 `ctx.inject(['tools'], …)` 注册、并为每个 agent 装一条 `context:skill-review` 系统提示节，与路由可用性解耦，**路由一字未增**；`1.2.0` 口径是 1844 行。第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，第 12 条是 v0.9.1 的 `POST /skill-trace/modify`；`0.10.0` 口径是 12 条 / 1625 行，`0.8.0` 口径是 11 条 / 1292 行）。全部由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
+| npm | **`beta` 与 `latest` 都指向 `1.4.0`**（发布后核对见 `docs/RELEASE.md` §6.0）。npm 包名仍是 `dsh-skill-trace`（品牌迁移不改包名）。`0.5.0` 与 `0.6.0` **只在 GitHub**，因此 npm 的版本号是从 `0.4.0-beta.66` 直接跳到 `0.6.1`，再到 `0.7.0`、`0.7.1`、`0.8.0`、`0.9.2`、`0.10.0`、`1.0.0`、`1.1.0`、`1.2.0`、`1.3.0`、`1.4.0` |
+| 测试 | **740 项全绿**（**`1.4.0` 发布口径**；`npm test`，`pretest` 会先重建 `dist/client.js`）；`1.3.0` 是 690 项，`1.2.0` 发布口径是 662 项，`1.1.0` 是 643 项，`1.0.0` 是 636 项，`0.10.0` 是 590 项，`0.9.2` 是 561 项，`0.8.0` 是 474 项 |
+| 静态守卫 | **40 组**（`npm run verify`；第 40 组 `SKILL_TRIGGER_EVALUATION_OK` 是 V1.4 新增的：钉住触发评测纯函数层的确定性与零依赖、读取层的覆盖读数、落盘闭集拒收，以及两条反向缝 —— 宿主不许读 `payload.observation`、客户端不许提交 `observation:`）。**组的增删逐版见 `scripts/verify-project.mjs` 与 `CHANGELOG.md`**，本表只留当前组数 |
+| 客户端 | **`src/dsh/client/client.js` 5906 行**（+506，V1.4 的触发边界模式与模式条）· bundle `dist/client.js` **325620 字节**（source hash `c272c34814bced72`）· `src/core/` **35 个模块 14634 行** · `src/storage/` **8 个 1704 行** · 客户端 `require` **11 支**。逐版增量与历史口径见 `CHANGELOG.md` |
+| 各版内容 | **不在本表复述**：逐条见 `CHANGELOG.md` 的对应小节（`## 1.4.0` / `## 1.3.0` … / `## 0.10.0`），发布实录见 `docs/RELEASE.md` §6.0.x。**本表只保留当前事实。**
+| 宿主机面 | **13 条路由**，`src/dsh/host/index.js` **2135 行**（V1.4 新增五个 `trigger-*` 动作、**路由一字未增**（全部挂在既有的第 13 条 `POST /skill-trace/evaluation` 上）；`1.3.0` 口径是 2002 行，由 V1.3 新增只读工具 `skill_review` 的 `ctx.inject(['tools'], …)` 注册、并为每个 agent 装一条 `context:skill-review` 系统提示节，与路由可用性解耦，**路由一字未增**；`1.2.0` 口径是 1844 行。第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，第 12 条是 v0.9.1 的 `POST /skill-trace/modify`；`0.10.0` 口径是 12 条 / 1625 行，`0.8.0` 口径是 11 条 / 1292 行）。全部由守卫按字面钉住（`docs/ARCHITECTURE.md` §Host surface） |
 | 运行时依赖 | **`dependencies` 为空**；`devDependencies` 只有 `esbuild`；`peerDependencies` 只有可选的 `@deepseek-ai/dsh-llm`（翻译用） |
 | 当前信息架构 | **SDD v0.6**：一级页面收敛为「本次 Skill」「已安装 Skill」，运行流程 / 运行图谱 / 收据页 / 上下文检查器 / 学习工作台 / 备份导出**已删除**（删除记录见 `docs/ARCHITECTURE.md` 末节）。v0.7 **没有新增一级 / 二级页面** |
 | 详情页结构 | **V1.1 起详情页是「左侧详情导航 + 右侧当前模块」**，不再是一条纵向长页面。九个模块（守卫按 `MODULE_CONTENT` 的**映射**逐项钉住，不再钉纵向顺序）：**`Skill 框架`（默认打开）** / **`Skill 证据`（V1.2 新增，id 是 `evidence-model`，紧跟框架之后）** / `Skill 验收` / `Skill 评测` / `步骤证据` / `本次运行逻辑` / `本次修改对比` / `Definition`（事实列：身份 + 定义 + repository）/ `SKILL.md`。默认入口只是默认值：点「Skill 验收」立即显示验收，点「SKILL.md」立即显示原始文档。`Skill 框架` = **五个区域各自独立成卡**（`st-fw-region`；结构地图与细节预览并排成对 `st-fw-pair`、**两列等高**）：**蓝图（阅读路径：五站 WHY → WHEN → HOW → WITH → RESULT，每站一句「它回答什么」，缺站写「未声明」）/ 结构地图（**八格**，只画真的命中的角色；认不出角色的章节不占格、改在末尾走一行一节的轻列表，选中格是组件内 state）/ 细节预览（只渲染选中那一格的小节，默认前三节 + 按钮上那句「还有 N 个章节」）** + 声明流程（步骤只被标注、不被构造；没有声明流程时直说「不制造运行流程图」）+ 渐进披露（六段各带序号与一句说明；声明引用默认只列 6 条、可展开；分层取自核心层 `tiers`；读数块「有读取证据 / 声明引用」）——**全部来自 `SKILL.md` 的结构化解析，不是 Runtime Flow**；「Skill 评测」承载 Evaluation Case / Run / Comparison / Runtime Evidence，**同一个 Case、条件逐项提出、逐条对照、不给分、不排序、不画趋势**。「Skill 证据」是 V1.2 的只读证据视图（三态 / 四段链 / 三条边界 / 五类对象的证据状态表 / 漂移三态 / 可复核的 Evidence JSON 导出，**不给分、不排名、不聚合、不调模型**）。V1.2 第三件事起，**其余详情模块也各自成卡**（`Skill 验收` 三张 / `Skill 证据` 六张 / `Skill 评测` 抬头 + 七张 / `本次修改对比` 五张），**选中态一律中性底色**（亮色淡灰、暗色浅黑，不借强调色与警告色）。`MODULE_CONTENT` 定义在 `const DETAIL_MODULES = [` 与 `function DetailNav(` 之间 |
@@ -61,48 +50,13 @@
 
 v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一句话，要么来自 `SKILL.md` 的声明，要么来自本次会话确实观察到的事实**，两者不许互相推导。
 
-- `039e275`：GFM 表格真渲染 + 翻译表格结构校验。
-- `0.6.0`（已发布）：**「Skill 框架」不再等于那条 `01 → 02 → 03 → 04`** —— 框架改由 `src/core/skill-framework.mjs` 从正文**确定性**解析出组成结构；`detail.flow` 降级成它的子模块；新增「渐进披露」（声明资源 ≠ 已读取资源）、「本次运行逻辑」（五段只列可观察事实）、「步骤证据」（`detail.flow.steps[].evidence` 第一次被显示）。
-- **`0.7.0`（已发布：GitHub Release + npm，发布提交 `5fac5d9`）**：三条新能力——已安装卡片整张可点进详情、中文阅读版**落盘为本机资产**（键不含会话）、**复刻 Skill**（详情页唯一的对象级动作）。真机 17 步验收已过（`CHANGELOG.md` `### 九`）。
-- **`1.0.0` 已发布（2026-10-05，GitHub Release + npm）。** 下一版（**V1.1**）的**范围与版本号都由用户给**——开工前先按 §9.1 把版本口径对齐，再确认三条老纪律没变：**不新增一级页面**、**不新增运行时依赖**、**界面上的每句话只能是「`SKILL.md` 的声明」或「本次会话观测到的事实」**（§11）。这一版已发布的全部内容见 §1「本版内容」行与 `CHANGELOG.md` 的 `## 1.0.0`。
-- **`1.2.0` 已发布（2026-10-07，GitHub Release 与 npm 是同一份构建，tag `v1.2.0`）。** 这一版是 **V1.2「Skill 证据模型（Skill Evidence Model）」**（`spec/PRD.md` §5.14 的 `FR-EVIDENCE-*`）：详情页第九个模块「Skill 证据」＋ `src/core/skill-evidence.mjs`（909 行、零 import、客户端第十支 `require`）。**证据模型这件事不新增路由 / 页面 / 落盘 / 依赖**；**第四件事（桌面端导出）当天加过的第 14 条路由 `POST /skill-trace/evidence-export` 与 `src/storage/evidence-export-writer.mjs` 已经撤回**（原因与经过见 `CHANGELOG.md` `### G`：桌面 App 没有下载接收端，而这份 JSON 的读者是 Agent 与排障，不值得为它新增路由与落盘）。原先登记在 V1.2 那一格的 **Skill Trigger Evaluation 顺延到 V1.3+**。发版照 `docs/RELEASE.md` 做；**它的下一版就是 `1.3.0`（已发布，2026-10-11）**。
-- **V1.3「Agent-native Skill Review」已随 `1.3.0` 发布（2026-10-11，GitHub Release 与 npm 是同一份构建，tag `v1.3.0`）。** 它做一件事：把一条**模型可见的只读工具 `skill_review`** 交给 Agent（宿主 `ctx.inject(['tools'], …)` 注册、返回 Structured Review Packet、`render ≤ 6000` 码点超出如实降级、任何取不到的前提都以信封返回），指引有两条通道（工具 `description` ＋ 一条随工具可见性**同生共死**的 `systemPrompt.section`），**不新增路由 / 页面 / 落盘 / 依赖**，客户端一字未改；修改仍由当前 Agent 用 DSH 原生文件工具在对话里做，插件不代办。**2026-10-07 两条真机验收全过**：正面「帮我审一下 ui-craft」→ 完整 Packet（含「需要修正 · 错误 1 / 警告 0 / 信息 0 / 未判定 4」）且四项边界检查全过（无 `SKILL.md` 正文原文/摘录、无绝对路径、无会话标识、如实声明省略 16 条）；负面「审一个不存在的名字」→ 三行 `unknown-skill` 信封、不报错。过程与证据见 `01_重构方案/v1.3-交付报告.md`（§13 九节）。**再下一版的版本号由用户给。**
-- **`0.7.0` 之后的五轮纯界面收口**（`CHANGELOG.md` `### 十`–`### 十三`）：顶栏 68 → 48px 且不画底色与分隔线、状态行只在有话要说时出现、搜索框搬进顶栏、分段控件选中态只留字色与字重、卡片描述统一截到 4 行、元信息行钉在卡片左下角、两个一级列表从同一个位置开始。**信息架构一次没动。**
-- **`55f092c`（已随 `0.8.0` 发布）：「复刻 Skill」的请求体缺陷。** 用户真机点「复刻 Skill」拿到一句 `sessionId 必填`——**从 `0.7.0` 起这个按钮一次都没成功过**：宿主 `handleClone` 必需那个字段，而客户端压根没发、详情页也没往下传。修的时候顺手治了成因——宿主的 400/500 分流此前靠正则猜消息，等于逼着校验消息写成裸字段名，现在改由 `RequestError` 自带 `status`。两条新守卫守着这条缝：**宿主读哪些 `payload.*`，客户端就得发哪些**；**组件解构出来又没兜底的 prop，渲染处必须真的传**。教训见 §8.10 —— **请求体有两半，单边测试补不出这条缝。**
-
-- **V0.9.0「Skill 验收」+ V0.9.1「Skill Modify」+ V0.9.2「已安装列表排序」（已随 `0.9.2` 发布）**：先把「这个 Skill 现在符不符合规范」做成一屏确定性事实（`src/core/skill-profiles.mjs` + `src/core/skill-validation.mjs`，五个 Profile、三态结论，**不新增路由**），再把「我想让它怎么改」接上——详情页「Skill 演进」卡多了 `[修改 Skill]`，用户写一句意图、勾修改范围与验收目标，点 `[交给 Agent]` 之后由**当前会话**的 Agent 在原生对话里改（代发的消息里明确要求它**动手之前先说明打算怎么改、拿不准就用提问工具问用户**——「提出方案 → 用户确认 → 动手」留在原生对话里，插件只提要求，不代办也不解析）；`POST /skill-trace/modify` 只做两件事：把「改前」存进**宿主内存**、用 `agent.followup()` 代发一条 `source.kind='skill-intelligence-modify'` 的消息，**它自己不写任何文件**。改完点「对比本次修改」才产生「本次修改对比」，并把新的验收结论顺手带回详情页。两条纪律：**快照只在内存里**（不落盘、不进 receipt、不进 session log、重启即消失，丢了就说「本次修改前状态不可用」而不许造假）；**来源指纹变了只说「来源 Skill 在本次修改期间发生变化」，不许说「Agent 修改了来源」**（没有直接证据）。V0.9.0 验收不碰 Agent / followup / 会话编排，V0.9.1 才碰。**三版（V0.9.0 / V0.9.1 / V0.9.2）都已通过真机验收（2026-10-03 用户逐项确认）**：宿主重启后 `/skill-trace/catalog` 原生返回 `ordering`、`POST /skill-trace/modify` 在跑的进程里，四条已删路由仍 404。
+- **逐版内容不在本文件复述**：`0.6.0` → `1.4.0` 每一版做了什么，见 `CHANGELOG.md` 的对应小节；发布实录（发布提交 / tag 对象 / npm `gitHead` / CI run）见 `docs/RELEASE.md` §6.0.x。**下面只留还生效的判据。**
 
 **下次动手前的判据**：如果一个新的展示元素需要模型调用来「总结」Skill 的结构，**就不要做**（§6.8）。如果它需要在界面上说「已执行 / 已完成 / 已加载 / 已读取」，**就不要做**（§6.7）。
 
-> **`0.10.0` 已发布（GitHub Release + npm，2026-10-05）。** 这一版就是 **V0.10.0「Skill 实例验收」**（`FR-INST-*`）（§1、§2）。上一版 `0.9.2` 把三批改动一起发出去：V0.9.0「Skill 验收」（`FR-VAL-*`）、V0.9.1「Skill Modify」（`FR-MOD-*`）与 V0.9.2「已安装列表排序」（`FR-ORD-*`）；再上一版 `0.8.0` 是 V0.8「Skill 演进」（血缘 / 差异 / 界面）+「Skill 洞察」短显示名 +「复刻 Skill」请求体缺陷修复。**V1.0「Skill Evaluation」已随 `1.0.0` 发布**（`spec/PRD.md` §5.13；与 §1 的「本版内容」行一致）。**`1.3.0` 已发布（2026-10-11）；再下一版的版本号仍由用户定，不要自己开**。开新版本之前先确认：`package.json`、`README.md`、`CHANGELOG.md` 的版本口径是否一致（§9.1 的八处）。
->
-> **发布凭证（2026-10-02 实测，已换凭证）**：`~/.npmrc` 原来那张长期 token 是 npm 条款里的
-> **2FA-bypass GAT**（账户级操作已被它失去：`npm profile get` → `E403`；**直接 publish 也将在 2027 年
-> 1 月左右失去**）。2026-10-02 已按 `docs/RELEASE.md` §5.1 换成 `npm login --auth-type=web` 的 2FA
-> 会话凭证：`npm whoami` → `polinni`、`npm profile get` → **exit 0**（`two-factor auth: auth-and-writes`，
-> 发布时会要 OTP），旧 token 备份在 `~/.npmrc.bak-*`（**前缀与 token 清单见 §5.1，不要贴整串**）。
-> 仓库侧已备 `.github/workflows/publish-npm.yml`（OIDC trusted publishing，推 `v*` tag 即发布）；
-> npm 侧的四项 Trusted Publisher 配置与 Allowed actions 两个复选框（`Allow npm publish` +
-> `Allow npm dist-tag`，**都默认不勾**）**只有维护者能在浏览器里点**，
-> 配好之前就在本地按 `docs/RELEASE.md` §5.1 发布。**产品内容、包名与版本号都不动**；条款时间线与
-> 备选方案（staged publishing）见 `docs/RELEASE.md` §5.2–§5.4。
->
-> **npm 侧已于 2026-10-03 配好并验证**：用已发布版本号触发的功能探针这次红在 **`EPUBLISHCONFLICT`**
-> （`cannot publish over the previously published versions`）而不是 `ENEEDAUTH` —— 说明 OIDC 兑换成功、
-> trusted publisher 已生效（同一天更早的那次还是 `ENEEDAUTH`；那两条红 run 已在当天从 Actions 删除，
-> 这条 workflow 现在只剩一条绿色 run，经过见 `docs/RELEASE.md` §5.2b / §6.0.5）。
-> **以后发版 = 改版本号 + 提交 + 打 tag + 推 tag**，workflow 自己跑闸门、发布、
-> 并把 `beta` 指到同一版；本地不再需要任何 npm 凭证。dist-tag 权限（`Allow npm dist-tag`）**只能在网页上勾**：
-> `npm trust github` 只有 `--allow-publish` / `--allow-stage-publish` 两个开关，建出来就没有它，而字段建好不能改。
-> **2026-10-03 起版本已在 npm 上时不再红**：workflow 会跳过 publish 与 dist-tag，改成一条黄色通知（run 绿）；
-> 要专门验 OIDC 就用 `-f probe=true`（拿已发布过的版本号故意发一次请求，「版本已存在」的拒绝即判通过）。
-> 判据表见 `docs/RELEASE.md` §5.2b。
->
-> **2026-10-03 实测更正：那张 web-login token 已经失效**（`https://registry.npmjs.org/-/whoami` → **401**），
-> `0.9.2` 最后是用**备份里的旧 GAT** 发布的（`~/.npmrc.bak-before-2fa-login-20261002-2137`：`whoami` → 200，
-> 账户级 `/-/npm/v1/user` → 403）——它到 2027-01 前仍能直接 publish。使用时把 token 写进临时 userconfig
-> （`--userconfig=<600 的临时文件>`），**不要覆盖 `~/.npmrc`**。**每次发布前先 `npm whoami`，401 就重新
-> `npm login --auth-type=web`**（§5.1）。完整经过见 `docs/RELEASE.md` §6.0.5。
+> **发布通道（现行口径）**：推 `v*` tag 触发 `.github/workflows/publish-npm.yml`（OIDC trusted publishing），workflow 自己跑闸门、发布、并把 `beta` 指到同一版 —— **本地不需要任何 npm 凭证**。
+> 凭证台账、token 失效经过、dist-tag 权限只能网页勾、用 `-f probe=true` 验 OIDC 的判据表 —— **全在 `docs/RELEASE.md` §5.1 / §5.2b / §6.0.x**，本文件不再复述。
+> **每次发布前先 `npm whoami`**：回 401 就按 `docs/RELEASE.md` §5.1 重新 `npm login --auth-type=web`。
 
 ---
 
@@ -120,7 +74,7 @@ v0.6 之后的三轮改动都有一条同样的判据：**界面上说的每一�
    - 查历史规格 → `docs/archive/`（**是历史，不是权威**）
    - 要发版 → `docs/RELEASE.md`（**照做，不要凭记忆**）
 
-> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**`1.3.0` 发布口径 690 项**；`1.2.0` 是 662 项，`1.1.0` 是 643 项，`1.0.0` 是 636 项。必须全绿）。
+> 只改代码的话，最少读 **1 → 3**。改之前先 `npm test`（**`1.4.0` 发布口径 740 项**；`1.3.0` 是 690 项，`1.2.0` 是 662 项，`1.1.0` 是 643 项，`1.0.0` 是 636 项。必须全绿）。
 
 ---
 
@@ -184,7 +138,7 @@ curl -s "http://127.0.0.1:3080/skill-trace/catalog?sessionId=probe"
 
 ### 6.3 守卫是合同，不是文档
 
-`npm run verify` 的 39 组断言全是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**改文案或挪组件都可能让守卫红**，这是设计而不是阻碍——每一条红都对应一次真实事故。
+`npm run verify` 的 **40 组**断言全是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**改文案或挪组件都可能让守卫红**，这是设计而不是阻碍——每一条红都对应一次真实事故。
 
 守卫的写法有两条纪律，改守卫时同样适用：
 
@@ -221,12 +175,13 @@ export default …               // ✗ 降级器直接抛错
 export { a, b }                // ✗
 ```
 
-所以**新的 core 模块要么无依赖，要么只用单行具名 import**。当前客户端 require 的是**十支**：
+所以**新的 core 模块要么无依赖，要么只用单行具名 import**。当前客户端 require 的是**十一支**：
 `installed-view.mjs` / `translation-cache.mjs` / `markdown-table.mjs` / `skill-clone.mjs` /
 `flow-evidence.mjs` / `skill-framework.mjs` / `skill-runtime-logic.mjs` / `skill-instance-test.mjs` /
 `skill-evaluation.mjs` /
-`skill-evidence.mjs`。
-（`skill-clone.mjs` 是 v0.7 加的第七支；`skill-instance-test.mjs` 是 V0.10.0 加的第八支；`skill-evaluation.mjs` 是 V1.0 加的**第九支**（`1.0.0` 起）——它唯一的一行 `import` 是 `./skill-instance-test.mjs`，同样**零依赖纯函数**。`skill-evidence.mjs` 是 V1.2 加的**第十支**（`1.2.0` 起，零依赖纯函数）——证据模型必须能被客户端读，而它恰好零 import。守卫会数 `require('../../core/…')` 的总数必须恰好是 **10**。本文此前写过「六支」「七支」「八支」。）
+`skill-evidence.mjs` /
+`skill-trigger-evaluation.mjs`。
+（`skill-clone.mjs` 是 v0.7 加的第七支；`skill-instance-test.mjs` 是 V0.10.0 加的第八支；`skill-evaluation.mjs` 是 V1.0 加的**第九支**（`1.0.0` 起）——它唯一的一行 `import` 是 `./skill-instance-test.mjs`，同样**零依赖纯函数**。`skill-evidence.mjs` 是 V1.2 加的**第十支**（`1.2.0` 起，零依赖纯函数）——证据模型必须能被客户端读，而它恰好零 import。`skill-trigger-evaluation.mjs` 是 V1.4 加的**第十一支**（`1.4.0` 起，零依赖纯函数、零 `import`）——触发三态与对照四态的词表必须有**一个**来源，界面不许自己现写一套。守卫会数 `require('../../core/…')` 的总数必须恰好是 **11**。本文此前写过「六支」「七支」「八支」「十支」。）
 **能不能被客户端读，不该取决于它恰好有几个依赖。**
 
 ### 6.7 证据词表：禁用词只能来自模块常量
@@ -371,8 +326,8 @@ SKILL.md → Definition → Framework → 声明流程 → 运行证据只能标
 cd "$(git rev-parse --show-toplevel)"   # 仓库根（本仓库根就是插件包根）
 
 node --check src/dsh/client/client.js   # 改过 CSS/客户端源码先过这一关
-npm test                                # 必须 690 全绿（pretest 会重建 dist）
-npm run verify                          # 必须 39 组 OK
+npm test                                # 必须 740 全绿（pretest 会重建 dist）
+npm run verify                          # 必须 40 组 OK
 ```
 
 改界面的，再加一层：`01_重构方案/render-harness/`（本地，不发布）用**真实客户端 bundle + 真实会话载荷**截图核对。
@@ -436,8 +391,11 @@ npm run verify                          # 必须 39 组 OK
 | `test/phase2-false-relations.test.mjs` / `phase3-alignment` / `phase9-skill-runtime-scope` | 证据与对齐的**不许乱认关系** |
 | `test/skill-evidence.test.mjs` | V1.2 证据模型：三态 / 四段链 / 五类对象 / 漂移三态 / 限制词表 / 可重放 id / 导出稳定与禁止键（13 项） |
 | `test/skill-review.test.mjs` | V1.3 只读审查包：包结构与字段、`render ≤ 6000` 码点与如实降级、禁止键递归断言、三态与不给分（14 项） |
+| `test/skill-trigger-evaluation.test.mjs` | V1.4 触发评测纯函数层：身份域与「哈希输入不含指纹」/ 观察三态 / 覆盖三态的合取 / 对照四态与三条降级 / 限制封闭词表 / 证据引用不含会话标识（30 项） |
+| `test/trigger-evaluation-route.test.mjs` | V1.4 路由缝：`caseId` 由宿主算、**浏览器提交的观察不算数**、显式调用降级、`not-observed` 的两个前提、落盘无会话标识、动作名不认识（10 项） |
+| `test/trigger-evaluation-store.test.mjs` | V1.4 落盘面：`trigger-suites/` 与 `trigger-runs/` 隔离、禁字段深扫、三态与限制闭集拒收、fail-soft、上限、删用例带走观察（7 项） |
 | `test/skill-review-tool.test.mjs` | V1.3 工具面：宿主 `ctx.inject(['tools'], …)` 注册、只读边界、失败返回信封、第二条引导通道（`systemPrompt.section` 随工具可见性同生共死）（14 项） |
-| `scripts/verify-project.mjs` | 39 组源码文本守卫（第 39 组 `SKILL_REVIEW_TOOL_OK` 是 V1.3 加的；见 §6.3；第 31 组 `SKILL_STANDARD_ALIGNMENT_OK` 是 V1.1 加的，第 32–38 组是 V1.2 的 7 条 `SKILL_EVIDENCE_*`） |
+| `scripts/verify-project.mjs` | **40 组**源码文本守卫（见 §6.3）。V1.4 加第 40 组 `SKILL_TRIGGER_EVALUATION_OK`；V1.3 加第 39 组 `SKILL_REVIEW_TOOL_OK`；V1.2 加第 32–38 组 `SKILL_EVIDENCE_*`；V1.1 加第 31 组 `SKILL_STANDARD_ALIGNMENT_OK`。**逐组含义看源码，本文不复述** |
 
 ---
 
@@ -470,8 +428,8 @@ npm run verify                          # 必须 39 组 OK
 │   └── publish-npm.yml       ← npm 发布（OIDC trusted publishing，见 docs/RELEASE.md §5.2）
 ├── scripts/
 │   ├── build-client.mjs      ← esbuild 打包
-│   └── verify-project.mjs    ← 39 组守卫
-├── test/                     ← 690 项
+│   └── verify-project.mjs    ← 40 组守卫
+├── test/                     ← 740 项
 └── 01_重构方案/              ← 本地过程目录，**.gitignore 排除，不发布**（入口：其中 `README.md`）
 ```
 
@@ -499,41 +457,9 @@ npm run verify                          # 必须 39 组 OK
 
 ## 附录 A：发布到 GitHub 的完整顺序
 
-`docs/RELEASE.md` 是权威版本，这里只记**顺序**和**踩过的坑**：
+**权威版本是 `docs/RELEASE.md`** —— 这里不再重抄命令：怎么跑闸门、§2–§4 的版本串与 tag/push 配方、§5 的 npm 通道（OIDC / trusted publisher / token 台账）、§6.0 的发布后回填与实测判据，都以它为准。
 
-```bash
-cd "$(git rev-parse --show-toplevel)"   # 仓库根（本仓库根就是插件包根）
-
-# 1. 三处版本号必须逐字相同：package.json / README「当前公开版为」/ CHANGELOG 标题
-git status --porcelain
-node scripts/build-client.mjs
-npm test && npm run verify
-
-# 2. tag 名 = package.json 的版本（带 v 前缀），打在 main 顶端
-git add -A && git commit -m "release: vX.Y.Z — 一句话主题"
-git tag -a vX.Y.Z -m "vX.Y.Z"
-
-# 3. 推送；HTTP2 framing 报错时降级重试，不要换通道
-git push origin main && git push origin vX.Y.Z
-#    直连失败（本机 2026-10-05 实测：Failed to connect to github.com port 443）：先挑当天可达的 IP，
-#    再用降级配方；IP 会换人，每次发布前重新挑一次。
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:<可达 IP> push origin main
-git -c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:<可达 IP> push origin vX.Y.Z
-
-# 4. 回读核对
-git rev-parse origin/main && git ls-remote origin refs/tags/vX.Y.Z
-```
-
-- **`RELEASE_ASSETS_IN_SYNC_OK` 会钉住** README 的「当前公开版为 `x`」与 `github:` 安装示例的 `#vx` 锚点。曾经 README 落后 49 个版本。
-- **npm 安装示例锚定的是 npm 上真实存在的版本。** 发版前 README 必须**明说还没发布**（`0.7.0` 发版前就是这个状态：`beta` 与 `latest` 都指向 `0.6.1`，`v0.7.0` 的 tag 也没推，安装小节写着「发版前这条命令取不到东西」）。**换成已发布口径的那次提交，必须排在 `npm publish` 之前** —— npm 包页渲染的 README 是发布当时那份快照，反过来做的代价是包页带着一句「尚未发布」活到下一版（`0.4.0-beta.64` 那次就是这样）。发布范围历来不一致：`0.5.0` / `0.6.0` 只在 GitHub，`0.6.1` 与 `0.7.0` 是 GitHub + npm。
-- **`npm publish` 从本地 `git HEAD` 读 `gitHead`。** 先发后推、或用 Git-data API 推（会生成不同 sha）会留下**永远 404** 的 commit 链接。**顺序是硬规则：先推成功 → 确认本地/远端对齐 → 最后才 publish。**
-- **tag 打在发布提交上**（推送时 `main` 的顶端）。历史上 `bc78e53` 的 tag 落在 `HEAD` 之前 9 个提交处，照 commit message 找位置会漏掉之后 9 个提交。
-- GitHub Release 的正文**直接从 CHANGELOG 取**，不要另写一份——两份说明一定会漂移。
-- **推送失败先排查「哪个 IP 通」，不要换通道。** `git push` 直连会 `Failed to connect to github.com port 443 after 75005 ms`；
-  `-c http.version=HTTP/1.1 -c http.curloptResolve=github.com:443:<ip>` 能把连接钉到某个 GitHub IP，但**同一个 IP 的推送结果会变**：
-  本机 2026-10-05 实测 `140.82.113.4` 第一次 `Recv failure: Operation timed out`、稍后同 IP 一次成功，`140.82.114.4` / `140.82.121.4` 是
-  `Empty reply from server`，`140.82.112.3` 是 `SSL connection timeout`。**先用 `git ls-remote`（读操作，比 push 宽容）逐个 IP 试，挑通的那个再 push**；
-  `github.com` 的 IP 是 Anycast、会换人，所以**不要把这几个 IP 写死成常驻配置**。`gh`（api.github.com）通常不受影响，可以照常用。
+只留两条最容易出事的：**（1）三处版本号必须逐字相同**（`package.json` / README「当前公开版为」/ `CHANGELOG` 标题），**先跑 `check-version-consistency` 再提交**；**（2）「发布完成」的判据是 tarball 真的能下**（`curl -s -o /dev/null -w '%{http_code}'`），不是 CI 绿。
 
 ## 附录 B：客户端路径在启动时解析，文件在请求时读取
 

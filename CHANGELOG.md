@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.4.0 — 2026-10-12 · Skill 触发评测（`FR-TRIG-*`）
+
+**这一版做一件事：把「这个 Skill 该在什么任务里被加载」变成可复测的观察。** 在既有的「Skill 评测」模块里多一个「**触发边界**」模式：用户维护一组正向（应触发）与负向（不应触发）的提示词，在真实新会话里把它们交给 Agent，再回来**记录这一次观察**。插件只看一件事 —— 目标 Skill 的加载记录出现过吗，是 `model-invoked` 还是 `user-explicit`。
+
+**三条边界就是这一版的产品定义**：**不跑测试**（不建会话、不发提示词、不启动第二个 Agent、不调模型）· **不判定**（观察状态 / 调用方式 / 事件覆盖全由宿主从收据与日志推出来，浏览器提交的结论一个字节都不算）· **不聚合**（没有总分、通过率、排行、趋势）。**不新增路由 / 页面 / 依赖**：全部动作挂在既有的第 13 条 `POST /skill-trace/evaluation` 上，界面只加一个模式，不新增详情模块。
+
+**发布实测（`1.4.0` 发布口径，2026-10-12）**：`npm test` **740 项全绿** · `npm run verify` **40 组 OK**（第 40 组是 `SKILL_TRIGGER_EVALUATION_OK`）· 客户端 `src/dsh/client/client.js` **5906 行** · bundle `dist/client.js` **325620 字节**（source hash `c272c34814bced72`） · `src/core/` **35 个模块 / 14634 行**（新增 `skill-trigger-evaluation.mjs`，零 `import`） · `src/storage/` **8 个 / 1704 行**（新增 `trigger-evaluation-store.mjs`） · 宿主 `src/dsh/host/index.js` **2135 行 / 13 条路由**（路由一字未增） · 客户端 `require` 由十支变 **十一支**。
+
+### A. 触发用例与触发观察（core + storage）
+
+- **新增 `src/core/skill-trigger-evaluation.mjs`**（零 `import` 纯函数层）：触发用例身份、观察三态、覆盖三态、对照四态、限制封闭词表、两次 Run 的可比性。哈希一律由宿主算（与 V1.0 的 `caseId` 同一条约定）——这一层不引 `node:crypto`、不读时间、不掷骰子。
+- **`caseId` 里有独立域 `dsh-skill-trigger-case`，且刻意不含 Skill 指纹**（`FR-TRIG-005`，与 V1.0 相反）。这是这一版能「改完 `description` 还用同一组用例复测」的前提；指纹改绑到**每一次 Run** 上。
+- **新增 `src/storage/trigger-evaluation-store.mjs`**：`<dataRoot>/evaluation/trigger-suites/` 与 `trigger-runs/`（与 V1.0 的 `cases/` / `runs/` **分开** —— 两套身份混在一个目录里迟早被代码混用）；`0700` / `0600` / 原子写；**禁字段清单沿用 `EVALUATION_FORBIDDEN_FIELDS` 那一份**；认不出的三态值与限制 id **直接拒收**（`unknown-limitation:<id>`）；读取端 fail-soft。
+- **限制项是封闭词表**，界面按 id 取文案；**证据引用不含会话标识**（`trigger-evidence:sha256:<hex>`，只含匹配到的加载事实）。
+
+### B. 覆盖：读取层必须如实报读数（`FR-TRIG-013`）
+
+- **`src/core/session-log.mjs` 补了一份诚实的覆盖读数**：`framesDecoded` / `framesSkipped` / `frameLimitHit` / `linesSkipped` / `linesNonEvent` / `tornTail` / `oversized` / `unreadable`。改造前这几样**全是静默跳过**：帧解不开就丢、超过 4096 帧就截尾、超 512MB 的文件直接当「没有日志」、撕裂的行当不存在。于是「我读不到」与「它本来就没有」分不开 —— 而这一版恰恰要靠「没读到」说话。
+- **实测（本机 330 个真实会话）**：`complete` **305** / `partial` **13** / `unknown` **12**；那 13 个**全部命中 4096 帧上限**。也就是说，旧读取层会在 **3.9%** 的真实会话上静默截掉尾巴、却报成「读全了」，足以伪造一次假的「未观察到加载」。
+- **`complete` 是有前提的合取**：文件在 · 读得到 · 没被跳过 · 没命中帧上限 · 没有一个帧解码失败 · 没有非法行 · 没有撕裂尾行。**一点都没读到 ⇒ `unknown`，不是 `partial`**（写成 `partial` 会让人以为读到了一点）。活会话的事实来自内存事件流，对「到此刻为止」是完整的。
+- **不趁机改「保留最早的还是最新的 4096 帧」**：本版只如实报告这件事，那是另一件事、要有自己的证据。
+
+### C. 宿主动作：观察由事实推出，不由浏览器提交（`FR-TRIG-019`）
+
+- 第 13 条路由新增五个动作：`trigger-case-save` / `trigger-case-list` / `trigger-case-read` / `trigger-case-delete` / `trigger-run-capture`。**路由数仍是 13。**
+- **请求体里写 `observation: 'loaded'` 不会改变落盘记录一个字节** —— 加载事实、调用方式、覆盖状态全部由宿主从收据与会话日志里取；客户端能提交的只有 `caseId`、要读哪个会话、以及「这是新会话」这句**用户声明**。守卫按字面钉住这条缝（宿主不许出现 `payload.observation`；客户端提交的 body 里不许出现 `observation:`）。
+- **显式 `/name` 调用是一条加载记录，但不是自然触发**：`invocationType: 'user-explicit'` 一律降级 `inconclusive`。
+- **`sessionId` 只作为读取参数，不落盘**（落盘层深扫 `sessionId` 并拒收）。
+
+### D. `description` 指纹必须对未截断的原文取摘要（`FR-TRIG-009`）
+
+- **新增 `source-snapshot.mjs` 的 `descriptionFingerprint()`**（带域前缀 `dsh-skill-description`，只把连续空白收成一个空格、**不截断**），经 `buildSkillDefinitionView().summary.descriptionSha256` 暴露；**只外发哈希，不外发原文**。
+- 为什么必须这样：显示用的 `description` 被截到 500 字，拿它做指纹会把第 500 字以后的改动全部抹掉 —— 两份不同的 description 得到同一个「指纹」，界面就会宣称「description 没变」。**用截断值冒充相等**是这一版最不能出的错。
+
+### E. 界面：同一个模块里的第二个模式（客户端）
+
+- 「Skill 评测」里加一条模式条：**任务效果**（原有内容，仍是默认）/ **触发边界**。**不新增模块、不新增页面**，导航里那一格没变。
+- 触发边界那一屏：四句固定说明句（从纯函数层取，客户端不再写一份）+ 三态解释 + 用例清单与计数 + 用例详情（提示词可复制、编辑、删除）+ 「记录本次观察」（含「这是新会话」声明）+ 最近一次观察的状态 / 调用方式 / 覆盖 / 指纹 / 限制 + 逐条 Run 历史 + 两次 Run 的可比性（条件不一致时逐项列出差异并阻断归因）+ 「一次测试应该怎么跑」三步。
+- **文案一个都不自己写**：三态、调用方式、覆盖、限制、字段抬头全部取自 `src/core/skill-trigger-evaluation.mjs`（客户端 `require` 由十支变十一支）。
+- 提示词超长时**拒绝保存并说明原因**，不静默截断（`FR-TRIG-006`）。
+
+### F. 反复踩过的两处
+
+- **hook 不许排在提前 `return` 之后。** 第一版把触发边界的 `useEffect` 写在 `SkillDetailPage` 的提前 return 之后，`test/client-hook-order.test.mjs` 立刻抓到（`conversation.view` 没有错误边界，这会整栏白屏）。已移回 hook 组。
+- **守卫红了先问「是代码错了还是守卫该改」。** 两次都是前者：一是重构读取层时改了变量名，把守卫钉的那行「逐帧解码」改没了（**改回源码，不动守卫**）；二是界面词表 —— 触发边界的说明文案里出现「已加载」，撞上 §6.7「观察不到证据就不许说任何『已…』」，**改文案**。真正需要更新守卫的只有两处：`evaluation` 那一维的接线从字面变成三目（按意图改，并顺手钉得更强）、以及客户端核心 `require` 10 → 11 的白名单。
+
+### G. 判定：这一版**不做**的
+
+- **不自动执行测试**：不建会话、不提交提示词、不启动第二个 Agent、不调模型。
+- **不评分、不排名、不产出任何汇总口径**。
+- **不用模型判断「应该触发」**：期望类别只能由用户维护。
+- **不把「没有观察到」当「没有触发」**；没有加载记录永远不能自动升级成失败结论。
+- **不落盘 `sessionId` / 完整对话 / 工具参数与结果 / 绝对路径**。
+- **不新增一级页面、不重做详情 IA、不新增依赖**（`dependencies` 仍为空）。
+
+### H. 文档与验收（已同步的八处 + 剩下的一件事）
+
+**已按 `AGENTS.md` §9.1 同步**：`AGENTS.md`（头部追记 + §1 全部状态行 + §6.6 的 `require` 十支 → 十一支 + §3/§6.3/§9 的测试与守卫数）· `README.md`（工作版本声明 + V1.4 段 + 版本史）· `spec/PRD.md`（头部工作版本 + 新增 §5.15 的 `FR-TRIG-001`–`020` + 三处**已经过时**的「Trigger Evaluation 一行代码都还没写」措辞已按事实改准）· `spec/SDD.md`（头部工作版本 + §0.1 的 `D19` + §9.2 模块数与 storage 数 + §13/§14.1 的守卫与测试数 + **新增 §23**）· `docs/ARCHITECTURE.md`（**新增 `## V1.4` 段与 `Worktree numbers`**）· `design.md`（v4.6 → **v4.7** + 实现入口行）· `docs/PRIVACY.md`（**新增 `## What the Skill trigger evaluation feature stores`**）· `package.json`（`1.4.0`）。
+
+**剩下的一件事：真机走查**（`AGENTS.md` §6.2：宿主半边改了必须重启 DSH）。重启后进任意 Skill 详情 →「Skill 评测」→ 切到「触发边界」，应看到四句固定说明句与「＋ 新建测试用例」；要跑通一次观察需要**用户自己**在一个新会话里提交一条提示词（插件不会替他发），然后回到这一屏点「记录到本机」。另需看深 / 浅色与窄窗口。
+
 ## 1.3.0 — 2026-10-11 · Agent 可调用的只读 Skill 审查（`skill_review`）
 
 **这一版做一件事：把一条模型可见的只读工具交给 Agent。** 它只读 —— 不加载 Skill、不执行 `scripts/`、不写任何文件、不调模型；不给分、不排名、不做 benchmark；三态仍只有 `declared` / `observed` / `unavailable`（**没有 `inferred`**）。**不新增路由 / 页面 / 落盘 / 依赖**，客户端与 `dist/client.js` 一字未改。

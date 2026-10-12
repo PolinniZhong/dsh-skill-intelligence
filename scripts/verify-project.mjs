@@ -1105,7 +1105,9 @@ console.log('VISUAL_TOKENS_OK')
     framework: '[framework]',
     'evidence-model': '[skillEvidence]',
     validation: '[h(SkillValidationPanel, { validation, validationFieldMissing })]',
-    evaluation: '[skillEvaluation]',
+    // V1.4：`evaluation` 这一维多了「触发边界」模式，但它**不是**新模块、也**不许**把原来的
+    // 任务效果那一半挤掉 —— 两个模式接在同一个模块上：模式条 + 二选一。
+    evaluation: "[evaluationModeBar, evaluationMode === 'trigger' ? triggerBoundary : skillEvaluation]",
     evidence: '[stepEvidence]',
     runtime: '[runtimeLogic]',
     modification: 'hasModification ? [skillModification] : []',
@@ -1117,6 +1119,18 @@ console.log('VISUAL_TOKENS_OK')
     // 两种写法都得认 —— 只认裸写的那个，会让一个**真的接上线了**的模块报成「没接上」。
     if (!client.includes(`${id}: ${body}`) && !client.includes(`'${id}': ${body}`)) {
       throw new Error(`v1.1 §三：详情模块 ${id} 必须接上它自己的内容（${body}）—— 模块提取不是功能删除`)
+    }
+  }
+  // V1.4 §Phase 4：两个模式都必须真的接上。只钉住上面那一行字面还不够 —— 把模式条删掉、
+  // 或者把 `triggerBoundary` 换成 `null`，字面一样能写出来。所以这里分别钉住三样东西：
+  // 模式条、触发边界那一屏、以及**默认停在「任务效果」**（多一个模式不该改变默认视野）。
+  for (const requiredText of [
+    "const evaluationModeBar = h('div'",
+    'const triggerBoundary = h(SkillTriggerBoundary',
+    "const [evaluationMode, setEvaluationMode] = React.useState('effect')",
+  ]) {
+    if (!client.includes(requiredText)) {
+      throw new Error(`v1.4：Skill 评测的两个模式必须都接上（缺 ${requiredText}）`)
     }
   }
   // 没有修改事务时「本次修改对比」整块不存在（§9.2 老规矩：常驻的空卡会被读成一种状态）。
@@ -2440,12 +2454,17 @@ console.log('VISUAL_TOKENS_OK')
   // V1.2：证据模块（`src/core/skill-evidence.mjs`）是第十支。这个数字是**白名单**，不是计数
   // 游戏：每多一支都要在这里显式加一次，否则「客户端悄悄多 require 了一支」与「一切正常」
   // 长得一模一样。它同样是零依赖纯函数层，且必须与服务端同一个文件。
+  // V1.4：触发评测（`src/core/skill-trigger-evaluation.mjs`）是第十一支，理由同上 ——
+  // 三态词表、对照四态与限制文案都只能有**一个**来源，界面不许自己现写一套。
   const coreRequires = client.match(/require\('\.\.\/\.\.\/core\/[^']+'\)/g) ?? []
-  if (coreRequires.length !== 10) {
-    throw new Error(`客户端只允许 require 十支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
+  if (coreRequires.length !== 11) {
+    throw new Error(`客户端只允许 require 十一支核心模块，实际 ${coreRequires.length} 支：${coreRequires.join(' ')}`)
   }
   if (!coreRequires.some((entry) => entry.includes('skill-evidence.mjs'))) {
     throw new Error('V1.2：客户端必须从 src/core/skill-evidence.mjs 取证据模型，不能在组件里另算一套')
+  }
+  if (!coreRequires.some((entry) => entry.includes('skill-trigger-evaluation.mjs'))) {
+    throw new Error('V1.4：客户端必须从 src/core/skill-trigger-evaluation.mjs 取三态与词表，不能在组件里另算一套')
   }
 
   // 8. 本版的名字是「实例验收」：界面与模块里不许留下被禁用的产品名。
@@ -3148,6 +3167,128 @@ console.log('VISUAL_TOKENS_OK')
   }
 
   console.log('SKILL_REVIEW_TOOL_OK')
+}
+
+// --- V1.4「Skill 触发评测」：只观察，不跑、不判、不聚合 -------------------------------
+//
+// 这一版最容易出的错不是「少画了一张卡」，而是**越权**：替用户跑测试、替模型判定
+// 「应该触发」、或者把「没读到」说成「没触发」。所以下面钉的每一条都是**边界**，
+// 其中两条是反向的：宿主不许接收浏览器提交的观察结论，客户端也不许提交它。
+{
+  const triggerCore = await readFile(resolve(root, 'src/core/skill-trigger-evaluation.mjs'), 'utf8')
+  const triggerStore = await readFile(resolve(root, 'src/storage/trigger-evaluation-store.mjs'), 'utf8')
+  // 注释不是代码：反向断言（「宿主不许读 payload.observation」）必须看不见注释里的举例，
+  // 否则一句解释性的注释就能让它红，而真正读字段的那行照样绿。
+  const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const hostCode = stripComments(host)
+
+  // 1. 纯函数层必须真的是纯的：零 import（客户端要 require 它），且不自己哈希、不读时间、不掷骰子。
+  for (const forbidden of ["from '", 'require(', 'createHash', 'Date.now', 'Math.random', 'randomUUID', 'readFile']) {
+    if (triggerCore.includes(forbidden)) {
+      throw new Error(`触发评测的纯函数层不许出现「${forbidden}」：哈希与 I/O 都归宿主层`)
+    }
+  }
+
+  // 2. 身份：独立的域，且**不含** Skill 指纹 —— 否则改完 description 就再也复测不了同一组用例。
+  if (!triggerCore.includes("export const TRIGGER_CASE_HASH_DOMAIN = 'dsh-skill-trigger-case'")) {
+    throw new Error('触发用例的身份必须有自己的哈希域（dsh-skill-trigger-case）')
+  }
+  const hashInputBody = triggerCore.slice(
+    triggerCore.indexOf('export function triggerCaseHashInput'),
+    triggerCore.indexOf('export function buildTriggerCase'),
+  )
+  if (/Fingerprint|fingerprint/.test(hashInputBody)) {
+    throw new Error('触发用例的哈希输入里不许出现指纹：改完 description 必须还能复测同一组用例')
+  }
+  if (!hashInputBody.includes('expected:') || !hashInputBody.includes('prompt:')) {
+    throw new Error('触发用例的身份必须由期望行为与提示词共同决定')
+  }
+
+  // 3. 三态与词表：封闭、且不许把「没读到」说成「没触发」。
+  for (const needle of [
+    "export const TRIGGER_OBSERVATION_IDS = ['loaded', 'not-observed', 'unknown']",
+    "export const TRIGGER_OUTCOME_IDS = [",
+    'export const TRIGGER_LIMITATION_LABELS = {',
+    'export const TRIGGER_FIXED_SENTENCES = [',
+    'export const TRIGGER_FORBIDDEN_WORDS = [',
+    'export function triggerObservationOf',
+    'export function triggerCoverageOf',
+    'export function triggerOutcomeOf',
+    'export function normalizeTriggerRun',
+    'export function triggerEvidenceHashInput',
+    'export function compareTriggerRuns',
+  ]) {
+    if (!triggerCore.includes(needle)) throw new Error(`V1.4 纯函数层缺少「${needle}」`)
+  }
+  // 显式调用永远不算自然触发（`FR-TRIG-012` 的第①条）。
+  if (!triggerCore.includes("if (invocationType === 'user-explicit') return 'inconclusive'")) {
+    throw new Error('显式 /name 调用必须降级成 inconclusive：它测的不是自动触发边界')
+  }
+  // 覆盖判定必须看得到读取层的每一个读数 —— 少看一个，「读不全」就会被当成「读全了」。
+  const coverageFn = triggerCore.slice(triggerCore.indexOf('export function triggerCoverageOf'), triggerCore.indexOf('export function triggerOutcomeOf'))
+  for (const needle of ['unreadable', 'oversized', 'frameLimitHit', 'framesSkipped', 'linesSkipped', 'tornTail', 'bytes']) {
+    if (!coverageFn.includes(needle)) throw new Error(`覆盖判定必须读「${needle}」：否则读不全会被当成读全了`)
+  }
+  // 不聚合：这一层不许产出任何汇总口径的字段名。
+  for (const banned of ['passRate', 'ranking', 'trend', 'variance']) {
+    if (triggerCore.includes(`${banned}:`)) throw new Error(`触发评测不许产出聚合口径「${banned}」`)
+  }
+
+  // 4. 读取层必须如实报读数（V1.4 新增，改之前这些是全静默跳过的）。
+  for (const needle of ['framesSkipped', 'frameLimitHit', 'linesSkipped', 'tornTail', 'oversized', 'unreadable', 'read:']) {
+    if (!sessionLog.includes(needle)) throw new Error(`会话日志读取层必须报告「${needle}」：缺了它，读不全与没写过就分不开`)
+  }
+
+  // 5. 落盘：与 V1.0 的两套目录分开；禁字段清单**沿用同一份**；认不出的词表值拒收。
+  if (!triggerStore.includes("'trigger-suites'") || !triggerStore.includes("'trigger-runs'")) {
+    throw new Error('触发用例与观察必须落在 trigger-suites / trigger-runs 两个独立目录里')
+  }
+  if (!triggerStore.includes('EVALUATION_FORBIDDEN_FIELDS')) {
+    throw new Error('禁字段清单必须沿用 evaluation-store 那一份：抄一份迟早会有一边过期')
+  }
+  for (const needle of ['unknown-limitation:', 'invalid-observation', 'invalid-invocation-type', 'invalid-coverage', 'invalid-fresh-session', '0o700', '0o600']) {
+    if (!triggerStore.includes(needle)) throw new Error(`触发落盘层缺少「${needle}」`)
+  }
+
+  // 6. 宿主：五个动作都挂在**同一条**既有路由上，且事实只从收据与日志来。
+  for (const action of ['trigger-case-save', 'trigger-case-list', 'trigger-case-read', 'trigger-case-delete', 'trigger-run-capture']) {
+    if (!hostCode.includes(`'${action}'`)) throw new Error(`宿主的评测路由缺少动作「${action}」`)
+  }
+  for (const needle of ['triggerObservationOf(', 'triggerCoverageOf(sessionRead)', 'readSessionEvents(targetSessionId)', 'triggerEvidenceHashInput(']) {
+    if (!hostCode.includes(needle)) throw new Error(`宿主的触发捕获没有从会话事实里取数：缺「${needle}」`)
+  }
+  // 反向：宿主**不许**读浏览器提交的观察结论。请求体里写 `observation: 'loaded'` 必须毫无作用。
+  if (hostCode.includes('payload.observation') || hostCode.includes('payload.invocationType') || hostCode.includes('payload.coverage')) {
+    throw new Error('宿主不许接收浏览器提交的观察结论：观察状态只能由收据与日志推出来')
+  }
+
+  // 7. 客户端：两个模式接在同一个模块上；文案取自纯函数层；且**不许**提交它推不出的结论。
+  for (const needle of ['function SkillTriggerBoundary', 'TRIGGER_OBSERVATION_LABELS', 'TRIGGER_FIXED_SENTENCES', 'TRIGGER_LIMITATION_LABELS', 'compareTriggerRuns(']) {
+    if (!client.includes(needle)) throw new Error(`客户端触发边界缺少「${needle}」`)
+  }
+  const captureAt = client.indexOf("evalPost('trigger-run-capture'")
+  if (captureAt < 0) throw new Error('客户端必须提交 trigger-run-capture')
+  const captureBody = client.slice(captureAt, captureAt + 420)
+  for (const forbidden of ['observation:', 'invocationType:', 'coverage:', 'outcome:']) {
+    if (captureBody.includes(forbidden)) {
+      throw new Error(`客户端不许提交「${forbidden}」——那是宿主从收据里推出来的，浏览器说了不算（§8.10）`)
+    }
+  }
+  if (!captureBody.includes('freshSession')) {
+    throw new Error('客户端必须显式提交「这是新会话」这句用户声明')
+  }
+  // 四句固定说明句只许有一个来源：纯函数层。客户端自己再抄一遍就是两个来源。
+  for (const sentence of (await import(new URL('../src/core/skill-trigger-evaluation.mjs', import.meta.url))).TRIGGER_FIXED_SENTENCES) {
+    if (client.includes(`'${sentence}'`) || client.includes(`"${sentence}"`)) {
+      throw new Error(`固定说明句「${sentence}」必须从纯函数层取，不许在客户端再写一份`)
+    }
+  }
+  // 这一版不许新增页面 / 模块：触发边界只能挂在既有的 `evaluation` 那一维里。
+  if (!client.includes("evaluationMode === 'trigger' ? triggerBoundary : skillEvaluation")) {
+    throw new Error('触发边界必须挂在既有的 Skill 评测模块里，不许另起一个详情模块')
+  }
+
+  console.log('SKILL_TRIGGER_EVALUATION_OK')
 }
 
 // --- 有断言的 marker 才算数 --------------------------------------------------------

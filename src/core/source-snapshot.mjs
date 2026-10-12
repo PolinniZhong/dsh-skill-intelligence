@@ -24,6 +24,31 @@ export function safeDescription(value) {
   return value.replace(/\s+/g, ' ').trim().slice(0, 500)
 }
 
+/**
+ * `description` 的指纹域（V1.4 `FR-TRIG-009`）。带域前缀是为了让这份摘要**只**能与
+ * `description` 比对，不会与正文摘要、源码摘要或别处的 sha256 撞语义。
+ */
+export const DESCRIPTION_FINGERPRINT_DOMAIN = 'dsh-skill-description'
+
+/**
+ * 给 `description` 算一个**不被截断**的指纹（V1.4 `FR-TRIG-009`）。
+ *
+ * 为什么不能直接哈希 `safeDescription()` 的结果：那个函数为了显示安全会 `slice(0, 500)`，
+ * 于是**第 500 字以后**的任何改动都哈希不到 —— 两份不同的 description 会得到同一个「指纹」，
+ * 界面就会宣称「description 没变」。这正是本项目最不能出的那种错：**用截断值冒充相等**。
+ *
+ * 这里哈希的是**未截断**的正文，只把连续空白收成一个空格（纯排版差异不算改动）。
+ * 排版差异被忽略、内容差异一定会被看见 —— 两个方向都是**保守**的。
+ *
+ * @returns `sha256:<hex>`，输入取不到时返回 `null`（缺就是缺，不给假指纹）。
+ */
+export function descriptionFingerprint(value) {
+  if (typeof value !== 'string') return null
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized) return null
+  return sha256(`${DESCRIPTION_FINGERPRINT_DOMAIN}\nv1\n${normalized}`)
+}
+
 export function safeProviderLabel(value) {
   return safeProvider(value)
 }

@@ -86,6 +86,17 @@ import {
 // （用户 2026-10-05 明确授权新增落盘），所以它必须出现在 `docs/PRIVACY.md` 里，
 // 目录权限、禁字段与原子写都写死在那份 storage 模块里。
 import { createEvaluationStore } from '../../storage/evaluation-store.mjs'
+// V1.4 §「触发评测」：触发用例与触发观察有自己的身份域与落盘目录（在同一个 evaluation 根下隔离），
+// 所以它有自己的 store —— 与 V1.0 那套共用一个文件会迟早把两种 `caseId` 混起来。
+import { createTriggerEvaluationStore } from '../../storage/trigger-evaluation-store.mjs'
+// V1.4 §「触发评测」：三态收敛、覆盖判定、逐条对照与限制词表全在这一层。
+// 宿主只做它才能做的事：选一个会话来读、从收据里取事实、算指纹与哈希。
+import {
+  normalizeTriggerRun,
+  triggerCoverageOf,
+  triggerEvidenceHashInput,
+  triggerObservationOf,
+} from '../../core/skill-trigger-evaluation.mjs'
 import {
   bodySha256,
   cloneTargetTaken,
@@ -519,6 +530,8 @@ export function apply(ctx, config = {}) {
     // V1.0 §22.7：评测的 Case 与 Run。跟着 `dataRoot` 走，与 receipts / translations / lineage
     // 同一套根目录约定；跨会话复用靠 `caseId` + `runId`，**不靠 sessionId**。
     const evaluationStore = createEvaluationStore(dataRoot ? join(dataRoot, 'evaluation') : undefined)
+    // V1.4 §「触发评测」：同一个 evaluation 根目录下的 `trigger-suites/` 与 `trigger-runs/`。
+    const triggerStore = createTriggerEvaluationStore(dataRoot ? join(dataRoot, 'evaluation') : undefined)
     const modificationStore = createModificationSnapshotStore()
     const cache = new Map()
     const { queues, enqueue, runMaintenance } = createSessionMutationQueue()
@@ -1094,6 +1107,126 @@ export function apply(ctx, config = {}) {
           const run = await evaluationStore.readRun(caseId, runId)
           if (!run) return fail(404, 'run-not-found', '本机没有这一次评测运行的记录，可能它已经被清理掉了。')
           return { status: 200, body: { ok: true, run } }
+        }
+
+        // ── V1.4 触发评测（`FR-TRIG-*`）────────────────────────────────────────────────
+        //
+        // 与 V1.0 同一套分工：宿主只算身份、只从**收据与日志**取事实、只落盘。
+        //
+        // 一条边界比 V1.0 更硬：**「这一次观察到什么」不由浏览器提交**。客户端能给的三样东西是
+        // `caseId`、要读哪个会话、以及「这是新会话」这句**用户声明**。加载事实、调用方式、
+        // 覆盖状态全部由宿主从会话事实里推出来 —— 浏览器说自己「已加载」不会改变任何一条。
+
+        if (action === 'trigger-case-save') {
+          const record = payload.case
+          const hashInput = typeof payload.hashInput === 'string' ? payload.hashInput : ''
+          if (!record || typeof record !== 'object' || Array.isArray(record)) {
+            throw new RequestError('这次请求没有带上要保存的触发用例。请在页面上重新填写后再试。')
+          }
+          if (!hashInput.trim()) {
+            throw new RequestError('这次请求没有带上触发用例的身份输入，无法算出它的身份。请在页面上重新填写后再试。')
+          }
+          const caseId = bodySha256(hashInput)
+          if (typeof record.caseId === 'string' && record.caseId && record.caseId !== caseId) {
+            throw new RequestError('这个触发用例的身份和它的内容对不上，先不保存 —— 页面上的内容可能已经变了。请重新填写。')
+          }
+          const saved = await triggerStore.saveCase({ ...record, caseId })
+          return { status: 200, body: { ok: true, caseId: saved.caseId, updatedAt: saved.updatedAt } }
+        }
+
+        if (action === 'trigger-case-list') {
+          const skillName = typeof payload.skillName === 'string' ? payload.skillName.trim() : ''
+          const { cases, warningCount } = await triggerStore.listCases(skillName || null)
+          const rows = []
+          for (const entry of cases) {
+            const { runs } = await triggerStore.listRuns(entry.caseId)
+            rows.push({
+              caseId: entry.caseId,
+              skillName: entry.skillName,
+              title: entry.title,
+              prompt: entry.prompt,
+              expectedTrigger: entry.expectedTrigger,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+              runCount: runs.length,
+              latestRun: runs[0] ?? null,
+            })
+          }
+          return { status: 200, body: { ok: true, cases: rows, warningCount } }
+        }
+
+        if (action === 'trigger-case-read') {
+          const caseId = requiredCaseId(payload.caseId)
+          const record = await triggerStore.readCase(caseId)
+          if (!record) return fail(404, 'trigger-case-not-found', '本机没有这一份触发用例，可能它已经被删掉了。')
+          const { runs, warningCount } = await triggerStore.listRuns(caseId)
+          return { status: 200, body: { ok: true, case: record, runs, warningCount } }
+        }
+
+        if (action === 'trigger-case-delete') {
+          const caseId = requiredCaseId(payload.caseId)
+          const { deleted, runsRemoved } = await triggerStore.deleteCase(caseId)
+          return { status: 200, body: { ok: true, caseId, deleted, runsRemoved } }
+        }
+
+        if (action === 'trigger-run-capture') {
+          const caseId = requiredCaseId(payload.caseId)
+          const record = await triggerStore.readCase(caseId)
+          if (!record) return fail(404, 'trigger-case-not-found', '本机没有这一份触发用例，可能它已经被删掉了。')
+          // 要观察哪个会话：默认就是发起这次请求的会话（用户正在那个新会话里记录观察），
+          // 也允许显式指定。两个都**只作为读取参数**，都不落盘。
+          const targetSessionId = requiredSessionId(
+            typeof payload.targetSessionId === 'string' && payload.targetSessionId.trim() !== '' ? payload.targetSessionId : sessionId,
+          )
+
+          const liveSession = webCtx.sessions.get(targetSessionId)
+          const live = liveSession !== undefined
+          // 活会话读内存事件流（没有帧、没有截断），历史会话读 durable 日志（带诚实读数）。
+          const sessionRead = live
+            ? {
+              found: true,
+              read: {
+                live: true, bytes: 0, frameCount: 0, framesDecoded: 0, framesSkipped: 0,
+                frameLimitHit: false, linesSkipped: 0, tornTail: false, oversized: false, unreadable: false,
+              },
+            }
+            : readSessionEvents(targetSessionId)
+          const events = live ? sessionEventLog(liveSession) : sessionRead.events
+          const coverage = triggerCoverageOf(sessionRead)
+
+          const receipt = await enqueue(targetSessionId, () => receiptForRuntime(targetSessionId))
+          const facts = receipt.traceEvents.filter((trace) => trace.skillName === record.skillName)
+          const { registry, liveAgent, cwd } = registryContext(targetSessionId)
+          const definition = await buildSkillDefinitionView(registry, record.skillName, { cwd, scope: liveAgent, now: Date.now() })
+          const definitionAvailable = definition?.available === true
+          const observation = triggerObservationOf({
+            traces: facts,
+            coverage,
+            skillName: record.skillName,
+            // 注册表里找不到这个 Skill 时，「没看到它的加载记录」不能归因到它身上 —— 身份对不上。
+            identityMismatch: !definitionAvailable,
+          })
+          const cursor = readRunCursor(events)
+          const conditions = readRunConditions(events, { untilSeq: cursor.seq ?? undefined })
+          const loadedFacts = facts.filter((trace) => trace.status === 'loaded')
+          const run = normalizeTriggerRun({
+            caseId,
+            expectedTrigger: record.expectedTrigger,
+            observedAt: Date.now(),
+            conditions: { ...conditions, pluginVersion: PLUGIN_VERSION },
+            observation: observation.observation,
+            invocationType: observation.invocationType,
+            coverage: observation.coverage,
+            // 「新会话」是用户的声明，不是插件观测到的；不给声明就是 `unconfirmed`。
+            freshSession: payload.freshSession === 'user-confirmed' ? 'user-confirmed' : 'unconfirmed',
+            skillFingerprint: definitionAvailable ? definition.content?.sha256 : null,
+            descriptionFingerprint: definitionAvailable ? definition.summary?.descriptionSha256 : null,
+            evidenceRefs: loadedFacts.length > 0 ? [`trigger-evidence:${bodySha256(triggerEvidenceHashInput(loadedFacts))}`] : [],
+            live,
+          })
+          const runId = `t-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
+          const saved = await triggerStore.saveRun({ ...run, caseId, runId })
+          return { status: 200, body: { ok: true, caseId, runId: saved.runId, run: saved } }
         }
 
         throw new RequestError('这次请求里的动作名不在评测支持的范围内。请刷新页面后重试。')

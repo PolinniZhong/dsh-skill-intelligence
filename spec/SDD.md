@@ -1,6 +1,8 @@
 # DSH Skill Intelligence · DSH Skill 智能实验室 · 软件设计文档（SDD）
 
-> **当前版本**：`dsh-skill-trace@1.3.0`（`package.json`；**2026-10-11 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.3.0`，npm 的 `beta` / `latest` 都指向 `1.3.0`，README 的安装示例已锚 `v1.3.0`）。**V1.3「Agent-native Skill Review」**：宿主新增 `ctx.inject(['tools'], …)` 注册**模型可见的只读工具 `skill_review`**（返回 Structured Review Packet；`render ≤ 6000` 码点、超出如实降级不静默截断；失败一律返回信封不抛异常），与那 13 条路由的可用性解耦；指引有两条通道 —— 工具 `description` 与一条 `systemPrompt.section`（`name: 'context:skill-review'`，随工具可见性同生共死）；核心层新增 `src/core/skill-review.mjs`（1119 行、零依赖零 `import`，复用既有纯函数）。**不新增路由 / 页面 / 落盘 / 依赖**，客户端一字未改。**上一版（`1.2.0`，2026-10-07，tag `v1.2.0`）**：它把「这一次会话对这个 Skill 到底观察到了什么」整理成一组有身份、有性质、有边界的证据事实——三态 `declared` / `observed` / `unavailable`、四段证据链 Definition → Load → Use → Outcome、五类对象 × 五列的状态表、三条边界（`load-evidence` / `use-evidence` / `causal-claim`，因果那一条永远「不声明」）、漂移三态 `current` / `historical` / `no-matching-evidence`、封闭的限制词表（9 条）、可重放的 id `evidence:<对象>@<绑定>`，以及**在浏览器里**生成的 Evidence JSON 导出。纯函数在 `src/core/skill-evidence.mjs`（**909 行、零 `import`**），客户端**第 10 支 `require`**，界面是详情页第 9 个模块「Skill 证据」（id `evidence-model`，紧跟 `Skill 框架`）。同一版还把详情页 **`Skill 框架`** 这一维的界面从「按八个角色铺开的网格」重组成 **Skill Blueprint（五站阅读路径，每站一句「它回答什么」，缺的那一站写「未声明」）→ 结构地图（**八格**，只画真的命中的角色；认不出角色的章节不占格、改在框架末尾走一行一节的轻列表）→ 细节预览（只渲染选中那一格的小节，默认只铺前三节，其余折成按钮上那句「还有 N 个章节」）** + 声明流程 + 渐进披露（六段各带序号与一句说明，说明按段 id 兜底；声明引用默认只列 6 条、可展开），**五个区域各自独立成卡**（`st-fw-region`；结构地图与细节预览并排成对 `st-fw-pair`、两列等高）；**同一版的第三件事**把这条「一个区域 = 一张卡」的规则推广到其余详情模块（`Skill 验收` 三张 / `Skill 证据` 六张 / `Skill 评测` 抬头 + 七张 / `本次修改对比` 五张；`Definition` / `SKILL.md` / `步骤证据` / `本次运行逻辑` 不动），并把选中态统一为中性底色 `--st-selected`（亮色淡灰、暗色浅黑）——**只动客户端**，`src/core/skill-framework.mjs` 的解析结果、`GET /definition` 的数据与数据模型一个字都没动。**不新增路由 / 页面 / 落盘 / 依赖**，`src/dsh/host/index.js` 一字未改；**不给分、不排名、不聚合、不调模型、不读工具参数与结果、不显示绝对路径**。上一版是 `1.1.0`（`package.json`；`1.1.0` 是 V1.1「详情级导航 + Agent Skills 开放标准」：详情页改成「左侧详情导航 + 右侧当前模块」，并把 Agent Skills 开放标准从各平台 Profile 里分出来单独判（`standard` Profile、规则 32 → 36 条），**不新增路由 / 页面 / 落盘 / 依赖**，2026-10-06 发到 GitHub Release 与 npm，tag `v1.1.0`）。上一版是 `1.0.0`（V1.0「Skill 评测」（§22）：把 V0.10 临时生成的实例验收任务固化成可重复的 Evaluation Case，记录每次运行的条件与四段证据、同一 Case 的两侧对照与用户判定，2026-10-05 发布）。再上一版是 `0.10.0`（V0.10.0「Skill 实例验收」（§21）：把「这次修改」变成一段可以真的拿去跑一遍的真实测试任务与一组观察项，2026-10-05 发布）。再上一版是 `0.9.2`（把 V0.9.0「Skill 验收」（§18）、V0.9.1「Skill Modify」（§19）与 V0.9.2「已安装列表排序」（§20）三批设计合成一版，2026-10-03 发布）。再上一版是 `0.8.0`（V0.8「Skill 演进」：血缘 / 差异 / 界面三个 Phase，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）
+> **当前版本**：`dsh-skill-trace@1.4.0`（`package.json`；**2026-10-12 已发布** —— GitHub Release 与 npm 是同一份构建，tag `v1.4.0`，npm 的 `beta` / `latest` 都指向 `1.4.0`，README 的安装示例已锚 `v1.4.0`）。**V1.4「Skill Trigger Evaluation」**（`spec/PRD.md` §5.15 的 `FR-TRIG-001`–`020`）：在既有的 **「Skill 评测」模块**里多一个「**触发边界**」模式（`evaluationMode` 是组件内 state，**不新增详情模块、不新增页面**）——用户维护正向（应触发）/ 负向（不应触发）的任务提示词，在真实新会话里跑，再回来记录观察；插件只看「目标 Skill 的加载记录出现过吗，是 `model-invoked` 还是 `user-explicit`」。**不新增路由 / 页面 / 依赖**：五个 `trigger-*` 动作挂在既有的**第 13 条** `POST /skill-trace/evaluation` 上。新增 `src/core/skill-trigger-evaluation.mjs`（**零依赖零 `import`**，客户端**第 11 支 `require`**）与 `src/storage/trigger-evaluation-store.mjs`（`trigger-suites/` + `trigger-runs/`，与 V1.0 的 `cases/` / `runs/` 隔离）；宿主 2002 → **2135 行**、`src/core/` 34 → **35 个模块**、`src/storage/` 7 → **8 个**、客户端 5400 → **5906 行**；守卫 39 → **40 组**（第 40 组 `SKILL_TRIGGER_EVALUATION_OK`）、测试 690 → **740** 项。详见 §23。
+>
+> **上一版（当前公开版）**：`dsh-skill-trace@1.3.0`（`package.json`；**2026-10-11 已发布**：GitHub Release 与 npm 是同一份构建，tag `v1.3.0`，npm 的 `beta` / `latest` 都指向 `1.3.0`，README 的安装示例已锚 `v1.3.0`）。**V1.3「Agent-native Skill Review」**：宿主新增 `ctx.inject(['tools'], …)` 注册**模型可见的只读工具 `skill_review`**（返回 Structured Review Packet；`render ≤ 6000` 码点、超出如实降级不静默截断；失败一律返回信封不抛异常），与那 13 条路由的可用性解耦；指引有两条通道 —— 工具 `description` 与一条 `systemPrompt.section`（`name: 'context:skill-review'`，随工具可见性同生共死）；核心层新增 `src/core/skill-review.mjs`（1119 行、零依赖零 `import`，复用既有纯函数）。**不新增路由 / 页面 / 落盘 / 依赖**，客户端一字未改。**上一版（`1.2.0`，2026-10-07，tag `v1.2.0`）**：它把「这一次会话对这个 Skill 到底观察到了什么」整理成一组有身份、有性质、有边界的证据事实——三态 `declared` / `observed` / `unavailable`、四段证据链 Definition → Load → Use → Outcome、五类对象 × 五列的状态表、三条边界（`load-evidence` / `use-evidence` / `causal-claim`，因果那一条永远「不声明」）、漂移三态 `current` / `historical` / `no-matching-evidence`、封闭的限制词表（9 条）、可重放的 id `evidence:<对象>@<绑定>`，以及**在浏览器里**生成的 Evidence JSON 导出。纯函数在 `src/core/skill-evidence.mjs`（**909 行、零 `import`**），客户端**第 10 支 `require`**，界面是详情页第 9 个模块「Skill 证据」（id `evidence-model`，紧跟 `Skill 框架`）。同一版还把详情页 **`Skill 框架`** 这一维的界面从「按八个角色铺开的网格」重组成 **Skill Blueprint（五站阅读路径，每站一句「它回答什么」，缺的那一站写「未声明」）→ 结构地图（**八格**，只画真的命中的角色；认不出角色的章节不占格、改在框架末尾走一行一节的轻列表）→ 细节预览（只渲染选中那一格的小节，默认只铺前三节，其余折成按钮上那句「还有 N 个章节」）** + 声明流程 + 渐进披露（六段各带序号与一句说明，说明按段 id 兜底；声明引用默认只列 6 条、可展开），**五个区域各自独立成卡**（`st-fw-region`；结构地图与细节预览并排成对 `st-fw-pair`、两列等高）；**同一版的第三件事**把这条「一个区域 = 一张卡」的规则推广到其余详情模块（`Skill 验收` 三张 / `Skill 证据` 六张 / `Skill 评测` 抬头 + 七张 / `本次修改对比` 五张；`Definition` / `SKILL.md` / `步骤证据` / `本次运行逻辑` 不动），并把选中态统一为中性底色 `--st-selected`（亮色淡灰、暗色浅黑）——**只动客户端**，`src/core/skill-framework.mjs` 的解析结果、`GET /definition` 的数据与数据模型一个字都没动。**不新增路由 / 页面 / 落盘 / 依赖**，`src/dsh/host/index.js` 一字未改；**不给分、不排名、不聚合、不调模型、不读工具参数与结果、不显示绝对路径**。上一版是 `1.1.0`（`package.json`；`1.1.0` 是 V1.1「详情级导航 + Agent Skills 开放标准」：详情页改成「左侧详情导航 + 右侧当前模块」，并把 Agent Skills 开放标准从各平台 Profile 里分出来单独判（`standard` Profile、规则 32 → 36 条），**不新增路由 / 页面 / 落盘 / 依赖**，2026-10-06 发到 GitHub Release 与 npm，tag `v1.1.0`）。上一版是 `1.0.0`（V1.0「Skill 评测」（§22）：把 V0.10 临时生成的实例验收任务固化成可重复的 Evaluation Case，记录每次运行的条件与四段证据、同一 Case 的两侧对照与用户判定，2026-10-05 发布）。再上一版是 `0.10.0`（V0.10.0「Skill 实例验收」（§21）：把「这次修改」变成一段可以真的拿去跑一遍的真实测试任务与一组观察项，2026-10-05 发布）。再上一版是 `0.9.2`（把 V0.9.0「Skill 验收」（§18）、V0.9.1「Skill Modify」（§19）与 V0.9.2「已安装列表排序」（§20）三批设计合成一版，2026-10-03 发布）。再上一版是 `0.8.0`（V0.8「Skill 演进」：血缘 / 差异 / 界面三个 Phase，另带「Skill 洞察」短显示名与「复刻 Skill」请求体缺陷修复）
 > **上一版**：**V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」**（`spec/PRD.md` §5.14 的 `FR-EVIDENCE-001`–`011` 与 §5.4.7 的 `FR-UI-054`）——**已随 `1.2.0` 发布**（2026-10-06 由用户定的号、2026-10-07 发布；tag `v1.2.0`、GitHub Release 与 npm 是同一份构建）。新增纯函数模块 `src/core/skill-evidence.mjs`（**909 行、零 `import`**，客户端**第 10 支 `require`**）与详情页第 9 个模块「**Skill 证据**」（id `evidence-model`）；同一版还把详情页 **`Skill 框架`** 这一维重组成 **Skill Blueprint / 结构地图 / 细节预览 + 声明流程 + 渐进披露**，并把这五块（外加按需出现的「其它章节」）改成**各自独立成卡**（`st-fw-region`；结构地图与细节预览并排成对 `st-fw-pair`、两列等高）（旧的 `st-fw-module` 角色网格、旧的 `.st-fw-sub` / `.st-fw-block` 合并写法由守卫反向钉住不许回来，**只动客户端**）；**不新增路由 / 页面 / 落盘 / 依赖**，不调模型、不判分。
 >
 > **更早版本**：**V1.0「Skill 评测（Skill Evaluation）」** 已随 `1.0.0` 发布（2026-10-05 落地并发布，见 §22）——把 V0.10 临时生成的实例验收任务固化成**可重复的 Evaluation Case**，记录每次运行的条件与四段证据、同一 Case 的两侧对照与用户判定。**新增第 13 条路由** `POST /skill-trace/evaluation`（宿主 12 → 13 条）与一处本机落盘（`<dataRoot>/evaluation/`）、详情页多一张「Skill 评测」卡；**不新增页面 / 导航 / 第二套 Agent Runtime、不调模型、不判分**：评测纯函数在 `src/core/skill-evaluation.mjs`（**565 行**，唯一 import 是单行 `./skill-instance-test.mjs`）与 `src/core/run-conditions.mjs`（**168 行**，零时钟），客户端**第 9 支 `require`**。
@@ -39,6 +41,7 @@
 | D16 | 本文件 §1.1 / §9 / §9.2 / §10.3 / §13 / §14.1 / §22.10，`spec/PRD.md` §5.14 与 §12.2，`AGENTS.md` §1 / §6.6 / §9.2 / §9.3，`docs/ARCHITECTURE.md` 的 `## V1.2` 段，`design.md` 的实现入口行，`README.md` 的版本段 | `1.1.0` **发布**口径：**31 组**守卫、**643 项**测试、客户端 **4495 行**、`dist/client.js` **234965 字节**（source hash `71125cf37d020c7c`）、`src/core/` **32 个模块 11945 行**、`src/storage/` **7 个 1411 行**、宿主 **1844 行 / 13 条路由**；客户端 `require` **9 支**；详情页**八个模块** | **V1.2「Skill 证据模型（Skill Evidence Model）+ Skill 框架重构」已随 `1.2.0` 发布（2026-10-07）**（2026-10-06 由用户定的号；需求原文 `spec/PRD.md` §5.14 的 `FR-EVIDENCE-001`–`011` 与 §5.4.7 的 `FR-UI-054`）：新增 `src/core/skill-evidence.mjs`（**909 行、零 `import`**）⇒ `src/core/` **33 个模块 12854 行**；客户端新增**第 10 支 `require`** 与详情页第 9 个模块「Skill 证据」（id `evidence-model`，紧跟 `framework`）⇒ 客户端 **5400 行**、`dist/client.js` **293246 字节**（source hash **`9ec62e37d7dbfa2e`**）；`src/storage/` **7 个 1411 行不变**；宿主 **1844 行 / 13 条路由一字未改**；**同一版的第三件事**把「一个区域 = 一张卡」推广到其余四个详情模块（`SkillValidationPanel` 三张 / `SkillEvidenceCard` 六张 / `SkillEvaluationCard` 抬头 + 七张 / `SkillModificationPanel` 五张，各自的 `h3` 与 `data-role` 不变，旧的 `.st-evidence-block` / `.st-eval-section` / `.st-mod-*` 合并写法删除并由第 26 / 27 / 29 / 32 组反向钉住），选中态统一为 `--st-selected`（亮色淡灰、暗色浅黑）守卫 31 → **38 组**（第 32–38 组：`SKILL_EVIDENCE_MODEL_OK` / `BINDING_OK` / `CARD_OK` / `NO_CAUSATION_OK` / `EXPORT_OK` / `UNAVAILABLE_OK` / `PRIVACY_OK`；第 20 组 `SKILL_FRAMEWORK_OK` 在框架重构里新增 2b + 2c + 2d 三段断言，**组数不变**）；`npm test` 643 → **662 项**（新增 `test/skill-evidence.test.mjs` 13 项，另有渲染烟测与框架重构的用例；V1.2 三件事合计）。**同一版的第二件事是详情页 `Skill 框架` 这一维的界面重构**（`FR-UI-054`，只动客户端）：`FrameworkStructure` 重组成 **Skill Blueprint（五站 WHY → WHEN → HOW → WITH → RESULT，每站一句「它回答什么」，缺席写「未声明」）→ Structure Map（**八格**，只画真的命中的角色；认不出角色的章节不占格、改由末尾的 `OtherSections` 走一行一节的轻列表，选中格是组件内 state）→ Detail Preview（只渲染选中那一格的小节，默认前三节 `DETAIL_SECTION_LIMIT = 3`，其余折成 `detail-toggle` 上那句「还有 N 个章节」）**，`DeclaredWorkflow` 的步骤列表未动、空态补「因此这里不制造一条运行流程图」，`ProgressiveDisclosure` 六段各带序号与一句说明（`DISCLOSURE_STAGE_HINTS`）、默认 `rows.slice(0, 6)` + `data-role='resource-toggle'` + 读数块 `st-fw-readstat`，地图与蓝图共用 `declaredOf()`、写的都是「N 个引用」，旧的 `st-fw-module` 网格已删除并反向钉住；**五个区域各自独立成卡**（`st-fw-region`：蓝图 / 结构地图 / 细节预览 / 声明流程 / 渐进披露，其它章节按需出现），结构地图与细节预览并排成对（`st-fw-pair`）且**两列等高**、各有块标题，旧的 `.st-fw-sub` / `.st-fw-block` 合并写法一并反向钉住；**`src/core/skill-framework.mjs` 的解析结果与数据模型一个字都没动** | **本次登记（2026-10-06）**：先加本行，旧文按仓库惯例以括注为准。需要括注的位置：§1.1 与本行的守卫 / 测试数；§9 的模块增量段（新增一段）；§9.2 的模块表（新增 909 行那一行）；§10.3 的 require 表（9 → 10 支）与「必须恰为 9」；§13 的守卫表（第 31 –38 行，V1.1 的第 31 行此前从未补进本表）；§14.1 的测试规模；§22.10 的版本边界（Trigger Evaluation 顺延 V1.3+）。**`1.2.0` 已按 `AGENTS.md` §9.1 的八处同步为工作版本口径** |
 | D17 | 本文件 §1.1 / §3 / §3.1 / §9.2 / §11.1 / §13 / §14.1，`spec/PRD.md` §5.14 的 `FR-EVIDENCE-012`，`AGENTS.md` §1 / §6.12 / §9.2 / §9.3，`docs/ARCHITECTURE.md` 的 `## V1.2` 段与 host surface，`README.md` 的版本段 | V1.2 发布口径（2026-10-06 第三次重测、2026-10-07 发布）：**38 组**守卫、**662 项**测试、客户端 **5400 行**、`dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`）、`src/core/` **33 个 12854 行（未改）**、`src/storage/` **7 个 1411 行**、宿主 **1844 行 / 13 条路由** | **同一版的第四件事：桌面端「导出 Evidence JSON」加过又整条撤回**（用户 m04213 真机反馈：App 里那句「已请浏览器保存」是假话 —— Tauri + WKWebView **没有下载接收端**；随后用户 m04639 判定这份 JSON 的读者是 Agent 与排障，不值得为它新增路由与落盘）。当天加过的**第 14 条路由** `POST /skill-trace/evidence-export`、`src/storage/evidence-export-writer.mjs`（109 行）与 `test/evidence-export-route.test.mjs`（7 条）**全部删除**，宿主回到 **13 条路由 / 1844 行**，`src/storage/` 回到 **7 个 1411 行**；客户端只留「复制 JSON」（`'data-role': 'evidence-copy'`），`EXPORT_ROUTE` / `inDesktopApp()` / `downloadViaBrowser()` 与那套文案一并撤掉。守卫组数仍 **38**：第 36 组 `SKILL_EVIDENCE_EXPORT_OK` 由正向断言改成**反向**断言（`createObjectURL` / `anchor.download` / `EXPORT_ROUTE` / `inDesktopApp` / `已请浏览器保存` / `已保存到「` / `evidence-export` 出现即失败）。撤回记录与三条教训见 `CHANGELOG.md` `### G` | **本次登记（2026-10-06）**：先加本行，同日按撤回后的口径重写；`docs/PRIVACY.md` 与 `docs/RELEASE.md` 本次未改（这一版已随 `1.2.0` 发布，2026-10-07 已按 §9.1 回填） |
 | D18 | 本文件 §1.1 / §3 / §3.4 / §9.1 / §9.2 / §14.1，`spec/PRD.md` 头部与 §12.2，`AGENTS.md` §1 / §2 / §9.1 / §9.3，`docs/ARCHITECTURE.md` 的版本口径段与 host surface，`design.md` 的实现入口行，`README.md` 的版本段与版本史 | `1.3.0` **发布口径（2026-10-11）**：**39 组**守卫（新增第 39 组 `SKILL_REVIEW_TOOL_OK`）、**690 项**测试（新增 `test/skill-review.test.mjs` 14 项与 `test/skill-review-tool.test.mjs` 14 项）、客户端 **5400 行** / `dist/client.js` **293246 字节**（source hash `9ec62e37d7dbfa2e`，本版未改客户端）、`src/core/` **34 个模块 13973 行**（新增 `skill-review.mjs` 1119 行）、`src/storage/` 7 个 1411 行、宿主 `src/dsh/host/index.js` **2002 行**（**路由仍是 13 条**，新增的是模型可见工具 `skill_review` 的注册与一条 `context:skill-review` 系统提示节） |
+| D19 | 本文件 §1.1 / §3.1 / §9 / §9.2 / §11.1 / §13 / §14.1 / §23，`spec/PRD.md` §5.15 的 `FR-TRIG-001`–`020`，`AGENTS.md` §1 / §6.6 / §9.1，`docs/ARCHITECTURE.md` 的版本口径段，`design.md` 的实现入口行，`README.md` 的版本段与版本史，`CHANGELOG.md` 的 `## 1.4.0` | `1.4.0` **发布口径（2026-10-12 已发布）**：**40 组**守卫（新增第 40 组 `SKILL_TRIGGER_EVALUATION_OK`）、**740 项**测试（`test/*.test.mjs` 58 个）、客户端 **5906 行**、`dist/client.js` **325620 字节**（source hash `c272c34814bced72`）、`src/core/` **35 个模块 14634 行**（新增 `skill-trigger-evaluation.mjs`）、`src/storage/` **8 个 1704 行**（新增 `trigger-evaluation-store.mjs`）、宿主 **2135 行 / 13 条路由**；客户端 `require` **11 支**；详情页仍是**九个模块**（触发边界是「Skill 评测」里的模式，不是第十个模块） | **V1.4「Skill Trigger Evaluation」**（需求原文 `spec/PRD.md` §5.15）：触发用例（`caseId` 用独立域 `dsh-skill-trigger-case`，**刻意不含 Skill 指纹**，所以改完 `description` 还能用同一组用例复测）＋ 触发观察（观察三态 / 调用方式三档 / 覆盖三态 / 对照四态 / 封闭限制词表 / 证据引用不含会话标识）。**同一版给会话日志读取层补了诚实的覆盖读数**：`framesDecoded` / `framesSkipped` / `frameLimitHit` / `linesSkipped` / `linesNonEvent` / `tornTail` / `oversized` / `unreadable`——改造前这几样全是静默跳过（帧解不开就丢、超 4096 帧截尾、超 512MB 当「没有日志」、撕裂的行当不存在），于是「我读不到」与「它本来就没有」分不开。实测本机 330 个真实会话：`complete` 305 / `partial` 13 / `unknown` 12，那 13 个全部命中 4096 帧上限。**同时修掉一处「用截断值冒充相等」**：`description` 显示值被截到 500 字，拿它做指纹会抹掉第 500 字以后的改动，所以新增 `source-snapshot.mjs` 的 `descriptionFingerprint()`（未截断、带域前缀 `dsh-skill-description`），经 `buildSkillDefinitionView().summary.descriptionSha256` 只外发哈希 | **本次登记（2026-10-11）**：本行即工作树口径；`docs/PRIVACY.md` 的触发落盘段与 `design.md` / `docs/ARCHITECTURE.md` 的版本口径行待下一轮补齐 |
 
 ---
 
@@ -48,10 +51,10 @@
 
 一个 DSH 插件包，含**两半**：
 
-- **宿主半边**（`src/dsh/host/index.js`，2002 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **13 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下；第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，见 §22.7）。**V1.3 起**它还通过 `ctx.inject(['tools'], …)` 注册**模型可见的只读工具 `skill_review`**（§3.4；与那 13 条路由的可用性解耦）。
-- **客户端半边**（`src/dsh/client/client.js`，5400 行，构建产物 `dist/client.js` 293246 字节，source hash `9ec62e37d7dbfa2e`）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 13 条路由，不持有收据本体。
+- **宿主半边**（`src/dsh/host/index.js`，2135 行）：订阅会话事件、归约出本地收据、把收据与「现读的 Skill 定义」投影成 **13 条 `GET`/`POST`/`DELETE` 路由**（全部挂在 `/skill-trace` 前缀下；第 13 条是 V1.0 的 `POST /skill-trace/evaluation`，见 §22.7）。**V1.3 起**它还通过 `ctx.inject(['tools'], …)` 注册**模型可见的只读工具 `skill_review`**（§3.4；与那 13 条路由的可用性解耦）。
+- **客户端半边**（`src/dsh/client/client.js`，5906 行，构建产物 `dist/client.js` 325620 字节，source hash `c272c34814bced72`）：一个 React 工厂闭包，注册进 DSH 的 `conversation.view` slot，只调那 13 条路由，不持有收据本体。
 
-纯函数逻辑放在 `src/core/`（34 个模块，13973 行），落盘放在 `src/storage/`（7 个模块，1411 行）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
+纯函数逻辑放在 `src/core/`（35 个模块，14634 行；V1.4 新增 `skill-trigger-evaluation.mjs`），落盘放在 `src/storage/`（8 个模块，1704 行；V1.4 新增 `trigger-evaluation-store.mjs`）。**`src/core/` 与 `src/storage/` 都不认识 DSH 会话对象**——它们只吃普通数据结构。
 
 ### 1.2 三层模块与不可逆方向
 
@@ -965,7 +968,7 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ---
 
-## 13. 契约守卫（30 组）
+## 13. 契约守卫（40 组）
 
 `npm run verify` 跑 `scripts/verify-project.mjs`。这些断言全部是**源码文本层**的：它们钉住路由字面、必须出现在界面里的句子、不许出现的词、CSS 的数值区间、组件的顺序。**每一条红都对应一次真实事故。**（该文件的行数不在本文里写死，见 §0.1 D9。）
 
@@ -1031,8 +1034,8 @@ Browser viewport ≠ DSH content area ≠ plugin content area
 
 ### 14.1 规模与纪律
 
-- `npm test` = `node --test`，**690 项全绿**（V1.3 `1.3.0` 发布口径；`1.2.0` 发布口径是 **662** 项，`1.1.0` 发布口径是 **643** 项，`1.0.0` 发布口径是 **636** 项；`0.10.0` 发布口径是 **590** 项；V1.0 新增 4 个评测测试文件（共 **45** 项，见下一条）并给 `test/client-render-smoke.test.mjs` 加了 1 条评测卡渲染烟测（26 → **27** 项），合计 590 → **636**（+46）；`0.9.2` 发布口径是 **561** 项，含 V0.9.0 的 36 项与 V0.9.2 的排序 / 加入时间 / 血缘用例；V0.10.0 早期工作树时为 **584 项**，V0.9.1 工作树时为 **553** 项，`0.8.0` 发布时是 **474** 项，`0.7.1` 发版时 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
-- `test/` 下 **55** 个 `*.test.mjs`（V1.3 `1.3.0` 发布口径，V1.3 新增 `test/skill-review.test.mjs`（**14 项**）与 `test/skill-review-tool.test.mjs`（**14 项**）；`1.2.0` 发布口径是 **53** 个，V1.2 新增 `test/skill-evidence.test.mjs`（**13 项**）；`1.1.0` 发布口径是 **52** 个，V1.0 `1.0.0` 发布口径；`0.10.0` 发布口径是 **48** 个，V1.0 新加 4 个文件：`test/skill-evaluation.test.mjs`（**17 项**）、`test/evaluation-route.test.mjs`（**10 项**）、`test/evaluation-store.test.mjs`（**9 项**）、`test/run-conditions.test.mjs`（**9 项**），另给 `test/client-render-smoke.test.mjs` 加了 **1** 条评测卡渲染烟测（该文件现 **27** 项）；`0.9.2` 发布口径是 47 个，`0.8.0` 发布时 41，`ls test | wc -l` 还会多算一个非测试条目 `helpers/`）。**V0.10.0 新增 1 个文件**：`test/skill-instance-test.test.mjs`（**27 项**，实例验收的生成边界与纯函数纪律，见 §21.6），另在 `test/client-render-smoke.test.mjs` 原有的实例验收渲染用例里补断言（该文件仍 **26** 项）。**V0.9.1 新增 3 个文件**：`test/skill-modification.test.mjs`（22 项，修改契约 / 范围解析 / 差异三态与三层）、`test/modification-snapshot-store.test.mjs`（9 项，TTL / 上限 / 释放 / 坏输入）、`test/skill-modification-route.test.mjs`（9 项，路由的两个动作与五条失败路径，含**代发失败必须先释放快照**），另给 `test/client-render-smoke.test.mjs` 加了 **2 条烟测**（V0.9.1 落地时为 24 项）。**V0.9.0 新增 3 个文件**：`test/skill-profiles.test.mjs`（9 项，规则表的机械守卫）、`test/skill-validation.test.mjs`（21 项，纯函数行为 + 假指控回归）、`test/skill-validation-route.test.mjs`（6 项，真机式路由驱动：假 registry **刻意只给正文**，与真 provider 一致）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。**V0.9.2 不新增文件**：用例补在 `test/installed-view.test.mjs`（该文件现 **17** 项：倒序与两种兜底、加入时间三态、`addedAt` / `lineage` 的形状校验）与 `test/client-render-smoke.test.mjs`（该文件现 **26** 项：有 `ordering` 时列表头渲染、没有时不渲染、读不到时间时文案含「读不到加入本机的时间」；V0.10.0 再加一条实例验收渲染测试，见 §21.6）。
+- `npm test` = `node --test`，**740 项全绿**（V1.4 `1.4.0` 发布口径；V1.3 `1.3.0` 发布口径是 **690** 项；`1.2.0` 发布口径是 **662** 项，`1.1.0` 发布口径是 **643** 项，`1.0.0` 发布口径是 **636** 项；`0.10.0` 发布口径是 **590** 项；V1.0 新增 4 个评测测试文件（共 **45** 项，见下一条）并给 `test/client-render-smoke.test.mjs` 加了 1 条评测卡渲染烟测（26 → **27** 项），合计 590 → **636**（+46）；`0.9.2` 发布口径是 **561** 项，含 V0.9.0 的 36 项与 V0.9.2 的排序 / 加入时间 / 血缘用例；V0.10.0 早期工作树时为 **584 项**，V0.9.1 工作树时为 **553** 项，`0.8.0` 发布时是 **474** 项，`0.7.1` 发版时 431；V0.8 新增 4 个测试文件，另给 `test/client-render-smoke.test.mjs` 加了 8 条烟测）；`pretest` 会先重建 `dist/client.js`，因此「跑测试」也顺带保证产物不 stale。
+- `test/` 下 **58** 个 `*.test.mjs`（V1.4 `1.4.0` 发布口径，V1.4 新增 `test/skill-trigger-evaluation.test.mjs`（**30 项**）、`test/trigger-evaluation-route.test.mjs`（**10 项**）、`test/trigger-evaluation-store.test.mjs`（**7 项**）并给 `test/phase0-session-log.test.mjs` 加了 **3** 项；V1.3 `1.3.0` 发布口径是 **55** 个，V1.3 新增 `test/skill-review.test.mjs`（**14 项**）与 `test/skill-review-tool.test.mjs`（**14 项**）；`1.2.0` 发布口径是 **53** 个，V1.2 新增 `test/skill-evidence.test.mjs`（**13 项**）；`1.1.0` 发布口径是 **52** 个，V1.0 `1.0.0` 发布口径；`0.10.0` 发布口径是 **48** 个，V1.0 新加 4 个文件：`test/skill-evaluation.test.mjs`（**17 项**）、`test/evaluation-route.test.mjs`（**10 项**）、`test/evaluation-store.test.mjs`（**9 项**）、`test/run-conditions.test.mjs`（**9 项**），另给 `test/client-render-smoke.test.mjs` 加了 **1** 条评测卡渲染烟测（该文件现 **27** 项）；`0.9.2` 发布口径是 47 个，`0.8.0` 发布时 41，`ls test | wc -l` 还会多算一个非测试条目 `helpers/`）。**V0.10.0 新增 1 个文件**：`test/skill-instance-test.test.mjs`（**27 项**，实例验收的生成边界与纯函数纪律，见 §21.6），另在 `test/client-render-smoke.test.mjs` 原有的实例验收渲染用例里补断言（该文件仍 **26** 项）。**V0.9.1 新增 3 个文件**：`test/skill-modification.test.mjs`（22 项，修改契约 / 范围解析 / 差异三态与三层）、`test/modification-snapshot-store.test.mjs`（9 项，TTL / 上限 / 释放 / 坏输入）、`test/skill-modification-route.test.mjs`（9 项，路由的两个动作与五条失败路径，含**代发失败必须先释放快照**），另给 `test/client-render-smoke.test.mjs` 加了 **2 条烟测**（V0.9.1 落地时为 24 项）。**V0.9.0 新增 3 个文件**：`test/skill-profiles.test.mjs`（9 项，规则表的机械守卫）、`test/skill-validation.test.mjs`（21 项，纯函数行为 + 假指控回归）、`test/skill-validation-route.test.mjs`（6 项，真机式路由驱动：假 registry **刻意只给正文**，与真 provider 一致）。**V0.8 设计的 4 个新文件已全部落地**（Phase 1：`test/phase19-skill-lineage.test.mjs` / `test/phase19-lineage-store.test.mjs`；Phase 2：`test/phase19-skill-diff.test.mjs` / `test/phase19-diff-routes.test.mjs`）。**宿主侧的血缘落线证据不单开文件**，加在 `test/phase18-clone-routes.test.mjs` 里 —— 血缘就是复刻路由的产物，它的端到端证据该跟复刻路由放在一起。**V0.9.2 不新增文件**：用例补在 `test/installed-view.test.mjs`（该文件现 **17** 项：倒序与两种兜底、加入时间三态、`addedAt` / `lineage` 的形状校验）与 `test/client-render-smoke.test.mjs`（该文件现 **26** 项：有 `ordering` 时列表头渲染、没有时不渲染、读不到时间时文案含「读不到加入本机的时间」；V0.10.0 再加一条实例验收渲染测试，见 §21.6）。
 - 纯函数优先：`src/core/` 的模块都是可单独测的纯函数或纯数据模块，测试不需要起宿主。
 
 ### 14.2 测试文件分工
@@ -1764,3 +1767,80 @@ V0.10.0 的实例验收是一次性的：生成一份 Prompt，跑一遍，看�
 - **不做的**：评分器与任何聚合（`FR-EVAL-012` / `FR-EVAL-014`）、benchmark 排名、自动重跑 n 次、读回模型回复、把结果归因给 Skill。
 - **V1.2** Skill 证据模型（`FR-EVIDENCE-*`）：**已随 `1.2.0` 发布**（2026-10-06 落地、2026-10-07 发布；三态 / 四段链 / 五类对象 × 五列 / 三条边界 / 漂移三态 / 封闭限制词表 / 可重放 id / 浏览器内导出，**不给分、不排名、不聚合、不调模型**，详见 `spec/PRD.md` §5.14）；**V1.3+** Trigger Evaluation（`should-trigger` / `should-not-trigger`，该不该触发由用户判定）与原计划的 **V1.1 Regression / Variance**（只说「哪些事实一致、哪些不一致」，**不给方差数值、不给稳定性分数**）都顺延到这里；**V1.3+** Evolution Evaluation（Skill v1/v2/v3 各自的 Evaluation）。
 - **不做「用一个模型给 Skill 打分」**：那个赛道已经有人做了，而且正是上面那条外部证据指向的失败方向。
+
+---
+
+## 23. Skill 触发评测（V1.4，`1.4.0` 已发布）
+
+需求原文：`spec/PRD.md` §5.15 的 `FR-TRIG-001`–`020`。这一节只说**怎么实现**。
+
+### 23.1 这一层回答什么，不回答什么
+
+它回答一个问题：**在一次真实会话里，目标 Skill 的加载记录出现过吗 —— 是模型自己调的，还是用户打了 `/name`？这一次到底读到了多少？**
+
+它**不**替用户跑测试（不建会话、不发提示词、不启动第二个 Agent、不调模型），**不**判定（观察状态 / 调用方式 / 事件覆盖全部由宿主从收据与会话日志推出），**不**聚合（没有分数、通过率、排行、趋势）。
+
+### 23.2 纯函数层：`src/core/skill-trigger-evaluation.mjs`（零 `import`）
+
+零 `import` 是**硬约束**，不是风格：客户端要 `require` 它（第 11 支），所以它不能引 `node:crypto`。**哈希一律由宿主算**（与 V1.0 的 `caseId` 同一条约定）——这一层只产出**逐行、顺序固定、无时间无随机数**的哈希输入串。
+
+| 面 | 值 |
+|---|---|
+| 身份域 | `TRIGGER_CASE_HASH_DOMAIN = 'dsh-skill-trigger-case'`（与 V1.0 的 `dsh-skill-evaluation-case` 是两个域） |
+| 身份输入 | 域与结构版本 / 生成器版本 / Skill 名 / 用例标题 / 期望行为 / 提示词 —— **不含指纹**（`FR-TRIG-005`） |
+| 观察三态 | `loaded` / `not-observed` / `unknown`（`triggerObservationOf`） |
+| 调用方式三档 | `model` / `user-explicit` / `unknown`（`invocationOf`；两条并存时**以模型调用为准**） |
+| 覆盖三态 | `complete` / `partial` / `unknown`（`triggerCoverageOf`，参数是 `readSessionEvents()` 的**整个返回值**） |
+| 对照四态 | `observed-expected` / `observed-unexpected` / `not-observed-with-coverage` / `inconclusive`（`triggerOutcomeOf`） |
+| 限制 | `TRIGGER_LIMITATION_LABELS` 封闭词表，界面按 id 取文案 |
+| 证据引用 | `triggerEvidenceHashInput()` → `trigger-evidence:sha256:<hex>`，只含匹配到的加载事实，**不含会话标识** |
+| 可比性 | `compareTriggerRuns()`：条件表 = 模型 / Provider / 推理档位 / 上下文窗口 / 插件版本；**指纹不在条件表里**（它是被对照的东西） |
+
+三条**只许降级**的规则写在 `triggerOutcomeOf` 里：`user-explicit` 永远 `inconclusive`；`not-observed` 只有「覆盖完整」**且**「用户声明新会话」才升格；`unknown` 一律 `inconclusive`。
+
+### 23.3 覆盖读数：为什么必须先改读取层
+
+`src/core/session-log.mjs` 新诚实报出：`framesDecoded` / `framesSkipped` / `frameLimitHit` / `linesSkipped` / `linesNonEvent` / `tornTail` / `oversized` / `unreadable`（`decompressZstdFramesDetailed()` 与 `parseEventsDetailed()` 是新的内部实现，`decompressZstdFrames()` 仍是原来的 Buffer 契约）。
+
+`complete` 是**合取**：文件在 · 读得到 · 没被跳过 · 没命中帧上限 · 没有一个帧解码失败 · 没有非法行 · 没有撕裂尾行。**一点都没读到 ⇒ `unknown`，不是 `partial`**。活会话的事实来自内存事件流（`sessionEventLog(session)`），对「到此刻为止」是完整的 ⇒ `complete`，并另记 `observation-scoped-to-now`。
+
+实测（本机 330 个真实会话）：`complete` 305 / `partial` 13（全部命中 4096 帧上限）/ `unknown` 12。**不趁机改「保留最早的还是最新的 4096 帧」**——本版只如实报告。
+
+### 23.4 落盘：`src/storage/trigger-evaluation-store.mjs`
+
+```
+<dataRoot>/evaluation/trigger-suites/<caseHex>.json
+<dataRoot>/evaluation/trigger-runs/<caseHex>/<runId>.json
+```
+
+与 V1.0 的 `cases/` / `runs/` **分开**：两套 `caseId` 的语义不同（一个含指纹、一个刻意不含），混在一个目录里任何「按 caseId 找文件」的代码都可能把两者混起来。`0700` / `0600` / 原子 rename；**禁字段清单沿用 `EVALUATION_FORBIDDEN_FIELDS` 那一份**（`sessionId` / `args` / `toolResult` / `score` / `passRate` / `ranking` / `trend` …）；`observation` / `coverage` / `invocationType` / `freshSession` / `outcome` 与 `limitations` 全部**闭集校验，认不出的值拒收**（`unknown-limitation:<id>`）；读取端 fail-soft（坏文件跳过并计数）；上限 200 个用例 / 每个用例 20 次观察。
+
+### 23.5 宿主：五个动作挂在既有的第 13 条路由上
+
+`trigger-case-save` / `trigger-case-list` / `trigger-case-read` / `trigger-case-delete` / `trigger-run-capture`。
+
+**这一版最硬的一条缝：`trigger-run-capture` 的观察不由浏览器提交。** 客户端能给的只有 `caseId`、要读哪个会话（`targetSessionId`，默认就是发起请求的会话）、以及 `freshSession` 这句**用户声明**；加载事实、调用方式、覆盖状态全部由宿主从 `receiptForRuntime()` 的收据与 `readSessionEvents()` 的读数推出。守卫两头钉：宿主源码里不许出现 `payload.observation` / `payload.invocationType` / `payload.coverage`；客户端 `evalPost('trigger-run-capture', …)` 之后 420 个字符里不许出现 `observation:` / `invocationType:` / `coverage:` / `outcome:`。
+
+`sessionId` 只作为读取参数（观察哪个会话），**不落盘**。
+
+### 23.6 客户端：同一个模块里的第二个模式
+
+`const [evaluationMode, setEvaluationMode] = React.useState('effect')`（默认仍是「任务效果」）；`evaluation: [evaluationModeBar, evaluationMode === 'trigger' ? triggerBoundary : skillEvaluation]`。
+
+- `SkillTriggerBoundary` 是**无 hook 的渲染组件**（状态与取数都在外层容器里），所以它可以自由提前 `return`。
+- 取数的那个 `React.useEffect` 必须待在**容器顶部那一组 hook 里**：`SkillDetailPage` 下面有提前 `return`，把 hook 排在它之后会让两帧的 hook 数不同 → React #310 → 整个会话栏白屏（`test/client-hook-order.test.mjs` 钉着）。
+- 三态 / 调用方式 / 覆盖 / 限制 / 字段抬头的**文案全部取自纯函数层**（`require` 第 11 支）；四句固定说明句也从 `TRIGGER_FIXED_SENTENCES` 取，客户端不再写一份（守卫反向钉住不许出现字面量）。
+- 复制的两条路（复制测试提示词 / 复制测试集 JSON）**只走剪贴板**，不写文件、不新增路由（`FR-TRIG-020`）。
+
+### 23.7 守卫：第 40 组 `SKILL_TRIGGER_EVALUATION_OK`
+
+钉七类东西：① 纯函数层零 `import`、不含 `createHash` / `Date.now` / `Math.random` / `randomUUID` / `readFile`；② 身份域与「哈希输入里不许出现指纹」；③ 三态与词表的固定面、`user-explicit ⇒ inconclusive`、覆盖判定必须读全部读数、不许产出聚合字段；④ 读取层的八个读数字段；⑤ 落盘目录、禁字段清单沿用、闭集拒收、权限位；⑥ 宿主五个动作 + 从事实取数 + **不许读 `payload.*` 的观察结论**；⑦ 客户端两个模式都接上、文案取自纯函数层、捕获请求体不含宿主推导项。另外这一轮更新了两处既有守卫：`evaluation` 那一维的接线字面（并由三目断言改成三条 needle）与客户端核心 `require` 白名单 **10 → 11**。
+
+### 23.8 这一版不做什么
+
+- **不自动执行测试**：不建会话、不提交提示词、不启动第二个 Agent、不调模型。
+- **不给分、不排名、不产出任何汇总口径**。
+- **不让模型判断「应该触发」**：期望类别只由用户维护。
+- **不把「没有观察到」当「没有触发」**；没有加载记录永远不能自动升级成失败结论。
+- **不落盘 `sessionId` / 完整对话 / 工具参数与结果 / 绝对路径 / 凭据**。
+- **不新增一级页面 / 详情模块 / 路由 / 依赖**。

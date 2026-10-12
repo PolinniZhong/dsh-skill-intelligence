@@ -73,6 +73,18 @@ The **Evidence JSON export happens entirely in the browser.** The module turns t
 
 The feature reads no tool arguments and no tool results — the only seam into runtime activity is the metadata the host already reduces — and it calls no model. A conclusion the plugin cannot support is written as `unavailable` (`无法取得`) rather than inferred.
 
+## What the Skill trigger evaluation feature stores
+
+V1.4 writes `<plugin data area>/evaluation/trigger-suites/<sha256(caseId)>.json` and `<plugin data area>/evaluation/trigger-runs/<sha256(caseId)>/<runId>.json` — **the same evaluation root as V1.0, in two separate subdirectories**. They are kept apart on purpose: a V1.0 `caseId` binds a Skill fingerprint while a trigger `caseId` deliberately does not (so the same test case can be re-run after the `description` changes), and two identities of different meaning in one directory invite code that mixes them. Directory `0700`, files `0600`, every write a temp file followed by a rename, deleting a case deletes its runs, and the caps (200 cases, 20 runs each) prune the oldest first.
+
+A **trigger case** holds what the user typed plus what it expects: `caseId`, the title, **the test prompt verbatim** (whitespace-only normalization; over-long prompts are rejected rather than truncated, because a truncated prompt would no longer be the thing being tested), `expectedTrigger`, an optional note, and timestamps. This is the user's own text and it is stored only because re-testing the same set after a `description` change is the entire point of the feature.
+
+A **trigger run** holds one observation of one case: the observation (`loaded` / `not-observed` / `unknown`), the invocation type (`model` / `user-explicit` / `unknown`), the event coverage (`complete` / `partial` / `unknown`), the **user's declaration** that the run happened in a fresh session, the observed conditions (`model`, `provider`, `reasoningEffort`, `contextWindow`, `pluginVersion`), the Skill fingerprint and the **untruncated** `description` digest of the moment, a bounded list of `evidenceRefs` and the closed limitation codes. The observation, the invocation type and the coverage are **derived by the host** from the receipt and the session log; the renderer cannot submit them.
+
+**A session id is a read parameter, never a stored field.** Reading a session's facts requires its id (the user is looking at that session), but the id is passed in the request, is not written to any file, and is not part of `evidenceRefs` (`trigger-evidence:sha256:<hex>` hashes the matched load facts, not the session). The forbidden-field list is the same one the evaluation store uses — `sessionId`, `messages`, `conversation`, `args`, `toolArguments`, `toolResult`, `results`, `cwd`, `absolutePath`, and any aggregate (`score`, `passRate`, `rate`, `variance`, `ranking`, `trend`) — swept at any depth, and the three-state values plus every limitation id are validated against closed vocabularies, so an unrecognized value is **rejected instead of stored**.
+
+The feature sends nothing off the machine, calls no model, creates no session, and runs no test: submitting the prompt in a fresh session is something the user does themselves, and the plugin only records what the receipt and the log can support. When it cannot support a conclusion it writes `unknown` / `inconclusive` rather than guessing.
+
 ## What the skill_review tool puts into the model context
 
 V1.3 adds one model-facing tool, `skill_review`. It is the first thing this plugin ever hands to a model, so it is worth being exact about all three questions.

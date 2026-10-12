@@ -70,8 +70,16 @@ export function findSessionLogFile(sessionId, options = {}) {
       const path = join(dir, file)
       try {
         const stats = statSync(path)
-        if (!stats.isFile() || stats.size > SESSION_LOG_MAX_BYTES) continue
-        if (!best || formatVersion > best.formatVersion) best = { path, formatVersion, size: stats.size, mtimeMs: stats.mtimeMs }
+        if (!stats.isFile()) continue
+        // A log above the cap is still the session's truth — it is reported as
+        // `oversized` instead of being skipped. Falling back to a lower format
+        // version would present a **staler** log as if it were this session's,
+        // and skipping it outright made "I cannot read it" look like "there is
+        // nothing there" (see `01_重构方案/v1.4-Phase0-事实审计.md`).
+        const oversized = stats.size > SESSION_LOG_MAX_BYTES
+        if (!best || formatVersion > best.formatVersion) {
+          best = { path, formatVersion, size: stats.size, mtimeMs: stats.mtimeMs, oversized }
+        }
       } catch {
         continue
       }
@@ -117,10 +125,26 @@ export function findZstdFrameStarts(buffer, limit = ZSTD_FRAME_LIMIT) {
   return starts
 }
 
-export function decompressZstdFrames(buffer) {
-  const starts = findZstdFrameStarts(buffer)
-  if (starts.length === 0) return zstdDecompressSync(buffer)
+/**
+ * Decode a stored log **and report how complete that read was**.
+ *
+ * The plain buffer was not enough to make an honest coverage claim: a frame that
+ * fails to decode was skipped with no trace, and a log with more than
+ * {@link ZSTD_FRAME_LIMIT} frames had its tail silently dropped. Both made
+ * "I could not read it" indistinguishable from "it was never written" — the one
+ * confusion this project refuses. So the counters travel with the text.
+ *
+ * @returns `{ buffer, frameCount, framesDecoded, framesSkipped, frameLimitHit }`.
+ */
+export function decompressZstdFramesDetailed(buffer) {
+  const probed = findZstdFrameStarts(buffer, ZSTD_FRAME_LIMIT + 1)
+  const frameLimitHit = probed.length > ZSTD_FRAME_LIMIT
+  const starts = frameLimitHit ? probed.slice(0, ZSTD_FRAME_LIMIT) : probed
+  if (starts.length === 0) {
+    return { buffer: zstdDecompressSync(buffer), frameCount: 0, framesDecoded: 0, framesSkipped: 0, frameLimitHit: false }
+  }
   const parts = []
+  let framesSkipped = 0
   for (let index = 0; index < starts.length; index += 1) {
     const start = starts[index]
     const end = starts[index + 1] ?? buffer.length
@@ -131,29 +155,58 @@ export function decompressZstdFrames(buffer) {
         parts.push(zstdDecompressSync(buffer.subarray(start)))
       } catch {
         // A frame that cannot be decoded at all is skipped rather than failing the
-        // whole read; the caller still sees every frame that did decode.
+        // whole read; the caller still sees every frame that did decode — and the
+        // skip is now **counted**, not swallowed.
+        framesSkipped += 1
       }
     }
   }
   if (parts.length === 0) throw new Error('no Zstandard frame could be decoded')
-  return Buffer.concat(parts)
+  return {
+    buffer: Buffer.concat(parts),
+    frameCount: starts.length,
+    framesDecoded: parts.length,
+    framesSkipped,
+    frameLimitHit,
+  }
 }
 
-function parseEvents(text) {
+export function decompressZstdFrames(buffer) {
+  return decompressZstdFramesDetailed(buffer).buffer
+}
+
+/**
+ * Parse stored lines **and count what could not be used**.
+ *
+ * `tornTail` is true only when the **last** non-empty line fails to parse, which is
+ * what a log being appended to right now looks like. A bad line anywhere else is a
+ * genuine hole and shows up in `linesSkipped` instead.
+ */
+function parseEventsDetailed(text) {
   const events = []
-  for (const line of text.split('\n')) {
+  const lines = text.split('\n')
+  let linesSkipped = 0
+  let linesNonEvent = 0
+  let tornTail = false
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
     if (!line) continue
     let parsed
     try {
       parsed = JSON.parse(line)
     } catch {
-      // A torn tail line is expected while a session is being written; skip it
-      // rather than failing the whole read.
+      linesSkipped += 1
+      if (index === lines.length - 1) tornTail = true
       continue
     }
     if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string') events.push(parsed)
+    else linesNonEvent += 1
   }
-  return events
+  return { events, linesSkipped, linesNonEvent, tornTail }
+}
+
+function parseEvents(text) {
+  return parseEventsDetailed(text).events
 }
 
 /** Bounded cache of decompressed logs, keyed by path + mtime + size. */
@@ -195,22 +248,82 @@ export function clearSessionLogCache() {
  */
 export function readSessionEvents(sessionId, options = {}) {
   const file = findSessionLogFile(sessionId, options)
-  if (!file) return { events: [], formatVersion: null, path: null, cached: false, found: false }
+  if (!file) {
+    return {
+      events: [],
+      formatVersion: null,
+      path: null,
+      cached: false,
+      found: false,
+      read: {
+        bytes: 0, frameCount: 0, framesDecoded: 0, framesSkipped: 0, frameLimitHit: false,
+        linesSkipped: 0, linesNonEvent: 0, tornTail: false, oversized: false, unreadable: false,
+      },
+    }
+  }
 
   const key = `${file.path}:${file.mtimeMs}:${file.size}`
   const cache = options.cache ?? sharedCache
   const hit = cache.get(key)
   if (hit) return { ...hit, cached: true }
 
-  let text
-  try {
-    const raw = readFileSync(file.path)
-    text = file.path.endsWith('.zstd') ? decompressZstdFrames(raw).toString('utf8') : raw.toString('utf8')
-  } catch (error) {
-    return { events: [], formatVersion: file.formatVersion, path: file.path, cached: false, found: true, error: error.message }
+  // Over the cap: the file is this session's truth, so it is reported as an
+  // unreadable log rather than an absent one.
+  if (file.oversized === true) {
+    const result = {
+      events: [],
+      formatVersion: file.formatVersion,
+      path: file.path,
+      found: true,
+      read: {
+        bytes: file.size, frameCount: 0, framesDecoded: 0, framesSkipped: 0, frameLimitHit: false,
+        linesSkipped: 0, linesNonEvent: 0, tornTail: false, oversized: true, unreadable: true,
+      },
+    }
+    cache.set(key, result)
+    return { ...result, cached: false }
   }
 
-  const result = { events: parseEvents(text), formatVersion: file.formatVersion, path: file.path, found: true }
+  let detail
+  try {
+    const raw = readFileSync(file.path)
+    detail = file.path.endsWith('.zstd')
+      ? decompressZstdFramesDetailed(raw)
+      : { buffer: raw, frameCount: 0, framesDecoded: 0, framesSkipped: 0, frameLimitHit: false }
+  } catch (error) {
+    return {
+      events: [],
+      formatVersion: file.formatVersion,
+      path: file.path,
+      cached: false,
+      found: true,
+      error: error.message,
+      read: {
+        bytes: file.size, frameCount: 0, framesDecoded: 0, framesSkipped: 0, frameLimitHit: false,
+        linesSkipped: 0, linesNonEvent: 0, tornTail: false, oversized: false, unreadable: true,
+      },
+    }
+  }
+
+  const parsed = parseEventsDetailed(detail.buffer.toString('utf8'))
+  const result = {
+    events: parsed.events,
+    formatVersion: file.formatVersion,
+    path: file.path,
+    found: true,
+    read: {
+      bytes: file.size,
+      frameCount: detail.frameCount,
+      framesDecoded: detail.framesDecoded,
+      framesSkipped: detail.framesSkipped,
+      frameLimitHit: detail.frameLimitHit,
+      linesSkipped: parsed.linesSkipped,
+      linesNonEvent: parsed.linesNonEvent,
+      tornTail: parsed.tornTail,
+      oversized: false,
+      unreadable: false,
+    },
+  }
   cache.set(key, result)
   return { ...result, cached: false }
 }

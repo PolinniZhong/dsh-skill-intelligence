@@ -249,3 +249,73 @@ test('round-tripping a compressed buffer through the decoder is lossless', () =>
   const out = decompressZstdFrames(zstdCompressSync(Buffer.from(payload, 'utf8'))).toString('utf8')
   assert.equal(out, payload)
 })
+
+// ---------------------------------------------------------------------------------------------
+// V1.4 `FR-TRIG-013`: the read reports **how complete it was**.
+//
+// Before this, a frame that failed to decode and a log past the frame cap were both dropped
+// silently, so "I could not read it" looked exactly like "it was never written". Measured on
+// this machine: 13 of 330 real sessions sit past the 4096-frame cap — 3.9% of sessions where the
+// old reader would have reported a full read while holding a truncated tail.
+// ---------------------------------------------------------------------------------------------
+
+import { triggerCoverageOf } from '../src/core/skill-trigger-evaluation.mjs'
+
+test('a clean log is reported as complete, with real counters', () => {
+  const root = makeRoot()
+  try {
+    writeLog(root, 'session-clean', sampleEvents(4), { frames: 2 })
+    const result = readSessionEvents('session-clean', { root })
+    assert.equal(result.found, true)
+    assert.equal(result.read.framesSkipped, 0)
+    assert.equal(result.read.linesSkipped, 0)
+    assert.equal(result.read.tornTail, false)
+    assert.equal(result.read.oversized, false)
+    assert.ok(result.read.bytes > 0)
+    assert.equal(triggerCoverageOf(result), 'complete')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a torn tail line is counted, and the coverage drops to partial', () => {
+  const root = makeRoot()
+  try {
+    const dir = join(root, WORKSPACE, 'session-torn')
+    mkdirSync(dir, { recursive: true })
+    const good = JSON.stringify({ type: 'session', id: 'session-torn', seq: 0 })
+    // A half-written last line is what a log looks like mid-append.
+    writeFileSync(join(dir, 'session.v4.jsonl'), `${good}\n{"type":"tool/call","seq":1,"data":{"na`)
+    const result = readSessionEvents('session-torn', { root })
+    assert.equal(result.read.tornTail, true)
+    assert.equal(result.read.linesSkipped, 1)
+    assert.equal(result.events.length, 1)
+    assert.equal(triggerCoverageOf(result), 'partial')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a log past the byte cap is reported as an unreadable log, never as an absent one', () => {
+  const root = makeRoot()
+  try {
+    const dir = join(root, WORKSPACE, 'session-huge')
+    mkdirSync(dir, { recursive: true })
+    assert.ok(SESSION_LOG_MAX_BYTES > 0)
+    // `findSessionLogFile` keeps the session's truth even when it is too large to read.
+    const path = join(dir, 'session.v4.jsonl')
+    writeFileSync(path, Buffer.alloc(SESSION_LOG_MAX_BYTES + 1, 0x20))
+    const found = findSessionLogFile('session-huge', { root })
+    assert.equal(found.path, path)
+    assert.equal(found.oversized, true)
+    clearSessionLogCache()
+    const result = readSessionEvents('session-huge', { root })
+    assert.equal(result.found, true)
+    assert.equal(result.read.oversized, true)
+    assert.equal(result.read.unreadable, true)
+    assert.deepEqual(result.events, [])
+    assert.equal(triggerCoverageOf(result), 'unknown')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})

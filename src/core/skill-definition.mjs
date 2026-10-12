@@ -34,7 +34,7 @@ import { createHash } from 'node:crypto'
 
 import { buildDefinitionOutline, parseFrontmatter } from './definition-outline.mjs'
 import { resolveRepositorySource } from './repository-resolver.mjs'
-import { safeDescription, safeProviderLabel, safeSkillName } from './source-snapshot.mjs'
+import { descriptionFingerprint, safeDescription, safeProviderLabel, safeSkillName } from './source-snapshot.mjs'
 
 /** Shape version of the payload the Definition Viewer renders. */
 export const DEFINITION_SCHEMA_VERSION = 1
@@ -171,6 +171,10 @@ export async function buildSkillDefinitionView(registry, skillName, options = {}
     checkedAt: now,
     summary: {
       description: safeDescription(definition.description),
+      // V1.4 `FR-TRIG-009`: the **untruncated** description digest. `description` above is
+      // cut to 500 chars for display, so hashing it would hide every edit past that point.
+      // The digest only travels; the raw text never does.
+      descriptionSha256: descriptionFingerprint(definition.description),
       whenToUse: safeDescription(definition.whenToUse) || null,
       invocation: invocationShape(definition.invocation),
       source: typeof definition.source === 'string' ? definition.source.slice(0, 80) : null,
